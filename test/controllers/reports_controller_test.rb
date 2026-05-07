@@ -51,8 +51,8 @@ class ReportsControllerTest < ActionDispatch::IntegrationTest
     labels = css_select(".section-label").map { |node| node.text.squish }
     assert_equal "Steckdosen", labels[0]
     assert_match(/\AEnergie/, labels[1])
-    assert_match(/\AAutarkie/, labels[2])
-    assert_match(/\ALeistung/, labels[3])
+    assert_match(/\ALeistung/, labels[2])
+    assert_match(/\AAutarkie/, labels[3])
   end
 
   test "reports page describes the power chart resolution" do
