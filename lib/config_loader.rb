@@ -4,7 +4,7 @@ require "tzinfo"
 class ConfigLoader
   class Error < StandardError; end
 
-  PlugCfg     = Struct.new(:id, :name, :role, :ain, :driver, keyword_init: true)
+  PlugCfg     = Struct.new(:id, :name, :role, :ain, :driver, :room, keyword_init: true)
   MqttCfg     = Struct.new(:host, :port, :topic_prefix, keyword_init: true)
   FritzPollCfg = Struct.new(:active_interval_seconds, :idle_interval_seconds,
                              :idle_threshold_w, :timeout_seconds, keyword_init: true)
@@ -52,12 +52,13 @@ class ConfigLoader
     private
 
     def build_plug(id, name, role, driver)
+      room = @h["room"].nil? ? nil : require_string(@h["room"], "plugs[#{@index}].room")
       if driver == :shelly
         raise ConfigLoader::Error, "plugs[#{@index}].ain must not be set for driver: shelly" if @h["ain"]
-        ConfigLoader::PlugCfg.new(id: id, name: name, role: role, driver: :shelly, ain: nil)
+        ConfigLoader::PlugCfg.new(id: id, name: name, role: role, driver: :shelly, ain: nil, room: room)
       else
         raise ConfigLoader::Error, "plugs[#{@index}].ain is required for driver: fritz_dect" if @h["ain"].nil? || @h["ain"].to_s.empty?
-        ConfigLoader::PlugCfg.new(id: id, name: name, role: role, driver: :fritz_dect, ain: @h["ain"].to_s)
+        ConfigLoader::PlugCfg.new(id: id, name: name, role: role, driver: :fritz_dect, ain: @h["ain"].to_s, room: room)
       end
     end
   end

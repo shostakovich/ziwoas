@@ -207,4 +207,18 @@ class ConfigLoaderTest < Minitest::Test
 
     assert_match(/weather\.lon/i, err.message)
   end
+
+  def test_loads_optional_plug_room
+    yaml = valid_yaml.sub("name: Balkonkraftwerk\n    role: producer",
+                          "name: Balkonkraftwerk\n    role: producer\n    room: Balkon")
+    cfg = load_yaml(yaml)
+    plug = cfg.plugs.find { |p| p.id == "bkw" }
+    assert_equal "Balkon", plug.room
+  end
+
+  def test_plug_room_is_optional_and_defaults_to_nil
+    cfg = load_yaml(valid_yaml)
+    plug = cfg.plugs.find { |p| p.id == "fridge" }
+    assert_nil plug.room
+  end
 end
