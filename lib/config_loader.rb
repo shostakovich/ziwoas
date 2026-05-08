@@ -9,10 +9,13 @@ class ConfigLoader
   FritzPollCfg = Struct.new(:active_interval_seconds, :idle_interval_seconds,
                              :idle_threshold_w, :timeout_seconds, keyword_init: true)
   FritzBoxCfg = Struct.new(:host, :user, :password, keyword_init: true)
-  WeatherCfg  = Struct.new(:lat, :lon, keyword_init: true)
-  Config      = Struct.new(:electricity_price_eur_per_kwh, :timezone,
-                           :mqtt, :fritz_poll, :plugs, :fritz_box, :weather,
-                           keyword_init: true)
+  WeatherCfg   = Struct.new(:lat, :lon, keyword_init: true)
+  SwitchbotCfg = Struct.new(:token, :secret, keyword_init: true)
+  SensorCfg    = Struct.new(:id, :name, :type, :room, keyword_init: true)
+  Config       = Struct.new(:electricity_price_eur_per_kwh, :timezone,
+                            :mqtt, :fritz_poll, :plugs, :fritz_box, :weather,
+                            :switchbot, :sensors,
+                            keyword_init: true)
 
   module StringRequirement
     private
@@ -63,8 +66,9 @@ class ConfigLoader
     end
   end
 
-  VALID_ROLES   = %i[producer consumer].freeze
-  VALID_DRIVERS = %i[shelly fritz_dect].freeze
+  VALID_ROLES        = %i[producer consumer].freeze
+  VALID_DRIVERS      = %i[shelly fritz_dect].freeze
+  VALID_SENSOR_TYPES = %i[meter_pro_co2 outdoor_meter].freeze
   ID_REGEX      = /\A[a-z0-9_]+\z/
 
   def self.load(path)
@@ -92,6 +96,8 @@ class ConfigLoader
     fritz_box  = build_fritz_box(@raw["fritz_box"])
     plugs      = build_plugs(@raw["plugs"])
     weather    = build_weather(@raw["weather"])
+    switchbot  = build_switchbot(@raw["switchbot"])
+    sensors    = build_sensors(@raw["sensors"])
 
     if plugs.any? { |p| p.driver == :fritz_dect } && fritz_box.nil?
       raise Error, "fritz_box config required when using driver: fritz_dect"
@@ -109,6 +115,8 @@ class ConfigLoader
       plugs:      plugs,
       fritz_box:  fritz_box,
       weather:    weather,
+      switchbot:  switchbot,
+      sensors:    sensors,
     )
   end
 
@@ -151,6 +159,33 @@ class ConfigLoader
     raise Error, "weather.lon must be between -180 and 180" unless (-180..180).cover?(lon)
 
     WeatherCfg.new(lat: lat, lon: lon)
+  end
+
+  def build_switchbot(h)
+    return nil if h.nil?
+    h = require_hash(h, "switchbot")
+    SwitchbotCfg.new(
+      token:  require_string(h["token"],  "switchbot.token"),
+      secret: require_string(h["secret"], "switchbot.secret"),
+    )
+  end
+
+  def build_sensors(list)
+    return [] if list.nil?
+    raise Error, "sensors must be a list" unless list.is_a?(Array)
+
+    seen = []
+    list.map.with_index do |h, i|
+      raise Error, "sensors[#{i}] must be a mapping" unless h.is_a?(Hash)
+      id   = require_string(h["id"],   "sensors[#{i}].id")
+      name = require_string(h["name"], "sensors[#{i}].name")
+      type = require_string(h["type"], "sensors[#{i}].type").to_sym
+      raise Error, "sensors[#{i}].type must be one of #{VALID_SENSOR_TYPES}" unless VALID_SENSOR_TYPES.include?(type)
+      raise Error, "duplicate sensor id '#{id}'" if seen.include?(id)
+      seen << id
+      room = h["room"].nil? ? nil : require_string(h["room"], "sensors[#{i}].room")
+      SensorCfg.new(id: id, name: name, type: type, room: room)
+    end
   end
 
   def require_coordinate(v, key)
