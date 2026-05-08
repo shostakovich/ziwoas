@@ -637,3 +637,92 @@ svg text[data-dashboard-target] {
 .ios-toggle-label {
   line-height: 1;
 }
+
+/* === Sensors tab === */
+
+.sensors-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.sensor-warning {
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  color: #78350f;
+  padding: .75rem 1rem;
+  border-radius: .5rem;
+  font-weight: 600;
+}
+
+.sensor-cards {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+}
+
+.sensor-card {
+  display: flex;
+  flex-direction: column;
+  padding: 1rem;
+}
+
+.sensor-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: .5rem;
+}
+
+.sensor-card-name { margin: 0; font-size: 1rem; }
+
+.sensor-card-battery { font-size: .85rem; color: #6b7280; }
+.sensor-card-battery.is-low { color: #b91c1c; font-weight: 600; }
+
+.sensor-card-body {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.sensor-card-values {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: .25rem;
+  font-size: 1.25rem;
+}
+
+.sensor-card-values strong { font-size: 1.5rem; }
+
+.sensor-card-ampel {
+  flex: 0 0 auto;
+}
+
+.sensor-ampel-icon {
+  height: 72px;
+  width: auto;
+  object-fit: contain;
+  display: block;
+}
+
+.sensor-card-foot { margin-top: .5rem; font-size: .85rem; }
+
+.sensor-charts {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.sensor-charts .chart-card {
+  padding: 1rem;
+  height: 280px;
+  display: flex;
+  flex-direction: column;
+}
+
+.sensor-charts .chart-card h3 { margin: 0 0 .5rem; font-size: 1rem; }
+.sensor-charts canvas { flex: 1; min-height: 0; }
