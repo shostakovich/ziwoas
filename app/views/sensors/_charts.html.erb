@@ -1,0 +1,18 @@
+<%# app/views/sensors/_charts.html.erb %>
+<div class="section-label">Tagesverlauf</div>
+<section class="sensor-charts"
+         data-controller="sensors-chart"
+         data-sensors-chart-url-value="<%= sensors_series_path %>">
+  <article class="chart-card">
+    <h3>Temperatur (24 h)</h3>
+    <canvas data-sensors-chart-target="temperature"></canvas>
+  </article>
+  <article class="chart-card">
+    <h3>Luftfeuchtigkeit (24 h)</h3>
+    <canvas data-sensors-chart-target="humidity"></canvas>
+  </article>
+  <article class="chart-card">
+    <h3>CO₂ (24 h)</h3>
+    <canvas data-sensors-chart-target="co2"></canvas>
+  </article>
+</section>
