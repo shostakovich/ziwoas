@@ -10,6 +10,11 @@ class SwitchBotClient
 
   class Error < StandardError; end
 
+  TYPE_MAP = {
+    "MeterPro(CO2)" => :meter_pro_co2,
+    "WoIOSensor"    => :outdoor_meter
+  }.freeze
+
   def initialize(token:, secret:, http_timeout: 4)
     @token        = token
     @secret       = secret
@@ -19,6 +24,21 @@ class SwitchBotClient
   def device_status(device_id)
     body = get_json("/v1.1/devices/#{device_id}/status")
     normalize_status(body.fetch("body", {}))
+  end
+
+  def list_all_devices
+    body = get_json("/v1.1/devices")
+    body.fetch("body", {}).fetch("deviceList", []).map do |d|
+      { id: d["deviceId"], name: d["deviceName"], device_type: d["deviceType"] }
+    end
+  end
+
+  def list_sensor_devices
+    list_all_devices.filter_map do |d|
+      type = TYPE_MAP[d[:device_type]]
+      next nil unless type
+      { id: d[:id], name: d[:name], type: type }
+    end
   end
 
   private

@@ -79,4 +79,40 @@ class SwitchBotClientTest < Minitest::Test
     err = assert_raises(SwitchBotClient::Error) { @client.device_status("X") }
     assert_match(/http 500/i, err.message)
   end
+
+  def test_list_sensor_devices_filters_to_meters
+    stub_request(:get, "https://api.switch-bot.com/v1.1/devices")
+      .to_return(status: 200, body: {
+        statusCode: 100,
+        body: {
+          deviceList: [
+            { deviceId: "AAA", deviceName: "Wohnzimmer", deviceType: "MeterPro(CO2)" },
+            { deviceId: "BBB", deviceName: "Balkon",     deviceType: "WoIOSensor" },
+            { deviceId: "HUB", deviceName: "Hub Wohn",   deviceType: "Hub 2" }
+          ]
+        }
+      }.to_json)
+
+    devices = @client.list_sensor_devices
+
+    assert_equal 2, devices.length
+    assert_equal({ id: "AAA", name: "Wohnzimmer", type: :meter_pro_co2 }, devices[0])
+    assert_equal({ id: "BBB", name: "Balkon",     type: :outdoor_meter }, devices[1])
+  end
+
+  def test_list_all_devices_returns_full_list
+    stub_request(:get, "https://api.switch-bot.com/v1.1/devices")
+      .to_return(status: 200, body: {
+        statusCode: 100,
+        body: {
+          deviceList: [
+            { deviceId: "HUB", deviceName: "Hub", deviceType: "Hub 2" }
+          ]
+        }
+      }.to_json)
+
+    all = @client.list_all_devices
+    assert_equal 1, all.length
+    assert_equal "Hub", all[0][:name]
+  end
 end
