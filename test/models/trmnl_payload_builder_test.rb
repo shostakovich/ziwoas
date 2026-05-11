@@ -107,4 +107,20 @@ class TrmnlPayloadBuilderTest < ActiveSupport::TestCase
     assert ts >= before, "ts (#{ts}) should be >= before (#{before})"
     assert ts <= after,  "ts (#{ts}) should be <= after (#{after})"
   end
+
+  test "serialized payload stays under TRMNL's 2 kB webhook limit" do
+    local_now = @tz.utc_to_local(Time.now.utc)
+    hour_floor_local = Time.new(local_now.year, local_now.month, local_now.day, local_now.hour, 0, 0)
+    end_ts   = @tz.local_to_utc(hour_floor_local).to_i + 3600
+    start_ts = end_ts - 86_400
+
+    (start_ts...end_ts).step(300) do |t|
+      Sample.create!(plug_id: "bkw",    ts: t, apower_w: 999.0, aenergy_wh: 0.0)
+      Sample.create!(plug_id: "fridge", ts: t, apower_w: 999.0, aenergy_wh: 0.0)
+    end
+
+    payload = TrmnlPayloadBuilder.new(config: @config).build
+    bytes = payload.to_json.bytesize
+    assert bytes <= 2048, "payload is #{bytes} B, exceeds TRMNL's 2 kB limit"
+  end
 end
