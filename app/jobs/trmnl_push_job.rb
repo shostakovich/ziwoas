@@ -1,5 +1,6 @@
 require "config_loader"
 require "net/http"
+require "openssl"
 require "uri"
 require "json"
 
@@ -25,15 +26,16 @@ class TrmnlPushJob < ApplicationJob
       raise PayloadTooLarge, "TRMNL payload is #{bytes} B, exceeds #{MAX_PAYLOAD_BYTES} B limit"
     end
 
-    response = self.class.post_json(url, body)
-    if response.is_a?(Net::HTTPSuccess)
-      Rails.logger.info("TRMNL push: HTTP #{response.code}, #{bytes} B")
-    else
-      Rails.logger.warn("TRMNL push failed: HTTP #{response.code} #{response.message}")
+    begin
+      response = self.class.post_json(url, body)
+      if response.is_a?(Net::HTTPSuccess)
+        Rails.logger.info("TRMNL push: HTTP #{response.code}, #{bytes} B")
+      else
+        Rails.logger.warn("TRMNL push failed: HTTP #{response.code} #{response.message}")
+      end
+    rescue Net::OpenTimeout, Net::ReadTimeout, SocketError, SystemCallError, OpenSSL::SSL::SSLError, IOError => e
+      Rails.logger.warn("TRMNL push errored: #{e.class}: #{e.message}")
     end
-  rescue StandardError => e
-    raise if e.is_a?(PayloadTooLarge)
-    Rails.logger.warn("TRMNL push errored: #{e.class}: #{e.message}")
   end
 
   def self.post_json(url, body)
