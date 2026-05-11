@@ -15,9 +15,11 @@ class TrmnlPayloadBuilder
     autarky    = (summary.autarky_ratio          * 100).round
     self_use   = (summary.self_consumption_ratio * 100).round
     ev, es     = hourly_arrays
+    ts = sample_ts(*window_bounds)
 
     {
       "merge_variables" => {
+        "ts"         => ts,
         "pv_kwh"     => pv_kwh,
         "cons_kwh"   => cons_kwh,
         "bilanz_kwh" => bilanz_kwh,
@@ -85,5 +87,13 @@ class TrmnlPayloadBuilder
         SQL
       ])
     ).to_a
+  end
+
+  def sample_ts(start_ts, end_ts)
+    plug_ids = @config.plugs.map(&:id)
+    return Time.now.to_i if plug_ids.empty?
+
+    max_ts = Sample.where(plug_id: plug_ids, ts: start_ts...end_ts).maximum(:ts)
+    max_ts || Time.now.to_i
   end
 end

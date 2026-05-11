@@ -86,4 +86,25 @@ class TrmnlPayloadBuilderTest < ActiveSupport::TestCase
     assert_equal Array.new(24, 0), mv["ev"]
     assert_equal Array.new(24, 0), mv["es"]
   end
+
+  test "build sets ts to the max Sample.ts inside the 24h window" do
+    local_now = @tz.utc_to_local(Time.now.utc)
+    hour_floor_local = Time.new(local_now.year, local_now.month, local_now.day, local_now.hour, 0, 0)
+    end_ts = @tz.local_to_utc(hour_floor_local).to_i + 3600
+    newest_ts = end_ts - 600 # 10 minutes before the upcoming hour boundary
+    Sample.create!(plug_id: "bkw", ts: newest_ts, apower_w: 0, aenergy_wh: 0.0)
+    Sample.create!(plug_id: "bkw", ts: newest_ts - 3600, apower_w: 0, aenergy_wh: 0.0)
+
+    payload = TrmnlPayloadBuilder.new(config: @config).build
+    assert_equal newest_ts, payload["merge_variables"]["ts"]
+  end
+
+  test "build falls back to Time.now.to_i when no samples exist" do
+    before = Time.now.to_i
+    payload = TrmnlPayloadBuilder.new(config: @config).build
+    after = Time.now.to_i
+    ts = payload["merge_variables"]["ts"]
+    assert ts >= before, "ts (#{ts}) should be >= before (#{before})"
+    assert ts <= after,  "ts (#{ts}) should be <= after (#{after})"
+  end
 end
