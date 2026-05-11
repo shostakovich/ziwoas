@@ -28,7 +28,7 @@ Single "full" layout, 800 × 480. Other TRMNL sizes (half_horizontal, half_verti
 ```
 ┌────────────────────────────────────────────────────────────────┐
 │  PV HEUTE                                  BILANZ HEUTE        │
-│  3,42 kWh                                  −0,42 €             │
+│  3,42 kWh                                  −1,76 kWh           │
 │                                                                │
 │  ┌──────────────────────────────────────────────────────────┐  │
 │  │   ░██ ░██   .         . ░██ ░██ ░██ ░██               │  │
@@ -45,7 +45,7 @@ Single "full" layout, 800 × 480. Other TRMNL sizes (half_horizontal, half_verti
 └────────────────────────────────────────────────────────────────┘
 ```
 
-- **Hero row** — `PV heute` (left, large) and `Bilanz heute` (right, slightly smaller). Both reference the local calendar day. `Bilanz` = savings minus cost of remaining grid draw, signed.
+- **Hero row** — `PV heute` (left, large) and `Bilanz heute` (right, slightly smaller). Both reference the local calendar day. `Bilanz` follows the existing dashboard convention: `produced_kwh − consumed_kwh`, signed (negative when the home consumed more than the PV produced).
 - **Chart** — 24 hourly bars covering the rolling last 24 h. Each bar is split into two stacked segments:
   - solid lower segment = energy that was self-consumed in that hour (Wh)
   - hatched upper segment = energy that was fed to the grid in that hour (Wh)
@@ -108,7 +108,7 @@ Responsibilities:
       "ts"         => 1715425380,
       "pv_kwh"     => 3.42,
       "cons_kwh"   => 5.18,
-      "bilanz_eur" => -0.42,
+      "bilanz_kwh" => -1.76,
       "autarky"    => 61,
       "self_use"   => 82,
       "ev"         => [120,80,40,10,0,0,0,0,0,0,0,0,40,180,420,640,720,750,720,620,480,320,180,80],
@@ -117,12 +117,12 @@ Responsibilities:
   }
   ```
 
-  - `pv_kwh`, `cons_kwh` rounded to 2 decimals.
-  - `bilanz_eur` rounded to 2 decimals, signed (negative = net cost, positive = net surplus).
+  - `pv_kwh`, `cons_kwh`, `bilanz_kwh` rounded to 2 decimals.
+  - `bilanz_kwh` is signed (negative when more was consumed than produced).
   - `autarky`, `self_use` rounded to integer %.
   - `ev`, `es` integer Wh per hour.
 
-Bilanz definition (consistent with the existing dashboard "Bilanz heute"): `savings_eur − cost_of_grid_draw_today`. If the codebase does not yet expose `cost_of_grid_draw`, derive it from `(consumed_wh − self_consumed_wh)` × `electricity_price_eur_per_kwh`.
+Bilanz definition (consistent with the existing dashboard "Bilanz heute" tile in `app/javascript/controllers/dashboard_controller.js:275`): `(produced_wh − consumed_wh) / 1000.0`.
 
 ### `TrmnlPushJob` (new, `app/jobs/`)
 
@@ -154,7 +154,7 @@ Source-of-truth file kept in the repo. The TRMNL plugin UI hosts the executed co
 
 Template uses TRMNL framework classes (`layout`, `columns`, `title_bar`, `value`, `label`) and renders:
 
-- Hero row from `pv_kwh`, `bilanz_eur`.
+- Hero row from `pv_kwh`, `bilanz_kwh`.
 - Footer row from `cons_kwh`, `autarky`, `self_use`.
 - 24 bars by iterating `(0..23)` and reading `ev[i]`, `es[i]`. Each bar's total height is `ev[i] + es[i]` (Wh); the y-axis maximum is `max_i (ev[i] + es[i])` so the day's peak hour fills the chart vertically. When that maximum is 0 (no PV in 24 h), all bars render as the flat 2-px tick.
 - Axis labels derived in Liquid from `ts` (e.g. `{{ ts | minus: 21600 | date: "%-H h" }}`).
