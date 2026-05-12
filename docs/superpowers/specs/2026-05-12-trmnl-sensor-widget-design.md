@@ -2,7 +2,7 @@
 
 **Status:** approved (brainstorm)
 **Date:** 2026-05-12
-**Scope:** Second TRMNL "full" e-paper widget (800 × 480) showing the current state of all SwitchBot sensors (2 indoor with CO₂, 1 outdoor) plus a 3-hour trend per sensor. Includes a bug fix for the timestamp rendering of the existing energy widget.
+**Scope:** Second TRMNL "full" e-paper widget (800 × 480) showing the current state of all SwitchBot sensors (2 indoor with CO₂, 1 outdoor) plus a 3-hour trend per sensor. Bundles two adjacent bug fixes: the energy-widget timestamp (UTC vs. local) and a broken Turbo broadcast in `SensorsBroadcaster.refresh` (missing partial path).
 
 ## Goal
 
@@ -66,13 +66,16 @@ Numbers use German locale (`,` decimal separator). The card-internal column-stac
 ## Architecture
 
 ```
-SolidQueue recurring (every 15 min, offset 7 min from the energy push)
-  └── TrmnlSensorPushJob
-        ├── TrmnlSensorPayloadBuilder
-        │     ├── latest SensorReading per device
-        │     └── 3-h, 15-min-bucket trend per primary metric
-        └── Net::HTTP POST application/json
-              → config.trmnl.sensors_webhook_url
+SolidQueue recurring (every 15 min)
+  └── SensorPollJob
+        ├── polls SwitchBot, persists SensorReading rows
+        ├── SensorsBroadcaster.refresh  (existing)
+        └── TrmnlSensorPushJob.perform_later   ← new tail call
+              └── TrmnlSensorPayloadBuilder
+                    ├── latest SensorReading per device
+                    └── 3-h, 15-min-bucket trend per primary metric
+                  Net::HTTP POST application/json
+                    → config.trmnl.sensors_webhook_url
 
 TRMNL cloud
   └── stores merge_variables, renders Liquid template on each
@@ -84,27 +87,25 @@ config/ziwoas.yml
     sensors_webhook_url: https://trmnl.com/api/custom_plugins/<uuid-2>
 ```
 
+The push piggybacks on the existing `SensorPollJob` cadence: every fresh sensor read immediately feeds a webhook push, so the e-paper never lags behind what the dashboard knows. No second cron entry is needed.
+
 No public Rails endpoint is added. The widget is fed by push only.
 
 ## Config evolution
 
-The current flat key `trmnl_webhook_url` becomes a nested block; that's the cleanest way to host two URLs without inventing parallel top-level keys. The old key stays accepted as a deprecation shim so existing deployments don't break the moment they pull the new code.
+The flat `trmnl_webhook_url` key gets replaced by a nested `trmnl:` block carrying both URLs. The operator updates `config/ziwoas.yml` once; no backwards-compat shim.
 
 ```yaml
-# new shape (preferred)
 trmnl:
   energy_webhook_url:  https://trmnl.com/api/custom_plugins/<uuid-1>
   sensors_webhook_url: https://trmnl.com/api/custom_plugins/<uuid-2>
-
-# old shape (still accepted, deprecation-warned on load)
-trmnl_webhook_url: https://trmnl.com/api/custom_plugins/<uuid-1>
 ```
 
 `ConfigLoader`:
 
 - New `TrmnlCfg = Struct.new(:energy_webhook_url, :sensors_webhook_url, keyword_init: true)` replacing the old flat `trmnl_webhook_url` field on `Config`.
-- `build_trmnl(h, legacy_url)`: if `trmnl:` block present, parse `energy_webhook_url` + `sensors_webhook_url`. Else if legacy `trmnl_webhook_url:` present, treat as `energy_webhook_url` and `Rails.logger.warn` once that the key is deprecated.
-- Both URL fields are optional individually. Each absent URL → its push job is a no-op (no error). This matches today's behaviour for the energy URL.
+- `build_trmnl(h)`: if the `trmnl:` mapping is present, parse `energy_webhook_url` + `sensors_webhook_url` (both optional strings). If `trmnl:` is absent, return `TrmnlCfg.new(energy_webhook_url: nil, sensors_webhook_url: nil)`.
+- Each absent URL → its push job is a no-op (no error). Same behaviour today's energy URL has when omitted.
 
 `config/ziwoas.example.yml`: replace the existing `trmnl_webhook_url` comment block with the new nested example showing both URLs.
 
@@ -171,6 +172,46 @@ Helper extraction: the existing `SensorsHelper#co2_level` / `#relative_time` / `
 
 Switch from `app_config.trmnl_webhook_url` to `app_config.trmnl.energy_webhook_url`. No behavioural change beyond that.
 
+### `SensorPollJob` (existing, modified)
+
+After the SwitchBot polling loop, enqueue the TRMNL push **before** the Turbo broadcast — so that a broadcaster failure can't swallow the push:
+
+```ruby
+# perform, tail end
+TrmnlSensorPushJob.perform_later   # new — independent of broadcast outcome
+SensorsBroadcaster.refresh
+```
+
+Reasoning: `perform_later` returns the moment the job is enqueued, so reversing the order doesn't slow anything down; it just makes the push robust against bugs in the broadcaster path (we have one right now — see below).
+
+### `SensorsBroadcaster.refresh` — bug fix
+
+The current implementation broadcasts the `sensors/dashboard` partial through `Turbo::StreamsChannel.broadcast_replace_to`. This path **has no controller context**, so `<%= render "battery_warning" %>` inside `app/views/sensors/_dashboard.html.erb` resolves the relative partial path against the default lookup root (`application/`) and crashes with `Missing partial application/_battery_warning`.
+
+Currently observed in production logs:
+
+```
+ActionView::Template::Error (Missing partial application/_battery_warning ...
+  Did you mean? ... sensors/battery_warning)
+  app/views/sensors/_dashboard.html.erb:9
+  lib/sensors_broadcaster.rb:15
+  app/jobs/sensor_poll_job.rb:32
+```
+
+Fix: qualify every relative `render` call in `_dashboard.html.erb` with the `sensors/` prefix.
+
+```erb
+<%= render "sensors/battery_warning", sensors: sensors, latest: latest %>
+...
+<%= render "sensors/card", sensor: s, reading: latest[s.id] %>
+...
+<%= render "sensors/charts" %>
+```
+
+The regular controller-driven page load (`SensorsController#index`) keeps working with the qualified paths — `render "sensors/foo"` resolves the same way regardless of context.
+
+Add a test in `test/test_sensors_broadcaster.rb` (or extend `dashboard partial renders with only sensors and latest locals`) that exercises the broadcast through a **controller-less** rendering context, so a regression here gets caught in CI rather than in production.
+
 ### `TrmnlPayloadBuilder` (existing, modified) — bug fix
 
 The existing widget shows `Stand 14:45` at 16:56 local because the Liquid template does `{{ ts | date: "%H:%M" }}` and TRMNL's Liquid renderer runs in UTC, not in `Europe/Berlin`.
@@ -183,21 +224,7 @@ Fix: pre-format the timestamp in Ruby and ship the formatted string in the paylo
 
 ### `config/recurring.yml`
 
-Add the new job alongside the existing energy push, offset by 7 minutes so the two webhooks don't collide on the same scheduler tick. SolidQueue accepts cron strings here, which `recurring.yml` already uses for finer-grained schedules:
-
-```yaml
-push_trmnl_widget:
-  class: TrmnlPushJob
-  queue: default
-  schedule: every 15 minutes
-
-push_trmnl_sensor_widget:
-  class: TrmnlSensorPushJob
-  queue: default
-  schedule: "7,22,37,52 * * * *"
-```
-
-If `recurring.yml` so far only contains `every N minutes` schedules, this would be the first cron-style entry — that's fine, SolidQueue handles both syntaxes.
+No new entry. `TrmnlSensorPushJob` is triggered by `SensorPollJob` (every 15 min) rather than scheduled directly. The existing `push_trmnl_widget` energy schedule stays unchanged.
 
 ### Liquid template — `docs/trmnl/sensors.liquid` (new)
 
@@ -243,7 +270,6 @@ The template iterates `{% for s in sensors %}` and renders the card. For each:
 - **DST transitions** — buckets bucketed in local time. The doubled or skipped quarter-hour appears as a slightly wider/narrower step twice per year; no special handling.
 - **Payload > 2 kB** — raises in the job, gets logged loudly. With 3 sensors × ~250 B/sensor + ~100 B envelope we sit at ~850 B; we'd need ~6 sensors before this becomes a real concern.
 - **Trend bucket empty** — `null` in the array; the Liquid template emits an `M ... L` gap so the polyline is interrupted rather than dropping to zero.
-- **Old config key `trmnl_webhook_url` present** — accepted; treated as `energy_webhook_url`; one-time `Rails.logger.warn` on boot: `"trmnl_webhook_url is deprecated, use trmnl.energy_webhook_url"`.
 
 ## Out of scope
 
