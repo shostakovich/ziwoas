@@ -5,6 +5,7 @@ require "rexml/document"
 
 class FritzDectClient
   class Error < StandardError; end
+  class Unavailable < Error; end
 
   Reading = Struct.new(:apower_w, :aenergy_wh, keyword_init: true)
 
@@ -38,6 +39,7 @@ class FritzDectClient
     raise Error, "HTTP #{response.code} from #{@host}" unless response.is_a?(Net::HTTPSuccess)
     body = response.body.to_s.strip
     raise Error, "blank response from #{@host}" if body.empty?
+    raise Unavailable, "device #{ain} unavailable (inval) from #{@host}" if body == "inval"
     Integer(body)
   rescue ArgumentError
     raise Error, "unexpected response from #{@host}: #{body}"

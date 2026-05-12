@@ -37,6 +37,8 @@ class FritzMqttBridge
     @last_apower_w = reading.apower_w
     payload = JSON.generate({ apower: reading.apower_w, aenergy: { total: reading.aenergy_wh } })
     mqtt.publish("#{@mqtt_config.topic_prefix}/#{@plug.id}/status/switch:0", payload)
+  rescue FritzDectClient::Unavailable => e
+    @logger.info("FritzMqttBridge #{@plug.id}: #{e.message}")
   rescue FritzDectClient::Error => e
     @logger.warn("FritzMqttBridge #{@plug.id}: #{e.message}")
   end
