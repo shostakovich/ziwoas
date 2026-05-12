@@ -22,9 +22,11 @@ mqtt:
 #   idle_threshold_w: 10
 #   timeout_seconds: 2
 
-# Optional: push compact widget data to a TRMNL custom plugin.
-# When unset (or commented out), the TrmnlPushJob is a no-op.
-# trmnl_webhook_url: https://trmnl.com/api/custom_plugins/<your-uuid>
+# Optional: push compact widget data to TRMNL custom plugins.
+# Each URL is independent; an absent URL turns its push job into a no-op.
+# trmnl:
+#   energy_webhook_url:  https://trmnl.com/api/custom_plugins/<energy-uuid>
+#   sensors_webhook_url: https://trmnl.com/api/custom_plugins/<sensors-uuid>
 
 plugs:
   - id: bkw

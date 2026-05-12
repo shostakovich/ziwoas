@@ -4,7 +4,7 @@ require "openssl"
 require "uri"
 require "json"
 
-class TrmnlPushJob < ApplicationJob
+class TrmnlSensorPushJob < ApplicationJob
   class PayloadTooLarge < StandardError; end
 
   MAX_PAYLOAD_BYTES = 2048
@@ -13,28 +13,28 @@ class TrmnlPushJob < ApplicationJob
 
   def perform
     config = ConfigLoader.load(Rails.root.join("config", config_file_name).to_s)
-    url    = config.trmnl&.energy_webhook_url
+    url    = config.trmnl&.sensors_webhook_url
     if url.nil? || url.empty?
-      Rails.logger.info("TRMNL push skipped (no webhook URL configured)")
+      Rails.logger.info("TRMNL sensor push skipped (no webhook URL configured)")
       return
     end
 
-    payload = TrmnlPayloadBuilder.new(config: config).build
+    payload = TrmnlSensorPayloadBuilder.new(config: config).build
     body    = payload.to_json
     bytes   = body.bytesize
     if bytes > MAX_PAYLOAD_BYTES
-      raise PayloadTooLarge, "TRMNL payload is #{bytes} B, exceeds #{MAX_PAYLOAD_BYTES} B limit"
+      raise PayloadTooLarge, "TRMNL sensor payload is #{bytes} B, exceeds #{MAX_PAYLOAD_BYTES} B limit"
     end
 
     begin
       response = self.class.post_json(url, body)
       if response.is_a?(Net::HTTPSuccess)
-        Rails.logger.info("TRMNL push: HTTP #{response.code}, #{bytes} B")
+        Rails.logger.info("TRMNL sensor push: HTTP #{response.code}, #{bytes} B")
       else
-        Rails.logger.warn("TRMNL push failed: HTTP #{response.code} #{response.message}")
+        Rails.logger.warn("TRMNL sensor push failed: HTTP #{response.code} #{response.message}")
       end
     rescue Net::OpenTimeout, Net::ReadTimeout, SocketError, SystemCallError, OpenSSL::SSL::SSLError, IOError => e
-      Rails.logger.warn("TRMNL push errored: #{e.class}: #{e.message}")
+      Rails.logger.warn("TRMNL sensor push errored: #{e.class}: #{e.message}")
     end
   end
 

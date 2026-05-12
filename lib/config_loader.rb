@@ -12,9 +12,10 @@ class ConfigLoader
   WeatherCfg   = Struct.new(:lat, :lon, keyword_init: true)
   SwitchbotCfg = Struct.new(:token, :secret, keyword_init: true)
   SensorCfg    = Struct.new(:id, :name, :type, :room, keyword_init: true)
+  TrmnlCfg     = Struct.new(:energy_webhook_url, :sensors_webhook_url, keyword_init: true)
   Config       = Struct.new(:electricity_price_eur_per_kwh, :timezone,
                             :mqtt, :fritz_poll, :plugs, :fritz_box, :weather,
-                            :switchbot, :sensors, :trmnl_webhook_url,
+                            :switchbot, :sensors, :trmnl,
                             keyword_init: true)
 
   module StringRequirement
@@ -98,7 +99,7 @@ class ConfigLoader
     weather    = build_weather(@raw["weather"])
     switchbot  = build_switchbot(@raw["switchbot"])
     sensors    = build_sensors(@raw["sensors"])
-    trmnl_webhook_url = build_trmnl_webhook_url(@raw["trmnl_webhook_url"])
+    trmnl = build_trmnl(@raw["trmnl"])
 
     if plugs.any? { |p| p.driver == :fritz_dect } && fritz_box.nil?
       raise Error, "fritz_box config required when using driver: fritz_dect"
@@ -118,7 +119,7 @@ class ConfigLoader
       weather:    weather,
       switchbot:  switchbot,
       sensors:    sensors,
-      trmnl_webhook_url: trmnl_webhook_url,
+      trmnl: trmnl,
     )
   end
 
@@ -190,9 +191,23 @@ class ConfigLoader
     end
   end
 
-  def build_trmnl_webhook_url(v)
+  ALLOWED_TRMNL_KEYS = %w[energy_webhook_url sensors_webhook_url].freeze
+
+  def build_trmnl(h)
+    return TrmnlCfg.new(energy_webhook_url: nil, sensors_webhook_url: nil) if h.nil?
+    h = require_hash(h, "trmnl")
+    unknown = h.keys - ALLOWED_TRMNL_KEYS
+    raise Error, "trmnl unknown keys: #{unknown.join(', ')}" if unknown.any?
+
+    TrmnlCfg.new(
+      energy_webhook_url:  require_optional_string(h["energy_webhook_url"],  "trmnl.energy_webhook_url"),
+      sensors_webhook_url: require_optional_string(h["sensors_webhook_url"], "trmnl.sensors_webhook_url"),
+    )
+  end
+
+  def require_optional_string(v, key)
     return nil if v.nil?
-    raise Error, "trmnl_webhook_url must be a string" unless v.is_a?(String)
+    raise Error, "#{key} must be a string" unless v.is_a?(String)
     v
   end
 

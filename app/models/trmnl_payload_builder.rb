@@ -20,6 +20,7 @@ class TrmnlPayloadBuilder
     {
       "merge_variables" => {
         "ts"         => ts,
+        "stand"      => @tz.utc_to_local(Time.at(ts).utc).strftime("%H:%M"),
         "pv_kwh"     => pv_kwh,
         "cons_kwh"   => cons_kwh,
         "bilanz_kwh" => bilanz_kwh,

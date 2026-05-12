@@ -14,7 +14,7 @@ class TrmnlPayloadBuilderTest < ActiveSupport::TestCase
       plugs: [ plug_bkw, plug_fridge ],
       fritz_box: nil,
       weather: nil,
-      trmnl_webhook_url: nil,
+      trmnl: ConfigLoader::TrmnlCfg.new(energy_webhook_url: nil, sensors_webhook_url: nil),
     )
     @tz = TZInfo::Timezone.get("Europe/Berlin")
     @midnight_local = @tz.local_to_utc(Time.parse("#{Date.today} 00:00:00")).to_i
@@ -122,5 +122,25 @@ class TrmnlPayloadBuilderTest < ActiveSupport::TestCase
     payload = TrmnlPayloadBuilder.new(config: @config).build
     bytes = payload.to_json.bytesize
     assert bytes <= 2048, "payload is #{bytes} B, exceeds TRMNL's 2 kB limit"
+  end
+
+  test "build adds a stand string in local time when samples exist" do
+    local_now = @tz.utc_to_local(Time.now.utc)
+    minute = local_now.min < 30 ? 0 : 30
+    slot_floor_local = Time.new(local_now.year, local_now.month, local_now.day, local_now.hour, minute, 0)
+    end_ts   = @tz.local_to_utc(slot_floor_local).to_i + 1800
+    newest_ts = end_ts - 600
+    Sample.create!(plug_id: "bkw", ts: newest_ts, apower_w: 0, aenergy_wh: 0.0)
+
+    payload = TrmnlPayloadBuilder.new(config: @config).build
+    expected = @tz.utc_to_local(Time.at(newest_ts).utc).strftime("%H:%M")
+    assert_equal expected, payload["merge_variables"]["stand"]
+  end
+
+  test "build falls back to current local time for stand when no samples exist" do
+    Time.stub(:now, Time.utc(2026, 5, 12, 14, 45)) do
+      payload = TrmnlPayloadBuilder.new(config: @config).build
+      assert_equal "16:45", payload["merge_variables"]["stand"]
+    end
   end
 end

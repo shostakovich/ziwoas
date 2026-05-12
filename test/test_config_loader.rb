@@ -303,23 +303,48 @@ class ConfigLoaderTest < Minitest::Test
     assert_match(/duplicate sensor id/i, err.message)
   end
 
-  def test_loads_optional_trmnl_webhook_url
+  def test_loads_trmnl_block_with_both_urls
     yaml = valid_yaml + <<~YAML
-      trmnl_webhook_url: https://trmnl.com/api/custom_plugins/abc-123
+      trmnl:
+        energy_webhook_url: https://trmnl.com/api/custom_plugins/energy-uuid
+        sensors_webhook_url: https://trmnl.com/api/custom_plugins/sensor-uuid
     YAML
     cfg = load_yaml(yaml)
-    assert_equal "https://trmnl.com/api/custom_plugins/abc-123", cfg.trmnl_webhook_url
+    assert_equal "https://trmnl.com/api/custom_plugins/energy-uuid",  cfg.trmnl.energy_webhook_url
+    assert_equal "https://trmnl.com/api/custom_plugins/sensor-uuid", cfg.trmnl.sensors_webhook_url
   end
 
-  def test_trmnl_webhook_url_defaults_to_nil
+  def test_trmnl_block_defaults_to_nil_urls_when_block_absent
     cfg = load_yaml(valid_yaml)
-    assert_nil cfg.trmnl_webhook_url
+    refute_nil cfg.trmnl
+    assert_nil cfg.trmnl.energy_webhook_url
+    assert_nil cfg.trmnl.sensors_webhook_url
   end
 
-  def test_rejects_non_string_trmnl_webhook_url
+  def test_trmnl_block_accepts_partial_configuration
     yaml = valid_yaml + <<~YAML
-      trmnl_webhook_url: 42
+      trmnl:
+        sensors_webhook_url: https://trmnl.com/api/custom_plugins/only-sensors
+    YAML
+    cfg = load_yaml(yaml)
+    assert_nil cfg.trmnl.energy_webhook_url
+    assert_equal "https://trmnl.com/api/custom_plugins/only-sensors", cfg.trmnl.sensors_webhook_url
+  end
+
+  def test_rejects_non_string_trmnl_url
+    yaml = valid_yaml + <<~YAML
+      trmnl:
+        energy_webhook_url: 42
     YAML
     assert_raises(ConfigLoader::Error) { load_yaml(yaml) }
+  end
+
+  def test_rejects_unknown_keys_inside_trmnl_block
+    yaml = valid_yaml + <<~YAML
+      trmnl:
+        bogus: yes
+    YAML
+    err = assert_raises(ConfigLoader::Error) { load_yaml(yaml) }
+    assert_match(/trmnl/i, err.message)
   end
 end
