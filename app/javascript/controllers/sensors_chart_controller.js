@@ -85,11 +85,12 @@ export default class extends Controller {
 
   _thresholdLine(series, value, color) {
     const xs = series.flatMap(s => s.points.map(p => p[0]))
-    if (xs.length === 0) return { data: [] }
-    const xmin = Math.min(...xs), xmax = Math.max(...xs)
+    const data = xs.length === 0
+      ? []
+      : [ { x: Math.min(...xs), y: value }, { x: Math.max(...xs), y: value } ]
     return {
       label: `${value} ppm`,
-      data:  [ { x: xmin, y: value }, { x: xmax, y: value } ],
+      data,
       borderColor:   color,
       borderDash:    [ 4, 4 ],
       borderWidth:   1,

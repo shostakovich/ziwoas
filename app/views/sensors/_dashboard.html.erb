@@ -7,8 +7,11 @@
     </section>
   <% else %>
     <%= render "battery_warning", sensors: sensors, latest: latest %>
-    <%= render "indoor",  sensors: indoor,  latest: latest %>
-    <%= render "outdoor", sensors: outdoor, latest: latest %>
+    <section class="sensor-cards">
+      <% (indoor + outdoor).each do |s| %>
+        <%= render "card", sensor: s, reading: latest[s.id] %>
+      <% end %>
+    </section>
     <%= render "charts" %>
   <% end %>
 <% end %>
