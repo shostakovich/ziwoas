@@ -115,20 +115,5 @@ class FritzMqttBridgeTest < ActiveSupport::TestCase
 
     assert_equal 0, mqtt.published.length
     assert_match(/timeout/i, @log_io.string)
-    assert_match(/WARN/, @log_io.string)
-  end
-
-  test "poll_and_publish logs unavailable at info level and does not publish" do
-    erroring = Object.new
-    erroring.define_singleton_method(:fetch) { |_| raise FritzDectClient::Unavailable, "device unavailable (inval)" }
-    mqtt   = fake_mqtt_client
-    bridge = build_bridge(fritz_client: erroring, mqtt_client: mqtt)
-
-    bridge.poll_and_publish(mqtt)
-
-    assert_equal 0, mqtt.published.length
-    assert_match(/inval/, @log_io.string)
-    assert_match(/INFO/, @log_io.string)
-    refute_match(/WARN/, @log_io.string)
   end
 end

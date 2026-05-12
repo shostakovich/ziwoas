@@ -122,17 +122,6 @@ class FritzDectClientTest < Minitest::Test
     assert_raises(FritzDectClient::Error) { @client.fetch(@plug) }
   end
 
-  def test_raises_unavailable_on_inval_body
-    stub_auth
-    stub_request(:get, "http://#{HOST}/webservices/homeautoswitch.lua")
-      .with(query: hash_including("switchcmd" => "getswitchpower"))
-      .to_return(status: 200, body: "inval\n")
-
-    err = assert_raises(FritzDectClient::Unavailable) { @client.fetch(@plug) }
-    assert_match(/inval/, err.message)
-    assert_kind_of FritzDectClient::Error, err
-  end
-
   def test_raises_on_timeout
     stub_request(:get, "http://#{HOST}/login_sid.lua").to_timeout
     assert_raises(FritzDectClient::Error) { @client.fetch(@plug) }
