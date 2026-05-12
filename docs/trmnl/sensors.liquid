@@ -17,11 +17,10 @@
 
 <style>
   .ampel-bar { display: inline-flex; gap: 6px; margin-top: 8px; }
-  .ampel-bar .seg { width: 56px; height: 18px; border: 2px solid #000; box-sizing: border-box; }
+  .ampel-bar .seg { width: 56px; height: 14px; border: 2px solid #000; box-sizing: border-box; }
   .ampel-bar .seg.on { background: #000; }
   .ampel-bar.is-hidden { visibility: hidden; }
-  .sparkline { display: block; width: 180px; height: 36px; margin: 6px 0 2px; }
-  .sparkline polyline { fill: none; stroke: #000; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  .sparkline { display: block; width: 180px; height: 48px; margin: 6px 0 2px; }
   .trmnl .item.align-center .content { align-items: center; text-align: center; width: 100%; }
 </style>
 
@@ -33,13 +32,13 @@
           <span class="label">{{ s.name }}</span>
 
           {%- if s.offline -%}
-            <span class="value value--large">—</span>
+            <span class="value value--xlarge">—</span>
             <span class="label">{{ s.unit }}</span>
             <div class="ampel-bar is-hidden"><div class="seg"></div><div class="seg"></div><div class="seg"></div></div>
             <span class="label">keine Daten</span>
             <span class="label">{{ s.age_label }}</span>
           {%- else -%}
-            <span class="value value--large">{{ s.primary | replace: ".", "," }}</span>
+            <span class="value value--xlarge">{{ s.primary | replace: ".", "," }}</span>
             <span class="label">{{ s.unit }}</span>
 
             {%- comment -%} sparkline: map trend → SVG polyline points. {%- endcomment -%}
@@ -47,15 +46,17 @@
             {%- if span == 0 -%}{%- assign span = 1 -%}{%- endif -%}
             {%- capture pts -%}
               {%- for v in s.trend -%}
-                {%- assign x = forloop.index0 | times: 15 -%}
-                {%- if v == nil -%}{%- continue -%}{%- endif -%}
-                {%- assign normy = v | minus: s.trend_min | times: 32 | divided_by: span -%}
-                {%- assign y = 36 | minus: normy -%}
-                {{ x }},{{ y }}{% unless forloop.last %} {% endunless %}
+                {%- unless v == nil -%}
+                  {%- assign x = forloop.index0 | times: 15 -%}
+                  {%- assign normy = v | minus: s.trend_min | times: 32 | divided_by: span -%}
+                  {%- assign y = 48 | minus: normy -%}
+                  {{ x }},{{ y }} {% endunless -%}
               {%- endfor -%}
             {%- endcapture -%}
-            <svg class="sparkline" viewBox="0 0 180 36" preserveAspectRatio="none">
-              <polyline points="{{ pts | strip }}"/>
+            <svg class="sparkline" viewBox="0 0 180 48" preserveAspectRatio="none">
+              <polyline points="{{ pts | strip }}"
+                        fill="none" stroke="#000" stroke-width="2"
+                        stroke-linejoin="round" stroke-linecap="round"/>
             </svg>
 
             {%- if s.ampel -%}
