@@ -637,3 +637,83 @@ svg text[data-dashboard-target] {
 .ios-toggle-label {
   line-height: 1;
 }
+
+/* === Sensors tab === */
+
+.sensors-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.sensor-warning {
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  color: #78350f;
+  padding: .75rem 1rem;
+  border-radius: .5rem;
+  font-weight: 600;
+}
+
+.sensor-cards {
+  display: grid;
+  gap: .75rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media (max-width: 480px) {
+  .sensor-cards { grid-template-columns: 1fr; }
+}
+
+.sensor-card {
+  display: flex;
+  flex-direction: column;
+  padding: .75rem;
+}
+
+.sensor-card-name {
+  margin: 0 0 .5rem;
+  font-size: .9rem;
+  font-weight: 600;
+}
+
+.sensor-card-body {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: .75rem;
+}
+
+.sensor-card-ampel {
+  flex: 0 0 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sensor-ampel-icon {
+  width: 100%;
+  height: auto;
+  max-height: 96px;
+  object-fit: contain;
+  display: block;
+}
+
+.sensor-card-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.sensor-card-values {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: .15rem;
+  font-size: .85rem;
+}
+
+.sensor-card-values strong { font-size: 1.05rem; }
+
+.sensor-card-foot { margin-top: .35rem; font-size: .75rem; }

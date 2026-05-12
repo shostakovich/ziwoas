@@ -208,6 +208,101 @@ class ConfigLoaderTest < Minitest::Test
     assert_match(/weather\.lon/i, err.message)
   end
 
+  def test_loads_optional_plug_room
+    yaml = valid_yaml.sub("name: Balkonkraftwerk\n    role: producer",
+                          "name: Balkonkraftwerk\n    role: producer\n    room: Balkon")
+    cfg = load_yaml(yaml)
+    plug = cfg.plugs.find { |p| p.id == "bkw" }
+    assert_equal "Balkon", plug.room
+  end
+
+  def test_plug_room_is_optional_and_defaults_to_nil
+    cfg = load_yaml(valid_yaml)
+    plug = cfg.plugs.find { |p| p.id == "fridge" }
+    assert_nil plug.room
+  end
+
+  def test_loads_switchbot_and_sensors
+    cfg = load_yaml(valid_yaml + <<~YAML)
+      switchbot:
+        token: "tok-abc"
+        secret: "sec-xyz"
+      sensors:
+        - id: "ABCDEF"
+          name: "Wohnzimmer"
+          type: meter_pro_co2
+          room: "Wohnzimmer"
+        - id: "FEDCBA"
+          name: "Schlafzimmer"
+          type: meter_pro_co2
+        - id: "112233"
+          name: "Balkon"
+          type: outdoor_meter
+    YAML
+
+    assert_equal "tok-abc", cfg.switchbot.token
+    assert_equal "sec-xyz", cfg.switchbot.secret
+
+    assert_equal 3, cfg.sensors.length
+    s = cfg.sensors.first
+    assert_equal "ABCDEF", s.id
+    assert_equal "Wohnzimmer", s.name
+    assert_equal :meter_pro_co2, s.type
+    assert_equal "Wohnzimmer", s.room
+
+    assert_nil cfg.sensors[1].room
+    assert_equal :outdoor_meter, cfg.sensors[2].type
+  end
+
+  def test_switchbot_and_sensors_are_optional
+    cfg = load_yaml(valid_yaml)
+    assert_nil cfg.switchbot
+    assert_equal [], cfg.sensors
+  end
+
+  def test_rejects_switchbot_missing_token
+    err = assert_raises(ConfigLoader::Error) do
+      load_yaml(valid_yaml + <<~YAML)
+        switchbot:
+          secret: "sec-only"
+      YAML
+    end
+    assert_match(/switchbot\.token/i, err.message)
+  end
+
+  def test_rejects_unknown_sensor_type
+    err = assert_raises(ConfigLoader::Error) do
+      load_yaml(valid_yaml + <<~YAML)
+        switchbot:
+          token: "t"
+          secret: "s"
+        sensors:
+          - id: "X"
+            name: "X"
+            type: foo_meter
+      YAML
+    end
+    assert_match(/sensors\[0\]\.type/i, err.message)
+  end
+
+  def test_rejects_duplicate_sensor_ids
+    err = assert_raises(ConfigLoader::Error) do
+      load_yaml(valid_yaml + <<~YAML)
+        switchbot:
+          token: "t"
+          secret: "s"
+        sensors:
+          - id: "DUP"
+            name: "A"
+            type: meter_pro_co2
+          - id: "DUP"
+            name: "B"
+            type: meter_pro_co2
+      YAML
+    end
+    assert_match(/duplicate sensor id/i, err.message)
+  end
+
   def test_loads_optional_trmnl_webhook_url
     yaml = valid_yaml + <<~YAML
       trmnl_webhook_url: https://trmnl.com/api/custom_plugins/abc-123

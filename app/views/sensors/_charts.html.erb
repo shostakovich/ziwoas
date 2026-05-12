@@ -1,0 +1,24 @@
+<%# app/views/sensors/_charts.html.erb %>
+<div data-controller="sensors-chart"
+     data-sensors-chart-url-value="<%= sensors_series_path %>">
+  <div class="section-label">CO₂ — Letzte 24 h</div>
+  <div class="chart-card">
+    <div class="chart-frame">
+      <canvas data-sensors-chart-target="co2"></canvas>
+    </div>
+  </div>
+
+  <div class="section-label">Temperatur — Letzte 24 h</div>
+  <div class="chart-card">
+    <div class="chart-frame">
+      <canvas data-sensors-chart-target="temperature"></canvas>
+    </div>
+  </div>
+
+  <div class="section-label">Luftfeuchtigkeit — Letzte 24 h</div>
+  <div class="chart-card">
+    <div class="chart-frame">
+      <canvas data-sensors-chart-target="humidity"></canvas>
+    </div>
+  </div>
+</div>

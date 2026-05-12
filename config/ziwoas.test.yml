@@ -14,3 +14,16 @@ plugs:
   - id: fridge
     name: Kühlschrank
     role: consumer
+
+switchbot:
+  token: "test-tok"
+  secret: "test-sec"
+
+sensors:
+  - id: "TEST_INDOOR"
+    name: "Test Wohnzimmer"
+    type: meter_pro_co2
+    room: "Wohnzimmer"
+  - id: "TEST_OUTDOOR"
+    name: "Test Balkon"
+    type: outdoor_meter

@@ -1,0 +1,7 @@
+<%# app/views/sensors/index.html.erb %>
+<% content_for :title, "Sensoren" %>
+<%= turbo_stream_from "sensors" %>
+
+<div class="sensors-page">
+  <%= render "dashboard", sensors: @sensors, latest: @latest %>
+</div>
