@@ -14,7 +14,7 @@ class ConfigLoader
   SensorCfg    = Struct.new(:id, :name, :type, :room, keyword_init: true)
   Config       = Struct.new(:electricity_price_eur_per_kwh, :timezone,
                             :mqtt, :fritz_poll, :plugs, :fritz_box, :weather,
-                            :switchbot, :sensors,
+                            :switchbot, :sensors, :trmnl_webhook_url,
                             keyword_init: true)
 
   module StringRequirement
@@ -98,6 +98,7 @@ class ConfigLoader
     weather    = build_weather(@raw["weather"])
     switchbot  = build_switchbot(@raw["switchbot"])
     sensors    = build_sensors(@raw["sensors"])
+    trmnl_webhook_url = build_trmnl_webhook_url(@raw["trmnl_webhook_url"])
 
     if plugs.any? { |p| p.driver == :fritz_dect } && fritz_box.nil?
       raise Error, "fritz_box config required when using driver: fritz_dect"
@@ -117,6 +118,7 @@ class ConfigLoader
       weather:    weather,
       switchbot:  switchbot,
       sensors:    sensors,
+      trmnl_webhook_url: trmnl_webhook_url,
     )
   end
 
@@ -186,6 +188,12 @@ class ConfigLoader
       room = h["room"].nil? ? nil : require_string(h["room"], "sensors[#{i}].room")
       SensorCfg.new(id: id, name: name, type: type, room: room)
     end
+  end
+
+  def build_trmnl_webhook_url(v)
+    return nil if v.nil?
+    raise Error, "trmnl_webhook_url must be a string" unless v.is_a?(String)
+    v
   end
 
   def require_coordinate(v, key)
