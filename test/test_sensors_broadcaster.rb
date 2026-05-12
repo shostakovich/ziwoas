@@ -52,4 +52,25 @@ class SensorsBroadcasterTest < ActiveSupport::TestCase
     assert_equal 0, sensor_calls
     assert_equal 0, weather_calls
   end
+
+  test "dashboard partial renders cleanly without a controller context" do
+    sensor = Struct.new(:id, :name, :type, :room).new("A", "Probe", :meter_pro_co2, nil)
+    SensorReading.create!(device_id: "A", taken_at: Time.current,
+                          temperature: 22.0, humidity: 40, co2: 600, battery_pct: 80)
+    fake_config = Struct.new(:switchbot, :sensors).new(nil, [ sensor ])
+
+    rendered = nil
+    SensorsBroadcaster.stub(:load_config, fake_config) do
+      WeatherBroadcaster.stub(:broadcast_current, -> { }) do
+        Turbo::StreamsChannel.stub(:broadcast_replace_to, ->(_stream, **opts) {
+          rendered = ApplicationController.render(partial: opts[:partial], locals: opts[:locals])
+        }) do
+          SensorsBroadcaster.refresh
+        end
+      end
+    end
+
+    refute_nil rendered, "expected the partial to render"
+    assert_includes rendered, "Probe", "expected the sensor card to render its name"
+  end
 end
