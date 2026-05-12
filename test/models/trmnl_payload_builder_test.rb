@@ -14,7 +14,7 @@ class TrmnlPayloadBuilderTest < ActiveSupport::TestCase
       plugs: [ plug_bkw, plug_fridge ],
       fritz_box: nil,
       weather: nil,
-      trmnl_webhook_url: nil,
+      trmnl: ConfigLoader::TrmnlCfg.new(energy_webhook_url: nil, sensors_webhook_url: nil),
     )
     @tz = TZInfo::Timezone.get("Europe/Berlin")
     @midnight_local = @tz.local_to_utc(Time.parse("#{Date.today} 00:00:00")).to_i

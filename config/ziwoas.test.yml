@@ -27,3 +27,7 @@ sensors:
   - id: "TEST_OUTDOOR"
     name: "Test Balkon"
     type: outdoor_meter
+
+trmnl:
+  energy_webhook_url:  https://example.test/energy
+  sensors_webhook_url: https://example.test/sensors

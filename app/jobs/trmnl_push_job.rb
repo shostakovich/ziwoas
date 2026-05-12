@@ -13,7 +13,7 @@ class TrmnlPushJob < ApplicationJob
 
   def perform
     config = ConfigLoader.load(Rails.root.join("config", config_file_name).to_s)
-    url    = config.trmnl_webhook_url
+    url    = config.trmnl&.energy_webhook_url
     if url.nil? || url.empty?
       Rails.logger.info("TRMNL push skipped (no webhook URL configured)")
       return

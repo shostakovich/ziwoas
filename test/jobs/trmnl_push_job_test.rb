@@ -2,7 +2,7 @@ require "test_helper"
 require "config_loader"
 
 class TrmnlPushJobTest < ActiveJob::TestCase
-  def build_config(trmnl_webhook_url:)
+  def build_config(energy_webhook_url:)
     plug_bkw    = ConfigLoader::PlugCfg.new(id: "bkw",    name: "BKW",   role: :producer, driver: :shelly, ain: nil)
     plug_fridge = ConfigLoader::PlugCfg.new(id: "fridge", name: "Fridge", role: :consumer, driver: :shelly, ain: nil)
     mqtt = ConfigLoader::MqttCfg.new(host: "localhost", port: 1883, topic_prefix: "shellies")
@@ -14,7 +14,7 @@ class TrmnlPushJobTest < ActiveJob::TestCase
       plugs: [ plug_bkw, plug_fridge ],
       fritz_box: nil,
       weather: nil,
-      trmnl_webhook_url: trmnl_webhook_url,
+      trmnl: ConfigLoader::TrmnlCfg.new(energy_webhook_url: energy_webhook_url, sensors_webhook_url: nil),
     )
   end
 
@@ -35,7 +35,7 @@ class TrmnlPushJobTest < ActiveJob::TestCase
   test "does nothing when trmnl_webhook_url is not configured" do
     posted = []
     TrmnlPushJob.stub(:post_json, ->(*args) { posted << args; nil }) do
-      with_config(build_config(trmnl_webhook_url: nil)) do
+      with_config(build_config(energy_webhook_url: nil)) do
         TrmnlPushJob.perform_now
       end
     end
@@ -47,7 +47,7 @@ class TrmnlPushJobTest < ActiveJob::TestCase
     captured = nil
     stub_builder(payload) do
       TrmnlPushJob.stub(:post_json, ->(url, body) { captured = [ url, body ]; Net::HTTPSuccess.new("1.1", "200", "OK") }) do
-        with_config(build_config(trmnl_webhook_url: "https://trmnl.com/api/custom_plugins/abc")) do
+        with_config(build_config(energy_webhook_url: "https://trmnl.com/api/custom_plugins/abc")) do
           TrmnlPushJob.perform_now
         end
       end
@@ -59,7 +59,7 @@ class TrmnlPushJobTest < ActiveJob::TestCase
   test "raises when payload exceeds 2 kB" do
     huge = { "merge_variables" => { "blob" => "x" * 4000 } }
     stub_builder(huge) do
-      with_config(build_config(trmnl_webhook_url: "https://example/")) do
+      with_config(build_config(energy_webhook_url: "https://example/")) do
         assert_raises(TrmnlPushJob::PayloadTooLarge) { TrmnlPushJob.perform_now }
       end
     end
@@ -71,7 +71,7 @@ class TrmnlPushJobTest < ActiveJob::TestCase
     Rails.logger.stub(:warn, ->(msg) { logs << msg }) do
       stub_builder(payload) do
         TrmnlPushJob.stub(:post_json, ->(*) { raise SocketError, "boom" }) do
-          with_config(build_config(trmnl_webhook_url: "https://example/")) do
+          with_config(build_config(energy_webhook_url: "https://example/")) do
             assert_nothing_raised { TrmnlPushJob.perform_now }
           end
         end
