@@ -1,0 +1,91 @@
+{%- comment -%}
+  Zipfelmaus Sensoren — TRMNL full layout (800x480).
+  Source of truth: docs/trmnl/sensors.liquid in the ziwoas repo.
+  Update this file in the repo first, then paste into the TRMNL plugin UI.
+
+  Receives merge_variables:
+    stand    — "HH:MM" local-time string (pre-formatted in Ruby)
+    sensors  — array of objects:
+      id, name, type ("indoor"|"outdoor"),
+      primary (Number or null), unit ("ppm CO₂"|"°C"),
+      ampel ("good"|"warn"|"bad" or null),
+      trend (array of 12 Numbers or nulls, oldest first),
+      trend_min, trend_max,
+      temperature, humidity, battery_low, battery_pct,
+      age_label, offline.
+{%- endcomment -%}
+
+<style>
+  .ampel-bar { display: inline-flex; gap: 6px; margin-top: 8px; }
+  .ampel-bar .seg { width: 56px; height: 18px; border: 2px solid #000; box-sizing: border-box; }
+  .ampel-bar .seg.on { background: #000; }
+  .ampel-bar.is-hidden { visibility: hidden; }
+  .sparkline { display: block; width: 180px; height: 36px; margin: 6px 0 2px; }
+  .sparkline polyline { fill: none; stroke: #000; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  .trmnl .item.align-center .content { align-items: center; text-align: center; }
+</style>
+
+<div class="layout layout--col layout--center">
+  <div class="grid grid--cols-3 gap--large">
+    {%- for s in sensors -%}
+      <div class="item align-center">
+        <div class="content">
+          <span class="label">{{ s.name }}</span>
+
+          {%- if s.offline -%}
+            <span class="value value--large">—</span>
+            <span class="label">{{ s.unit }}</span>
+            <div class="ampel-bar is-hidden"><div class="seg"></div><div class="seg"></div><div class="seg"></div></div>
+            <span class="label">keine Daten</span>
+            <span class="label">{{ s.age_label }}</span>
+          {%- else -%}
+            <span class="value value--large">{{ s.primary | replace: ".", "," }}</span>
+            <span class="label">{{ s.unit }}</span>
+
+            {%- comment -%} sparkline: map trend → SVG polyline points. {%- endcomment -%}
+            {%- assign span = s.trend_max | minus: s.trend_min -%}
+            {%- if span == 0 -%}{%- assign span = 1 -%}{%- endif -%}
+            {%- capture pts -%}
+              {%- for v in s.trend -%}
+                {%- assign x = forloop.index0 | times: 15 -%}
+                {%- if v == nil -%}{%- continue -%}{%- endif -%}
+                {%- assign normy = v | minus: s.trend_min | times: 32 | divided_by: span -%}
+                {%- assign y = 36 | minus: normy -%}
+                {{ x }},{{ y }}{% unless forloop.last %} {% endunless %}
+              {%- endfor -%}
+            {%- endcapture -%}
+            <svg class="sparkline" viewBox="0 0 180 36" preserveAspectRatio="none">
+              <polyline points="{{ pts | strip }}"/>
+            </svg>
+
+            {%- if s.ampel -%}
+              <div class="ampel-bar">
+                <div class="seg on"></div>
+                <div class="seg {% if s.ampel != 'good' %}on{% endif %}"></div>
+                <div class="seg {% if s.ampel == 'bad' %}on{% endif %}"></div>
+              </div>
+            {%- else -%}
+              <div class="ampel-bar is-hidden"><div class="seg"></div><div class="seg"></div><div class="seg"></div></div>
+            {%- endif -%}
+
+            {%- if s.type == "outdoor" -%}
+              <span class="label">{{ s.humidity }} % rH</span>
+            {%- else -%}
+              <span class="label">{{ s.temperature | replace: ".", "," }} °C · {{ s.humidity }} % rH</span>
+            {%- endif -%}
+
+            {%- if s.battery_low -%}
+              <span class="label">⚠ Batterie {{ s.battery_pct }} %</span>
+            {%- endif -%}
+            <span class="label">{{ s.age_label }}</span>
+          {%- endif -%}
+        </div>
+      </div>
+    {%- endfor -%}
+  </div>
+</div>
+
+<div class="title_bar">
+  <span class="title">Zipfelmaus Sensoren</span>
+  <span class="instance">Stand {{ stand }}</span>
+</div>
