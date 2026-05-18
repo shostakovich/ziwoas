@@ -1,6 +1,6 @@
 class TrmnlPayloadBuilder
-  BUCKET_SECONDS = 1800
-  BUCKETS        = 48
+  BUCKET_SECONDS = 600
+  BUCKETS        = 144
 
   def initialize(config:)
     @config = config
@@ -57,7 +57,7 @@ class TrmnlPayloadBuilder
   def window_bounds
     now_utc    = Time.now.utc
     local_now  = @tz.utc_to_local(now_utc)
-    minute     = local_now.min < 30 ? 0 : 30
+    minute     = (local_now.min / 10) * 10
     slot_floor = Time.new(local_now.year, local_now.month, local_now.day, local_now.hour, minute, 0)
     end_ts     = @tz.local_to_utc(slot_floor).to_i + BUCKET_SECONDS
     start_ts   = end_ts - BUCKETS * BUCKET_SECONDS

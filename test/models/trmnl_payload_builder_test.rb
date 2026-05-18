@@ -46,16 +46,16 @@ class TrmnlPayloadBuilderTest < ActiveSupport::TestCase
     assert_equal 0,   mv["self_use"]
   end
 
-  test "build returns 48 half-hourly pv_w/cons_w arrays aligned to local hours" do
+  test "build returns 144 ten-minute pv_w/cons_w arrays aligned to local time" do
     local_now = @tz.utc_to_local(Time.now.utc)
-    minute = local_now.min < 30 ? 0 : 30
+    minute = (local_now.min / 10) * 10
     slot_floor_local = Time.new(local_now.year, local_now.month, local_now.day, local_now.hour, minute, 0)
-    end_ts   = @tz.local_to_utc(slot_floor_local).to_i + 1800  # upcoming half-hour boundary
+    end_ts   = @tz.local_to_utc(slot_floor_local).to_i + 600  # upcoming 10-min boundary
     start_ts = end_ts - 86_400
 
-    # Bucket index 10 covers start_ts + 10*1800 .. start_ts + 11*1800 (30 min slot).
-    bucket_start = start_ts + 10 * 1800
-    (0...1800).step(300) do |dt|
+    # Bucket index 10 covers start_ts + 10*600 .. start_ts + 11*600 (10 min slot).
+    bucket_start = start_ts + 10 * 600
+    (0...600).step(60) do |dt|
       Sample.create!(plug_id: "bkw",    ts: bucket_start + dt, apower_w: 600.0, aenergy_wh: 0.0)
       Sample.create!(plug_id: "fridge", ts: bucket_start + dt, apower_w: 200.0, aenergy_wh: 0.0)
     end
@@ -63,8 +63,8 @@ class TrmnlPayloadBuilderTest < ActiveSupport::TestCase
     payload = TrmnlPayloadBuilder.new(config: @config).build
     mv = payload.fetch("merge_variables")
 
-    assert_equal 48, mv["pv_w"].length
-    assert_equal 48, mv["cons_w"].length
+    assert_equal 144, mv["pv_w"].length
+    assert_equal 144, mv["cons_w"].length
     assert(mv["pv_w"].all? { |v| v.is_a?(Integer) })
     assert(mv["cons_w"].all? { |v| v.is_a?(Integer) })
 
@@ -72,26 +72,26 @@ class TrmnlPayloadBuilderTest < ActiveSupport::TestCase
     assert_in_delta 600, mv["pv_w"][10],   5
     assert_in_delta 200, mv["cons_w"][10], 5
 
-    (0...48).each do |i|
+    (0...144).each do |i|
       next if i == 10
       assert_equal 0, mv["pv_w"][i],   "pv_w bucket #{i}"
       assert_equal 0, mv["cons_w"][i], "cons_w bucket #{i}"
     end
   end
 
-  test "build returns 48 zero buckets when no samples exist" do
+  test "build returns 144 zero buckets when no samples exist" do
     payload = TrmnlPayloadBuilder.new(config: @config).build
     mv = payload.fetch("merge_variables")
-    assert_equal Array.new(48, 0), mv["pv_w"]
-    assert_equal Array.new(48, 0), mv["cons_w"]
+    assert_equal Array.new(144, 0), mv["pv_w"]
+    assert_equal Array.new(144, 0), mv["cons_w"]
   end
 
   test "build sets ts to the max Sample.ts inside the 24h window" do
     local_now = @tz.utc_to_local(Time.now.utc)
-    minute = local_now.min < 30 ? 0 : 30
+    minute = (local_now.min / 10) * 10
     slot_floor_local = Time.new(local_now.year, local_now.month, local_now.day, local_now.hour, minute, 0)
-    end_ts = @tz.local_to_utc(slot_floor_local).to_i + 1800
-    newest_ts = end_ts - 300 # 5 minutes before the upcoming half-hour boundary
+    end_ts = @tz.local_to_utc(slot_floor_local).to_i + 600
+    newest_ts = end_ts - 60 # 1 minute before the upcoming 10-min boundary
     Sample.create!(plug_id: "bkw", ts: newest_ts, apower_w: 0, aenergy_wh: 0.0)
     Sample.create!(plug_id: "bkw", ts: newest_ts - 3600, apower_w: 0, aenergy_wh: 0.0)
 
@@ -126,10 +126,10 @@ class TrmnlPayloadBuilderTest < ActiveSupport::TestCase
 
   test "build adds a stand string in local time when samples exist" do
     local_now = @tz.utc_to_local(Time.now.utc)
-    minute = local_now.min < 30 ? 0 : 30
+    minute = (local_now.min / 10) * 10
     slot_floor_local = Time.new(local_now.year, local_now.month, local_now.day, local_now.hour, minute, 0)
-    end_ts   = @tz.local_to_utc(slot_floor_local).to_i + 1800
-    newest_ts = end_ts - 600
+    end_ts   = @tz.local_to_utc(slot_floor_local).to_i + 600
+    newest_ts = end_ts - 120
     Sample.create!(plug_id: "bkw", ts: newest_ts, apower_w: 0, aenergy_wh: 0.0)
 
     payload = TrmnlPayloadBuilder.new(config: @config).build
