@@ -168,4 +168,15 @@ class MqttSubscriberTest < ActiveSupport::TestCase
       assert_equal true, payload[:plugs].first[:output]
     end
   end
+
+  test "handle_message tolerates non-boolean output without raising" do
+    # An empty string casts to nil for the boolean `output` column, which
+    # fails PlugState's inclusion validation and raises RecordInvalid.
+    assert_nothing_raised do
+      @subscriber.handle_message("shellies/fridge/status/switch:0",
+                                 status_payload(apower: 50.0, total: 1.0, output: ""))
+    end
+    assert_equal 0, PlugState.count
+    assert_match(/invalid output/i, @log_io.string)
+  end
 end

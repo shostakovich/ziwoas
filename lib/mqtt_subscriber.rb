@@ -54,6 +54,8 @@ class MqttSubscriber
     accumulate(plug, ts, apower_w, aenergy_wh, output)
   rescue ActiveRecord::RecordNotUnique
     # duplicate ts within same second — skip silently
+  rescue ActiveRecord::RecordInvalid => e
+    @logger.warn("MqttSubscriber: invalid output on #{topic}: #{e.message}")
   rescue JSON::ParserError => e
     @logger.warn("MqttSubscriber: invalid JSON on #{topic}: #{e.message}")
   end
