@@ -3,7 +3,7 @@ require "brightsky_client"
 
 class BrightskyClientTest < Minitest::Test
   def setup
-    @client = BrightskyClient.new(lat: 52.52, lon: 13.405, timezone: "Europe/Berlin")
+    @client = BrightskyClient.new(lat: 52.52, lon: 13.405, timezone: "Europe/Berlin", retry_delay: 0)
   end
 
   def test_fetches_current_weather
