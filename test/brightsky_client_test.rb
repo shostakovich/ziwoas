@@ -81,4 +81,19 @@ class BrightskyClientTest < Minitest::Test
 
     assert_equal :range_end, @client.weather_for_date(Date.new(2026, 5, 15))
   end
+
+  def test_retries_transient_5xx_then_succeeds
+    stub_request(:get, %r{api\.brightsky\.dev/current_weather})
+      .to_return({ status: 503 }, { status: 200, body: {
+        "weather" => { "timestamp" => "2026-06-12T10:00:00+02:00", "icon" => "clear-day" }
+      }.to_json })
+    result = @client.current_weather
+    assert_equal "clear-day", result[:icon]
+  end
+
+  def test_does_not_retry_404
+    stub = stub_request(:get, %r{api\.brightsky\.dev/weather}).to_return(status: 404)
+    assert_equal :range_end, @client.weather_for_date(Date.new(2026, 6, 12))
+    assert_requested(stub, times: 1)
+  end
 end
