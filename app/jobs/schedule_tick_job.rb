@@ -17,9 +17,6 @@ class ScheduleTickJob < ApplicationJob
                                   .latest_edge_per_plug(watermark, now)
     edges   = edges.reject { |edge| SwitchCommand.manual_after?(edge.plug_id, edge.at) }
 
-    # Claim the tick before dispatching
-    return unless SchedulerState.advance!(now, expected: watermark)
-
     failed = false
     edges.each do |edge|
       PlugCommander.switch(plugs.fetch(edge.plug_id), edge.action,
@@ -29,8 +26,10 @@ class ScheduleTickJob < ApplicationJob
       Rails.logger.warn("ScheduleTick: #{edge.plug_id} #{edge.action} failed: #{e.message}")
     end
 
-    # Keep the watermark so the next tick retries; repeated on/off is idempotent.
-    SchedulerState.advance!(watermark) if failed
+    # Advance watermark only after all commands dispatched successfully.
+    # If anything fails (including a crash beyond our rescue scope), the
+    # watermark stays put so the next tick retries these edges.
+    SchedulerState.advance!(now) unless failed
   end
 
   private
