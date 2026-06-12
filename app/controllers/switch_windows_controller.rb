@@ -58,7 +58,7 @@ class SwitchWindowsController < ApplicationController
   def set_plug
     @plug = find_plug
     return head :not_found unless @plug
-    return head :unprocessable_entity unless @plug.switchable
+    head :unprocessable_entity unless @plug.switchable
   end
 
   def find_plug
