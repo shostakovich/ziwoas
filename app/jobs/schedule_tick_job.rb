@@ -36,7 +36,6 @@ class ScheduleTickJob < ApplicationJob
   private
 
   def load_config
-    path = Rails.root.join("config", Rails.env.test? ? "ziwoas.test.yml" : "ziwoas.yml").to_s
-    ConfigLoader.load(path)
+    ConfigLoader.app_config
   end
 end

@@ -58,8 +58,7 @@ module WeatherBroadcaster
 
   def load_app_config
     require "config_loader"
-    path = Rails.root.join("config", Rails.env.test? ? "ziwoas.test.yml" : "ziwoas.yml").to_s
-    ConfigLoader.load(path)
+    ConfigLoader.app_config
   rescue ConfigLoader::Error
     nil
   end

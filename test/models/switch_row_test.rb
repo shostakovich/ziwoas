@@ -71,11 +71,17 @@ class SwitchRowTest < ActiveSupport::TestCase
   end
 
   test "build_all returns same rows as individual build" do
-    plugs = [ plug_struct("a"), plug_struct("b") ]
-    all   = SwitchRow.build_all(plugs, now: @now)
-    singles = plugs.map { |p| SwitchRow.build(p, now: @now) }
-    assert_equal singles.map(&:on?),       all.map(&:on?)
-    assert_equal singles.map(&:offline?),  all.map(&:offline?)
-    assert_equal singles.map { |r| r.windows.map(&:id) }, all.map { |r| r.windows.map(&:id) }
+    travel_to Time.zone.local(2026, 6, 15, 17, 0) do
+      plug_a = ConfigLoader::PlugCfg.new(id: "a", name: "A", role: :consumer,
+                                          driver: :shelly, ain: nil, switchable: true)
+      plug_b = ConfigLoader::PlugCfg.new(id: "b", name: "B", role: :consumer,
+                                          driver: :shelly, ain: nil, switchable: true)
+      plugs = [ plug_a, plug_b ]
+      all   = SwitchRow.build_all(plugs, now: Time.current)
+      singles = plugs.map { |p| SwitchRow.build(p, now: Time.current) }
+      assert_equal singles.map(&:on?),       all.map(&:on?)
+      assert_equal singles.map(&:offline?),  all.map(&:offline?)
+      assert_equal singles.map { |r| r.windows.map(&:id) }, all.map { |r| r.windows.map(&:id) }
+    end
   end
 end
