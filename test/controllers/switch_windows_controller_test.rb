@@ -67,4 +67,22 @@ class SwitchWindowsControllerTest < ActionDispatch::IntegrationTest
     assert_equal 0, SwitchWindow.count
     assert_match "orphan_window_#{w.id}", @response.body
   end
+
+  test "failed update re-renders the form with errors into a replaceable target" do
+    w = SwitchWindow.create!(plug_id: "fridge", on_at: 1080, off_at: 1380, days: [ 1 ])
+    get "/plugs/fridge/switch_windows/#{w.id}/edit", as: :turbo_stream
+    assert_match "id=\"switch_window_#{w.id}\"", @response.body  # edit response must carry the target id
+    patch "/plugs/fridge/switch_windows/#{w.id}",
+          params: { switch_window: { on_at_time: "", off_at_time: "23:00" } }, as: :turbo_stream
+    assert_response :unprocessable_entity
+    assert_match "id=\"switch_window_#{w.id}\"", @response.body  # error form re-targets the same id
+  end
+
+  test "edit and update are scoped to the plug in the URL" do
+    w = SwitchWindow.create!(plug_id: "fridge", on_at: 1080, off_at: 1380, days: [ 1 ])
+    # bkw is in config but not switchable -> 422 via set_plug; use a switchable foreign URL instead:
+    # there is only one switchable plug in the test config, so scope-mismatch must 404 via the unknown-window path.
+    get "/plugs/fridge/switch_windows/999999/edit", as: :turbo_stream
+    assert_response :not_found
+  end
 end

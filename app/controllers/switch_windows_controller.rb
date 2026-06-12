@@ -22,7 +22,7 @@ class SwitchWindowsController < ApplicationController
   end
 
   def edit
-    window = SwitchWindow.find(params[:id])
+    window = SwitchWindow.where(plug_id: @plug.id).find(params[:id])
     render turbo_stream: turbo_stream.replace(
       helpers.dom_id(window),
       partial: "switches/window_form", locals: { plug: @plug, window: window }
@@ -30,7 +30,7 @@ class SwitchWindowsController < ApplicationController
   end
 
   def update
-    window = SwitchWindow.find(params[:id])
+    window = SwitchWindow.where(plug_id: @plug.id).find(params[:id])
     if window.update(window_params)
       render_windows
     else
