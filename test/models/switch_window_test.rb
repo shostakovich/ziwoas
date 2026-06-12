@@ -46,6 +46,12 @@ class SwitchWindowTest < ActiveSupport::TestCase
     assert_equal 425, w.on_at
     w.off_at_time = ""
     assert_nil w.off_at
+    w.on_at_time = "18:00:00"
+    assert_equal 1080, w.on_at
+    w.on_at_time = "24:00"
+    assert_nil w.on_at
+    w.on_at_time = "23:60"
+    assert_nil w.on_at
   end
 
   test "enabled scope" do

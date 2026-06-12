@@ -35,7 +35,7 @@ class SwitchWindow < ApplicationRecord
   end
 
   def parse_minutes(str)
-    return nil unless str.to_s =~ /\A(\d{1,2}):(\d{2})\z/
+    return nil unless str.to_s =~ /\A([01]?\d|2[0-3]):([0-5]\d)(?::[0-5]\d)?\z/
     Integer($1) * 60 + Integer($2)
   end
 
