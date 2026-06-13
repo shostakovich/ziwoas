@@ -23,7 +23,7 @@
 
   </head>
 
-  <body>
+  <body class="<%= content_for(:body_class) %>">
     <a class="skip-link" href="#main">Zum Inhalt springen</a>
     <header class="app-header">
       <%= link_to root_path, class: "app-brand" do %>

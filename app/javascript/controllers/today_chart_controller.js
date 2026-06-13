@@ -144,6 +144,7 @@ export default class extends Controller {
         tension: 0.2,
         fill: isProducer,
         pointRadius: 0,
+        hidden: !isProducer,
       }
       if (isProducer) {
         dataset.borderColor      = "#f59f00"
@@ -183,7 +184,7 @@ export default class extends Controller {
           },
           y: { beginAtZero: true, title: { display: true, text: "Watt" } },
         },
-        plugins: { legend: { position: "bottom" } },
+        plugins: { legend: { position: "bottom", labels: { boxWidth: 12, boxHeight: 12, padding: 10, font: { size: 12 }, filter: (item, data) => !data.datasets[item.datasetIndex]?.hidden } } },
         animation: false,
       },
     })
@@ -216,12 +217,7 @@ export default class extends Controller {
       const wh = Object.values(buckets[ts].consumers).reduce((sum, value) => sum + value, 0)
       return +(wh / 1000).toFixed(3)
     })
-    const consumerDatasets = consumers.map((series, index) => ({
-      label: series.name,
-      data: sorted.map(ts => +((buckets[ts].consumers[series.plug_id] || 0) / 1000).toFixed(3)),
-      backgroundColor: CONSUMER_COLORS[index % CONSUMER_COLORS.length],
-      stack: "consumed",
-    }))
+    const consumerDatasets = this._topConsumerEnergyDatasets(consumers, sorted, buckets, CONSUMER_COLORS, 5)
 
     this.energyChart?.destroy()
     if (!this.hasEnergyCanvasTarget) return
@@ -241,7 +237,7 @@ export default class extends Controller {
           x: { stacked: true },
           y: { stacked: true, beginAtZero: true, title: { display: true, text: "kWh" } },
         },
-        plugins: { legend: { position: "bottom" } },
+        plugins: { legend: { position: "bottom", labels: { boxWidth: 12, boxHeight: 12, padding: 10, font: { size: 12 }, filter: (item, data) => !data.datasets[item.datasetIndex]?.hidden } } },
         animation: false,
       },
     })
@@ -262,6 +258,33 @@ export default class extends Controller {
       const idx = this.powerChart.data.datasets.indexOf(existing)
       this.powerChart.data.datasets.splice(idx, 1)
     }
+  }
+
+  _topConsumerEnergyDatasets(consumers, sorted, buckets, colors, limit) {
+    const rows = consumers.map((series) => {
+      const data = sorted.map(ts => +((buckets[ts].consumers[series.plug_id] || 0) / 1000).toFixed(3))
+      return { label: series.name, data, total: data.reduce((sum, value) => sum + value, 0) }
+    }).sort((a, b) => b.total - a.total)
+
+    const visible = rows.slice(0, limit)
+    const rest = rows.slice(limit)
+    const datasets = visible.map((row, index) => ({
+      label: row.label,
+      data: row.data,
+      backgroundColor: colors[index % colors.length],
+      stack: "consumed",
+    }))
+
+    if (rest.length > 0) {
+      datasets.push({
+        label: "Weitere Verbraucher",
+        data: sorted.map((_, index) => +rest.reduce((sum, row) => sum + row.data[index], 0).toFixed(3)),
+        backgroundColor: "#94a3b8",
+        stack: "consumed",
+      })
+    }
+
+    return datasets
   }
 
   _totalPowerConsumptionDataset(datasets) {

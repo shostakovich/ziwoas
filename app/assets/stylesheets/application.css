@@ -41,6 +41,11 @@ body {
   margin-right: auto;
 }
 
+body.page-dashboard { max-width: 760px; }
+body.page-weather { max-width: 880px; }
+body.page-reports,
+body.page-sensors { max-width: 1040px; }
+
 h1 { font-size: 18px; margin: 0 0 16px; color: var(--muted); font-weight: 500; }
 .section-label { font-size: 11px; font-weight: 400; color: var(--muted); text-transform: uppercase;
                  letter-spacing: 0.6px; margin: 20px 0 8px; }
@@ -96,6 +101,13 @@ h1 { font-size: 18px; margin: 0 0 16px; color: var(--muted); font-weight: 500; }
   margin-bottom: 12px;
 }
 .chart-card canvas { width: 100% !important; }
+
+.energy-flow-card {
+  padding: 12px 8px;
+  max-width: 720px;
+  margin-left: auto;
+  margin-right: auto;
+}
 
 .plugs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
 .plug-chip {
@@ -276,9 +288,12 @@ svg text[data-dashboard-target] {
 
 .chart-frame {
   position: relative;
-  height: clamp(280px, 60vh, 440px);
+  height: clamp(280px, 48vh, 380px);
   overflow: hidden;
 }
+
+.chart-frame-prominent { height: clamp(320px, 48vh, 400px); }
+.chart-frame-compact { height: clamp(240px, 34vh, 320px); }
 
 .chart-frame canvas {
   display: block;
@@ -290,9 +305,74 @@ svg text[data-dashboard-target] {
   min-width: 6.5ch;
 }
 
+.report-ranking {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 12px;
+  margin-bottom: 16px;
+}
+
+.report-ranking-row {
+  display: grid;
+  grid-template-columns: 2ch auto minmax(7ch, 1fr) minmax(80px, 1.5fr) auto;
+  gap: 8px;
+  align-items: center;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 10px;
+  min-width: 0;
+  font-size: 13px;
+}
+
+.report-ranking-rank {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.report-ranking-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.report-ranking-bar {
+  height: 8px;
+  background: #eef1f4;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.report-ranking-bar span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #3b82f6;
+}
+
+.report-ranking-row.producer .report-ranking-bar span { background: var(--accent); }
+
+.report-ranking-value {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
 @media (max-width: 720px) {
   body {
     padding: 12px;
+  }
+
+  body.page-dashboard,
+  body.page-weather,
+  body.page-reports,
+  body.page-sensors {
+    max-width: 720px;
+  }
+
+  .report-ranking {
+    grid-template-columns: 1fr;
   }
 }
 @media (max-width: 640px) {
@@ -666,6 +746,16 @@ svg text[data-dashboard-target] {
   gap: 1.5rem;
 }
 
+.sensor-secondary-charts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.sensor-secondary-charts .section-label {
+  margin-top: 8px;
+}
+
 .sensor-warning {
   background: #fef3c7;
   border: 1px solid #fcd34d;
@@ -683,6 +773,10 @@ svg text[data-dashboard-target] {
 
 @media (max-width: 480px) {
   .sensor-cards { grid-template-columns: 1fr; }
+
+  .sensor-secondary-charts {
+    grid-template-columns: 1fr;
+  }
 }
 
 .sensor-card {

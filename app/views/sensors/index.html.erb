@@ -1,5 +1,6 @@
 <%# app/views/sensors/index.html.erb %>
 <% content_for :title, "Sensoren" %>
+<% content_for :body_class, "page-sensors" %>
 <%= turbo_stream_from "sensors" %>
 
 <h1>Sensoren</h1>

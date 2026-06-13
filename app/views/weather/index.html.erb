@@ -1,5 +1,5 @@
 <% content_for :title, "Wetter" %>
-<h1>Wetter</h1>
+<% content_for :body_class, "page-weather" %>
 
 <%= turbo_stream_from "weather" %>
 
