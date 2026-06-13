@@ -6,7 +6,7 @@
 %>
 <article class="weather-hour-card">
   <div class="weather-hour-time"><%= record.timestamp.strftime("%H:%M") %></div>
-  <%= image_tag record.asset_name, class: "weather-hour-icon", alt: record.icon.to_s %>
+  <%= image_tag record.asset_name, class: "weather-hour-icon", width: 42, height: 42, loading: "lazy", alt: weather_icon_label(record.icon) %>
   <strong><%= number_with_precision(record.temperature, precision: 0, delimiter: ".", separator: ",") %>°</strong>
   <% if record.daytime != "night" %>
     <div class="weather-hour-solar">

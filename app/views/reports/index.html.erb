@@ -1,4 +1,5 @@
 <% content_for :title, "Berichte" %>
+<h1>Berichte</h1>
 
 <%
   daily_has_weather = @report.chart_payload.dig(:daily, :weather).present?
@@ -10,6 +11,9 @@
     <div class="preset-actions" role="group" aria-label="Schnellauswahl">
       <%= link_to "Letzte 7 Tage", reports_path(preset: "last_7"), class: [ "preset-link", ("active" if @report.preset == "last_7") ] %>
       <%= link_to "Letzte 30 Tage", reports_path(preset: "last_30"), class: [ "preset-link", ("active" if @report.preset == "last_30") ] %>
+      <% unless %w[last_7 last_30].include?(@report.preset) %>
+        <span class="preset-link active" aria-current="true">Benutzerdefiniert</span>
+      <% end %>
     </div>
 
     <%= form_with url: reports_path, method: :get, local: true, class: "date-range-form" do %>
@@ -19,7 +23,7 @@
       </label>
       <label>
         <span>Bis</span>
-        <%= date_field_tag :end_date, params[:end_date].presence || @report.end_date, max: @report.end_date %>
+        <%= date_field_tag :end_date, params[:end_date].presence || @report.end_date, min: @report.start_date, max: @report.end_date %>
       </label>
       <%= submit_tag "Anwenden" %>
     <% end %>
@@ -32,7 +36,7 @@
   <% if @report.empty? %>
     <section class="chart-card empty-state">
       <h2>Noch keine Berichtsdaten</h2>
-      <p>Die Rueckschau erscheint, sobald die erste Tagesaggregation vorhanden ist.</p>
+      <p>Die Rückschau erscheint, sobald die erste Tagesaggregation vorhanden ist.</p>
     </section>
   <% else %>
     <section class="tiles" aria-label="Zusammenfassung">
@@ -70,10 +74,10 @@
       </div>
     </section>
 
-    <div class="section-label">Steckdosen</div>
+    <h2 class="section-label">Steckdosen</h2>
     <%= render "ranking", rows: @report.producer_ranking + @report.consumer_ranking %>
 
-    <div class="section-label">Energie — Ertrag / Verbrauch</div>
+    <h2 class="section-label">Energie — Ertrag / Verbrauch</h2>
     <div class="chart-card">
       <% if daily_has_weather %>
         <div class="chart-card-toolbar">
@@ -92,13 +96,13 @@
     </div>
 
     <% power_resolution = (@report.detail_end_date - @report.detail_start_date).to_i > 6 ? "Tagesmittel" : "5-Minuten-Verlauf" %>
-    <div class="section-label">Leistung — <%= power_resolution %> —
+    <h2 class="section-label">Leistung — <%= power_resolution %> —
       <% if @report.detail_start_date == @report.detail_end_date %>
         <%= @report.detail_start_date %>
       <% else %>
         <%= @report.detail_start_date %> bis <%= @report.detail_end_date %>
       <% end %>
-    </div>
+    </h2>
     <section class="chart-card">
       <% if detail_has_weather %>
         <div class="chart-card-toolbar">
@@ -116,7 +120,7 @@
       </div>
     </section>
 
-    <div class="section-label">Autarkie & Eigenverbrauchsquote</div>
+    <h2 class="section-label">Autarkie & Eigenverbrauchsquote</h2>
     <div class="chart-card">
       <div class="chart-frame">
         <canvas data-energy-report-target="ratiosCanvas"></canvas>

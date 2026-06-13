@@ -1,3 +1,6 @@
+<% content_for :title, "Dashboard" %>
+<h1>Dashboard</h1>
+
 <div data-controller="dashboard">
   <!-- Hero: PV live -->
   <div class="hero">
@@ -42,7 +45,7 @@
   </div>
 
   <!-- Energiefluss -->
-  <div class="section-label">Energiefluss</div>
+  <h2 class="section-label">Energiefluss</h2>
   <div class="chart-card" style="padding:12px 8px">
     <svg viewBox="0 0 400 244" style="width:100%;height:auto;display:block">
       <defs>
@@ -77,19 +80,19 @@
   </div>
 
   <!-- Plug chips -->
-  <div class="section-label">Steckdosen</div>
+  <h2 class="section-label">Steckdosen</h2>
   <div class="plugs" data-dashboard-target="plugList">—</div>
 
   <!-- Today + Energy charts -->
   <div data-controller="today-chart">
-    <div class="section-label">Gesamtenergie — Letzte 24 h</div>
+    <h2 class="section-label">Gesamtenergie — Letzte 24 h</h2>
     <div class="chart-card">
       <div class="chart-frame">
         <canvas data-today-chart-target="energyCanvas"></canvas>
       </div>
     </div>
 
-    <div class="section-label">Leistung — Letzte 24 h</div>
+    <h2 class="section-label">Leistung — Letzte 24 h</h2>
     <div class="chart-card">
       <div class="chart-frame">
         <canvas data-today-chart-target="powerCanvas"></canvas>
@@ -99,7 +102,7 @@
 
   <!-- History chart -->
   <div data-controller="history-chart">
-    <div class="section-label">Ertrag — Letzte 14 Tage</div>
+    <h2 class="section-label">Ertrag — Letzte 14 Tage</h2>
     <div class="chart-card">
       <div class="chart-frame">
         <canvas data-history-chart-target="canvas"></canvas>

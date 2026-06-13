@@ -24,9 +24,10 @@
   </head>
 
   <body>
+    <a class="skip-link" href="#main">Zum Inhalt springen</a>
     <header class="app-header">
       <%= link_to root_path, class: "app-brand" do %>
-        <%= image_tag "logo.png", alt: "Zipfelmaus", class: "app-logo" %>
+        <%= image_tag "logo.png", alt: "Ziwoas — Startseite", class: "app-logo", width: 172, height: 64 %>
       <% end %>
       <nav class="app-nav" aria-label="Hauptnavigation">
         <%= link_to "Dashboard", root_path, class: [ "app-nav-link", ("active" if current_page?(root_path)) ] %>
@@ -37,7 +38,7 @@
       </nav>
     </header>
 
-    <main class="app-main">
+    <main class="app-main" id="main">
       <%= yield %>
     </main>
   </body>

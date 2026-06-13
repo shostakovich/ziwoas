@@ -106,10 +106,14 @@ export default class extends Controller {
     const conW = consumers.reduce((s, p) => s + (p.online ? p.apower_w : 0), 0)
     const net  = pvW - conW
 
+    // No online plug at all → show the dash placeholder, consistent with the hero,
+    // rather than a misleading "0 W" that looks like a real measured zero.
+    const anyOnline = plugs.some(p => p.online)
+
     if (this.hasTileConsumptionTarget)
-      this.tileConsumptionTarget.textContent = conW.toFixed(0) + " W"
+      this.tileConsumptionTarget.textContent = anyOnline ? conW.toFixed(0) + " W" : "—"
     if (this.hasTileNetbalanceTarget)
-      this.tileNetbalanceTarget.textContent = (net >= 0 ? "+" : "") + net.toFixed(0) + " W"
+      this.tileNetbalanceTarget.textContent = anyOnline ? (net >= 0 ? "+" : "") + net.toFixed(0) + " W" : "—"
   }
 
   // --- Plug chips ---
@@ -238,16 +242,25 @@ export default class extends Controller {
     this.efLastDur[id] = dur
     target.innerHTML = ""
     if (!dur) return
+
+    // Respect prefers-reduced-motion: place static dots, skip the infinite animation.
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+
     for (let i = 0; i < 3; i++) {
       const c = document.createElementNS("http://www.w3.org/2000/svg", "circle")
       c.setAttribute("r", "4.5")
       c.setAttribute("fill", color)
-      c.style.cssText = `offset-path:path("${path}")`
-      target.appendChild(c)
-      c.animate(
-        [{ offsetDistance: "0%" }, { offsetDistance: "100%" }],
-        { duration: dur * 1000, delay: -(i * dur / 3) * 1000, iterations: Infinity, easing: "linear" }
-      )
+      if (reduceMotion) {
+        c.style.cssText = `offset-path:path("${path}");offset-distance:${25 + i * 25}%`
+        target.appendChild(c)
+      } else {
+        c.style.cssText = `offset-path:path("${path}")`
+        target.appendChild(c)
+        c.animate(
+          [{ offsetDistance: "0%" }, { offsetDistance: "100%" }],
+          { duration: dur * 1000, delay: -(i * dur / 3) * 1000, iterations: Infinity, easing: "linear" }
+        )
+      }
     }
   }
 

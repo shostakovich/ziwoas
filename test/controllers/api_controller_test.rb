@@ -122,7 +122,7 @@ class ApiControllerTest < ActionDispatch::IntegrationTest
   test "GET / serves dashboard HTML" do
     get "/"
     assert_response :ok
-    assert_select "h1", count: 0
+    assert_select "h1", text: "Dashboard", count: 1
     assert_select ".chart-card .chart-frame", minimum: 3
   end
 end

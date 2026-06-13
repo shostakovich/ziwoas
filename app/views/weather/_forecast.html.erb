@@ -1,6 +1,6 @@
 <%= turbo_frame_tag "weather_forecast" do %>
   <% if future_weather.any? %>
-    <div class="section-label">Nächste Tage</div>
+    <h2 class="section-label">Nächste Tage</h2>
     <section class="weather-days">
       <% future_weather.each do |day| %>
         <article class="weather-day-card"
@@ -35,7 +35,7 @@
                       aria-expanded="false"
                       aria-controls="seg-<%= day.date.iso8601 %>-<%= idx %>">
                 <div class="weather-segment-label"><%= segment.label %></div>
-                <%= image_tag segment.asset_name, class: "weather-segment-icon", alt: segment.dominant_icon.to_s %>
+                <%= image_tag segment.asset_name, class: "weather-segment-icon", width: 72, height: 72, loading: "lazy", alt: weather_icon_label(segment.dominant_icon) %>
                 <% if segment.temp_min && segment.temp_max %>
                   <strong class="weather-segment-temp">
                     <%= number_with_precision(segment.temp_min, precision: 0, delimiter: ".", separator: ",") %>

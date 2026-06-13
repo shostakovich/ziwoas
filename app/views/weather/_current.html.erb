@@ -2,7 +2,7 @@
   <% if current_weather %>
     <section class="weather-current chart-card">
       <div class="weather-current-head">
-        <%= image_tag current_weather.asset_name, class: "weather-current-icon", alt: current_weather.icon.to_s %>
+        <%= image_tag current_weather.asset_name, class: "weather-current-icon", width: 82, height: 82, alt: weather_icon_label(current_weather.icon) %>
         <div class="weather-current-main">
           <div class="tile-label">Jetzt</div>
           <% sensor = local_assigns[:outdoor_sensor_reading] %>

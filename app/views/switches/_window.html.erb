@@ -3,9 +3,12 @@
   <%= button_to window.enabled ? "⏸" : "▶",
                 switch_window_path(plug_id: plug.id, id: window.id),
                 method: :patch, params: { switch_window: { enabled: (!window.enabled).to_s } },
-                class: "sw-icon-btn", form_class: "sw-inline-form" %>
+                class: "sw-icon-btn", form_class: "sw-inline-form",
+                "aria-label": window.enabled ? "Zeitfenster pausieren" : "Zeitfenster aktivieren" %>
   <%= link_to "✏️", edit_switch_window_path(plug_id: plug.id, id: window.id),
-              class: "sw-icon-btn", data: { turbo_stream: true } %>
+              class: "sw-icon-btn", data: { turbo_stream: true }, "aria-label": "Zeitfenster bearbeiten" %>
   <%= button_to "🗑", switch_window_path(plug_id: plug.id, id: window.id),
-                method: :delete, class: "sw-icon-btn", form_class: "sw-inline-form" %>
+                method: :delete, class: "sw-icon-btn", form_class: "sw-inline-form",
+                form: { data: { turbo_confirm: "Zeitfenster wirklich löschen?" } },
+                "aria-label": "Zeitfenster löschen" %>
 </div>

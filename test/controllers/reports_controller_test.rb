@@ -10,7 +10,7 @@ class ReportsControllerTest < ActionDispatch::IntegrationTest
     get "/reports"
 
     assert_response :success
-    assert_select "h1", count: 0
+    assert_select "h1", text: "Berichte", count: 1
     assert_select "section.report-controls[aria-label='Zeitraum']", 1
   end
 
@@ -80,7 +80,7 @@ class ReportsControllerTest < ActionDispatch::IntegrationTest
     assert_no_match %r{href="/app\.css}, response.body
     assert_select "link[href^='/assets/application'][data-turbo-track='reload']", 1
     assert_select "header.app-header", 1
-    assert_select ".app-brand img[alt='Zipfelmaus']", 1
+    assert_select ".app-brand img[alt='Ziwoas — Startseite']", 1
     assert_select "nav.app-nav a[href='#{root_path}']", text: "Dashboard"
     assert_select "nav.app-nav a[href='#{reports_path}']", text: "Berichte"
     assert_select "nav.app-nav a[href='#{weather_path}']", text: "Wetter"

@@ -3,7 +3,10 @@
 
 <div data-controller="switches">
   <% if @rows.empty? %>
-    <p class="sw-empty">Keine schaltbaren Steckdosen konfiguriert. Markiere Verbraucher in <code>ziwoas.yml</code> mit <code>switchable: true</code>.</p>
+    <section class="sw-card empty-state">
+      <h2>Keine schaltbaren Steckdosen</h2>
+      <p class="sw-empty">Markiere Verbraucher in <code>ziwoas.yml</code> mit <code>switchable: true</code>.</p>
+    </section>
   <% end %>
 
   <% @rows.each do |row| %>
@@ -11,12 +14,14 @@
   <% end %>
 
   <% if @orphaned_windows.any? %>
-    <div class="section-label">Verwaiste Zeitfenster</div>
+    <h2 class="section-label">Verwaiste Zeitfenster</h2>
     <% @orphaned_windows.each do |window| %>
       <div class="sw-card sw-orphan" id="orphan_window_<%= window.id %>">
         <span class="sw-pill paused"><%= window.plug_id %> · <%= window_label(window) %></span>
         <%= button_to "🗑", switch_window_path(plug_id: window.plug_id, id: window.id),
-                      method: :delete, class: "sw-icon-btn", form_class: "sw-inline-form" %>
+                      method: :delete, class: "sw-icon-btn", form_class: "sw-inline-form",
+                      form: { data: { turbo_confirm: "Verwaistes Zeitfenster wirklich löschen?" } },
+                      "aria-label": "Zeitfenster löschen" %>
       </div>
     <% end %>
   <% end %>
