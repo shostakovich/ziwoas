@@ -37,7 +37,7 @@ class ReportsControllerTest < ActionDispatch::IntegrationTest
     assert_select ".section-label", text: "Energie — Ertrag / Verbrauch"
     assert_select ".section-label", text: /Leistung/
     assert_select ".chart-card .chart-frame", minimum: 2
-    assert_select ".plugs .plug-chip", minimum: 1
+    assert_select ".report-ranking .report-ranking-row", minimum: 1
     assert_select "[data-energy-report-target='dailyCanvas']", 1
     assert_select "[data-energy-report-target='detailCanvas']", 1
     assert_select "script[data-energy-report-target='payload']", 1

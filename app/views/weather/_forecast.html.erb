@@ -47,15 +47,15 @@
                     <%= number_with_precision(segment.precip_sum, precision: 1, delimiter: ".", separator: ",") %> mm
                   </div>
                 <% end %>
-                <div class="weather-segment-solar<%= segment.all_night? ? " is-night" : "" %>">
-                  <% if segment.all_night? %>
-                    Nacht
-                  <% elsif segment.avg_solar_w_per_m2 %>
-                    <%= number_with_precision(segment.avg_solar_w_per_m2, precision: 0, delimiter: ".", separator: ",") %> W/m²
-                  <% else %>
-                    — W/m²
-                  <% end %>
-                </div>
+                <% if segment.all_night? || segment.avg_solar_w_per_m2 %>
+                  <div class="weather-segment-solar<%= segment.all_night? ? " is-night" : "" %>">
+                    <% if segment.all_night? %>
+                      Nacht
+                    <% else %>
+                      <%= number_with_precision(segment.avg_solar_w_per_m2, precision: 0, delimiter: ".", separator: ",") %> W/m²
+                    <% end %>
+                  </div>
+                <% end %>
               </button>
             <% end %>
           </div>

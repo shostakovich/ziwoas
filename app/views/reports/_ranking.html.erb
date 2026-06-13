@@ -1,12 +1,17 @@
 <% if rows.any? %>
-  <div class="plugs report-plugs">
-    <% rows.each do |row| %>
-      <span class="plug-chip">
+  <% max_kwh = rows.map { |row| row.fetch(:kwh).to_f }.max.to_f %>
+  <div class="report-ranking" role="list">
+    <% rows.each_with_index do |row, index| %>
+      <% share = max_kwh.positive? ? (row.fetch(:kwh).to_f / max_kwh * 100).round(1) : 0 %>
+      <div class="report-ranking-row <%= row.fetch(:role) %>" role="listitem">
+        <span class="report-ranking-rank"><%= index + 1 %></span>
         <span class="dot <%= row.fetch(:role) %>"></span>
-        <span class="plug-name"><%= row.fetch(:name) %></span>
-        <%= " · " %>
-        <span class="plug-value"><%= number_with_precision(row.fetch(:kwh), precision: 2, delimiter: ".", separator: ",") %> kWh</span>
-      </span>
+        <span class="report-ranking-name"><%= row.fetch(:name) %></span>
+        <span class="report-ranking-bar" aria-hidden="true">
+          <span style="width: <%= share %>%"></span>
+        </span>
+        <span class="report-ranking-value"><%= number_with_precision(row.fetch(:kwh), precision: 2, delimiter: ".", separator: ",") %> kWh</span>
+      </div>
     <% end %>
   </div>
 <% else %>

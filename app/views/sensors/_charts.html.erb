@@ -2,23 +2,29 @@
 <div data-controller="sensors-chart"
      data-sensors-chart-url-value="<%= sensors_series_path %>">
   <h2 class="section-label">CO₂ — Letzte 24 h</h2>
-  <div class="chart-card">
-    <div class="chart-frame">
+  <div class="chart-card sensor-chart-card sensor-chart-card-co2">
+    <div class="chart-frame chart-frame-prominent">
       <canvas data-sensors-chart-target="co2"></canvas>
     </div>
   </div>
 
-  <h2 class="section-label">Temperatur — Letzte 24 h</h2>
-  <div class="chart-card">
-    <div class="chart-frame">
-      <canvas data-sensors-chart-target="temperature"></canvas>
-    </div>
-  </div>
+  <div class="sensor-secondary-charts">
+    <section>
+      <h2 class="section-label">Temperatur — Letzte 24 h</h2>
+      <div class="chart-card sensor-chart-card">
+        <div class="chart-frame chart-frame-compact">
+          <canvas data-sensors-chart-target="temperature"></canvas>
+        </div>
+      </div>
+    </section>
 
-  <h2 class="section-label">Luftfeuchtigkeit — Letzte 24 h</h2>
-  <div class="chart-card">
-    <div class="chart-frame">
-      <canvas data-sensors-chart-target="humidity"></canvas>
-    </div>
+    <section>
+      <h2 class="section-label">Luftfeuchtigkeit — Letzte 24 h</h2>
+      <div class="chart-card sensor-chart-card">
+        <div class="chart-frame chart-frame-compact">
+          <canvas data-sensors-chart-target="humidity"></canvas>
+        </div>
+      </div>
+    </section>
   </div>
 </div>

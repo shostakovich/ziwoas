@@ -1,4 +1,5 @@
 <% content_for :title, "Berichte" %>
+<% content_for :body_class, "page-reports" %>
 <h1>Berichte</h1>
 
 <%
@@ -86,7 +87,7 @@
                    data-energy-report-target="dailyWeatherCheckbox"
                    data-action="change->energy-report#toggleDailyWeather">
             <span class="ios-toggle-track"><span class="ios-toggle-thumb"></span></span>
-            <span class="ios-toggle-label">Wetter</span>
+            <span class="ios-toggle-label">Wetter & Solar</span>
           </label>
         </div>
       <% end %>
@@ -111,7 +112,7 @@
                    data-energy-report-target="detailWeatherCheckbox"
                    data-action="change->energy-report#toggleDetailWeather">
             <span class="ios-toggle-track"><span class="ios-toggle-thumb"></span></span>
-            <span class="ios-toggle-label">Wetter</span>
+            <span class="ios-toggle-label">Wetter-Overlay</span>
           </label>
         </div>
       <% end %>

@@ -131,7 +131,7 @@ export default class extends Controller {
 
     const daily = this.payload.daily || {}
     const labels = daily.labels || []
-    const consumerDatasets = this._consumerBarDatasets(daily.consumer_series || [])
+    const consumerDatasets = this._consumerBarDatasets(daily.consumer_series || [], { top: 5 })
     const consumedDatasets = consumerDatasets.length > 0 ? consumerDatasets : [
       { label: "Verbrauch", data: daily.consumed_kwh || [], backgroundColor: "#3b82f6", stack: "consumed" },
     ]
@@ -198,7 +198,7 @@ export default class extends Controller {
         responsive: true,
         maintainAspectRatio: false,
         scales,
-        plugins: { legend: { position: "bottom", labels: { boxWidth: 12, boxHeight: 12, padding: 10, font: { size: 12 } } } },
+        plugins: { legend: { position: "bottom", labels: { boxWidth: 12, boxHeight: 12, padding: 10, font: { size: 12 }, filter: (item, data) => !data.datasets[item.datasetIndex]?.hidden } } },
         animation: false,
         _weatherIcons: { enabled: this.dailyWeatherEnabled, icons: iconList, size: 32, gap: 8, paddingOn: dailyIconsPadding },
       },
@@ -231,7 +231,7 @@ export default class extends Controller {
         responsive: true,
         maintainAspectRatio: false,
         scales: { y: { min: 0, max: 100, title: { display: true, text: "%" } } },
-        plugins: { legend: { position: "bottom", labels: { boxWidth: 12, boxHeight: 12, padding: 10, font: { size: 12 } } } },
+        plugins: { legend: { position: "bottom", labels: { boxWidth: 12, boxHeight: 12, padding: 10, font: { size: 12 }, filter: (item, data) => !data.datasets[item.datasetIndex]?.hidden } } },
         animation: false,
       },
     })
@@ -263,6 +263,7 @@ export default class extends Controller {
         fill: false,
         tension: 0.2,
         pointRadius: 0,
+        hidden: series.role === "consumer",
       }
     })
     const totalConsumption = this._totalConsumptionDataset(detail.series || [])
@@ -316,7 +317,7 @@ export default class extends Controller {
         responsive: true,
         maintainAspectRatio: false,
         scales,
-        plugins: { legend: { position: "bottom", labels: { boxWidth: 12, boxHeight: 12, padding: 10, font: { size: 12 } } } },
+        plugins: { legend: { position: "bottom", labels: { boxWidth: 12, boxHeight: 12, padding: 10, font: { size: 12 }, filter: (item, data) => !data.datasets[item.datasetIndex]?.hidden } } },
         animation: false,
         _weatherIcons: { enabled: this.detailWeatherEnabled, icons: hasIcons ? w.icons : [], size: 28, gap: 8, paddingOn: detailIconsPadding },
       },
@@ -346,7 +347,7 @@ export default class extends Controller {
           x: { stacked: true },
           y: { stacked: true, beginAtZero: true, title: { display: true, text: "Watt" } },
         },
-        plugins: { legend: { position: "bottom", labels: { boxWidth: 12, boxHeight: 12, padding: 10, font: { size: 12 } } } },
+        plugins: { legend: { position: "bottom", labels: { boxWidth: 12, boxHeight: 12, padding: 10, font: { size: 12 }, filter: (item, data) => !data.datasets[item.datasetIndex]?.hidden } } },
         animation: false,
       },
     })
@@ -357,12 +358,34 @@ export default class extends Controller {
     return new Chart(canvas, config)
   }
 
-  _consumerBarDatasets(series) {
+  _consumerBarDatasets(series, options = {}) {
     const colors = ["#3b82f6", "#10b981", "#8b5cf6", "#ef4444", "#06b6d4", "#ec4899", "#84cc16", "#6366f1"]
-    return series.map((row, index) => ({
+    const rows = series.map((row) => ({
+      ...row,
+      total: (row.data || []).reduce((sum, value) => sum + Number(value || 0), 0),
+    })).sort((a, b) => b.total - a.total)
+
+    const limit = options.top || rows.length
+    const visible = rows.slice(0, limit)
+    const rest = rows.slice(limit)
+    const datasets = visible.map((row, index) => ({
       label: row.name, data: row.data || [],
       backgroundColor: colors[index % colors.length], stack: "consumed",
     }))
+
+    if (rest.length > 0) {
+      const length = Math.max(...rest.map((row) => (row.data || []).length))
+      datasets.push({
+        label: "Weitere Verbraucher",
+        data: Array.from({ length }, (_, index) => {
+          return +rest.reduce((sum, row) => sum + Number(row.data?.[index] || 0), 0).toFixed(3)
+        }),
+        backgroundColor: "#94a3b8",
+        stack: "consumed",
+      })
+    }
+
+    return datasets
   }
 
   _totalConsumptionDataset(series) {

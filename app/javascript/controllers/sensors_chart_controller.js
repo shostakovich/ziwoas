@@ -45,6 +45,7 @@ export default class extends Controller {
 
   _render(key, canvas, series, unit) {
     if (!canvas) return
+    const xBounds = this._xBounds(series)
     const datasets = series.map((s, i) => ({
       label: s.name,
       data:  s.points.map(([x, y]) => ({ x, y })),
@@ -58,12 +59,13 @@ export default class extends Controller {
     this.charts[key] = new Chart(canvas, {
       type: "line",
       data: { datasets },
-      options: this._opts(unit),
+      options: this._opts(unit, xBounds),
     })
   }
 
   _renderCo2(canvas, series) {
     if (!canvas) return
+    const xBounds = this._xBounds(series)
     const datasets = series.map((s, i) => ({
       label: s.name,
       data:  s.points.map(([x, y]) => ({ x, y })),
@@ -73,21 +75,18 @@ export default class extends Controller {
       borderWidth: 2,
       pointRadius: 0,
     }))
-    datasets.push(this._thresholdLine(series, 1000, "#fbbf24"))
-    datasets.push(this._thresholdLine(series, 1400, "#ef4444"))
+    datasets.push(this._thresholdLine(xBounds, 1000, "#fbbf24"))
+    datasets.push(this._thresholdLine(xBounds, 1400, "#ef4444"))
     this.charts.co2?.destroy()
     this.charts.co2 = new Chart(canvas, {
       type: "line",
       data: { datasets },
-      options: this._opts("ppm"),
+      options: this._opts("ppm", xBounds),
     })
   }
 
-  _thresholdLine(series, value, color) {
-    const xs = series.flatMap(s => s.points.map(p => p[0]))
-    const data = xs.length === 0
-      ? []
-      : [ { x: Math.min(...xs), y: value }, { x: Math.max(...xs), y: value } ]
+  _thresholdLine(xBounds, value, color) {
+    const data = xBounds ? [ { x: xBounds.min, y: value }, { x: xBounds.max, y: value } ] : []
     return {
       label: `${value} ppm`,
       data,
@@ -100,22 +99,28 @@ export default class extends Controller {
     }
   }
 
-  _opts(unit) {
+  _opts(unit, xBounds) {
+    const xScale = {
+      type: "linear",
+      ticks: {
+        maxTicksLimit: 8,
+        callback: (value) => {
+          const d = new Date(value)
+          return d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })
+        },
+      },
+    }
+    if (xBounds) {
+      xScale.min = xBounds.min
+      xScale.max = xBounds.max
+    }
+
     return {
       responsive: true,
       maintainAspectRatio: false,
       animation: false,
       scales: {
-        x: {
-          type: "linear",
-          ticks: {
-            maxTicksLimit: 8,
-            callback: (value) => {
-              const d = new Date(value)
-              return d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })
-            },
-          },
-        },
+        x: xScale,
         y: { title: { display: true, text: unit } },
       },
       plugins: {
@@ -133,6 +138,12 @@ export default class extends Controller {
         },
       },
     }
+  }
+
+  _xBounds(series) {
+    const xs = series.flatMap((s) => s.points.map((p) => p[0]))
+    if (xs.length === 0) return null
+    return { min: Math.min(...xs), max: Math.max(...xs) }
   }
 
   _color(i, alpha = 1) {
