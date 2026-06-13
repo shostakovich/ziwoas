@@ -6,8 +6,8 @@
     <% if sensor.type == :meter_pro_co2 && reading&.co2 %>
       <div class="sensor-card-ampel">
         <%= image_tag co2_icon_path(co2_level(reading.co2)),
-                      class: "sensor-ampel-icon",
-                      alt: "CO2-Ampel #{co2_level(reading.co2)}" %>
+                      class: "sensor-ampel-icon", width: 256, height: 495,
+                      alt: "CO₂-Ampel #{co2_level(reading.co2)}" %>
       </div>
     <% end %>
 
