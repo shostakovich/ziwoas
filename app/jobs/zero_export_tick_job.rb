@@ -24,7 +24,7 @@ class ZeroExportTickJob < ApplicationJob
     client ||= SolakonClient.new(host: solakon.host, port: solakon.port, unit_id: solakon.unit_id)
 
     begin
-      client.apply_control!(power_w: target, min_soc: ZeroExportController::MIN_SOC_PCT)
+      client.apply_control!(power_w: target)
       state = client.read_state
       reset_failures
       Rails.logger.info(

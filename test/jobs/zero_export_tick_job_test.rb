@@ -9,8 +9,8 @@ class ZeroExportTickJobTest < ActiveSupport::TestCase
       @calls = []
     end
 
-    def apply_control!(power_w:, min_soc:)
-      @calls << [ :apply, power_w, min_soc ]
+    def apply_control!(power_w:)
+      @calls << [ :apply, power_w ]
       raise SolakonClient::Error, "down" if @fail
     end
 
@@ -49,7 +49,7 @@ class ZeroExportTickJobTest < ActiveSupport::TestCase
     Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 250, aenergy_wh: 1)
     client = FakeClient.new(state: healthy_state)
     run_job(client: client, now: now)
-    assert_equal [ [ :apply, 250, 10 ] ], client.calls
+    assert_equal [ [ :apply, 250 ] ], client.calls
   end
 
   test "no-op when disabled" do
