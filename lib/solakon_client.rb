@@ -17,8 +17,9 @@ class SolakonClient
   REG_PV_POWER      = 39118 # i32 – W (2 regs)
   REG_BATTERY_POWER = 39230 # i32 – W (2 regs)
 
-  # Value written to REG_REMOTE_CONTROL to enable remote active-power control.
-  REMOTE_CONTROL_ENABLE = 1
+  # Values for REG_REMOTE_CONTROL.
+  REMOTE_CONTROL_ENABLE  = 1
+  REMOTE_CONTROL_DISABLE = 0
 
   State = Struct.new(:battery_soc, :active_power_w, :pv_power_w, :battery_power_w,
                      keyword_init: true)
@@ -41,16 +42,19 @@ class SolakonClient
     end
   end
 
-  def write_output_power!(watts)
-    with_slave { |slave| slave.write_holding_registers(REG_REMOTE_ACTIVE_POWER, from_i32(watts.to_i)) }
+  # Apply the full control command over a single connection: enable remote
+  # control, set the minimum-SoC guard, then write the active-power setpoint.
+  def apply_control!(power_w:, min_soc:)
+    with_slave do |slave|
+      slave.write_holding_register(REG_REMOTE_CONTROL, REMOTE_CONTROL_ENABLE)
+      slave.write_holding_register(REG_MINIMUM_SOC, min_soc.to_i)
+      slave.write_holding_registers(REG_REMOTE_ACTIVE_POWER, from_i32(power_w.to_i))
+    end
   end
 
-  def ensure_remote_control!
-    with_slave { |slave| slave.write_holding_register(REG_REMOTE_CONTROL, REMOTE_CONTROL_ENABLE) }
-  end
-
-  def ensure_minimum_soc!(pct)
-    with_slave { |slave| slave.write_holding_register(REG_MINIMUM_SOC, pct.to_i) }
+  # Relinquish remote control so the inverter reverts to its safe default.
+  def release_control!
+    with_slave { |slave| slave.write_holding_register(REG_REMOTE_CONTROL, REMOTE_CONTROL_DISABLE) }
   end
 
   private

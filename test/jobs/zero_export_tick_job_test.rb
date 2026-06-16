@@ -2,16 +2,20 @@ require "test_helper"
 
 class ZeroExportTickJobTest < ActiveSupport::TestCase
   class FakeClient
-    attr_reader :writes
-    def initialize(state: nil)
-      @state  = state
-      @writes = []
+    attr_reader :calls
+    def initialize(state: nil, fail: false)
+      @state = state
+      @fail  = fail
+      @calls = []
     end
 
-    def ensure_remote_control!     = (@writes << :remote)
-    def ensure_minimum_soc!(pct)   = (@writes << [ :min_soc, pct ])
-    def write_output_power!(watts) = (@writes << [ :power, watts ])
-    def read_state                 = @state
+    def apply_control!(power_w:, min_soc:)
+      @calls << [ :apply, power_w, min_soc ]
+      raise SolakonClient::Error, "down" if @fail
+    end
+
+    def release_control! = (@calls << :release)
+    def read_state       = @state
   end
 
   Plug = Struct.new(:id, :role, :name, keyword_init: true)
@@ -25,50 +29,68 @@ class ZeroExportTickJobTest < ActiveSupport::TestCase
 
   setup do
     Sample.delete_all
-    Rails.cache.clear
+    @cache = ActiveSupport::Cache::MemoryStore.new
   end
 
-  test "writes target derived from measured consumption" do
+  def run_job(client:, now: Time.at(1_000_000), cfg: config)
+    Rails.stub(:cache, @cache) do
+      ConfigLoader.stub(:app_config, cfg) do
+        ZeroExportTickJob.new.perform(client: client, reader_now: now)
+      end
+    end
+  end
+
+  def healthy_state
+    SolakonClient::State.new(battery_soc: 55, active_power_w: 250, pv_power_w: 0, battery_power_w: 0)
+  end
+
+  test "applies control derived from measured consumption" do
     now = Time.at(1_000_000)
     Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 250, aenergy_wh: 1)
-    client = FakeClient.new(state: SolakonClient::State.new(
-      battery_soc: 55, active_power_w: 250, pv_power_w: 0, battery_power_w: 0))
-
-    ConfigLoader.stub(:app_config, config) do
-      ZeroExportTickJob.new.perform(client: client, reader_now: now)
-    end
-
-    assert_includes client.writes, :remote
-    assert_includes client.writes, [ :min_soc, 10 ]
-    assert_includes client.writes, [ :power, 250 ]
+    client = FakeClient.new(state: healthy_state)
+    run_job(client: client, now: now)
+    assert_equal [ [ :apply, 250, 10 ] ], client.calls
   end
 
   test "no-op when disabled" do
     client = FakeClient.new
-    ConfigLoader.stub(:app_config, config(enabled: false)) do
-      ZeroExportTickJob.new.perform(client: client, reader_now: Time.now)
-    end
-    assert_empty client.writes
+    run_job(client: client, cfg: config(enabled: false))
+    assert_empty client.calls
   end
 
   test "no-op when solakon not configured" do
     client = FakeClient.new
-    ConfigLoader.stub(:app_config, config(solakon: false)) do
-      ZeroExportTickJob.new.perform(client: client, reader_now: Time.now)
-    end
-    assert_empty client.writes
+    run_job(client: client, cfg: config(solakon: false))
+    assert_empty client.calls
   end
 
-  test "swallows Modbus errors" do
+  test "a single failure does not raise or relinquish control" do
     now = Time.at(1_000_000)
     Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 250, aenergy_wh: 1)
-    client = FakeClient.new
-    def client.ensure_remote_control! = raise(SolakonClient::Error, "down")
+    client = FakeClient.new(fail: true)
+    assert_nothing_raised { run_job(client: client, now: now) }
+    refute_includes client.calls, :release
+  end
 
-    ConfigLoader.stub(:app_config, config) do
-      assert_nothing_raised do
-        ZeroExportTickJob.new.perform(client: client, reader_now: now)
-      end
-    end
+  test "relinquishes remote control after repeated failures" do
+    now = Time.at(1_000_000)
+    Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 250, aenergy_wh: 1)
+    client = FakeClient.new(fail: true)
+    3.times { run_job(client: client, now: now) }
+    assert_equal 1, client.calls.count(:release)
+  end
+
+  test "a success resets the failure counter" do
+    now = Time.at(1_000_000)
+    Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 250, aenergy_wh: 1)
+
+    failing = FakeClient.new(fail: true)
+    2.times { run_job(client: failing, now: now) }   # 2 consecutive failures
+
+    run_job(client: FakeClient.new(state: healthy_state), now: now) # success resets
+
+    failing2 = FakeClient.new(fail: true)
+    2.times { run_job(client: failing2, now: now) }  # only 2 again -> no release
+    refute_includes failing2.calls, :release
   end
 end

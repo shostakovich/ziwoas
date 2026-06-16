@@ -20,10 +20,10 @@ class SolakonClientTest < Minitest::Test
 
   def test_read_state_decodes_signed_values
     slave = FakeSlave.new(inputs: {
-      [ 39424, 1 ] => [ 55 ],               # soc 55 %
-      [ 39134, 2 ] => [ 0x0000, 0x012C ],   # active 300 W
-      [ 39118, 2 ] => [ 0x0000, 0x0064 ],   # pv 100 W
-      [ 39230, 2 ] => [ 0xFFFF, 0xFF38 ],   # battery -200 W (laden)
+      [ 39424, 1 ] => [ 55 ],
+      [ 39134, 2 ] => [ 0x0000, 0x012C ],
+      [ 39118, 2 ] => [ 0x0000, 0x0064 ],
+      [ 39230, 2 ] => [ 0xFFFF, 0xFF38 ],
     })
     state = client_for(slave).read_state
     assert_equal 55, state.battery_soc
@@ -32,25 +32,26 @@ class SolakonClientTest < Minitest::Test
     assert_equal(-200, state.battery_power_w)
   end
 
-  def test_write_output_power_encodes_i32_big_endian
+  def test_apply_control_writes_mode_min_soc_and_power_in_one_pass
     slave = FakeSlave.new
-    client_for(slave).write_output_power!(300)
-    assert_equal [ :multi, 46003, [ 0x0000, 0x012C ] ], slave.writes.first
+    client_for(slave).apply_control!(power_w: 300, min_soc: 10)
+    assert_equal [
+      [ :single, 46001, SolakonClient::REMOTE_CONTROL_ENABLE ],
+      [ :single, 46609, 10 ],
+      [ :multi, 46003, [ 0x0000, 0x012C ] ],
+    ], slave.writes
   end
 
-  def test_write_output_power_encodes_negative
+  def test_apply_control_encodes_negative_power
     slave = FakeSlave.new
-    client_for(slave).write_output_power!(-200)
-    assert_equal [ :multi, 46003, [ 0xFFFF, 0xFF38 ] ], slave.writes.first
+    client_for(slave).apply_control!(power_w: -200, min_soc: 10)
+    assert_includes slave.writes, [ :multi, 46003, [ 0xFFFF, 0xFF38 ] ]
   end
 
-  def test_ensure_helpers_write_single_registers
+  def test_release_control_disables_remote_control
     slave = FakeSlave.new
-    c = client_for(slave)
-    c.ensure_remote_control!
-    c.ensure_minimum_soc!(10)
-    assert_includes slave.writes, [ :single, 46001, SolakonClient::REMOTE_CONTROL_ENABLE ]
-    assert_includes slave.writes, [ :single, 46609, 10 ]
+    client_for(slave).release_control!
+    assert_equal [ [ :single, 46001, SolakonClient::REMOTE_CONTROL_DISABLE ] ], slave.writes
   end
 
   def test_errors_are_wrapped
