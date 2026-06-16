@@ -60,10 +60,19 @@ class SolakonClient
     end
   end
 
-  # Apply the control command over a single connection: enable remote control,
-  # (re)arm the inverter watchdog, then write the active-power setpoint last.
-  def apply_control!(power_w:)
+  # Apply the control command over a single connection: ensure the minimum-SoC
+  # guard is set, enable remote control, (re)arm the inverter watchdog, then
+  # write the active-power setpoint last.
+  #
+  # min_soc is the persisted battery-discharge floor. It is written only when it
+  # differs from the desired value, so the loop self-heals an out-of-band/reset
+  # device without wearing flash on every tick.
+  def apply_control!(power_w:, min_soc:)
     with_slave do |slave|
+      desired_soc = min_soc.to_i
+      if slave.read_holding_registers(REG_MINIMUM_SOC, 1).first != desired_soc
+        slave.write_holding_register(REG_MINIMUM_SOC, desired_soc)
+      end
       slave.write_holding_register(REG_REMOTE_CONTROL, REMOTE_CONTROL_ENABLE)
       slave.write_holding_register(REG_REMOTE_TIMEOUT, REMOTE_TIMEOUT_S)
       slave.write_holding_registers(REG_REMOTE_ACTIVE_POWER, from_i32(power_w.to_i))
@@ -73,12 +82,6 @@ class SolakonClient
   # Relinquish remote control so the inverter reverts to its safe default.
   def release_control!
     with_slave { |slave| slave.write_holding_register(REG_REMOTE_CONTROL, REMOTE_CONTROL_DISABLE) }
-  end
-
-  # Set the persisted minimum-SoC guard. Call rarely (it writes to flash), not
-  # on every tick.
-  def ensure_minimum_soc!(pct)
-    with_slave { |slave| slave.write_holding_register(REG_MINIMUM_SOC, pct.to_i) }
   end
 
   private

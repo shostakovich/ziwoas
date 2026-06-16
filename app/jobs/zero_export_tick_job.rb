@@ -24,11 +24,12 @@ class ZeroExportTickJob < ApplicationJob
     client ||= SolakonClient.new(host: solakon.host, port: solakon.port, unit_id: solakon.unit_id)
 
     begin
-      client.apply_control!(power_w: target)
+      client.apply_control!(power_w: target, min_soc: ZeroExportController::MIN_SOC_PCT)
       state = client.read_state
       reset_failures
+      consumption_str = consumption.nil? ? "stale" : "#{consumption.round}W"
       Rails.logger.info(
-        "zero_export: consumption=#{consumption.round}W floor=#{floor.round}W target=#{target}W " \
+        "zero_export: consumption=#{consumption_str} floor=#{floor.round}W target=#{target}W " \
         "soc=#{state.battery_soc}% active=#{state.active_power_w}W " \
         "pv=#{state.pv_power_w}W battery=#{state.battery_power_w}W"
       )

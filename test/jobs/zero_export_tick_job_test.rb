@@ -9,8 +9,8 @@ class ZeroExportTickJobTest < ActiveSupport::TestCase
       @calls = []
     end
 
-    def apply_control!(power_w:)
-      @calls << [ :apply, power_w ]
+    def apply_control!(power_w:, min_soc:)
+      @calls << [ :apply, power_w, min_soc ]
       raise SolakonClient::Error, "down" if @fail
     end
 
@@ -44,12 +44,30 @@ class ZeroExportTickJobTest < ActiveSupport::TestCase
     SolakonClient::State.new(battery_soc: 55, active_power_w: 250, pv_power_w: 0, battery_power_w: 0)
   end
 
-  test "applies control derived from measured consumption" do
+  test "applies control derived from measured consumption, with min_soc guard" do
     now = Time.at(1_000_000)
     Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 250, aenergy_wh: 1)
     client = FakeClient.new(state: healthy_state)
     run_job(client: client, now: now)
-    assert_equal [ [ :apply, 250 ] ], client.calls
+    assert_equal [ [ :apply, 250, 10 ] ], client.calls
+  end
+
+  test "fresh low consumption is not overridden by a stale cached floor" do
+    now = Time.at(1_000_000)
+    Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 20, aenergy_wh: 1)
+    @cache.write(ZeroExportTickJob::FLOOR_CACHE_KEY, 200.0) # stale, high cached floor
+    client = FakeClient.new(state: healthy_state)
+    run_job(client: client, now: now)
+    assert_equal [ [ :apply, 20, 10 ] ], client.calls # follows fresh load, not the floor
+  end
+
+  test "falls back to the floor when no fresh samples are available" do
+    now = Time.at(1_000_000)
+    # only a stale sample exists -> consumption unknown -> use floor (146)
+    Sample.create!(plug_id: "fridge", ts: now.to_i - 600, apower_w: 146, aenergy_wh: 1)
+    client = FakeClient.new(state: healthy_state)
+    run_job(client: client, now: now)
+    assert_equal [ [ :apply, 146, 10 ] ], client.calls
   end
 
   test "no-op when disabled" do

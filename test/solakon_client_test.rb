@@ -32,9 +32,9 @@ class SolakonClientTest < Minitest::Test
     assert_equal(-200, state.battery_power_w)
   end
 
-  def test_apply_control_enables_arms_watchdog_then_writes_setpoint
-    slave = FakeSlave.new
-    client_for(slave).apply_control!(power_w: 300)
+  def test_apply_control_skips_min_soc_write_when_already_correct
+    slave = FakeSlave.new(holdings: { [ 46609, 1 ] => [ 10 ] })
+    client_for(slave).apply_control!(power_w: 300, min_soc: 10)
     assert_equal [
       [ :single, 46001, SolakonClient::REMOTE_CONTROL_ENABLE ],
       [ :single, 46002, SolakonClient::REMOTE_TIMEOUT_S ],
@@ -42,9 +42,16 @@ class SolakonClientTest < Minitest::Test
     ], slave.writes
   end
 
+  def test_apply_control_writes_min_soc_when_device_value_differs
+    slave = FakeSlave.new(holdings: { [ 46609, 1 ] => [ 5 ] })
+    client_for(slave).apply_control!(power_w: 300, min_soc: 10)
+    assert_equal [ :single, 46609, 10 ], slave.writes.first
+    assert_includes slave.writes, [ :multi, 46003, [ 0x0000, 0x012C ] ]
+  end
+
   def test_apply_control_encodes_negative_power
-    slave = FakeSlave.new
-    client_for(slave).apply_control!(power_w: -200)
+    slave = FakeSlave.new(holdings: { [ 46609, 1 ] => [ 10 ] })
+    client_for(slave).apply_control!(power_w: -200, min_soc: 10)
     assert_includes slave.writes, [ :multi, 46003, [ 0xFFFF, 0xFF38 ] ]
   end
 
@@ -52,12 +59,6 @@ class SolakonClientTest < Minitest::Test
     slave = FakeSlave.new
     client_for(slave).release_control!
     assert_equal [ [ :single, 46001, SolakonClient::REMOTE_CONTROL_DISABLE ] ], slave.writes
-  end
-
-  def test_ensure_minimum_soc_writes_config_register
-    slave = FakeSlave.new
-    client_for(slave).ensure_minimum_soc!(10)
-    assert_equal [ [ :single, 46609, 10 ] ], slave.writes
   end
 
   def test_errors_are_wrapped
