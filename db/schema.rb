@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_12_171207) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_18_152944) do
   create_table "daily_energy_summary", primary_key: "date", id: :string, force: :cascade do |t|
     t.float "consumed_wh", null: false
     t.float "produced_wh", null: false
@@ -65,6 +65,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_12_171207) do
     t.datetime "updated_at", null: false
     t.index [ "device_id", "taken_at" ], name: "index_sensor_readings_on_device_id_and_taken_at"
     t.index [ "taken_at" ], name: "index_sensor_readings_on_taken_at"
+  end
+
+  create_table "solakon_readings", force: :cascade do |t|
+    t.datetime "taken_at", null: false
+    t.float "active_power_w", null: false
+    t.float "pv_power_w", null: false
+    t.float "battery_power_w", null: false
+    t.integer "battery_soc_pct", null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index [ "taken_at" ], name: "index_solakon_readings_on_taken_at"
   end
 
   create_table "switch_commands", force: :cascade do |t|
