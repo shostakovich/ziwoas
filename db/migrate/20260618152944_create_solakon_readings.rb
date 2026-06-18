@@ -1,4 +1,4 @@
-class CreateSolakonReadings < ActiveRecord::Migration[8.0]
+class CreateSolakonReadings < ActiveRecord::Migration[8.1]
   def change
     create_table :solakon_readings do |t|
       t.datetime :taken_at, null: false

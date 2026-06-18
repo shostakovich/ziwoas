@@ -12,6 +12,21 @@ class SolakonReadingTest < ActiveSupport::TestCase
     assert_includes reading.errors[:battery_soc_pct], "can't be blank"
   end
 
+test "validates power fields are numeric" do
+  reading = SolakonReading.new(
+    taken_at: Time.current,
+    active_power_w: "not-a-number",
+    pv_power_w: "also-not-a-number",
+    battery_power_w: "still-not-a-number",
+    battery_soc_pct: 80
+  )
+
+  assert_not reading.valid?
+  assert_includes reading.errors[:active_power_w], "is not a number"
+  assert_includes reading.errors[:pv_power_w], "is not a number"
+  assert_includes reading.errors[:battery_power_w], "is not a number"
+end
+
   test "latest_fresh returns newest reading inside stale threshold" do
     old = SolakonReading.create!(
       taken_at: 5.minutes.ago,
