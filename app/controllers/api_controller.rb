@@ -55,5 +55,38 @@ class ApiController < ApplicationController
         last_seen_ts: latest&.ts
       }
     end
+
+    consumer_w = @plugs
+      .select { |p| p[:role].to_sym == :consumer && p[:online] }
+      .sum { |p| p[:apower_w].to_f }
+
+    solakon_cfg = app_config.solakon
+    stale_after_s = solakon_cfg&.stale_after_s || threshold
+    reading = if solakon_cfg&.monitoring_enabled
+      SolakonReading.latest_fresh(stale_after_s: stale_after_s, now: Time.zone.at(@now_ts))
+    end
+
+    @energy_flow =
+      if reading
+        {
+          solakon_online: true,
+          home_w: consumer_w,
+          solakon_ac_w: reading.active_power_w,
+          solar_w: reading.pv_power_w,
+          battery_soc_pct: reading.battery_soc_pct,
+          battery_w: reading.battery_display_power_w,
+          grid_w: consumer_w - reading.active_power_w
+        }
+      else
+        {
+          solakon_online: false,
+          home_w: consumer_w,
+          solakon_ac_w: nil,
+          solar_w: nil,
+          battery_soc_pct: nil,
+          battery_w: nil,
+          grid_w: nil
+        }
+      end
   end
 end

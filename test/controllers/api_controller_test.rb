@@ -4,6 +4,7 @@ class ApiControllerTest < ActionDispatch::IntegrationTest
   setup do
     Sample.delete_all
     DailyTotal.delete_all
+    SolakonReading.delete_all
   end
 
   # --- /api/live ---
@@ -38,6 +39,64 @@ class ApiControllerTest < ActionDispatch::IntegrationTest
 
     bkw = response.parsed_body["plugs"].find { |p| p["id"] == "bkw" }
     assert_equal false, bkw["online"]
+  end
+
+  test "GET /api/live includes fresh Solakon energy flow" do
+    now = Time.current
+    cfg = live_config_with_solakon(stale_after_s: 120)
+
+    Sample.create!(plug_id: "desk", ts: now.to_i - 2, apower_w: 120.0, aenergy_wh: 1.0)
+    Sample.create!(plug_id: "heatpump", ts: now.to_i - 2, apower_w: 80.0, aenergy_wh: 1.0)
+    SolakonReading.create!(
+      taken_at: now - 2.seconds,
+      active_power_w: 260,
+      pv_power_w: 310,
+      battery_power_w: -50,
+      battery_soc_pct: 84
+    )
+
+    ConfigLoader.stub(:app_config, cfg) do
+      get "/api/live", as: :json
+    end
+    assert_response :ok
+
+    energy_flow = response.parsed_body["energy_flow"]
+    assert_equal true, energy_flow["solakon_online"]
+    assert_in_delta 200.0, energy_flow["home_w"]
+    assert_in_delta 260.0, energy_flow["solakon_ac_w"]
+    assert_in_delta 310.0, energy_flow["solar_w"]
+    assert_equal 84, energy_flow["battery_soc_pct"]
+    assert_in_delta 50.0, energy_flow["battery_w"]
+    assert_in_delta(-60.0, energy_flow["grid_w"])
+  end
+
+  test "GET /api/live marks stale Solakon energy flow unavailable" do
+    now = Time.current
+    cfg = live_config_with_solakon(stale_after_s: 120)
+
+    Sample.create!(plug_id: "desk", ts: now.to_i - 2, apower_w: 120.0, aenergy_wh: 1.0)
+    Sample.create!(plug_id: "heatpump", ts: now.to_i - 2, apower_w: 80.0, aenergy_wh: 1.0)
+    SolakonReading.create!(
+      taken_at: now - 121.seconds,
+      active_power_w: 260,
+      pv_power_w: 310,
+      battery_power_w: -50,
+      battery_soc_pct: 84
+    )
+
+    ConfigLoader.stub(:app_config, cfg) do
+      get "/api/live", as: :json
+    end
+    assert_response :ok
+
+    energy_flow = response.parsed_body["energy_flow"]
+    assert_equal false, energy_flow["solakon_online"]
+    assert_in_delta 200.0, energy_flow["home_w"]
+    assert_nil energy_flow["solakon_ac_w"]
+    assert_nil energy_flow["solar_w"]
+    assert_nil energy_flow["battery_soc_pct"]
+    assert_nil energy_flow["battery_w"]
+    assert_nil energy_flow["grid_w"]
   end
 
   # --- /api/today ---
@@ -125,4 +184,29 @@ class ApiControllerTest < ActionDispatch::IntegrationTest
     assert_select "h1", text: "Dashboard", count: 1
     assert_select ".chart-card .chart-frame", minimum: 3
   end
+  private
+
+  def live_config_with_solakon(stale_after_s:)
+    ConfigLoader::Config.new(
+      electricity_price_eur_per_kwh: 0.32,
+      timezone: "Europe/Berlin",
+      mqtt: ConfigLoader::MqttCfg.new(host: "localhost", port: 1883, topic_prefix: "shellies"),
+      plugs: [
+        ConfigLoader::PlugCfg.new(id: "bkw", name: "BKW", role: :producer, driver: :shelly, ain: nil),
+        ConfigLoader::PlugCfg.new(id: "desk", name: "Desk", role: :consumer, driver: :shelly, ain: nil),
+        ConfigLoader::PlugCfg.new(id: "heatpump", name: "Heatpump", role: :consumer, driver: :shelly, ain: nil)
+      ],
+      sensors: [],
+      trmnl: ConfigLoader::TrmnlCfg.new(energy_webhook_url: nil, sensors_webhook_url: nil),
+      solakon: ConfigLoader::SolakonCfg.new(
+        host: "127.0.0.1",
+        port: 502,
+        unit_id: 1,
+        monitoring_enabled: true,
+        control_enabled: false,
+        stale_after_s: stale_after_s
+      )
+    )
+  end
+
 end
