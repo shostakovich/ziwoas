@@ -13,7 +13,8 @@ class ConfigLoader
   SwitchbotCfg = Struct.new(:token, :secret, keyword_init: true)
   SensorCfg    = Struct.new(:id, :name, :type, :room, keyword_init: true)
   TrmnlCfg     = Struct.new(:energy_webhook_url, :sensors_webhook_url, keyword_init: true)
-  SolakonCfg   = Struct.new(:host, :port, :unit_id, :enabled, :stale_after_s, keyword_init: true)
+  SolakonCfg   = Struct.new(:host, :port, :unit_id, :monitoring_enabled, :control_enabled,
+                              :stale_after_s, keyword_init: true)
   Config       = Struct.new(:electricity_price_eur_per_kwh, :timezone,
                             :mqtt, :fritz_poll, :plugs, :fritz_box, :weather,
                             :switchbot, :sensors, :trmnl, :solakon,
@@ -238,13 +239,37 @@ class ConfigLoader
   def build_solakon(h)
     return nil if h.nil?
     h = require_hash(h, "solakon")
+
+    monitoring_enabled =
+      if h.key?("monitoring_enabled")
+        require_boolean(h["monitoring_enabled"], "solakon.monitoring_enabled")
+      elsif h.key?("enabled")
+        !!h["enabled"]
+      else
+        true
+      end
+
+    control_enabled =
+      if h.key?("control_enabled")
+        require_boolean(h["control_enabled"], "solakon.control_enabled")
+      else
+        false
+      end
+
     SolakonCfg.new(
-      host:          require_string(h["host"], "solakon.host"),
-      port:          (h["port"] || 502).to_i,
-      unit_id:       (h["unit_id"] || 1).to_i,
-      enabled:       h.key?("enabled") ? !!h["enabled"] : true,
-      stale_after_s: (h["stale_after_s"] || 120).to_i,
+      host:               require_string(h["host"], "solakon.host"),
+      port:               (h["port"] || 502).to_i,
+      unit_id:            (h["unit_id"] || 1).to_i,
+      monitoring_enabled: monitoring_enabled,
+      control_enabled:    control_enabled,
+      stale_after_s:      (h["stale_after_s"] || 120).to_i,
     )
+  end
+
+  def require_boolean(v, key)
+    return v if [ true, false ].include?(v)
+
+    raise Error, "#{key} must be true or false"
   end
 
   def require_optional_string(v, key)
