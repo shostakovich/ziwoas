@@ -22,11 +22,15 @@ class ZeroExportTickJobTest < ActiveSupport::TestCase
   end
 
   Plug = Struct.new(:id, :role, :name, keyword_init: true)
-  Sol  = Struct.new(:host, :port, :unit_id, :enabled, :stale_after_s, keyword_init: true)
+  Sol  = Struct.new(:host, :port, :unit_id, :monitoring_enabled, :control_enabled,
+                    :stale_after_s, keyword_init: true)
   Cfg  = Struct.new(:plugs, :solakon, keyword_init: true)
 
-  def config(enabled: true, solakon: true)
-    sol = solakon ? Sol.new(host: "h", port: 502, unit_id: 1, enabled: enabled, stale_after_s: 120) : nil
+  def config(monitoring_enabled: true, control_enabled: true, solakon: true)
+    sol = if solakon
+            Sol.new(host: "h", port: 502, unit_id: 1, monitoring_enabled: monitoring_enabled,
+                    control_enabled: control_enabled, stale_after_s: 120)
+    end
     Cfg.new(plugs: [ Plug.new(id: "fridge", role: :consumer, name: "Kühlschrank") ], solakon: sol)
   end
 
@@ -103,9 +107,9 @@ class ZeroExportTickJobTest < ActiveSupport::TestCase
     assert_equal [ [ :apply, 170, 10 ] ], exited.calls # discharge allowed again, follows load
   end
 
-  test "no-op when disabled" do
+  test "no-op when control disabled" do
     client = FakeClient.new
-    run_job(client: client, cfg: config(enabled: false))
+    run_job(client: client, cfg: config(control_enabled: false))
     assert_empty client.calls
   end
 

@@ -14,7 +14,7 @@ class ZeroExportTickJob < ApplicationJob
     config  = ConfigLoader.app_config
     solakon = config.solakon
     return Rails.logger.info("zero_export: not configured") if solakon.nil?
-    return Rails.logger.info("zero_export: disabled")       unless solakon.enabled
+    return Rails.logger.info("zero_export: disabled")       unless solakon.control_enabled
 
     reader = ConsumptionReader.new(plugs: config.plugs, now: reader_now,
                                    stale_after_s: solakon.stale_after_s)

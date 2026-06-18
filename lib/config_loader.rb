@@ -244,7 +244,7 @@ class ConfigLoader
       if h.key?("monitoring_enabled")
         require_boolean(h["monitoring_enabled"], "solakon.monitoring_enabled")
       elsif h.key?("enabled")
-        !!h["enabled"]
+        require_boolean(h["enabled"], "solakon.enabled")
       else
         true
       end
