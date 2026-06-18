@@ -3,6 +3,10 @@ require "config_loader"
 require "tempfile"
 
 class ConfigLoaderTest < Minitest::Test
+  def teardown
+    ConfigLoader.reset_app_config!
+  end
+
   def load_yaml(yaml)
     file = Tempfile.new([ "config", ".yml" ])
     file.write(yaml); file.flush
