@@ -9,13 +9,19 @@ class ZeroExportTickJobTest < ActiveSupport::TestCase
       @calls = []
     end
 
-    # The job drives a tick through control_tick!: a Modbus failure surfaces
-    # here (the read happens first), otherwise the block decides the setpoint.
-    def control_tick!(min_soc:)
+    def read_state
+      @calls << :read_state
       raise SolakonClient::Error, "down" if @fail
-      power = yield(@state)
-      @calls << [ :apply, power, min_soc ]
       @state
+    end
+
+    def apply_control!(power_w:, min_soc:)
+      @calls << [ :apply_power, power_w, min_soc ]
+    end
+
+    def control_tick!(min_soc:)
+      @calls << [ :control_tick, min_soc ]
+      raise "control_tick! should not be used by ZeroExportTickJob"
     end
 
     def release_control! = (@calls << :release)
@@ -39,10 +45,10 @@ class ZeroExportTickJobTest < ActiveSupport::TestCase
     @cache = ActiveSupport::Cache::MemoryStore.new
   end
 
-  def run_job(client:, now: Time.at(1_000_000), cfg: config)
+  def run_job(client:, now: Time.at(1_000_000), cfg: config, state: nil)
     Rails.stub(:cache, @cache) do
       ConfigLoader.stub(:app_config, cfg) do
-        ZeroExportTickJob.new.perform(client: client, reader_now: now)
+        ZeroExportTickJob.new.perform(client: client, reader_now: now, state: state)
       end
     end
   end
@@ -60,7 +66,17 @@ class ZeroExportTickJobTest < ActiveSupport::TestCase
     Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 250, aenergy_wh: 1)
     client = FakeClient.new(state: healthy_state)
     run_job(client: client, now: now)
-    assert_equal [ [ :apply, 250, 10 ] ], client.calls
+    assert_equal [ :read_state, [ :apply_power, 250, 10 ] ], client.calls
+  end
+
+  test "applies control from a pre-read state without calling read_state or control_tick" do
+    now = Time.at(1_000_000)
+    Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 250, aenergy_wh: 1)
+    client = FakeClient.new(state: healthy_state)
+
+    run_job(client: client, now: now, state: healthy_state)
+
+    assert_equal [ [ :apply_power, 250, 10 ] ], client.calls
   end
 
   test "fresh low consumption is not overridden by a stale cached floor" do
@@ -69,7 +85,7 @@ class ZeroExportTickJobTest < ActiveSupport::TestCase
     @cache.write(ZeroExportTickJob::FLOOR_CACHE_KEY, 200.0) # stale, high cached floor
     client = FakeClient.new(state: healthy_state)
     run_job(client: client, now: now)
-    assert_equal [ [ :apply, 20, 10 ] ], client.calls # follows fresh load, not the floor
+    assert_equal [ :read_state, [ :apply_power, 20, 10 ] ], client.calls # follows fresh load, not the floor
   end
 
   test "falls back to the floor when no fresh samples are available" do
@@ -78,7 +94,7 @@ class ZeroExportTickJobTest < ActiveSupport::TestCase
     Sample.create!(plug_id: "fridge", ts: now.to_i - 600, apower_w: 146, aenergy_wh: 1)
     client = FakeClient.new(state: healthy_state)
     run_job(client: client, now: now)
-    assert_equal [ [ :apply, 146, 10 ] ], client.calls
+    assert_equal [ :read_state, [ :apply_power, 146, 10 ] ], client.calls
   end
 
   test "recovery mode caps the setpoint so the battery charges instead of toggling" do
@@ -86,7 +102,7 @@ class ZeroExportTickJobTest < ActiveSupport::TestCase
     Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 170, aenergy_wh: 1)
     client = FakeClient.new(state: state_with(soc: 12, pv: 100))
     run_job(client: client, now: now)
-    assert_equal [ [ :apply, 70, 10 ] ], client.calls # min(170, 100-30)
+    assert_equal [ :read_state, [ :apply_power, 70, 10 ] ], client.calls # min(170, 100-30)
   end
 
   test "recovery hysteresis holds between the thresholds" do
@@ -95,7 +111,7 @@ class ZeroExportTickJobTest < ActiveSupport::TestCase
     run_job(client: FakeClient.new(state: state_with(soc: 12, pv: 100)), now: now) # enter recovery
     held = FakeClient.new(state: state_with(soc: 14, pv: 100))                      # between 13 and 15
     run_job(client: held, now: now)
-    assert_equal [ [ :apply, 70, 10 ] ], held.calls # still recovery -> still capped
+    assert_equal [ :read_state, [ :apply_power, 70, 10 ] ], held.calls # still recovery -> still capped
   end
 
   test "recovery exits at the upper threshold and resumes discharge" do
@@ -104,10 +120,10 @@ class ZeroExportTickJobTest < ActiveSupport::TestCase
     run_job(client: FakeClient.new(state: state_with(soc: 12, pv: 100)), now: now) # enter recovery
     exited = FakeClient.new(state: state_with(soc: 15, pv: 100))                    # >= 15 -> normal
     run_job(client: exited, now: now)
-    assert_equal [ [ :apply, 170, 10 ] ], exited.calls # discharge allowed again, follows load
+    assert_equal [ :read_state, [ :apply_power, 170, 10 ] ], exited.calls # discharge allowed again, follows load
   end
 
-  test "no-op when control disabled" do
+  test "no-op when control is disabled" do
     client = FakeClient.new
     run_job(client: client, cfg: config(control_enabled: false))
     assert_empty client.calls

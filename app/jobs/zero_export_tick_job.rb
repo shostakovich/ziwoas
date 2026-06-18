@@ -10,11 +10,11 @@ class ZeroExportTickJob < ApplicationJob
   FLOOR_TTL                = 1.hour
   MAX_CONSECUTIVE_FAILURES = 3
 
-  def perform(client: nil, reader_now: Time.now)
+  def perform(client: nil, reader_now: Time.now, state: nil)
     config  = ConfigLoader.app_config
     solakon = config.solakon
     return Rails.logger.info("zero_export: not configured") if solakon.nil?
-    return Rails.logger.info("zero_export: disabled")       unless solakon.control_enabled
+    return Rails.logger.info("zero_export: control disabled") unless solakon.control_enabled
 
     reader = ConsumptionReader.new(plugs: config.plugs, now: reader_now,
                                    stale_after_s: solakon.stale_after_s)
@@ -24,17 +24,15 @@ class ZeroExportTickJob < ApplicationJob
     client ||= SolakonClient.new(host: solakon.host, port: solakon.port, unit_id: solakon.unit_id)
 
     begin
-      # One Modbus connection per tick: read state, decide the setpoint from
-      # SoC + PV (recovery hysteresis), then write — all in control_tick!.
-      recovery = nil
-      target   = nil
-      state = client.control_tick!(min_soc: ZeroExportController::MIN_SOC_PCT) do |st|
-        recovery = recovery_mode?(st.battery_soc)
-        target   = ZeroExportController.target_output_w(
-          consumption_w: consumption, floor_w: floor,
-          pv_power_w: st.pv_power_w, recovery: recovery
-        )
-      end
+      state ||= client.read_state
+      recovery = recovery_mode?(state.battery_soc)
+      target = ZeroExportController.target_output_w(
+        consumption_w: consumption,
+        floor_w: floor,
+        pv_power_w: state.pv_power_w,
+        recovery: recovery
+      )
+      client.apply_control!(power_w: target, min_soc: ZeroExportController::MIN_SOC_PCT)
       reset_failures
       consumption_str = consumption.nil? ? "stale" : "#{consumption.round}W"
       Rails.logger.info(
