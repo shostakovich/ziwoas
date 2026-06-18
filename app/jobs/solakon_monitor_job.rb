@@ -22,9 +22,17 @@ class SolakonMonitorJob < ApplicationJob
       battery_soc_pct: state.battery_soc
     )
 
-    ActionCable.server.broadcast("dashboard", { solakon: true })
     ZeroExportTickJob.perform_now(state: state) if solakon.control_enabled
+    broadcast_dashboard_refresh
   rescue SolakonClient::Error => e
     Rails.logger.warn("solakon_monitor: Modbus failure: #{e.message}")
+  end
+
+  private
+
+  def broadcast_dashboard_refresh
+    ActionCable.server.broadcast("dashboard", { solakon: true })
+  rescue StandardError => e
+    Rails.logger.warn("solakon_monitor: dashboard broadcast failed: #{e.message}")
   end
 end

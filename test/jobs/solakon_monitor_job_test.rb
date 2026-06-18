@@ -18,6 +18,20 @@ class SolakonMonitorJobTest < ActiveSupport::TestCase
     end
   end
 
+  class FakeBroadcaster
+    attr_reader :calls
+
+    def initialize(fail: false)
+      @fail = fail
+      @calls = []
+    end
+
+    def broadcast(stream, payload)
+      @calls << [ stream, payload ]
+      raise "broadcast down" if @fail
+    end
+  end
+
   Sol = Struct.new(:host, :port, :unit_id, :monitoring_enabled, :control_enabled,
                    :stale_after_s, keyword_init: true)
   Cfg = Struct.new(:solakon, keyword_init: true)
@@ -50,14 +64,17 @@ class SolakonMonitorJobTest < ActiveSupport::TestCase
     )
   end
 
-  def run_job(client:, cfg: config, now: Time.zone.local(2026, 6, 18, 12, 0, 0), &block)
+  def run_job(client:, cfg: config, now: Time.zone.local(2026, 6, 18, 12, 0, 0),
+              broadcaster: FakeBroadcaster.new, &block)
     ConfigLoader.stub(:app_config, cfg) do
-      if block
-        ZeroExportTickJob.stub(:perform_now, block) do
+      ActionCable.stub(:server, broadcaster) do
+        if block
+          ZeroExportTickJob.stub(:perform_now, block) do
+            SolakonMonitorJob.new.perform(client: client, now: now)
+          end
+        else
           SolakonMonitorJob.new.perform(client: client, now: now)
         end
-      else
-        SolakonMonitorJob.new.perform(client: client, now: now)
       end
     end
   end
@@ -65,13 +82,15 @@ class SolakonMonitorJobTest < ActiveSupport::TestCase
   test "persists reading when monitoring_enabled true" do
     now = Time.zone.local(2026, 6, 18, 12, 0, 0)
     client = FakeClient.new(state: state)
+    broadcaster = FakeBroadcaster.new
 
     assert_difference -> { SolakonReading.count }, 1 do
-      run_job(client: client, now: now)
+      run_job(client: client, now: now, broadcaster: broadcaster)
     end
 
     reading = SolakonReading.last
     assert_equal [ :read_state ], client.calls
+    assert_equal [ [ "dashboard", { solakon: true } ] ], broadcaster.calls
     assert_equal now, reading.taken_at
     assert_equal 123, reading.active_power_w
     assert_equal 456, reading.pv_power_w
@@ -106,10 +125,36 @@ class SolakonMonitorJobTest < ActiveSupport::TestCase
   test "successful read with control_enabled true triggers zero export tick with state" do
     current_state = state
     client = FakeClient.new(state: current_state)
+    broadcaster = FakeBroadcaster.new
     control_calls = []
 
-    run_job(client: client, cfg: config(control_enabled: true), &->(state:) { control_calls << state })
+    run_job(
+      client: client,
+      cfg: config(control_enabled: true),
+      broadcaster: broadcaster,
+      &->(state:) { control_calls << state }
+    )
 
     assert_equal [ current_state ], control_calls
+    assert_equal [ [ "dashboard", { solakon: true } ] ], broadcaster.calls
+  end
+
+  test "broadcast failure does not block zero export tick" do
+    current_state = state
+    client = FakeClient.new(state: current_state)
+    broadcaster = FakeBroadcaster.new(fail: true)
+    control_calls = []
+
+    assert_nothing_raised do
+      run_job(
+        client: client,
+        cfg: config(control_enabled: true),
+        broadcaster: broadcaster,
+        &->(state:) { control_calls << state }
+      )
+    end
+
+    assert_equal [ current_state ], control_calls
+    assert_equal [ [ "dashboard", { solakon: true } ] ], broadcaster.calls
   end
 end
