@@ -198,7 +198,8 @@ export default class extends Controller {
     const gridToHome = gridW > 0 ? gridW : 0
     const solarToGrid = gridW < 0 ? Math.abs(gridW) : 0
     const solarToBattery = batteryW > 0 ? batteryW : 0
-    const batteryToHome = batteryW < 0 ? Math.abs(batteryW) : 0
+    const batteryDischargeW = batteryW < 0 ? Math.abs(batteryW) : 0
+    const batteryToHome = Math.min(batteryDischargeW, homeW)
     const solarToHome = pvW == null ? 0 : Math.max(0, pvW - solarToGrid - solarToBattery)
 
     if (this.hasEfPvWTarget)
