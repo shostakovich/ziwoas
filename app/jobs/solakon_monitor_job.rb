@@ -26,6 +26,8 @@ class SolakonMonitorJob < ApplicationJob
     broadcast_dashboard_refresh
   rescue SolakonClient::Error => e
     Rails.logger.warn("solakon_monitor: Modbus failure: #{e.message}")
+  rescue ActiveRecord::RecordInvalid => e
+    Rails.logger.warn("solakon_monitor: invalid reading: #{e.record.errors.full_messages.join(", ")}")
   end
 
   private

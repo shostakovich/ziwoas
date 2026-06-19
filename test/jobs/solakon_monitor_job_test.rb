@@ -139,6 +139,26 @@ class SolakonMonitorJobTest < ActiveSupport::TestCase
     assert_equal [ [ "dashboard", { solakon: true } ] ], broadcaster.calls
   end
 
+  test "invalid reading does not persist or trigger control" do
+    invalid_state = SolakonClient::State.new(
+      battery_soc: 150,
+      active_power_w: 123,
+      pv_power_w: 456,
+      battery_power_w: -78
+    )
+    client = FakeClient.new(state: invalid_state)
+    control_calls = []
+
+    assert_no_difference -> { SolakonReading.count } do
+      assert_nothing_raised do
+        run_job(client: client, cfg: config(control_enabled: true), &->(state:) { control_calls << state })
+      end
+    end
+
+    assert_equal [ :read_state ], client.calls
+    assert_empty control_calls
+  end
+
   test "broadcast failure does not block zero export tick" do
     current_state = state
     client = FakeClient.new(state: current_state)

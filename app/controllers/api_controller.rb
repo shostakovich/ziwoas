@@ -57,9 +57,11 @@ class ApiController < ApplicationController
       }
     end
 
-    consumer_w = @plugs
-      .select { |p| p[:role] == :consumer && p[:online] }
-      .sum { |p| p[:apower_w].to_f }
+    consumer_plugs = @plugs.select { |p| p[:role] == :consumer }
+    consumers_fresh = consumer_plugs.any? && consumer_plugs.all? { |p| p[:online] }
+    consumer_w = if consumers_fresh
+      consumer_plugs.sum { |p| p[:apower_w].to_f }
+    end
 
     solakon_cfg = config.solakon
     stale_after_s = solakon_cfg&.stale_after_s || threshold
@@ -76,7 +78,7 @@ class ApiController < ApplicationController
           solar_w: reading.pv_power_w,
           battery_soc_pct: reading.battery_soc_pct,
           battery_w: reading.battery_display_power_w,
-          grid_w: consumer_w - reading.active_power_w
+          grid_w: consumer_w.nil? ? nil : consumer_w - reading.active_power_w
         }
       else
         {

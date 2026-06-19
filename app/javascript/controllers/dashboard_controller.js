@@ -110,7 +110,7 @@ export default class extends Controller {
   updateLiveTiles(plugs) {
     const flow = this.energyFlow
     const consumers = plugs.filter(p => p.role === "consumer")
-    const conW = flow?.home_w ?? consumers.reduce((s, p) => s + (p.online ? p.apower_w : 0), 0)
+    const conW = flow ? flow.home_w : consumers.reduce((s, p) => s + (p.online ? p.apower_w : 0), 0)
     const gridW = flow?.grid_w
 
     // No online plug at all → show the dash placeholder, consistent with the hero,
@@ -118,7 +118,7 @@ export default class extends Controller {
     const anyOnline = flow?.solakon_online || plugs.some(p => p.online)
 
     if (this.hasTileConsumptionTarget)
-      this.tileConsumptionTarget.textContent = anyOnline ? conW.toFixed(0) + " W" : "—"
+      this.tileConsumptionTarget.textContent = anyOnline && conW != null ? conW.toFixed(0) + " W" : "—"
     if (this.hasTileNetbalanceTarget)
       this.tileNetbalanceTarget.textContent = gridW == null ? "—" : (gridW <= 0 ? "+" : "−") + Math.abs(gridW).toFixed(0) + " W"
   }
@@ -190,22 +190,25 @@ export default class extends Controller {
     const fallbackHomeW = consumers.reduce((s, p) => s + (p.online ? p.apower_w : 0), 0)
     const solakonOnline = flow?.solakon_online
     const pvW = solakonOnline ? Math.max(0, flow.solar_w || 0) : null
-    const homeW = flow?.home_w ?? fallbackHomeW
+    const homeW = flow ? flow.home_w : fallbackHomeW
     const gridW = flow?.grid_w
     const batteryW = flow?.battery_w
     const batterySoc = flow?.battery_soc_pct
 
     const gridToHome = gridW > 0 ? gridW : 0
     const solarToGrid = gridW < 0 ? Math.abs(gridW) : 0
-    const solarToBattery = batteryW > 0 ? batteryW : 0
+    const batteryChargeW = batteryW > 0 ? batteryW : 0
     const batteryDischargeW = batteryW < 0 ? Math.abs(batteryW) : 0
-    const batteryToHome = Math.min(batteryDischargeW, homeW)
+    const solarForBattery = pvW == null ? 0 : Math.max(0, pvW - solarToGrid)
+    const solarToBattery = Math.min(batteryChargeW, solarForBattery)
+    const gridToBattery = Math.max(0, batteryChargeW - solarToBattery)
+    const batteryToHome = Math.min(batteryDischargeW, homeW || 0)
     const solarToHome = pvW == null ? 0 : Math.max(0, pvW - solarToGrid - solarToBattery)
 
     if (this.hasEfPvWTarget)
       this.efPvWTarget.textContent = pvW == null ? "— W" : pvW.toFixed(0) + " W"
     if (this.hasEfConsumerWTarget)
-      this.efConsumerWTarget.textContent = (solakonOnline || plugs.some(p => p.online)) ? homeW.toFixed(0) + " W" : "— W"
+      this.efConsumerWTarget.textContent = homeW == null ? "— W" : homeW.toFixed(0) + " W"
     if (this.hasEfGridWTarget) {
       this.efGridWTarget.textContent =
         gridW == null ? "— W" :
@@ -241,7 +244,7 @@ export default class extends Controller {
     this._efSetDots("efDotsSolarGridTarget", EF_PATHS.solarGrid, "#8b5cf6", solarToGrid, EF_LENS.solarGrid)
     this._efSetDots("efDotsSolarBatteryTarget", EF_PATHS.solarBattery, "#ec4899", solarToBattery, EF_LENS.solarBattery)
     this._efSetDots("efDotsGridHomeTarget", EF_PATHS.gridHome, "#3b82f6", gridToHome, EF_LENS.gridHome)
-    this._efSetDots("efDotsGridBatteryTarget", EF_PATHS.gridBattery, "#94a3b8", 0, EF_LENS.gridBattery)
+    this._efSetDots("efDotsGridBatteryTarget", EF_PATHS.gridBattery, "#94a3b8", gridToBattery, EF_LENS.gridBattery)
     this._efSetDots("efDotsBatteryHomeTarget", EF_PATHS.batteryHome, "#14b8a6", batteryToHome, EF_LENS.batteryHome)
   }
 
