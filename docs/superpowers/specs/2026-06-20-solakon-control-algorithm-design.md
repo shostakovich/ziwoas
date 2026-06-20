@@ -219,21 +219,26 @@ Wear note: the remote control registers are volatile and are safe to write every
 
 A control decision requires fresh Solakon state and household load input.
 
-If Solakon read fails:
+If the Solakon **read** fails:
 
-- Do not compute a new target from stale inverter data.
-- Log the failure and count consecutive failures.
-- After repeated failures, release remote control so the inverter returns to its own default behavior.
+- The read happens in `SolakonMonitorJob`, which aborts on a Modbus error and
+  does not invoke control. No target is written.
+- Because no write re-arms `REG_REMOTE_TIMEOUT`, the inverter's own 150 s
+  remote-control watchdog drops remote control autonomously. That hardware
+  watchdog is the intended backstop for read outages — the controller does not
+  need its own read-failure release path under the production call path.
 
-If household load is unavailable:
+If household **load** is unavailable (no fresh consumer sample):
 
-- Use `guaranteed_floor_w` as the conservative load estimate.
-- If both live load and floor are unavailable or implausible, release control instead of holding an old high target.
+- Fall back to `guaranteed_floor_w` (the 24 h minimum, recomputed each tick).
+  This is conservative and export-safe, and is never an "old high target", so
+  the controller keeps writing the floor rather than releasing control.
 
-If a write fails:
+If a **write** fails:
 
-- Count consecutive failures.
-- After repeated failures, attempt `release_control!`.
+- Count consecutive failures (`ZeroExportTickJob#handle_failure`).
+- After `MAX_CONSECUTIVE_FAILURES` (3), call `release_control!` so the inverter
+  reverts to its own default behavior.
 
 ## Temperature
 

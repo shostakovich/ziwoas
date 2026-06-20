@@ -116,6 +116,10 @@ class ZeroExportTickJob < ApplicationJob
     Rails.cache.write(FAILURE_COUNT_CACHE_KEY, 0)
   end
 
+  # Reached for *write* failures (the live state is supplied by the monitor, so
+  # read failures abort upstream in SolakonMonitorJob, where the inverter's 150s
+  # hardware watchdog is the backstop). After repeated write failures we release
+  # remote control so the inverter reverts to its own default behavior.
   def handle_failure(client, error)
     failures = Rails.cache.read(FAILURE_COUNT_CACHE_KEY).to_i + 1
     Rails.cache.write(FAILURE_COUNT_CACHE_KEY, failures)
