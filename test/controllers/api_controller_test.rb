@@ -52,7 +52,7 @@ class ApiControllerTest < ActionDispatch::IntegrationTest
         taken_at: now - 2.seconds,
         active_power_w: 260,
         pv_power_w: 310,
-        battery_power_w: -50,
+        battery_power_w: 50,
         battery_soc_pct: 84
       )
 
@@ -83,7 +83,7 @@ class ApiControllerTest < ActionDispatch::IntegrationTest
         taken_at: now - 2.seconds,
         active_power_w: 260,
         pv_power_w: 310,
-        battery_power_w: -50,
+        battery_power_w: 50,
         battery_soc_pct: 84
       )
 
@@ -111,7 +111,7 @@ class ApiControllerTest < ActionDispatch::IntegrationTest
         taken_at: now - 121.seconds,
         active_power_w: 260,
         pv_power_w: 310,
-        battery_power_w: -50,
+        battery_power_w: 50,
         battery_soc_pct: 84
       )
 
@@ -142,7 +142,7 @@ class ApiControllerTest < ActionDispatch::IntegrationTest
         taken_at: now - 2.seconds,
         active_power_w: 260,
         pv_power_w: 310,
-        battery_power_w: -50,
+        battery_power_w: 50,
         battery_soc_pct: 84
       )
 

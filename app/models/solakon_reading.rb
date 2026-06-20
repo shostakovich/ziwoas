@@ -9,7 +9,10 @@ class SolakonReading < ApplicationRecord
     newest_first.where("taken_at >= ?", now - stale_after_s.to_i.seconds).first
   end
 
+  # The Solakon One reports register 39230 (battery_power_w) with charging as a
+  # POSITIVE value (verified live against the device). The UI uses the same sign
+  # convention — charging +, discharging − — so the raw value is used as-is.
   def battery_display_power_w
-    -battery_power_w.to_f
+    battery_power_w.to_f
   end
 end

@@ -49,7 +49,7 @@ Each reading stores:
 - `battery_power_w`: raw Solakon battery power.
 - `battery_soc_pct`: battery state of charge percentage.
 
-The UI battery display power is derived from the stored raw value instead of being persisted separately. If the Solakon raw sign convention reports charging as negative, the display value is inverted so charging appears as `+50 W` and discharging as `-50 W`.
+The UI battery display power is derived from the stored raw value instead of being persisted separately. The Solakon One's raw sign convention on register `39230` reports **charging as positive** (verified live against the device: `+14 W` while charging, with PV > AC output), which matches the UI convention (charging `+`, discharging `−`), so the raw value is used as-is without inversion.
 
 The model should expose a latest-fresh lookup using the configured stale threshold.
 

@@ -49,9 +49,12 @@ end
     end
   end
 
+  # The real Solakon One reports register 39230 with charging as a POSITIVE raw
+  # value (verified live: +14 W while charging, with PV > AC output). The display
+  # value keeps the same sign convention shown to the user: charging +, discharging −.
   test "battery_display_power_w is positive while charging and negative while discharging" do
-    charging = SolakonReading.new(battery_power_w: -50)
-    discharging = SolakonReading.new(battery_power_w: 50)
+    charging = SolakonReading.new(battery_power_w: 50)
+    discharging = SolakonReading.new(battery_power_w: -50)
 
     assert_equal 50, charging.battery_display_power_w
     assert_equal(-50, discharging.battery_display_power_w)
