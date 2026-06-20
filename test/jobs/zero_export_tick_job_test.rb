@@ -142,6 +142,22 @@ class ZeroExportTickJobTest < ActiveSupport::TestCase
     assert_includes client.calls, [ :apply_power, 400, 10 ]
   end
 
+  test "thermal cutoff to zero writes immediately despite the deadband" do
+    now = Time.zone.local(2026, 6, 20, 12, 0, 0)
+    Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 900, aenergy_wh: 1)
+
+    # Warm: the de-rating ceiling is ~40 W at 47.4 C, written as the target.
+    run_job(client: FakeClient.new(state: state_with(soc: 55, pv: 700, temp: 47.4)), now: now)
+
+    # Crossing the 48 C cutoff drops the target to 0 W -- a sub-deadband decrease
+    # that must still write so the battery stops discharging without waiting for
+    # the heartbeat.
+    cutoff = FakeClient.new(state: state_with(soc: 55, pv: 700, temp: 48.0))
+    run_job(client: cutoff, now: now + 30.seconds)
+
+    assert_includes cutoff.calls, [ :apply_power, 0, 10 ]
+  end
+
   test "no-op when control is disabled" do
     client = FakeClient.new
     run_job(client: client, cfg: config(control_enabled: false))
