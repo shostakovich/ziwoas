@@ -185,6 +185,9 @@ The UI should not lead with register names, bit names, or protocol table labels.
 
 ## Plush Battery Assets
 
+Visual reference: [`2026-06-20-solakon-battery-character-reference.png`](./2026-06-20-solakon-battery-character-reference.png).
+
+
 Create a new plush-style battery character family that matches the existing Ziwoas asset style.
 
 Required states:
