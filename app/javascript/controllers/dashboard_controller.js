@@ -6,7 +6,7 @@ import consumer from "channels/consumer"
 //          energy flow SVG, and periodic today-summary fetch.
 export default class extends Controller {
   static targets = [
-    "heroValue", "heroBatterySoc",
+    "heroValue", "heroBattery", "heroBatterySoc",
     "tileConsumption", "tileNetbalance",
     "tileProduced", "tileConsumed", "tileSavings", "tileNettoday",
     "tileAutarky", "tileSelfConsumption",
@@ -102,13 +102,21 @@ export default class extends Controller {
     const flow = this.energyFlow
     const producer = plugs.find(p => p.role === "producer")
     const fallbackW = producer?.online ? Math.abs(producer.apower_w).toFixed(0) : "—"
-    const w = flow ? (flow.solakon_online ? Math.max(0, flow.solar_w || 0).toFixed(0) : "—") : fallbackW
+    // Use the Solakon PV value only when its reading is live; otherwise fall back
+    // to the producer plug so dashboards without Solakon keep showing live watts.
+    const w = flow?.solakon_online ? Math.max(0, flow.solar_w || 0).toFixed(0) : fallbackW
     this.heroValueTarget.innerHTML = `<span class="hero-number">${w}</span> <span class="hero-unit">W</span>`
 
-    if (this.hasHeroBatterySocTarget) {
-      const soc = flow?.solakon_online ? flow.battery_soc_pct : null
-      const s = soc == null ? "—" : soc.toFixed(0)
-      this.heroBatterySocTarget.innerHTML = `<span class="hero-number">${s}</span> <span class="hero-unit">%</span>`
+    // The battery half is Solakon-only: hide it entirely when there is no live
+    // Solakon reading, so setups without a battery look unchanged.
+    if (this.hasHeroBatteryTarget) {
+      const online = !!flow?.solakon_online
+      this.heroBatteryTarget.hidden = !online
+      if (online) {
+        const soc = flow.battery_soc_pct
+        const s = soc == null ? "—" : soc.toFixed(0)
+        this.heroBatterySocTarget.innerHTML = `<span class="hero-number">${s}</span> <span class="hero-unit">%</span>`
+      }
     }
   }
 

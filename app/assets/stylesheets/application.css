@@ -87,6 +87,9 @@ h1 { font-size: 18px; margin: 0 0 16px; color: var(--muted); font-weight: 500; }
   /* Match .tile padding so each icon lines up with its column's text. */
   padding-left: 14px;
 }
+/* Solakon-only battery half is hidden via the [hidden] attr; the flex display
+   above would otherwise override the UA default. */
+.hero-half[hidden] { display: none; }
 /* Battery icon trimmed to roughly the sun's visible height (~30% smaller). */
 .hero-icon-battery { height: 56px; }
 
