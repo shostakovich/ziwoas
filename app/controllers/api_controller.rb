@@ -57,11 +57,12 @@ class ApiController < ApplicationController
       }
     end
 
-    consumer_plugs = @plugs.select { |p| p[:role] == :consumer }
-    consumers_fresh = consumer_plugs.any? && consumer_plugs.all? { |p| p[:online] }
-    consumer_w = if consumers_fresh
-      consumer_plugs.sum { |p| p[:apower_w].to_f }
-    end
+    # Per-plug freshness: include each consumer that is currently fresh and sum
+    # those. A single stale/offline plug should not blank out the whole figure;
+    # it just drops out of the sum. Only when no consumer is fresh do we report
+    # nil (shown as "—") rather than a misleading 0 W.
+    online_consumers = @plugs.select { |p| p[:role] == :consumer && p[:online] }
+    consumer_w = online_consumers.any? ? online_consumers.sum { |p| p[:apower_w].to_f } : nil
 
     solakon_cfg = config.solakon
     stale_after_s = solakon_cfg&.stale_after_s || threshold

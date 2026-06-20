@@ -100,6 +100,32 @@ class ApiControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "GET /api/live sums only the fresh consumer plugs and ignores stale ones" do
+    travel_to Time.zone.local(2026, 6, 18, 12, 0, 0) do
+      now = Time.current
+      cfg = live_config_with_solakon(stale_after_s: 120)
+
+      Sample.create!(plug_id: "desk", ts: now.to_i - 2, apower_w: 120.0, aenergy_wh: 1.0)       # fresh
+      Sample.create!(plug_id: "heatpump", ts: now.to_i - 130, apower_w: 80.0, aenergy_wh: 1.0)  # stale -> ignored
+      SolakonReading.create!(
+        taken_at: now - 2.seconds,
+        active_power_w: 260,
+        pv_power_w: 310,
+        battery_power_w: 50,
+        battery_soc_pct: 84
+      )
+
+      ConfigLoader.stub(:app_config, cfg) do
+        get "/api/live", as: :json
+      end
+      assert_response :ok
+
+      energy_flow = response.parsed_body["energy_flow"]
+      assert_in_delta 120.0, energy_flow["home_w"]      # only the fresh desk plug, heatpump dropped
+      assert_in_delta(-140.0, energy_flow["grid_w"])    # 120 - 260
+    end
+  end
+
   test "GET /api/live marks stale Solakon energy flow unavailable" do
     travel_to Time.zone.local(2026, 6, 18, 12, 0, 0) do
       now = Time.current
