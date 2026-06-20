@@ -6,7 +6,7 @@ import consumer from "channels/consumer"
 //          energy flow SVG, and periodic today-summary fetch.
 export default class extends Controller {
   static targets = [
-    "heroValue",
+    "heroValue", "heroBatterySoc",
     "tileConsumption", "tileNetbalance",
     "tileProduced", "tileConsumed", "tileSavings", "tileNettoday",
     "tileAutarky", "tileSelfConsumption",
@@ -104,6 +104,12 @@ export default class extends Controller {
     const fallbackW = producer?.online ? Math.abs(producer.apower_w).toFixed(0) : "—"
     const w = flow ? (flow.solakon_online ? Math.max(0, flow.solar_w || 0).toFixed(0) : "—") : fallbackW
     this.heroValueTarget.innerHTML = `<span class="hero-number">${w}</span> <span class="hero-unit">W</span>`
+
+    if (this.hasHeroBatterySocTarget) {
+      const soc = flow?.solakon_online ? flow.battery_soc_pct : null
+      const s = soc == null ? "—" : soc.toFixed(0)
+      this.heroBatterySocTarget.innerHTML = `<span class="hero-number">${s}</span> <span class="hero-unit">%</span>`
+    }
   }
 
   // --- Live tiles ---

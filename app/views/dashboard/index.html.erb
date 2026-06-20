@@ -3,10 +3,16 @@
 <h1>Dashboard</h1>
 
 <div data-controller="dashboard">
-  <!-- Hero: PV live -->
+  <!-- Hero: PV live | Batterie-Ladestand (zwei gleichwertige Hälften) -->
   <div class="hero">
-    <%= image_tag @dashboard_weather_asset, class: "hero-icon", alt: @dashboard_weather_alt %>
-    <div class="hero-value" data-dashboard-target="heroValue">— <span class="hero-unit">W</span></div>
+    <div class="hero-half">
+      <%= image_tag @dashboard_weather_asset, class: "hero-icon", alt: @dashboard_weather_alt %>
+      <div class="hero-value" data-dashboard-target="heroValue">— <span class="hero-unit">W</span></div>
+    </div>
+    <div class="hero-half" data-dashboard-target="heroBattery">
+      <%= image_tag "icon_batterie.webp", class: "hero-icon hero-icon-battery", alt: "Batterie" %>
+      <div class="hero-value" data-dashboard-target="heroBatterySoc">— <span class="hero-unit">%</span></div>
+    </div>
   </div>
 
   <!-- Tiles: today's numbers -->
