@@ -78,14 +78,24 @@ class ZeroExportTickJob < ApplicationJob
   end
 
   # Reads like the policy: write on a new state, when the watchdog heartbeat is
-  # due, or when the target has moved beyond its deadband.
+  # due, when the target has moved beyond its deadband, or when a protective
+  # decision cuts the target to zero. That last case matters because the thermal
+  # de-rating can step the ceiling down by less than the deadband right at the
+  # cutoff (e.g. ~40W -> 0W as it crosses 48C); waiting for the heartbeat would
+  # let the battery keep discharging past the cutoff. The active-power register
+  # is volatile, so the extra write is cheap.
   def should_write?(decision, now)
     last = LastWrite.from_cache
     return true if last.missing?
 
     last.state != decision.state ||
       heartbeat_due?(last, now) ||
-      decision.differs_from?(last.target_w)
+      decision.differs_from?(last.target_w) ||
+      cutoff_to_zero?(decision, last)
+  end
+
+  def cutoff_to_zero?(decision, last)
+    decision.target_w.zero? && last.target_w.to_i.positive?
   end
 
   def heartbeat_due?(last, now)
