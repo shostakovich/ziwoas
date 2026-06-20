@@ -17,6 +17,15 @@ The existing Solakon monitoring path reads inverter state regularly. Control is 
 - `SolakonClient::REMOTE_TIMEOUT_S` is 150 seconds. Remote control must be rearmed before this watchdog expires.
 - `SunCalc.sunrise` and `SunCalc.sunset` provide sunrise and sunset from the configured weather location and timezone.
 
+Algorithm thresholds are **Ruby constants in code**, not config:
+
+- `SolakonReading` owns battery-safety constants: `MIN_SOC_PCT` 10, `RESUME_SOC_PCT` 11, `HOT_TEMP_C` 42.0, `HOT_RESUME_TEMP_C` 41.8, `PV_PRESENT_W` 50, `USABLE_CAPACITY_WH` 1920.
+- `ZeroExportController` owns control-tuning constants: `MAX_OUTPUT_W` 800, `DAY_BATTERY_HELP_W` 250, `EVENING_DISCHARGE_LIMIT_W` 800, `HOT_OUTPUT_LIMIT_W` 400, `NORMAL_DEADBAND_W` 50, `BASE_DEADBAND_W` 15, `NIGHT_BASE_RESERVE_W` 5, `RISE_FACTOR` 0.25, `RISE_CAP_W` 50, `FALL_FACTOR` 0.80.
+- `ConsumptionReader::NIGHT_BASE_DAYS` is 7.
+- `SunWindow::FALLBACK_SUNRISE_HOUR` / `FALLBACK_SUNSET_HOUR` are 6 / 20.
+
+`solakon.yml` keeps only `host`, `port`, `unit_id`, `monitoring_enabled`, `control_enabled`, `stale_after_s`. No algorithm threshold lives in config.
+
 ## Prime Directive
 
 PV-to-house has priority over battery discharge. Storing PV in the battery and discharging it later is useful, but direct PV consumption is cheaper and should win whenever possible.
@@ -37,22 +46,28 @@ Use a small state machine for coarse behavior. The state chooses intent; pure fu
 
 ### PROTECTED
 
-Purpose: avoid intentional battery discharge.
+Purpose: avoid intentional battery discharge when SoC is low, and avoid running the inverter hot.
+
+`PROTECTED` covers both low-SoC protection and thermal protection with hysteresis around each entry threshold:
 
 Enter when:
 
-- SoC is at or below 10%.
-- Battery temperature protection requires a strong AC output cap.
-- Control state is unsafe because required sensor data is missing.
+- SoC is at or below 10% (`MIN_SOC_PCT`), or
+- battery temperature is at or above 42.0 °C (`HOT_TEMP_C`), or
+- control state is unsafe because required sensor data is missing.
 
-Exit low-SoC protection when:
+Leave when, for a fresh reading:
 
-- SoC is at least 11% for a fresh reading. If this flaps in practice, require two consecutive fresh readings.
+- SoC is at least 11% (`RESUME_SOC_PCT`) **and**
+- battery temperature is at or below 41.8 °C (`HOT_RESUME_TEMP_C`).
+
+Both conditions must hold simultaneously — a battery that has cooled but is still at low SoC stays in `PROTECTED`, and vice versa. If this flaps in practice, require two consecutive fresh readings.
 
 Behavior:
 
-- Do not intentionally request battery discharge.
-- Use a PV-priority target at most, or release remote control when the safest action is to let the inverter handle itself.
+- While SoC has not resumed: do not intentionally request battery discharge. Target is at most PV power, further capped by the thermal ceiling below.
+- Once SoC has resumed (so the only reason still in `PROTECTED` is heat): the target **follows actual household load down**, capped at 400 W (`HOT_OUTPUT_LIMIT_W`) — not capped by the daytime `DAY_BATTERY_HELP_W` (250 W) battery-assist limit, which only applies in `PV_PRIORITY`. Lower total AC output means less inverter throughput and less internal heat; the Solakon One splits battery vs. PV internally, so the controller does not need to manage that split. The discharge-current-limit register is not used (see Current Limit Registers).
+- While battery temperature is still hot, total AC output is throttled to the 400 W ceiling regardless of SoC state.
 - The hard lower SoC boundary is still the inverter minimum SoC setting; the controller is best-effort above that.
 
 ### PV_PRIORITY
@@ -63,20 +78,17 @@ Default daylight mode and also any time PV is meaningfully present. Battery disc
 pv_direct_w = min(pv_w, household_load_w)
 remaining_load_w = max(0, household_load_w - pv_direct_w)
 
-battery_help_w = min(
-  remaining_load_w,
-  mode_discharge_limit_w,
-  soc_discharge_limit_w
-)
+battery_help_w = min(remaining_load_w, DAY_BATTERY_HELP_W)
 
 raw_target_w = pv_direct_w + battery_help_w
 target_w = apply_output_caps(raw_target_w)
 ```
 
+`PV_PRIORITY` is only reachable once SoC has resumed (otherwise the controller stays in `PROTECTED`), so no separate SoC-based discharge limit is needed here — `DAY_BATTERY_HELP_W` (250 W) is the only battery-assist cap.
+
 Examples:
 
-- PV 100 W, load 386 W, low SoC: target about 100 W.
-- PV 100 W, load 386 W, healthy battery: target may be 100 W plus limited battery help.
+- PV 100 W, load 386 W: target is 100 W direct plus up to 250 W of battery help, so about 350 W (capped further by `remaining_load_w` if load is smaller).
 
 ### EVENING_CATCH_UP
 
@@ -84,9 +96,9 @@ Used after sunset when the battery has more usable energy than expected base loa
 
 Use asymmetric smoothing:
 
-- Increase target slowly.
-- Decrease target quickly.
-- Always clamp to the current fresh measured load.
+- Increase target slowly: at most `RISE_FACTOR` (25%) of the gap to the measured load, capped at `RISE_CAP_W` (50 W) per tick.
+- Decrease target quickly: `FALL_FACTOR` (80%) of the gap per tick.
+- Always clamp the result to the current fresh measured load (export-safe), in addition to the evening discharge limit.
 
 ```text
 smoothed_load_w = asymmetric_smoothed(household_load_w)
@@ -109,9 +121,9 @@ base_target_w = max(0, night_base_w - 5 W)
 
 Definition:
 
-- Use the last 7 nights by default.
+- Use the last `NIGHT_BASE_DAYS` (7) nights by default.
 - A night bucket is between sunset and sunrise, excluding the first hour after sunset and the last hour before sunrise to avoid evening and morning activity.
-- If there is not enough night data, fall back to `guaranteed_floor_w` and then to a conservative configured default.
+- If there is not enough night data, fall back to `guaranteed_floor_w`.
 
 P20 is chosen because the house has stable always-on server/router load. It stays near the real base load while ignoring spikes and avoiding fragile absolute minima.
 
@@ -140,17 +152,19 @@ If `usable_wh <= base_need_wh`, use `NIGHT_BASE`.
 
 This intentionally aims to make room for the next PV day. Without a PV forecast this is a heuristic. Weather/solar forecast can later scale the target more conservatively on expected poor PV days, but v1 should keep the rule simple and explicit.
 
+`hours_until_sunrise` is measured against `SunWindow`'s **next upcoming sunrise** — today's if we are before it, tomorrow's if we are already past it — so the budget never collapses to zero late at night. When no weather location is configured, `SunWindow` falls back to fixed 06:00/20:00 sunrise/sunset (`FALLBACK_SUNRISE_HOUR` / `FALLBACK_SUNSET_HOUR`), which keeps the controller behaving in a `PV_PRIORITY`-like daytime/night split even without real sun data.
+
 ## Transitions
 
 ```text
 any state -> PROTECTED
-  when SoC <= 10%, required sensor data is missing, or thermal protection demands it
+  when SoC <= 10%, battery_temp >= 42.0 C, or required sensor data is missing
 
 PROTECTED -> PV_PRIORITY
-  when SoC >= 11% and PV is present or it is daytime
+  when SoC >= 11% and battery_temp <= 41.8 C, and (PV is present or it is daytime)
 
 PROTECTED -> NIGHT_BASE
-  when SoC >= 11%, it is night, and usable_wh <= base_need_wh
+  when SoC >= 11%, battery_temp <= 41.8 C, it is night, and usable_wh <= base_need_wh
 
 PV_PRIORITY -> EVENING_CATCH_UP
   after sunset when usable_wh > base_need_wh
@@ -227,33 +241,33 @@ Store battery temperature in `solakon_readings` as `battery_temperature_c`.
 
 Use the BMS maximum temperature register as the protection signal. The Home Assistant integration identifies `bms1_max_temp` as register `37617`, signed 16-bit, scale 10, in Celsius.
 
-```text
-raw_target_w = state_target_before_output_caps
+Thermal protection is **not** merely a cap layered on top of another state — it is the `PROTECTED` state itself, entered with hysteresis:
 
-if battery_temperature_c >= 42 C:
-  target_w = min(raw_target_w, 400 W)
-else:
-  target_w = min(raw_target_w, 800 W)
+- Enter `PROTECTED` when `battery_temperature_c >= 42.0 C` (`HOT_TEMP_C`).
+- Leave only when `battery_temperature_c <= 41.8 C` (`HOT_RESUME_TEMP_C`) **and** SoC has resumed.
+
+While in `PROTECTED` for thermal reasons (SoC already resumed), the target **follows actual household load down**, capped at 400 W (`HOT_OUTPUT_LIMIT_W`):
+
+```text
+ceiling_w = battery_cooled? ? 800 W : 400 W
+target_w  = min(household_load_w, ceiling_w)
 ```
 
-This limit applies to the whole AC target, not only to battery help. The intent is to reduce inverter heat; storing surplus in the battery may still be preferable to pushing high AC power through the outside socket while hot.
+This cap applies to the whole AC target, not only to battery help, and it is **not** limited by the daytime `DAY_BATTERY_HELP_W` (250 W) cap — that cap is specific to `PV_PRIORITY`. Lower total AC output is preferred while hot because it means less inverter throughput and therefore less internal heat. The Solakon One splits battery power vs. PV power internally to meet the active-power setpoint; the controller does not manage that split and does not use the discharge-current-limit register for this purpose (see Current Limit Registers).
 
 ## Discharge Limits
 
-Make `limited_allowed_discharge` explicit:
+`battery_help_w` (the part of the target above PV) is bounded per state, implemented as `ZeroExportController.pv_priority_target` / `protected_target` / etc. rather than one generic formula:
 
 ```text
-battery_help_w = min(
-  remaining_load_w,
-  mode_discharge_limit_w,
-  soc_discharge_limit_w
-)
+battery_help_w = min(remaining_load_w, mode_discharge_limit_w)
 ```
 
-Suggested defaults:
-
-- `soc_discharge_limit_w = 0` at or below 10% and until resume at 11%.
-- `mode_discharge_limit_w` is lower in `PV_PRIORITY`, higher in `EVENING_CATCH_UP`, and equal to base target in `NIGHT_BASE`.
+- `PV_PRIORITY`: `mode_discharge_limit_w = DAY_BATTERY_HELP_W` (250 W).
+- `PROTECTED` (SoC at or below 10%, until resume at 11%): no intentional discharge — target is at most PV power.
+- `PROTECTED` (thermal, SoC already resumed): no separate `mode_discharge_limit_w` — the whole target follows household load, capped at `HOT_OUTPUT_LIMIT_W` (400 W); the 250 W daytime battery-help cap does not apply here.
+- `EVENING_CATCH_UP`: bounded by `EVENING_DISCHARGE_LIMIT_W` (800 W), the asymmetric smoothing, and the measured-load clamp.
+- `NIGHT_BASE`: target equals the base load target (`night_base_w - NIGHT_BASE_RESERVE_W`), clamped to measured load.
 
 ## Current Limit Registers
 
@@ -261,21 +275,40 @@ The Solakon exposes writable battery charge and discharge current limit register
 
 Therefore, current limit registers should not be part of the normal algorithm. They may remain documented as an experimental/manual option, but production control should use active-power targets, heartbeat writes, and sparse target changes.
 
-## Open Parameters
+## Constants
 
-These values should be constants or config values with conservative defaults:
+All algorithm thresholds are Ruby constants, not config values. `solakon.yml` only carries connection/feature settings (`host`, `port`, `unit_id`, `monitoring_enabled`, `control_enabled`, `stale_after_s`).
 
-- `battery_capacity_wh`
-- `resume_soc_pct`, default 11
-- `max_day_battery_help_w`
-- `max_evening_discharge_w`
-- `hot_battery_temp_c`, default 42
-- `hot_ac_output_limit_w`, default 400
-- normal write deadband, default 50 W
-- base-load write deadband, default 15 W
-- base-load reserve, default 5 W
-- heartbeat interval, default 120 s
-- night base history window, default 7 nights
+`SolakonReading` (battery safety):
+
+- `MIN_SOC_PCT` = 10
+- `RESUME_SOC_PCT` = 11
+- `HOT_TEMP_C` = 42.0
+- `HOT_RESUME_TEMP_C` = 41.8
+- `PV_PRESENT_W` = 50
+- `USABLE_CAPACITY_WH` = 1920
+
+`ZeroExportController` (control tuning):
+
+- `MAX_OUTPUT_W` = 800
+- `DAY_BATTERY_HELP_W` = 250
+- `EVENING_DISCHARGE_LIMIT_W` = 800
+- `HOT_OUTPUT_LIMIT_W` = 400
+- `NORMAL_DEADBAND_W` = 50
+- `BASE_DEADBAND_W` = 15
+- `NIGHT_BASE_RESERVE_W` = 5
+- `RISE_FACTOR` = 0.25
+- `RISE_CAP_W` = 50
+- `FALL_FACTOR` = 0.80
+
+`ConsumptionReader`:
+
+- `NIGHT_BASE_DAYS` = 7
+
+`SunWindow`:
+
+- `FALLBACK_SUNRISE_HOUR` = 6
+- `FALLBACK_SUNSET_HOUR` = 20
 
 ## Summary
 
@@ -286,5 +319,6 @@ The controller should behave like this:
 - Once base load is enough to reach the morning target, switch to a quiet base-load setpoint.
 - Keep remote control alive with a watchdog heartbeat, even when the target is unchanged.
 - Clamp smoothed targets to current measured load so falling loads do not cause avoidable export.
-- Store battery temperature and cap total AC output at high temperature.
+- Store battery temperature; treat thermal protection as the `PROTECTED` state with hysteresis (enter at 42.0 °C, leave at 41.8 °C), where the target follows household load down, capped at 400 W.
 - On missing or stale critical data, prefer releasing control over holding an old risky target.
+- All thresholds are Ruby constants owned by the relevant model/controller class, not `solakon.yml` config.
