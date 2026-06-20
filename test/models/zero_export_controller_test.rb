@@ -1,57 +1,110 @@
 require "test_helper"
 
-class ZeroExportControllerTest < Minitest::Test
-  # --- normal mode (recovery: false) ---
+class ZeroExportControllerTest < ActiveSupport::TestCase
+  setup { @tz = Time.zone; Time.zone = "Europe/Berlin" }
+  teardown { Time.zone = @tz }
 
-  def test_follows_fresh_consumption
-    assert_equal 250, ZeroExportController.target_output_w(
-      consumption_w: 250.4, floor_w: 100, pv_power_w: 0, recovery: false)
+  def reading(soc:, pv:, temp: 30.0)
+    SolakonReading.new(taken_at: Time.current, active_power_w: 0, pv_power_w: pv,
+                       battery_power_w: 0, battery_soc_pct: soc, battery_temperature_c: temp)
   end
 
-  def test_fresh_consumption_below_floor_is_NOT_raised_to_floor
-    assert_equal 40, ZeroExportController.target_output_w(
-      consumption_w: 40, floor_w: 100, pv_power_w: 0, recovery: false)
+  def load(current:, night_base: 85.0)
+    LoadEstimate.new(current_w: current, floor_w: 85.0, night_base_w: night_base)
   end
 
-  def test_falls_back_to_floor_when_consumption_unknown
-    assert_equal 146, ZeroExportController.target_output_w(
-      consumption_w: nil, floor_w: 146, pv_power_w: 0, recovery: false)
+  def sun(now)
+    SunWindow.for(now: now, weather: nil, timezone: "Europe/Berlin")
   end
 
-  def test_capped_at_max_output
-    assert_equal 800, ZeroExportController.target_output_w(
-      consumption_w: 1500, floor_w: 100, pv_power_w: 0, recovery: false)
+  def decide(reading:, load:, now:, previous_state: nil, smoothed_load_w: nil)
+    ZeroExportController.decide(reading: reading, load: load, sun: sun(now),
+                                previous_state: previous_state, smoothed_load_w: smoothed_load_w)
   end
 
-  def test_never_negative
-    assert_equal 0, ZeroExportController.target_output_w(
-      consumption_w: -50, floor_w: 100, pv_power_w: 0, recovery: false)
+  DAY     = -> { Time.zone.local(2026, 6, 20, 12, 0, 0) }
+  EVENING = -> { Time.zone.local(2026, 6, 20, 21, 0, 0) }
+  NIGHT   = -> { Time.zone.local(2026, 6, 20, 3, 0, 0) } # before 06:00 sunrise
+
+  test "low soc protection passes PV only" do
+    d = decide(reading: reading(soc: 10, pv: 100), load: load(current: 386), now: DAY.call)
+    assert_equal :protected, d.state
+    assert_equal 100, d.target_w
   end
 
-  # --- recovery mode (recovery: true) ---
-
-  def test_recovery_caps_at_pv_minus_reserve_so_battery_charges
-    # load 170, PV 100 -> never discharge; reserve 30 for charging -> 70
-    assert_equal 70, ZeroExportController.target_output_w(
-      consumption_w: 170, floor_w: 0, pv_power_w: 100, recovery: true)
+  test "pv priority uses PV first then limited battery help" do
+    d = decide(reading: reading(soc: 55, pv: 100), load: load(current: 386), now: DAY.call)
+    assert_equal :pv_priority, d.state
+    assert_equal 350, d.target_w # 100 PV + min(286, 250) help
   end
 
-  def test_recovery_still_follows_consumption_when_below_pv_headroom
-    # load 40, PV 100 -> 40 already leaves >30W PV to charge, no need to cap
-    assert_equal 40, ZeroExportController.target_output_w(
-      consumption_w: 40, floor_w: 0, pv_power_w: 100, recovery: true)
+  test "hot battery enters protected and follows load capped at 400" do
+    d = decide(reading: reading(soc: 55, pv: 700, temp: 42.0), load: load(current: 900), now: DAY.call)
+    assert_equal :protected, d.state
+    assert_equal 400, d.target_w
   end
 
-  def test_recovery_with_no_pv_commands_zero
-    assert_equal 0, ZeroExportController.target_output_w(
-      consumption_w: 170, floor_w: 0, pv_power_w: 0, recovery: true)
+  test "hot battery still tracks a low load below the 400 ceiling" do
+    d = decide(reading: reading(soc: 55, pv: 0, temp: 42.0), load: load(current: 180), now: DAY.call)
+    assert_equal :protected, d.state
+    assert_equal 180, d.target_w
   end
 
-  def test_constants
-    assert_equal 800, ZeroExportController::MAX_OUTPUT_W
-    assert_equal 10, ZeroExportController::MIN_SOC_PCT
-    assert_equal 13, ZeroExportController::ENTER_RECOVERY_SOC
-    assert_equal 15, ZeroExportController::EXIT_RECOVERY_SOC
-    assert_equal 30, ZeroExportController::CHARGE_RESERVE_W
+  test "thermal protection holds until cooled to 41.8" do
+    d = decide(reading: reading(soc: 55, pv: 0, temp: 41.9), load: load(current: 900),
+               now: DAY.call, previous_state: :protected)
+    assert_equal :protected, d.state
+    assert_equal 400, d.target_w
+  end
+
+  test "thermal protection releases once cooled" do
+    d = decide(reading: reading(soc: 55, pv: 0, temp: 41.8), load: load(current: 300),
+               now: DAY.call, previous_state: :protected)
+    assert_equal :pv_priority, d.state
+  end
+
+  test "evening clamps to current load and never exports" do
+    d = decide(reading: reading(soc: 90, pv: 0), load: load(current: 200),
+               now: EVENING.call, smoothed_load_w: 400.0)
+    assert_equal :evening_catch_up, d.state
+    assert_equal 200, d.target_w # falls fast to measured load, no export
+  end
+
+  test "target never exceeds the legal cap" do
+    d = decide(reading: reading(soc: 90, pv: 0), load: load(current: 2000),
+               now: EVENING.call, smoothed_load_w: 2000.0)
+    assert_equal 800, d.target_w
+  end
+
+  test "pv priority carries its real output forward for the next state's smoothing" do
+    d = decide(reading: reading(soc: 90, pv: 250), load: load(current: 250), now: DAY.call)
+    assert_equal :pv_priority, d.state
+    assert_equal 250, d.target_w
+    assert_in_delta 250.0, d.smoothed_load_w, 0.001
+  end
+
+  test "first evening tick ramps from the carried-forward output, not the current load" do
+    # Simulates the sunset transition: the prior pv_priority tick output 250 W,
+    # carried into smoothed_load_w. The evening target must ramp by <= 50 W, not
+    # jump straight to the 800 W load (which would bypass the slow-up cap).
+    d = decide(reading: reading(soc: 90, pv: 0), load: load(current: 800),
+               now: EVENING.call, smoothed_load_w: 250.0)
+    assert_equal :evening_catch_up, d.state
+    assert_equal 300, d.target_w # 250 + min(550*0.25, 50) = 300
+  end
+
+  test "cold-start evening seeds from base load rather than jumping to full load" do
+    d = decide(reading: reading(soc: 90, pv: 0), load: load(current: 800, night_base: 85),
+               now: EVENING.call, smoothed_load_w: nil)
+    assert_equal :evening_catch_up, d.state
+    assert_equal 135, d.target_w # rise_slow_fall_fast(800, 85) = 85 + min(178.75, 50) = 135
+  end
+
+  test "night base uses base target minus reserve" do
+    d = decide(reading: reading(soc: 20, pv: 0), load: load(current: 300, night_base: 85),
+               now: NIGHT.call)
+    assert_equal :night_base, d.state
+    assert_equal 80, d.target_w
+    assert_equal ZeroExportController::BASE_DEADBAND_W, d.deadband_w
   end
 end

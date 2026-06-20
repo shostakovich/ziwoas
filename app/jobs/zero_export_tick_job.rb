@@ -4,42 +4,56 @@ require "solakon_client"
 class ZeroExportTickJob < ApplicationJob
   queue_as :default
 
-  FLOOR_CACHE_KEY          = "zero_export.floor_w".freeze
-  FAILURE_COUNT_CACHE_KEY  = "zero_export.consecutive_failures".freeze
-  RECOVERY_CACHE_KEY       = "zero_export.recovery_mode".freeze
-  FLOOR_TTL                = 1.hour
+  FLOOR_CACHE_KEY         = "zero_export.floor_w".freeze
+  NIGHT_BASE_CACHE_KEY    = "zero_export.night_base_w".freeze
+  STATE_CACHE_KEY         = "zero_export.state".freeze
+  LAST_TARGET_CACHE_KEY   = "zero_export.last_target_w".freeze
+  LAST_WRITE_AT_CACHE_KEY = "zero_export.last_write_at".freeze
+  SMOOTHED_LOAD_CACHE_KEY = "zero_export.smoothed_load_w".freeze
+  FAILURE_COUNT_CACHE_KEY = "zero_export.consecutive_failures".freeze
+
+  SLOW_QUERY_TTL           = 1.hour
+  HEARTBEAT_S              = 120
   MAX_CONSECUTIVE_FAILURES = 3
 
-  def perform(client: nil, reader_now: Time.now, state: nil)
+  LastWrite = Struct.new(:state, :target_w, :at, keyword_init: true) do
+    def self.from_cache
+      at = Rails.cache.read(LAST_WRITE_AT_CACHE_KEY)
+      new(state: Rails.cache.read(STATE_CACHE_KEY)&.to_sym,
+          target_w: Rails.cache.read(LAST_TARGET_CACHE_KEY), at: at)
+    end
+
+    def missing? = at.nil? || target_w.nil?
+  end
+
+  def perform(client: nil, reader_now: Time.current, state: nil)
     config  = ConfigLoader.app_config
     solakon = config.solakon
     return Rails.logger.info("zero_export: not configured") if solakon.nil?
     return Rails.logger.info("zero_export: control disabled") unless solakon.control_enabled
 
-    reader = ConsumptionReader.new(plugs: config.plugs, now: reader_now,
-                                   stale_after_s: solakon.stale_after_s)
-    floor       = Rails.cache.fetch(FLOOR_CACHE_KEY, expires_in: FLOOR_TTL) { reader.guaranteed_floor_w }
-    consumption = reader.current_consumption_w
+    reader = ConsumptionReader.new(plugs: config.plugs, now: reader_now, stale_after_s: solakon.stale_after_s)
+    floor  = Rails.cache.fetch(FLOOR_CACHE_KEY, expires_in: SLOW_QUERY_TTL) { reader.guaranteed_floor_w }
+    night_base = night_base_w(reader, config, floor)
+    load = LoadEstimate.new(current_w: reader.current_consumption_w, floor_w: floor, night_base_w: night_base)
 
     client ||= SolakonClient.new(host: solakon.host, port: solakon.port, unit_id: solakon.unit_id)
 
     begin
       state ||= client.read_state
-      recovery = recovery_mode?(state.battery_soc)
-      target = ZeroExportController.target_output_w(
-        consumption_w: consumption,
-        floor_w: floor,
-        pv_power_w: state.pv_power_w,
-        recovery: recovery
+      reading = reading_from(state, reader_now)
+      sun = SunWindow.for(now: reader_now, weather: config.weather, timezone: config.timezone)
+
+      decision = ZeroExportController.decide(
+        reading: reading, load: load, sun: sun,
+        previous_state: Rails.cache.read(STATE_CACHE_KEY)&.to_sym,
+        smoothed_load_w: Rails.cache.read(SMOOTHED_LOAD_CACHE_KEY)
       )
-      client.apply_control!(power_w: target, min_soc: ZeroExportController::MIN_SOC_PCT)
+
+      write_target!(client, decision, reader_now) if should_write?(decision, reader_now)
+      remember(decision)
       reset_failures
-      consumption_str = consumption.nil? ? "stale" : "#{consumption.round}W"
-      Rails.logger.info(
-        "zero_export: consumption=#{consumption_str} floor=#{floor.round}W target=#{target}W " \
-        "recovery=#{recovery} soc=#{state.battery_soc}% active=#{state.active_power_w}W " \
-        "pv=#{state.pv_power_w}W battery=#{state.battery_power_w}W"
-      )
+      log(decision, load, reading)
     rescue SolakonClient::Error => e
       handle_failure(client, e)
     end
@@ -47,40 +61,75 @@ class ZeroExportTickJob < ApplicationJob
 
   private
 
-  # Hysteresis: enter the battery-recovery band at/below ENTER_RECOVERY_SOC,
-  # leave it at/above EXIT_RECOVERY_SOC, hold the last decision in between.
-  def recovery_mode?(soc)
-    was = Rails.cache.read(RECOVERY_CACHE_KEY) || false
-    now = if soc <= ZeroExportController::ENTER_RECOVERY_SOC
-            true
-    elsif soc >= ZeroExportController::EXIT_RECOVERY_SOC
-            false
-    else
-            was
+  def night_base_w(reader, config, floor)
+    return floor if config.weather.nil?
+
+    Rails.cache.fetch(NIGHT_BASE_CACHE_KEY, expires_in: SLOW_QUERY_TTL) do
+      reader.night_base_w(lat: config.weather.lat, lon: config.weather.lon,
+                          timezone: config.timezone,
+                          days: ConsumptionReader::NIGHT_BASE_DAYS, fallback_w: floor)
     end
-    Rails.cache.write(RECOVERY_CACHE_KEY, now)
-    now
+  end
+
+  def reading_from(state, now)
+    SolakonReading.new(taken_at: now, active_power_w: state.active_power_w,
+                       pv_power_w: state.pv_power_w, battery_power_w: state.battery_power_w,
+                       battery_soc_pct: state.battery_soc, battery_temperature_c: state.battery_temperature_c)
+  end
+
+  # Reads like the policy: write on a new state, when the watchdog heartbeat is
+  # due, or when the target has moved beyond its deadband.
+  def should_write?(decision, now)
+    last = LastWrite.from_cache
+    return true if last.missing?
+
+    last.state != decision.state ||
+      heartbeat_due?(last, now) ||
+      decision.differs_from?(last.target_w)
+  end
+
+  def heartbeat_due?(last, now)
+    (now - last.at) >= HEARTBEAT_S
+  end
+
+  def write_target!(client, decision, now)
+    client.apply_control!(power_w: decision.target_w, min_soc: SolakonReading::MIN_SOC_PCT)
+    Rails.cache.write(LAST_TARGET_CACHE_KEY, decision.target_w)
+    Rails.cache.write(LAST_WRITE_AT_CACHE_KEY, now)
+  end
+
+  def remember(decision)
+    Rails.cache.write(STATE_CACHE_KEY, decision.state)
+    Rails.cache.write(SMOOTHED_LOAD_CACHE_KEY, decision.smoothed_load_w)
+  end
+
+  def log(decision, load, reading)
+    current = load.current_w.nil? ? "stale" : "#{load.current_w.round}W"
+    Rails.logger.info(
+      "zero_export: state=#{decision.state} target=#{decision.target_w}W load=#{current} " \
+      "floor=#{load.floor_w.round}W night_base=#{load.night_base_w.round}W " \
+      "soc=#{reading.battery_soc_pct}% temp=#{reading.battery_temperature_c}C pv=#{reading.pv_power_w}W"
+    )
   end
 
   def reset_failures
     Rails.cache.write(FAILURE_COUNT_CACHE_KEY, 0)
   end
 
+  # Reached for *write* failures (the live state is supplied by the monitor, so
+  # read failures abort upstream in SolakonMonitorJob, where the inverter's 150s
+  # hardware watchdog is the backstop). After repeated write failures we release
+  # remote control so the inverter reverts to its own default behavior.
   def handle_failure(client, error)
     failures = Rails.cache.read(FAILURE_COUNT_CACHE_KEY).to_i + 1
     Rails.cache.write(FAILURE_COUNT_CACHE_KEY, failures)
-    Rails.logger.warn(
-      "zero_export: Modbus failure #{failures}/#{MAX_CONSECUTIVE_FAILURES}: #{error.message}"
-    )
+    Rails.logger.warn("zero_export: Modbus failure #{failures}/#{MAX_CONSECUTIVE_FAILURES}: #{error.message}")
     return if failures < MAX_CONSECUTIVE_FAILURES
 
     begin
       client.release_control!
       reset_failures
-      Rails.logger.warn(
-        "zero_export: relinquished remote control after #{failures} consecutive failures " \
-        "(inverter reverts to its default mode)"
-      )
+      Rails.logger.warn("zero_export: relinquished remote control after #{failures} consecutive failures")
     rescue SolakonClient::Error => e
       Rails.logger.warn("zero_export: failed to relinquish remote control: #{e.message}")
     end

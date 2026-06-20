@@ -60,7 +60,8 @@ class SolakonMonitorJobTest < ActiveSupport::TestCase
       battery_soc: 55,
       active_power_w: 123,
       pv_power_w: 456,
-      battery_power_w: -78
+      battery_power_w: -78,
+      battery_temperature_c: 42.3
     )
   end
 
@@ -96,6 +97,7 @@ class SolakonMonitorJobTest < ActiveSupport::TestCase
     assert_equal 456, reading.pv_power_w
     assert_equal(-78, reading.battery_power_w)
     assert_equal 55, reading.battery_soc_pct
+    assert_in_delta 42.3, reading.battery_temperature_c, 0.001
   end
 
   test "does not read or persist when monitoring_enabled false" do
@@ -144,7 +146,8 @@ class SolakonMonitorJobTest < ActiveSupport::TestCase
       battery_soc: 150,
       active_power_w: 123,
       pv_power_w: 456,
-      battery_power_w: -78
+      battery_power_w: -78,
+      battery_temperature_c: 42.3
     )
     client = FakeClient.new(state: invalid_state)
     control_calls = []

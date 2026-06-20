@@ -30,14 +30,15 @@ class ZeroExportTickJobTest < ActiveSupport::TestCase
   Plug = Struct.new(:id, :role, :name, keyword_init: true)
   Sol  = Struct.new(:host, :port, :unit_id, :monitoring_enabled, :control_enabled,
                     :stale_after_s, keyword_init: true)
-  Cfg  = Struct.new(:plugs, :solakon, keyword_init: true)
+  Cfg  = Struct.new(:plugs, :solakon, :weather, :timezone, keyword_init: true)
 
   def config(monitoring_enabled: true, control_enabled: true, solakon: true)
     sol = if solakon
             Sol.new(host: "h", port: 502, unit_id: 1, monitoring_enabled: monitoring_enabled,
                     control_enabled: control_enabled, stale_after_s: 120)
     end
-    Cfg.new(plugs: [ Plug.new(id: "fridge", role: :consumer, name: "Kühlschrank") ], solakon: sol)
+    Cfg.new(plugs: [ Plug.new(id: "fridge", role: :consumer, name: "Kühlschrank") ], solakon: sol,
+            weather: nil, timezone: "Europe/Berlin")
   end
 
   setup do
@@ -54,11 +55,13 @@ class ZeroExportTickJobTest < ActiveSupport::TestCase
   end
 
   def healthy_state
-    SolakonClient::State.new(battery_soc: 55, active_power_w: 250, pv_power_w: 0, battery_power_w: 0)
+    SolakonClient::State.new(battery_soc: 55, active_power_w: 250, pv_power_w: 0, battery_power_w: 0,
+                              battery_temperature_c: 30)
   end
 
-  def state_with(soc:, pv: 100)
-    SolakonClient::State.new(battery_soc: soc, active_power_w: 0, pv_power_w: pv, battery_power_w: 0)
+  def state_with(soc:, pv: 100, temp: 30)
+    SolakonClient::State.new(battery_soc: soc, active_power_w: 0, pv_power_w: pv, battery_power_w: 0,
+                              battery_temperature_c: temp)
   end
 
   test "applies control derived from measured consumption, with min_soc guard" do
@@ -97,30 +100,46 @@ class ZeroExportTickJobTest < ActiveSupport::TestCase
     assert_equal [ :read_state, [ :apply_power, 146, 10 ] ], client.calls
   end
 
-  test "recovery mode caps the setpoint so the battery charges instead of toggling" do
-    now = Time.at(1_000_000)
-    Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 170, aenergy_wh: 1)
-    client = FakeClient.new(state: state_with(soc: 12, pv: 100))
+  test "low soc passes PV only and no longer runs recovery" do
+    now = Time.zone.local(2026, 6, 20, 12, 0, 0)
+    Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 386, aenergy_wh: 1)
+    client = FakeClient.new(state: state_with(soc: 10, pv: 100, temp: 30))
+
     run_job(client: client, now: now)
-    assert_equal [ :read_state, [ :apply_power, 70, 10 ] ], client.calls # min(170, 100-30)
+
+    assert_equal [ :read_state, [ :apply_power, 100, 10 ] ], client.calls
   end
 
-  test "recovery hysteresis holds between the thresholds" do
-    now = Time.at(1_000_000)
-    Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 170, aenergy_wh: 1)
-    run_job(client: FakeClient.new(state: state_with(soc: 12, pv: 100)), now: now) # enter recovery
-    held = FakeClient.new(state: state_with(soc: 14, pv: 100))                      # between 13 and 15
-    run_job(client: held, now: now)
-    assert_equal [ :read_state, [ :apply_power, 70, 10 ] ], held.calls # still recovery -> still capped
+  test "does not rewrite inside the deadband before the heartbeat" do
+    now = Time.zone.local(2026, 6, 20, 12, 0, 0)
+    Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 386, aenergy_wh: 1)
+
+    run_job(client: FakeClient.new(state: state_with(soc: 55, pv: 100, temp: 30)), now: now)
+    second = FakeClient.new(state: state_with(soc: 55, pv: 100, temp: 30))
+    run_job(client: second, now: now + 30.seconds)
+
+    assert_equal [ :read_state ], second.calls
   end
 
-  test "recovery exits at the upper threshold and resumes discharge" do
-    now = Time.at(1_000_000)
-    Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 170, aenergy_wh: 1)
-    run_job(client: FakeClient.new(state: state_with(soc: 12, pv: 100)), now: now) # enter recovery
-    exited = FakeClient.new(state: state_with(soc: 15, pv: 100))                    # >= 15 -> normal
-    run_job(client: exited, now: now)
-    assert_equal [ :read_state, [ :apply_power, 170, 10 ] ], exited.calls # discharge allowed again, follows load
+  test "heartbeat rewrites the unchanged target before the watchdog expires" do
+    now = Time.zone.local(2026, 6, 20, 12, 0, 0)
+    Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 386, aenergy_wh: 1)
+
+    run_job(client: FakeClient.new(state: state_with(soc: 55, pv: 100, temp: 30)), now: now)
+    heartbeat = FakeClient.new(state: state_with(soc: 55, pv: 100, temp: 30))
+    run_job(client: heartbeat, now: now + 121.seconds)
+
+    assert_includes heartbeat.calls, [ :apply_power, 350, 10 ]
+  end
+
+  test "hot battery clamps the whole target to 400W" do
+    now = Time.zone.local(2026, 6, 20, 12, 0, 0)
+    Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 900, aenergy_wh: 1)
+    client = FakeClient.new(state: state_with(soc: 55, pv: 700, temp: 42))
+
+    run_job(client: client, now: now)
+
+    assert_includes client.calls, [ :apply_power, 400, 10 ]
   end
 
   test "no-op when control is disabled" do
@@ -136,7 +155,7 @@ class ZeroExportTickJobTest < ActiveSupport::TestCase
   end
 
   test "a single failure does not raise or relinquish control" do
-    now = Time.at(1_000_000)
+    now = Time.zone.local(2026, 6, 20, 12, 0, 0)
     Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 250, aenergy_wh: 1)
     client = FakeClient.new(fail: true)
     assert_nothing_raised { run_job(client: client, now: now) }
@@ -144,7 +163,7 @@ class ZeroExportTickJobTest < ActiveSupport::TestCase
   end
 
   test "relinquishes remote control after repeated failures" do
-    now = Time.at(1_000_000)
+    now = Time.zone.local(2026, 6, 20, 12, 0, 0)
     Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 250, aenergy_wh: 1)
     client = FakeClient.new(fail: true)
     3.times { run_job(client: client, now: now) }
@@ -152,7 +171,7 @@ class ZeroExportTickJobTest < ActiveSupport::TestCase
   end
 
   test "a success resets the failure counter" do
-    now = Time.at(1_000_000)
+    now = Time.zone.local(2026, 6, 20, 12, 0, 0)
     Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 250, aenergy_wh: 1)
 
     failing = FakeClient.new(fail: true)
