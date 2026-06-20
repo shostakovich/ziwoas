@@ -23,13 +23,15 @@ class SolakonClientTest < Minitest::Test
       [ 39424, 1 ] => [ 55 ],                                   # soc 55 %
       [ 39248, 2 ] => [ 0x0000, 0x012C ],                       # active 300 W
       [ 39279, 8 ] => [ 0, 0x0064, 0, 0x0032, 0, 0, 0, 0 ],     # PV1 100W + PV2 50W (+0+0)
-      [ 39230, 2 ] => [ 0xFFFF, 0xFF38 ]                       # battery -200 W
+      [ 39230, 2 ] => [ 0xFFFF, 0xFF38 ],                      # battery -200 W
+      [ 37617, 1 ] => [ 423 ]                                  # bms max temp 42.3 C
     })
     state = client_for(slave).read_state
     assert_equal 55, state.battery_soc
     assert_equal 300, state.active_power_w
     assert_equal 150, state.pv_power_w
     assert_equal(-200, state.battery_power_w)
+    assert_in_delta 42.3, state.battery_temperature_c, 0.001
   end
 
   # full register set so read_state_from works inside control_tick!
@@ -39,6 +41,7 @@ class SolakonClientTest < Minitest::Test
       [ 39248, 2 ] => [ 0, 0 ],
       [ 39279, 8 ] => [ 0, 0, 0, 0, 0, 0, 0, 0 ],
       [ 39230, 2 ] => [ 0, 100 ],
+      [ 37617, 1 ] => [ 200 ],
       [ 46609, 1 ] => [ min_soc ]
     }
   end

@@ -49,6 +49,15 @@ end
     end
   end
 
+  test "battery_temperature_c is optional but must be numeric" do
+    reading = SolakonReading.new(
+      taken_at: Time.current, active_power_w: 1, pv_power_w: 2,
+      battery_power_w: 3, battery_soc_pct: 55, battery_temperature_c: "hot"
+    )
+    assert_not reading.valid?
+    assert_includes reading.errors[:battery_temperature_c], "is not a number"
+  end
+
   # The real Solakon One reports register 39230 with charging as a POSITIVE raw
   # value (verified live: +14 W while charging, with PV > AC output). The display
   # value keeps the same sign convention shown to the user: charging +, discharging −.

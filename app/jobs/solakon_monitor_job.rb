@@ -19,7 +19,8 @@ class SolakonMonitorJob < ApplicationJob
       active_power_w: state.active_power_w,
       pv_power_w: state.pv_power_w,
       battery_power_w: state.battery_power_w,
-      battery_soc_pct: state.battery_soc
+      battery_soc_pct: state.battery_soc,
+      battery_temperature_c: state.battery_temperature_c
     )
 
     ZeroExportTickJob.perform_now(state: state) if solakon.control_enabled

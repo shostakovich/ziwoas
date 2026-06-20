@@ -26,6 +26,7 @@ class SolakonClient
   # Unused strings read 0, so reading a few extra is harmless.
   REG_PV_POWER_BASE = 39279
   PV_STRINGS        = 4
+  REG_BMS_MAX_TEMP  = 37617 # i16, scale 10, Celsius
 
   # 46001 bitfield: bit0=enable, bit1=direction (0=generation), bits3:2=target
   # (00=AC). 0b0001 = remote control on, generation onto AC. (Doc: "00 0 1".)
@@ -38,7 +39,7 @@ class SolakonClient
   REMOTE_TIMEOUT_S = 150
 
   State = Struct.new(:battery_soc, :active_power_w, :pv_power_w, :battery_power_w,
-                     keyword_init: true)
+                     :battery_temperature_c, keyword_init: true)
 
   def initialize(host:, port: 502, unit_id: 1, open: nil)
     @host    = host
@@ -89,6 +90,7 @@ class SolakonClient
       active_power_w:  to_i32(slave.read_holding_registers(REG_ACTIVE_POWER, 2)),
       pv_power_w:      pv_w,
       battery_power_w: to_i32(slave.read_holding_registers(REG_BATTERY_POWER, 2)),
+      battery_temperature_c: to_i16(slave.read_holding_registers(REG_BMS_MAX_TEMP, 1).first) / 10.0,
     )
   end
 
