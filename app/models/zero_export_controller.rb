@@ -1,24 +1,90 @@
-# Pure control law for zero-export: choose the inverter AC setpoint so that
-# output never exceeds measured household load (which guarantees no export).
+# Pure control policy for the Solakon One. Chooses a coarse state, then a watt
+# target with simple pure functions. Battery-safety thresholds live on
+# SolakonReading; control tuning lives here as constants.
 class ZeroExportController
-  MAX_OUTPUT_W = 800 # legal balcony-PV feed limit
-  MIN_SOC_PCT  = 10  # device discharge floor (enforced by the inverter)
+  MAX_OUTPUT_W             = 800   # legal balcony-PV feed limit
+  DAY_BATTERY_HELP_W       = 250   # max daytime battery assist
+  EVENING_DISCHARGE_LIMIT_W = 800
+  HOT_OUTPUT_LIMIT_W       = 400   # thermal throttle ceiling (still follows load)
+  NORMAL_DEADBAND_W        = 50
+  BASE_DEADBAND_W          = 15
+  NIGHT_BASE_RESERVE_W     = 5
+  RISE_FACTOR              = 0.25  # slow up: take 25% of the gap...
+  RISE_CAP_W               = 50    # ...but at most 50W per tick
+  FALL_FACTOR              = 0.80  # fast down
 
-  # Battery-recovery hysteresis. Near the discharge floor the inverter refuses
-  # to discharge, so commanding it makes the output toggle. While the SoC is in
-  # the recovery band we stop requesting discharge and instead leave a little PV
-  # to recharge. The band straddles the observed toggle zone (~12%).
-  ENTER_RECOVERY_SOC = 13  # enter recovery at or below this SoC
-  EXIT_RECOVERY_SOC  = 15  # leave recovery at or above this SoC
-  CHARGE_RESERVE_W   = 30  # PV reserved for charging while in recovery
+  Decision = Struct.new(:state, :target_w, :deadband_w, :smoothed_load_w, keyword_init: true) do
+    def differs_from?(previous_target_w)
+      (target_w - previous_target_w.to_i).abs >= deadband_w
+    end
+  end
 
-  # consumption_w is the live measured load, or nil when no fresh sample is
-  # available (then we fall back to the export-safe floor). In recovery we cap
-  # the setpoint at pv_power_w - CHARGE_RESERVE_W so the battery is never asked
-  # to discharge and a few watts of PV trickle back into it.
-  def self.target_output_w(consumption_w:, floor_w:, pv_power_w:, recovery:)
-    basis = consumption_w.nil? ? floor_w : consumption_w
-    basis = [ basis, pv_power_w - CHARGE_RESERVE_W ].min if recovery
-    basis.clamp(0, MAX_OUTPUT_W).round
+  def self.decide(reading:, load:, sun:, previous_state:, smoothed_load_w:)
+    state = choose_state(reading: reading, sun: sun, load: load, previous_state: previous_state)
+    raw, smoothed = target_for(state, reading: reading, load: load, smoothed_load_w: smoothed_load_w)
+
+    Decision.new(
+      state: state,
+      target_w: raw.to_f.clamp(0.0, MAX_OUTPUT_W).round,
+      deadband_w: state == :night_base ? BASE_DEADBAND_W : NORMAL_DEADBAND_W,
+      smoothed_load_w: smoothed
+    )
+  end
+
+  def self.choose_state(reading:, sun:, load:, previous_state:)
+    return :protected if protecting?(reading, previous_state)
+    return :pv_priority if sun.daytime? || reading.pv_present?
+
+    enough_for_morning?(reading, sun, load) ? :night_base : :evening_catch_up
+  end
+
+  # Enter protection on a hard limit; once in it, stay until BOTH the SoC has
+  # resumed and the battery has cooled (hysteresis around the entry thresholds).
+  def self.protecting?(reading, previous_state)
+    return true if reading.soc_below_minimum? || reading.battery_hot?
+    return false unless previous_state == :protected
+
+    !(reading.soc_at_resume? && reading.battery_cooled?)
+  end
+
+  def self.enough_for_morning?(reading, sun, load)
+    reading.usable_wh <= load.night_base_w * sun.hours_until_sunrise
+  end
+
+  def self.target_for(state, reading:, load:, smoothed_load_w:)
+    case state
+    when :protected
+      [ protected_target(reading, load), nil ]
+    when :pv_priority
+      [ pv_priority_target(reading, load), nil ]
+    when :evening_catch_up
+      smoothed = rise_slow_fall_fast(load.effective_w, smoothed_load_w || load.effective_w)
+      [ [ smoothed, load.effective_w, EVENING_DISCHARGE_LIMIT_W ].min, smoothed ]
+    when :night_base
+      [ [ load.night_base_w - NIGHT_BASE_RESERVE_W, load.effective_w ].min, nil ]
+    end
+  end
+
+  # Below resume SoC: no intentional discharge (PV only). Above it: normal PV
+  # priority. While the battery is still warm, throttle the *whole* AC output to
+  # the hot ceiling — but always follow the (lower) load, since less throughput
+  # means less inverter heat.
+  def self.protected_target(reading, load)
+    base = reading.soc_at_resume? ? load.effective_w : [ reading.pv_power_w, load.effective_w ].min
+    ceiling = reading.battery_cooled? ? MAX_OUTPUT_W : HOT_OUTPUT_LIMIT_W
+    [ base, ceiling ].min
+  end
+
+  def self.pv_priority_target(reading, load)
+    pv_direct = [ reading.pv_power_w, load.effective_w ].min
+    remaining = [ load.effective_w - pv_direct, 0.0 ].max
+    pv_direct + [ remaining, DAY_BATTERY_HELP_W ].min
+  end
+
+  def self.rise_slow_fall_fast(load_w, previous_w)
+    step = load_w - previous_w
+    return previous_w + [ step * RISE_FACTOR, RISE_CAP_W ].min if step.positive?
+
+    previous_w + step * FALL_FACTOR
   end
 end
