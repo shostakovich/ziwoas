@@ -69,6 +69,24 @@ class SolakonClientTest < Minitest::Test
     assert_includes slave.writes, [ :multi, 46003, [ 0xFFFF, 0xFF38 ] ]
   end
 
+  def test_apply_control_writes_remote_command_without_reading_state
+    slave = FakeSlave.new(holdings: { [ 46609, 1 ] => [ 10 ] })
+    client_for(slave).apply_control!(power_w: -75, min_soc: 10)
+    assert_equal [
+      [ :single, 46001, SolakonClient::REMOTE_CONTROL_ENABLE ],
+      [ :single, 46002, SolakonClient::REMOTE_TIMEOUT_S ],
+      [ :multi, 46003, [ 0xFFFF, 0xFFB5 ] ]
+    ], slave.writes
+  end
+
+  def test_apply_control_writes_min_soc_when_device_value_differs
+    slave = FakeSlave.new(holdings: { [ 46609, 1 ] => [ 5 ] })
+    client_for(slave).apply_control!(power_w: 300, min_soc: 10)
+    assert_equal [ :single, 46609, 10 ], slave.writes.first
+    assert_equal [ :single, 46002, SolakonClient::REMOTE_TIMEOUT_S ], slave.writes[2]
+    assert_includes slave.writes, [ :multi, 46003, [ 0x0000, 0x012C ] ]
+  end
+
   def test_release_control_disables_remote_control
     slave = FakeSlave.new
     client_for(slave).release_control!

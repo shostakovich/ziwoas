@@ -1,17 +1,54 @@
 require "test_helper"
 
 class DashboardControllerTest < ActionDispatch::IntegrationTest
+  test "energy flow renders four nodes and six live flow targets" do
+    get root_path
+
+    assert_response :success
+    assert_select "svg[viewBox='0 0 400 320']", 1
+
+    assert_select "text", text: "PV-Anlage"
+    assert_select "text", text: "Stromnetz"
+    assert_select "text", text: "Verbraucher"
+    assert_select "text", text: "Batterie"
+
+    assert_select "image[x='184'][y='55'][width='32'][height='32']", 1
+    assert_select "image[href*='icon_netz']"
+    assert_select "image[href*='icon_haus']"
+    assert_select "image[href*='icon_batterie']"
+
+    assert_select "[data-dashboard-target='efPvW']"
+    assert_select "[data-dashboard-target='efGridW']"
+    assert_select "[data-dashboard-target='efConsumerW']"
+    assert_select "[data-dashboard-target='efBatterySoc']"
+    assert_select "[data-dashboard-target='efBatteryW']"
+
+    assert_select "[data-dashboard-target='efLineSolarHome']"
+    assert_select "[data-dashboard-target='efLineSolarGrid']"
+    assert_select "[data-dashboard-target='efLineSolarBattery']"
+    assert_select "[data-dashboard-target='efLineGridHome']"
+    assert_select "[data-dashboard-target='efLineGridBattery']"
+    assert_select "[data-dashboard-target='efLineBatteryHome']"
+
+    assert_select "[data-dashboard-target='efDotsSolarHome']"
+    assert_select "[data-dashboard-target='efDotsSolarGrid']"
+    assert_select "[data-dashboard-target='efDotsSolarBattery']"
+    assert_select "[data-dashboard-target='efDotsGridHome']"
+    assert_select "[data-dashboard-target='efDotsGridBattery']"
+    assert_select "[data-dashboard-target='efDotsBatteryHome']"
+  end
+
   test "energy flow node contents are vertically centered in circles" do
     get "/"
     assert_response :ok
 
     assert_select "text[data-dashboard-target='efPvW'][x='200'][y='102'][text-anchor='middle']", 1
 
-    assert_select "image[x='42'][y='150'][width='32'][height='32']", 1
-    assert_select "text[data-dashboard-target='efGridW'][x='58'][y='197'][text-anchor='middle']", 1
+    assert_select "image[x='42'][y='145'][width='32'][height='32']", 1
+    assert_select "text[data-dashboard-target='efGridW'][x='58'][y='192'][text-anchor='middle']", 1
 
-    assert_select "image[x='326'][y='150'][width='32'][height='32']", 1
-    assert_select "text[data-dashboard-target='efConsumerW'][x='342'][y='197'][text-anchor='middle']", 1
+    assert_select "image[x='326'][y='145'][width='32'][height='32']", 1
+    assert_select "text[data-dashboard-target='efConsumerW'][x='342'][y='192'][text-anchor='middle']", 1
   end
 
   test "uses current weather icon in hero and pv energy flow node" do

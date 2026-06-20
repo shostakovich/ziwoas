@@ -6,16 +6,18 @@ import consumer from "channels/consumer"
 //          energy flow SVG, and periodic today-summary fetch.
 export default class extends Controller {
   static targets = [
-    "heroValue",
+    "heroValue", "heroBattery", "heroBatterySoc",
     "tileConsumption", "tileNetbalance",
     "tileProduced", "tileConsumed", "tileSavings", "tileNettoday",
     "tileAutarky", "tileSelfConsumption",
     "plugList",
     // Energy flow SVG elements
-    "efPvW", "efGridW", "efConsumerW",
-    "efLineV", "efLineHl", "efLineHr",
-    "efRingPv", "efRingGrid",
-    "efDotsPvHome", "efDotsGridHome", "efDotsPvGrid",
+    "efPvW", "efGridW", "efConsumerW", "efBatterySoc", "efBatteryW",
+    "efLineSolarHome", "efLineSolarGrid", "efLineSolarBattery",
+    "efLineGridHome", "efLineGridBattery", "efLineBatteryHome",
+    "efDotsSolarHome", "efDotsSolarGrid", "efDotsSolarBattery",
+    "efDotsGridHome", "efDotsGridBattery", "efDotsBatteryHome",
+    "efConsumerRing",
   ]
 
   connect() {
@@ -23,6 +25,7 @@ export default class extends Controller {
     this.plugState = {}
     this.plugChips = {}
     this.efLastDur = {}
+    this.energyFlow = null
 
     this.subscription = consumer.subscriptions.create("DashboardChannel", {
       received: (data) => this.handleReading(data),
@@ -43,10 +46,14 @@ export default class extends Controller {
 
   // Called for every bundled broadcast from Poller
   handleReading(data) {
-    if (!Array.isArray(data.plugs)) return
+    if (data.energy_flow) this.energyFlow = data.energy_flow
 
-    data.plugs.forEach((plug) => this.applyPlugState(plug))
-    this.renderLiveState()
+    if (Array.isArray(data.plugs)) {
+      data.plugs.forEach((plug) => this.applyPlugState(plug))
+      this.renderLiveState()
+    }
+
+    if (data.solakon) this.fetchLive()
   }
 
   applyPlugState(data) {
@@ -78,9 +85,10 @@ export default class extends Controller {
       const response = await fetch("/api/live")
       if (!response.ok) return
       const data = await response.json()
-      if (!Array.isArray(data.plugs)) return
+      if (data.energy_flow) this.energyFlow = data.energy_flow
 
-      data.plugs.forEach((plug) => this.applyPlugState(plug))
+      if (Array.isArray(data.plugs))
+        data.plugs.forEach((plug) => this.applyPlugState(plug))
       this.renderLiveState()
     } catch (e) {
       console.error("fetchLive failed:", e)
@@ -91,29 +99,43 @@ export default class extends Controller {
 
   updateHero(plugs) {
     if (!this.hasHeroValueTarget) return
+    const flow = this.energyFlow
     const producer = plugs.find(p => p.role === "producer")
-    const w = producer?.online ? Math.abs(producer.apower_w).toFixed(0) : "—"
+    const fallbackW = producer?.online ? Math.abs(producer.apower_w).toFixed(0) : "—"
+    // Use the Solakon PV value only when its reading is live; otherwise fall back
+    // to the producer plug so dashboards without Solakon keep showing live watts.
+    const w = flow?.solakon_online ? Math.max(0, flow.solar_w || 0).toFixed(0) : fallbackW
     this.heroValueTarget.innerHTML = `<span class="hero-number">${w}</span> <span class="hero-unit">W</span>`
+
+    // The battery half is Solakon-only: hide it entirely when there is no live
+    // Solakon reading, so setups without a battery look unchanged.
+    if (this.hasHeroBatteryTarget) {
+      const online = !!flow?.solakon_online
+      this.heroBatteryTarget.hidden = !online
+      if (online) {
+        const soc = flow.battery_soc_pct
+        const s = soc == null ? "—" : soc.toFixed(0)
+        this.heroBatterySocTarget.innerHTML = `<span class="hero-number">${s}</span> <span class="hero-unit">%</span>`
+      }
+    }
   }
 
   // --- Live tiles ---
 
   updateLiveTiles(plugs) {
-    const producer  = plugs.find(p => p.role === "producer")
+    const flow = this.energyFlow
     const consumers = plugs.filter(p => p.role === "consumer")
-
-    const pvW  = producer?.online ? Math.abs(producer.apower_w) : 0
-    const conW = consumers.reduce((s, p) => s + (p.online ? p.apower_w : 0), 0)
-    const net  = pvW - conW
+    const conW = flow ? flow.home_w : consumers.reduce((s, p) => s + (p.online ? p.apower_w : 0), 0)
+    const gridW = flow?.grid_w
 
     // No online plug at all → show the dash placeholder, consistent with the hero,
     // rather than a misleading "0 W" that looks like a real measured zero.
-    const anyOnline = plugs.some(p => p.online)
+    const anyOnline = flow?.solakon_online || plugs.some(p => p.online)
 
     if (this.hasTileConsumptionTarget)
-      this.tileConsumptionTarget.textContent = anyOnline ? conW.toFixed(0) + " W" : "—"
+      this.tileConsumptionTarget.textContent = anyOnline && conW != null ? conW.toFixed(0) + " W" : "—"
     if (this.hasTileNetbalanceTarget)
-      this.tileNetbalanceTarget.textContent = anyOnline ? (net >= 0 ? "+" : "") + net.toFixed(0) + " W" : "—"
+      this.tileNetbalanceTarget.textContent = gridW == null ? "—" : (gridW <= 0 ? "+" : "−") + Math.abs(gridW).toFixed(0) + " W"
   }
 
   // --- Plug chips ---
@@ -178,51 +200,103 @@ export default class extends Controller {
   // --- Energy flow SVG ---
 
   updateEnergyFlow(plugs) {
-    const producer = plugs.find(p => p.role === "producer")
-    const pvW      = producer?.online ? Math.abs(producer.apower_w) : 0
-    const consW    = plugs.filter(p => p.role === "consumer")
-                          .reduce((s, p) => s + (p.online ? p.apower_w : 0), 0)
+    const flow = this.energyFlow
+    const consumers = plugs.filter(p => p.role === "consumer")
+    const fallbackHomeW = consumers.reduce((s, p) => s + (p.online ? p.apower_w : 0), 0)
+    const solakonOnline = flow?.solakon_online
+    const pvW = solakonOnline ? Math.max(0, flow.solar_w || 0) : null
+    const homeW = flow ? flow.home_w : fallbackHomeW
+    const gridW = flow?.grid_w
+    const batteryW = flow?.battery_w
+    const batterySoc = flow?.battery_soc_pct
 
-    const pvToHome   = Math.min(pvW, consW)
-    const gridToHome = Math.max(0, consW - pvW)
-    const pvToGrid   = Math.max(0, pvW - consW)
+    const gridToHome = gridW > 0 ? gridW : 0
+    const solarToGrid = gridW < 0 ? Math.abs(gridW) : 0
+    const batteryChargeW = batteryW > 0 ? batteryW : 0
+    const batteryDischargeW = batteryW < 0 ? Math.abs(batteryW) : 0
+    const solarForBattery = pvW == null ? 0 : Math.max(0, pvW - solarToGrid)
+    const solarToBattery = Math.min(batteryChargeW, solarForBattery)
+    const gridToBattery = Math.max(0, batteryChargeW - solarToBattery)
+    const batteryToHome = Math.min(batteryDischargeW, homeW || 0)
+    const solarToHome = pvW == null ? 0 : Math.max(0, pvW - solarToGrid - solarToBattery)
 
     if (this.hasEfPvWTarget)
-      this.efPvWTarget.textContent = pvW.toFixed(0) + " W"
+      this.efPvWTarget.textContent = pvW == null ? "— W" : pvW.toFixed(0) + " W"
     if (this.hasEfConsumerWTarget)
-      this.efConsumerWTarget.textContent = consW.toFixed(0) + " W"
+      this.efConsumerWTarget.textContent = homeW == null ? "— W" : homeW.toFixed(0) + " W"
     if (this.hasEfGridWTarget) {
       this.efGridWTarget.textContent =
-        gridToHome > 0 ? "+" + gridToHome.toFixed(0) + " W" :
-        pvToGrid   > 0 ? "−" + pvToGrid.toFixed(0)   + " W" : "0 W"
+        gridW == null ? "— W" :
+        gridW > 0 ? "+" + gridW.toFixed(0) + " W" :
+        gridW < 0 ? "−" + Math.abs(gridW).toFixed(0) + " W" : "0 W"
     }
+    if (this.hasEfBatterySocTarget)
+      this.efBatterySocTarget.textContent = batterySoc == null ? "— %" : batterySoc.toFixed(0) + "%"
+    if (this.hasEfBatteryWTarget)
+      // Charging (positive display power) is drawn from the household, so it
+      // gets a "−"; discharging feeds the house and is shown without a sign.
+      this.efBatteryWTarget.textContent =
+        batteryW == null ? "— W" :
+        batteryW > 0 ? "−" + batteryW.toFixed(0) + " W" :
+        batteryW < 0 ? Math.abs(batteryW).toFixed(0) + " W" : "0 W"
 
     const EF_PATHS = {
-      pvHome:   "M 200,120 L 200,175 L 298,175",
-      gridHome: "M 98,175 L 298,175",
-      pvGrid:   "M 200,120 L 200,175 L 98,175",
+      solarHome: "M 200,122 C 205,150 250,166 306,170",
+      solarGrid: "M 200,122 C 195,150 150,166 94,170",
+      solarBattery: "M 200,122 L 200,218",
+      gridHome: "M 94,170 L 306,170",
+      gridBattery: "M 94,170 C 150,174 195,190 200,218",
+      batteryHome: "M 200,218 C 205,190 250,174 306,170",
     }
-    const EF_LENS = { pvHome: 153, gridHome: 200, pvGrid: 157 }
+    const EF_LENS = {
+      solarHome: 123,
+      solarGrid: 123,
+      solarBattery: 96,
+      gridHome: 212,
+      gridBattery: 123,
+      batteryHome: 123,
+    }
 
-    this._efSetDots("efDotsPvHomeTarget",   EF_PATHS.pvHome,   "#f59f00", pvToHome,   EF_LENS.pvHome)
+    this._efSetDots("efDotsSolarHomeTarget", EF_PATHS.solarHome, "#f59f00", solarToHome, EF_LENS.solarHome)
+    this._efSetDots("efDotsSolarGridTarget", EF_PATHS.solarGrid, "#8b5cf6", solarToGrid, EF_LENS.solarGrid)
+    this._efSetDots("efDotsSolarBatteryTarget", EF_PATHS.solarBattery, "#ec4899", solarToBattery, EF_LENS.solarBattery)
     this._efSetDots("efDotsGridHomeTarget", EF_PATHS.gridHome, "#3b82f6", gridToHome, EF_LENS.gridHome)
-    this._efSetDots("efDotsPvGridTarget",   EF_PATHS.pvGrid,   "#f59f00", pvToGrid,   EF_LENS.pvGrid)
+    this._efSetDots("efDotsGridBatteryTarget", EF_PATHS.gridBattery, "#94a3b8", gridToBattery, EF_LENS.gridBattery)
+    this._efSetDots("efDotsBatteryHomeTarget", EF_PATHS.batteryHome, "#14b8a6", batteryToHome, EF_LENS.batteryHome)
 
-    const GRAY = "#dee2e6"
-    this._efLine("efLineVTarget",   pvW > 0        ? "#f59f00" : GRAY)
-    this._efLine("efLineHrTarget",  gridToHome > 0 ? "#3b82f6" : (pvToHome > 0 ? "#f59f00" : GRAY))
-    this._efLine("efLineHlTarget",  gridToHome > 0 ? "#3b82f6" : (pvToGrid > 0 ? "#f59f00" : GRAY))
+    // Verbraucher ring: share of consumption by source (solar / grid / battery).
+    this._efSetConsumerRing([
+      { w: solarToHome,   color: "#f59f00" },
+      { w: gridToHome,    color: "#3b82f6" },
+      { w: batteryToHome, color: "#14b8a6" },
+    ])
+  }
 
-    const C       = 2 * Math.PI * 44
-    const pvArc   = consW > 0 ? (pvToHome   / consW) * C : 0
-    const gridArc = consW > 0 ? (gridToHome / consW) * C : 0
-    if (this.hasEfRingPvTarget) {
-      this.efRingPvTarget.setAttribute("stroke-dasharray",  `${pvArc} ${C}`)
-      this.efRingPvTarget.setAttribute("stroke-dashoffset", "0")
-    }
-    if (this.hasEfRingGridTarget) {
-      this.efRingGridTarget.setAttribute("stroke-dasharray",  `${gridArc} ${C}`)
-      this.efRingGridTarget.setAttribute("stroke-dashoffset", -pvArc)
+  // Renders the Verbraucher node ring as colored arcs proportional to each
+  // energy source feeding the household. Empty input leaves the grey base ring.
+  _efSetConsumerRing(sources) {
+    const g = this.hasEfConsumerRingTarget ? this.efConsumerRingTarget : null
+    if (!g) return
+    const segs = sources.filter(s => s.w > 0.5)
+    const total = segs.reduce((s, x) => s + x.w, 0)
+    g.innerHTML = ""
+    if (total <= 0) return
+
+    let acc = 0
+    for (const s of segs) {
+      const pct = (s.w / total) * 100
+      const c = document.createElementNS("http://www.w3.org/2000/svg", "circle")
+      c.setAttribute("cx", "342")
+      c.setAttribute("cy", "170")
+      c.setAttribute("r", "40")
+      c.setAttribute("fill", "none")
+      c.setAttribute("stroke", s.color)
+      c.setAttribute("stroke-width", "2.5")
+      c.setAttribute("pathLength", "100")
+      c.setAttribute("stroke-dasharray", `${pct} ${100 - pct}`)
+      c.setAttribute("stroke-dashoffset", `${-acc}`)
+      g.appendChild(c)
+      acc += pct
     }
   }
 
@@ -262,11 +336,6 @@ export default class extends Controller {
         )
       }
     }
-  }
-
-  _efLine(targetName, color) {
-    const el = this[targetName]
-    if (el) el.setAttribute("stroke", color)
   }
 
   // --- Summary tiles (periodic HTTP) ---

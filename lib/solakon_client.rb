@@ -65,6 +65,15 @@ class SolakonClient
     end
   end
 
+  def apply_control!(power_w:, min_soc:)
+    with_slave do |slave|
+      write_control!(slave, power_w: power_w.to_i, min_soc: min_soc)
+    end
+  rescue StandardError => e
+    raise Error, e.message
+  end
+
+
   # Relinquish remote control so the inverter reverts to its safe default.
   def release_control!
     with_slave { |slave| slave.write_holding_register(REG_REMOTE_CONTROL, REMOTE_CONTROL_DISABLE) }

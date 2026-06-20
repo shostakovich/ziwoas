@@ -3,6 +3,10 @@ require "config_loader"
 require "tempfile"
 
 class ConfigLoaderTest < Minitest::Test
+  def teardown
+    ConfigLoader.reset_app_config!
+  end
+
   def load_yaml(yaml)
     file = Tempfile.new([ "config", ".yml" ])
     file.write(yaml); file.flush
@@ -395,7 +399,8 @@ class ConfigLoaderTest < Minitest::Test
         host: 192.168.1.50
         port: 502
         unit_id: 1
-        enabled: true
+        monitoring_enabled: true
+        control_enabled: false
         stale_after_s: 90
     YAML
   end
@@ -409,8 +414,97 @@ class ConfigLoaderTest < Minitest::Test
     assert_equal "192.168.1.50", sol.host
     assert_equal 502, sol.port
     assert_equal 1, sol.unit_id
-    assert_equal true, sol.enabled
+    assert_equal true, sol.monitoring_enabled
+    assert_equal false, sol.control_enabled
     assert_equal 90, sol.stale_after_s
+  end
+
+  def test_solakon_parses_monitoring_and_control_flags
+    yaml = valid_yaml + <<~YAML
+      solakon:
+        host: 192.168.1.50
+        monitoring_enabled: true
+        control_enabled: false
+    YAML
+
+    sol = load_yaml(yaml).solakon
+
+    assert_equal true, sol.monitoring_enabled
+    assert_equal false, sol.control_enabled
+  end
+
+  def test_solakon_old_enabled_is_read_only_monitoring_fallback
+    yaml = valid_yaml + <<~YAML
+      solakon:
+        host: 192.168.1.50
+        enabled: true
+    YAML
+
+    sol = load_yaml(yaml).solakon
+
+    assert_equal true, sol.monitoring_enabled
+    assert_equal false, sol.control_enabled
+  end
+
+  def test_solakon_old_enabled_false_disables_monitoring_fallback
+    yaml = valid_yaml + <<~YAML
+      solakon:
+        host: 192.168.1.50
+        enabled: false
+    YAML
+
+    sol = load_yaml(yaml).solakon
+
+    assert_equal false, sol.monitoring_enabled
+    assert_equal false, sol.control_enabled
+  end
+
+  def test_solakon_new_flags_take_priority_over_old_enabled
+    yaml = valid_yaml + <<~YAML
+      solakon:
+        host: 192.168.1.50
+        enabled: true
+        monitoring_enabled: false
+        control_enabled: false
+    YAML
+
+    sol = load_yaml(yaml).solakon
+
+    assert_equal false, sol.monitoring_enabled
+    assert_equal false, sol.control_enabled
+  end
+
+  def test_solakon_monitoring_enabled_must_be_boolean
+    yaml = valid_yaml + <<~YAML
+      solakon:
+        host: 192.168.1.50
+        monitoring_enabled: maybe
+    YAML
+
+    err = assert_raises(ConfigLoader::Error) { load_yaml(yaml) }
+    assert_match(/solakon\.monitoring_enabled must be true or false/, err.message)
+  end
+
+  def test_solakon_control_enabled_must_be_boolean
+    yaml = valid_yaml + <<~YAML
+      solakon:
+        host: 192.168.1.50
+        control_enabled: maybe
+    YAML
+
+    err = assert_raises(ConfigLoader::Error) { load_yaml(yaml) }
+    assert_match(/solakon\.control_enabled must be true or false/, err.message)
+  end
+
+  def test_solakon_legacy_enabled_must_be_boolean
+    yaml = valid_yaml + <<~YAML
+      solakon:
+        host: 192.168.1.50
+        enabled: "false"
+    YAML
+
+    err = assert_raises(ConfigLoader::Error) { load_yaml(yaml) }
+    assert_match(/solakon\.enabled must be true or false/, err.message)
   end
 
   def test_solakon_applies_defaults
@@ -421,7 +515,8 @@ class ConfigLoaderTest < Minitest::Test
     sol = load_yaml(yaml).solakon
     assert_equal 502, sol.port
     assert_equal 1, sol.unit_id
-    assert_equal true, sol.enabled
+    assert_equal true, sol.monitoring_enabled
+    assert_equal false, sol.control_enabled
     assert_equal 120, sol.stale_after_s
   end
 
