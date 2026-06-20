@@ -297,5 +297,4 @@ class ApiControllerTest < ActionDispatch::IntegrationTest
       )
     )
   end
-
 end
