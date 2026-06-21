@@ -98,6 +98,38 @@ class SolakonClient
     keyword_init: true
   )
 
+  ALARM_BIT_LABELS = {
+    alarm1: {
+      0 => "PV-Spannung zu hoch",
+      1 => "DC-Lichtbogenfehler",
+      2 => "PV-String verpolt",
+      8 => "Netzausfall",
+      9 => "Netzspannung auffällig",
+      11 => "Netzfrequenz auffällig",
+      14 => "Ausgangsstrom zu hoch",
+      15 => "DC-Anteil im Ausgangsstrom zu groß"
+    },
+    alarm2: {
+      0 => "Fehlerstrom auffällig",
+      1 => "Erdung auffällig",
+      2 => "Isolationswiderstand zu niedrig",
+      3 => "Temperatur zu hoch",
+      9 => "Energiespeicher auffällig",
+      10 => "Inselbetrieb erkannt",
+      14 => "Außensteckdose überlastet"
+    },
+    alarm3: {
+      3 => "Lüfter auffällig",
+      4 => "Energiespeicher verpolt",
+      9 => "Zählerverbindung verloren",
+      10 => "Batteriemanagement nicht erreichbar"
+    }
+  }.freeze
+
+  def self.from_config(solakon)
+    new(host: solakon.host, port: solakon.port, unit_id: solakon.unit_id)
+  end
+
   def self.decode_status_messages(status1:, status3:, alarm1:, alarm2:, alarm3:, bms_faults: [])
     messages = []
     messages << "Wechselrichter bereit" if (status1.to_i & 0b0001).positive?
@@ -105,36 +137,8 @@ class SolakonClient
     messages << "Wechselrichter meldet Fehler" if (status1.to_i & 0b0100_0000).positive?
     messages << "Inselbetrieb aktiv" if (status3.to_i & 0b0001).positive?
 
-    alarm_map = {
-      alarm1: {
-        0 => "PV-Spannung zu hoch",
-        1 => "DC-Lichtbogenfehler",
-        2 => "PV-String verpolt",
-        8 => "Netzausfall",
-        9 => "Netzspannung auffällig",
-        11 => "Netzfrequenz auffällig",
-        14 => "Ausgangsstrom zu hoch",
-        15 => "DC-Anteil im Ausgangsstrom zu groß"
-      },
-      alarm2: {
-        0 => "Fehlerstrom auffällig",
-        1 => "Erdung auffällig",
-        2 => "Isolationswiderstand zu niedrig",
-        3 => "Temperatur zu hoch",
-        9 => "Energiespeicher auffällig",
-        10 => "Inselbetrieb erkannt",
-        14 => "Außensteckdose überlastet"
-      },
-      alarm3: {
-        3 => "Lüfter auffällig",
-        4 => "Energiespeicher verpolt",
-        9 => "Zählerverbindung verloren",
-        10 => "Batteriemanagement nicht erreichbar"
-      }
-    }
-
     { alarm1: alarm1.to_i, alarm2: alarm2.to_i, alarm3: alarm3.to_i }.each do |key, value|
-      alarm_map.fetch(key).each do |bit, label|
+      ALARM_BIT_LABELS.fetch(key).each do |bit, label|
         messages << label if (value & (1 << bit)).positive?
       end
     end

@@ -11,7 +11,7 @@ class SolakonMonitorJob < ApplicationJob
     return Rails.logger.info("solakon_monitor: not configured") if solakon.nil?
     return Rails.logger.info("solakon_monitor: disabled") unless solakon.monitoring_enabled
 
-    client ||= SolakonClient.new(host: solakon.host, port: solakon.port, unit_id: solakon.unit_id)
+    client ||= SolakonClient.from_config(solakon)
     state = client.read_state
 
     SolakonReading.create!(

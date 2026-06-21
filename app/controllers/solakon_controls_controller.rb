@@ -6,7 +6,7 @@ class SolakonControlsController < ApplicationController
     return render json: { error: "Solakon nicht konfiguriert" }, status: :service_unavailable if solakon.nil?
 
     enabled = ActiveModel::Type::Boolean.new.cast(params[:enabled])
-    client = SolakonClient.new(host: solakon.host, port: solakon.port, unit_id: solakon.unit_id)
+    client = SolakonClient.from_config(solakon)
     client.set_eps_output!(enabled: enabled)
 
     render json: { enabled: enabled }

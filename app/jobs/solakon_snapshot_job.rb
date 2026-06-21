@@ -11,7 +11,7 @@ class SolakonSnapshotJob < ApplicationJob
     return Rails.logger.info("solakon_snapshot: not configured") if solakon.nil?
     return Rails.logger.info("solakon_snapshot: monitoring disabled") unless solakon.monitoring_enabled
 
-    client ||= SolakonClient.new(host: solakon.host, port: solakon.port, unit_id: solakon.unit_id)
+    client ||= SolakonClient.from_config(solakon)
     data = client.read_snapshot
 
     SolakonSnapshot.create!(snapshot_attributes(data, now))

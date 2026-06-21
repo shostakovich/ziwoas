@@ -1,6 +1,7 @@
 import { Controller } from "@hotwired/stimulus"
 import "chart.js"
 import consumer from "channels/consumer"
+import { EF_PATHS, EF_LENS, efSetDots, setBatteryImage } from "controllers/energy_flow"
 
 export default class extends Controller {
   static targets = [
@@ -8,8 +9,6 @@ export default class extends Controller {
     "epsToggle", "epsState", "epsPower", "epsVoltage", "epsError",
     "autoRegulationToggle", "autoRegulationState", "autoRegulationHelp", "autoRegulationError",
     "efPvW", "efGridW", "efConsumerW", "efBatterySoc", "efBatteryW", "efBatteryImage",
-    "efLineSolarHome", "efLineSolarGrid", "efLineSolarBattery",
-    "efLineGridHome", "efLineGridBattery", "efLineBatteryHome",
     "efDotsSolarHome", "efDotsSolarGrid", "efDotsSolarBattery",
     "efDotsGridHome", "efDotsGridBattery", "efDotsBatteryHome",
     "efConsumerRing",
@@ -128,7 +127,7 @@ export default class extends Controller {
     if (this.hasEfGridWTarget) this.efGridWTarget.textContent = gridW == null ? "— W" : gridW > 0 ? `+${gridW.toFixed(0)} W` : gridW < 0 ? `−${Math.abs(gridW).toFixed(0)} W` : "0 W"
     if (this.hasEfBatterySocTarget) this.efBatterySocTarget.textContent = batterySoc == null ? "— %" : `${batterySoc.toFixed(0)}%`
     if (this.hasEfBatteryWTarget) this.efBatteryWTarget.textContent = batteryW == null ? "— W" : batteryW > 0 ? `−${batteryW.toFixed(0)} W` : batteryW < 0 ? `${Math.abs(batteryW).toFixed(0)} W` : "0 W"
-    this._efSetBatteryImage(flow?.battery_state)
+    if (this.hasEfBatteryImageTarget) setBatteryImage(this.efBatteryImageTarget, flow?.battery_state)
 
     const flows = flow?.flows || {}
     const solarToHome = Number(flows.solar_to_home_w || 0)
@@ -138,29 +137,12 @@ export default class extends Controller {
     const gridToBattery = Number(flows.grid_to_battery_w || 0)
     const batteryToHome = Number(flows.battery_to_home_w || 0)
 
-    const paths = {
-      solarHome: "M 200,122 C 205,150 250,166 306,170",
-      solarGrid: "M 200,122 C 195,150 150,166 94,170",
-      solarBattery: "M 200,122 L 200,218",
-      gridHome: "M 94,170 L 306,170",
-      gridBattery: "M 94,170 C 150,174 195,190 200,218",
-      batteryHome: "M 200,218 C 205,190 250,174 306,170",
-    }
-    const lens = { solarHome: 123, solarGrid: 123, solarBattery: 96, gridHome: 212, gridBattery: 123, batteryHome: 123 }
-
-    this._efSetDots("efDotsSolarHomeTarget", paths.solarHome, "#f59f00", solarToHome, lens.solarHome)
-    this._efSetDots("efDotsSolarGridTarget", paths.solarGrid, "#8b5cf6", solarToGrid, lens.solarGrid)
-    this._efSetDots("efDotsSolarBatteryTarget", paths.solarBattery, "#ec4899", solarToBattery, lens.solarBattery)
-    this._efSetDots("efDotsGridHomeTarget", paths.gridHome, "#3b82f6", gridToHome, lens.gridHome)
-    this._efSetDots("efDotsGridBatteryTarget", paths.gridBattery, "#94a3b8", gridToBattery, lens.gridBattery)
-    this._efSetDots("efDotsBatteryHomeTarget", paths.batteryHome, "#14b8a6", batteryToHome, lens.batteryHome)
-  }
-
-  _efSetBatteryImage(state) {
-    if (!this.hasEfBatteryImageTarget) return
-    const key = state || "normal"
-    const src = this.efBatteryImageTarget.dataset[`batteryState${key.charAt(0).toUpperCase()}${key.slice(1)}`]
-    if (src) this.efBatteryImageTarget.setAttribute("href", src)
+    efSetDots(this, "efDotsSolarHomeTarget", EF_PATHS.solarHome, "#f59f00", solarToHome, EF_LENS.solarHome)
+    efSetDots(this, "efDotsSolarGridTarget", EF_PATHS.solarGrid, "#8b5cf6", solarToGrid, EF_LENS.solarGrid)
+    efSetDots(this, "efDotsSolarBatteryTarget", EF_PATHS.solarBattery, "#ec4899", solarToBattery, EF_LENS.solarBattery)
+    efSetDots(this, "efDotsGridHomeTarget", EF_PATHS.gridHome, "#3b82f6", gridToHome, EF_LENS.gridHome)
+    efSetDots(this, "efDotsGridBatteryTarget", EF_PATHS.gridBattery, "#94a3b8", gridToBattery, EF_LENS.gridBattery)
+    efSetDots(this, "efDotsBatteryHomeTarget", EF_PATHS.batteryHome, "#14b8a6", batteryToHome, EF_LENS.batteryHome)
   }
 
   _readPayload() {
@@ -227,32 +209,5 @@ export default class extends Controller {
   _hideError(target) {
     target.textContent = ""
     target.hidden = true
-  }
-
-  _efDur(w, len) {
-    return w < 1 ? null : Math.max(0.5, Math.min(8, len / w))
-  }
-
-  _efSetDots(targetName, path, color, w, len) {
-    const target = this[targetName]
-    if (!target) return
-    const dur = this._efDur(w, len)
-    const prev = this.efLastDur[targetName]
-    const changed = dur === null ? prev != null : prev == null || Math.abs(dur - prev) / prev > 0.05
-    if (!changed) return
-    this.efLastDur[targetName] = dur
-    target.innerHTML = ""
-    if (!dur) return
-    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches
-    for (let i = 0; i < 3; i++) {
-      const c = document.createElementNS("http://www.w3.org/2000/svg", "circle")
-      c.setAttribute("r", "4.5")
-      c.setAttribute("fill", color)
-      c.style.cssText = reduceMotion ? `offset-path:path("${path}");offset-distance:${25 + i * 25}%` : `offset-path:path("${path}")`
-      target.appendChild(c)
-      if (!reduceMotion) {
-        c.animate([{ offsetDistance: "0%" }, { offsetDistance: "100%" }], { duration: dur * 1000, delay: -(i * dur / 3) * 1000, iterations: Infinity, easing: "linear" })
-      }
-    }
   }
 }

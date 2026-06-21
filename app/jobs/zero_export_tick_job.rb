@@ -38,7 +38,7 @@ class ZeroExportTickJob < ApplicationJob
     night_base = night_base_w(reader, config, floor)
     load = LoadEstimate.new(current_w: reader.current_consumption_w, floor_w: floor, night_base_w: night_base)
 
-    client ||= SolakonClient.new(host: solakon.host, port: solakon.port, unit_id: solakon.unit_id)
+    client ||= SolakonClient.from_config(solakon)
 
     begin
       state ||= client.read_state

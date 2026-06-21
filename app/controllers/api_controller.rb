@@ -70,37 +70,26 @@ class ApiController < ApplicationController
       SolakonReading.latest_fresh(stale_after_s: stale_after_s, now: Time.zone.at(@now_ts))
     end
 
-    @energy_flow =
-      if reading
-        {
-          solakon_online: true,
-          home_w: consumer_w,
-          solakon_ac_w: reading.active_power_w,
-          solar_w: reading.pv_power_w,
-          battery_soc_pct: reading.battery_soc_pct,
-          battery_w: reading.battery_display_power_w,
-          battery_state: battery_state_for(reading),
-          grid_w: consumer_w.nil? ? nil : consumer_w - reading.active_power_w,
-          flows: energy_flow_flows(
-            home_w: consumer_w,
-            solar_w: reading.pv_power_w,
-            battery_w: reading.battery_display_power_w,
-            grid_w: consumer_w.nil? ? nil : consumer_w - reading.active_power_w
-          )
-        }
-      else
-        {
-          solakon_online: false,
-          home_w: consumer_w,
-          solakon_ac_w: nil,
-          solar_w: nil,
-          battery_soc_pct: nil,
-          battery_w: nil,
-          battery_state: nil,
-          grid_w: nil,
-          flows: empty_energy_flow_flows
-        }
-      end
+    # When the Solakon reading is stale/absent, every Solakon-derived field is
+    # nil and energy_flow_flows returns the empty set, so a single hash with
+    # safe-navigation covers both the online and offline cases.
+    grid_w = reading && consumer_w ? consumer_w - reading.active_power_w : nil
+    @energy_flow = {
+      solakon_online: reading.present?,
+      home_w: consumer_w,
+      solakon_ac_w: reading&.active_power_w,
+      solar_w: reading&.pv_power_w,
+      battery_soc_pct: reading&.battery_soc_pct,
+      battery_w: reading&.battery_display_power_w,
+      battery_state: reading&.battery_state,
+      grid_w: grid_w,
+      flows: energy_flow_flows(
+        home_w: consumer_w,
+        solar_w: reading&.pv_power_w,
+        battery_w: reading&.battery_display_power_w,
+        grid_w: grid_w
+      )
+    }
   end
 
   private
@@ -112,25 +101,6 @@ class ApiController < ApplicationController
 
   def empty_energy_flow_flows
     ENERGY_FLOW_KEYS.index_with { nil }
-  end
-
-  def battery_state_for(reading)
-    alarms = [ reading.alarm1, reading.alarm2, reading.alarm3 ]
-    if alarms.any? { |value| value.to_i.positive? }
-      "fault"
-    elsif reading.battery_temperature_c.present? && reading.battery_temperature_c >= 42
-      "hot"
-    elsif reading.battery_temperature_c.present? && reading.battery_temperature_c <= 5
-      "cold"
-    elsif reading.battery_soc_pct.present? && reading.battery_soc_pct <= 20
-      "low"
-    elsif reading.battery_display_power_w > 10
-      "charging"
-    elsif reading.battery_display_power_w < -10
-      "discharging"
-    else
-      "normal"
-    end
   end
 
   def energy_flow_flows(home_w:, solar_w:, battery_w:, grid_w:)

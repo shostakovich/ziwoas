@@ -240,21 +240,10 @@ class ConfigLoader
     return nil if h.nil?
     h = require_hash(h, "solakon")
 
-    monitoring_enabled =
-      if h.key?("monitoring_enabled")
-        require_boolean(h["monitoring_enabled"], "solakon.monitoring_enabled")
-      elsif h.key?("enabled")
-        require_boolean(h["enabled"], "solakon.enabled")
-      else
-        true
-      end
-
-    control_enabled =
-      if h.key?("control_enabled")
-        require_boolean(h["control_enabled"], "solakon.control_enabled")
-      else
-        false
-      end
+    # `enabled` is the legacy spelling of `monitoring_enabled`; honour it for
+    # backward compatibility until configs are migrated.
+    monitoring_enabled = solakon_boolean(h, "monitoring_enabled", legacy: "enabled", default: true)
+    control_enabled    = solakon_boolean(h, "control_enabled", default: false)
 
     SolakonCfg.new(
       host:               require_string(h["host"], "solakon.host"),
@@ -264,6 +253,12 @@ class ConfigLoader
       control_enabled:    control_enabled,
       stale_after_s:      (h["stale_after_s"] || 120).to_i,
     )
+  end
+
+  def solakon_boolean(h, key, default:, legacy: nil)
+    return require_boolean(h[key], "solakon.#{key}") if h.key?(key)
+    return require_boolean(h[legacy], "solakon.#{legacy}") if legacy && h.key?(legacy)
+    default
   end
 
   def require_boolean(v, key)

@@ -3,8 +3,11 @@ require "solakon_client"
 class SolakonReading < ApplicationRecord
   MIN_SOC_PCT       = 10
   RESUME_SOC_PCT    = 11
+  LOW_SOC_PCT       = 20     # display threshold for the "low" battery character (not a safety floor)
   HOT_TEMP_C        = 42.0   # start of thermal de-rating (full output ceiling); exit PROTECTED below this (no hysteresis)
+  COLD_TEMP_C       = 5.0    # display threshold for the "cold" battery character
   CUTOFF_TEMP_C     = 48.0   # de-rating reaches zero: no battery discharge above this
+  CHARGE_DEADBAND_W = 10     # |power| below this reads as idle rather than charging/discharging
   PV_PRESENT_W      = 50
   USABLE_CAPACITY_WH = 1920
 
@@ -34,8 +37,29 @@ class SolakonReading < ApplicationRecord
   def soc_below_minimum? = battery_soc_pct <= MIN_SOC_PCT
   def soc_at_resume?     = battery_soc_pct >= RESUME_SOC_PCT
   def battery_hot?       = battery_temperature_c.present? && battery_temperature_c >= HOT_TEMP_C
+  def battery_cold?      = battery_temperature_c.present? && battery_temperature_c <= COLD_TEMP_C
   def battery_cooled?    = battery_temperature_c.blank? || battery_temperature_c < HOT_TEMP_C
   def pv_present?        = pv_power_w.to_f >= PV_PRESENT_W
+
+  # Display state for the battery character (asset selection in the UI). Ordered
+  # by precedence: a fault always wins, then thermal, then charge level/flow.
+  def battery_state
+    if [ alarm1, alarm2, alarm3 ].any? { |value| value.to_i.positive? }
+      "fault"
+    elsif battery_hot?
+      "hot"
+    elsif battery_cold?
+      "cold"
+    elsif battery_soc_pct.present? && battery_soc_pct <= LOW_SOC_PCT
+      "low"
+    elsif battery_display_power_w > CHARGE_DEADBAND_W
+      "charging"
+    elsif battery_display_power_w < -CHARGE_DEADBAND_W
+      "discharging"
+    else
+      "normal"
+    end
+  end
 
   def usable_wh
     [ battery_soc_pct - MIN_SOC_PCT, 0 ].max / 100.0 * USABLE_CAPACITY_WH

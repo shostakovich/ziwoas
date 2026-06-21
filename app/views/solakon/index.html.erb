@@ -28,15 +28,15 @@
     battery_state, battery_asset, battery_summary =
       if battery_fault
         [ "fault", "solakon_battery_fault.webp", "Akku meldet Aufmerksamkeit" ]
-      elsif battery_temp_c.present? && battery_temp_c >= 42
+      elsif battery_temp_c.present? && battery_temp_c >= SolakonReading::HOT_TEMP_C
         [ "hot", "solakon_battery_hot.webp", "Akku ist warm" ]
-      elsif battery_temp_c.present? && battery_temp_c <= 5
+      elsif battery_temp_c.present? && battery_temp_c <= SolakonReading::COLD_TEMP_C
         [ "cold", "solakon_battery_cold.webp", "Akku ist kalt" ]
-      elsif battery_soc_pct.present? && battery_soc_pct <= 20
+      elsif battery_soc_pct.present? && battery_soc_pct <= SolakonReading::LOW_SOC_PCT
         [ "low", "solakon_battery_low.webp", "Akku ist niedrig geladen" ]
-      elsif battery_power_w.present? && battery_power_w > 10
+      elsif battery_power_w.present? && battery_power_w > SolakonReading::CHARGE_DEADBAND_W
         [ "charging", "solakon_battery_charging.webp", "Akku lädt gerade" ]
-      elsif battery_power_w.present? && battery_power_w < -10
+      elsif battery_power_w.present? && battery_power_w < -SolakonReading::CHARGE_DEADBAND_W
         [ "normal", "solakon_battery_normal.webp", "Akku versorgt gerade das Haus" ]
       else
         [ "normal", "solakon_battery_normal.webp", "Alles ruhig am Speicher" ]
