@@ -21,7 +21,7 @@
   <g <%= target.call("efDotsBatteryHome") %> clip-path="url(#ef-clip)"></g>
 
   <circle cx="200" cy="80" r="40" fill="white" stroke="#f59f00" stroke-width="2.5"/>
-  <image href="<%= asset_path pv_asset %>" x="184" y="55" width="32" height="32"/>
+  <image href="<%= asset_path pv_asset %>" x="184" y="55" width="32" height="32" role="img" aria-label="<%= pv_alt %>"/>
   <text <%= target.call("efPvW") %> x="200" y="102" text-anchor="middle" font-size="12" font-weight="600" fill="#7c5e00">— W</text>
   <text x="200" y="22" text-anchor="middle" font-size="11" fill="#6c757d">PV-Anlage</text>
 

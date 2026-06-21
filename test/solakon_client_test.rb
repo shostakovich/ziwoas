@@ -176,7 +176,7 @@ class SolakonClientTest < Minitest::Test
     slave = FakeSlave.new(holdings: default_detail_holdings.merge({
       [ 39424, 1 ] => [ 16 ],
       [ 39248, 2 ] => [ 0, 0 ],
-      [ 39230, 2 ] => [ 0, 0 ],
+      [ 39230, 2 ] => [ 0xFFFF, 0xFF4C ],
       [ 39070, 8 ] => [ 410, 512, 405, 488, 0, 0, 0, 0 ],
       [ 39279, 8 ] => [ 0, 210, 0, 198, 0, 0, 0, 0 ],
       [ 37609, 1 ] => [ 513 ],
@@ -201,6 +201,7 @@ class SolakonClientTest < Minitest::Test
     assert_in_delta 41.0, snapshot.panels[0].voltage_v, 0.001
     assert_in_delta 5.12, snapshot.panels[0].current_a, 0.001
     assert_equal 210, snapshot.panels[0].power_w
+    assert_equal(-180, snapshot.battery_power_w)
     assert_in_delta 51.3, snapshot.battery_voltage_v, 0.001
     assert_in_delta 4.2, snapshot.battery_current_a, 0.001
     assert_equal 97, snapshot.battery_health_pct

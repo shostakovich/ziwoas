@@ -28,6 +28,7 @@ class SolakonSnapshotJob < ApplicationJob
       taken_at: now,
       battery_voltage_v: data.battery_voltage_v,
       battery_current_a: data.battery_current_a,
+      battery_power_w: data.battery_power_w,
       battery_temperature_c: data.battery_temperature_c,
       battery_min_temperature_c: data.battery_min_temperature_c,
       battery_health_pct: data.battery_health_pct,

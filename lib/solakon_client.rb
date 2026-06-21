@@ -17,16 +17,9 @@ class SolakonClient
   # --- Config register (RW, persisted — do NOT write every tick) ---
   REG_MINIMUM_SOC = 46609 # u16 – % [10,100]
 
-  # --- Sensor registers (RO) ---
-  REG_BATTERY_SOC    = 39424 # i16 – %
-  REG_ACTIVE_POWER   = 39248 # i32 – INV active power (W, 2 regs)
-  REG_BATTERY_POWER  = 39230 # i32 – battery power (W, 2 regs)
-  # Per-string PV power is contiguous (PVn = 39279 + 2·(n−1), i32 W each);
-  # there is no instantaneous total-PV register, so we sum the first strings.
-  # Unused strings read 0, so reading a few extra is harmless.
-  REG_PV_POWER_BASE = 39279
-  PV_STRINGS        = 4
-  REG_BMS_MAX_TEMP  = 37617 # i16, scale 10, Celsius
+  # Per-string PV power is contiguous; there is no instantaneous total-PV
+  # register, so we sum the first strings. Unused strings read 0.
+  PV_STRINGS = 4
 
   WRITE_REGISTERS = {
     eps_output: 46613
@@ -95,7 +88,7 @@ class SolakonClient
 
   PanelData = Struct.new(:index, :voltage_v, :current_a, :power_w, keyword_init: true)
   SnapshotData = Struct.new(
-    :panels, :battery_voltage_v, :battery_current_a, :battery_temperature_c,
+    :panels, :battery_voltage_v, :battery_current_a, :battery_power_w, :battery_temperature_c,
     :battery_min_temperature_c, :battery_health_pct, :remaining_energy_wh,
     :full_charge_capacity_ah, :design_energy_wh, :inverter_temperature_c,
     :grid_power_w, :eps_enabled, :eps_voltage_v, :eps_power_w,
@@ -220,7 +213,7 @@ class SolakonClient
     energy = decode_energy_counters(groups.fetch(:energy_counters))
 
     SnapshotData.new(
-      **fields.slice(:battery_voltage_v, :battery_current_a, :battery_temperature_c,
+      **fields.slice(:battery_voltage_v, :battery_current_a, :battery_power_w, :battery_temperature_c,
                      :battery_min_temperature_c, :battery_health_pct, :remaining_energy_wh,
                      :full_charge_capacity_ah, :design_energy_wh, :inverter_temperature_c,
                      :grid_power_w, :eps_voltage_v, :eps_power_w,
