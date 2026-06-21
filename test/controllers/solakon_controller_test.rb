@@ -96,4 +96,20 @@ class SolakonControllerTest < ActionDispatch::IntegrationTest
     assert_select ".solakon-balance-row", minimum: 6
     assert_no_match(/SOH|EPS|Modbus|Register|39067|46613|Fault\d|Alarm \d/, response.body)
   end
+
+  test "battery character assets are wired for all states" do
+    get "/solakon"
+
+    assert_response :success
+    %w[
+      solakon_battery_normal
+      solakon_battery_charging
+      solakon_battery_low
+      solakon_battery_hot
+      solakon_battery_cold
+      solakon_battery_fault
+    ].each do |basename|
+      assert_select "img[data-solakon-battery-state][src*='#{basename}']", minimum: 1
+    end
+  end
 end

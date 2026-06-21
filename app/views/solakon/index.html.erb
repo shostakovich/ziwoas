@@ -99,6 +99,14 @@
 
   <h2 class="section-label">Status</h2>
   <section class="chart-card solakon-status-card">
+    <div class="solakon-battery-states" aria-hidden="true">
+      <%= image_tag "solakon_battery_normal.webp", class: "solakon-battery-character is-active", data: { solakon_battery_state: "normal" }, alt: "" %>
+      <%= image_tag "solakon_battery_charging.webp", class: "solakon-battery-character", data: { solakon_battery_state: "charging" }, alt: "" %>
+      <%= image_tag "solakon_battery_low.webp", class: "solakon-battery-character", data: { solakon_battery_state: "low" }, alt: "" %>
+      <%= image_tag "solakon_battery_hot.webp", class: "solakon-battery-character", data: { solakon_battery_state: "hot" }, alt: "" %>
+      <%= image_tag "solakon_battery_cold.webp", class: "solakon-battery-character", data: { solakon_battery_state: "cold" }, alt: "" %>
+      <%= image_tag "solakon_battery_fault.webp", class: "solakon-battery-character", data: { solakon_battery_state: "fault" }, alt: "" %>
+    </div>
     <% (latest&.status_messages || reading&.status_messages || [ "Alles ruhig" ]).each do |message| %>
       <p class="muted-text"><%= message %></p>
     <% end %>
