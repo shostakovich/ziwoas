@@ -31,15 +31,9 @@ class ConsumptionReader
   # samples because samples_5min is only built daily by the Aggregator.
   def guaranteed_floor_w
     return 0.0 if @consumer_ids.empty?
-    cutoff = @now.to_i - FLOOR_WINDOW_S
-    rows = Sample
-      .where(plug_id: @consumer_ids)
-      .where("ts >= ?", cutoff)
-      .group("plug_id", Arel.sql("(ts / #{BUCKET_S}) * #{BUCKET_S}"))
-      .select("plug_id", Arel.sql("(ts / #{BUCKET_S}) * #{BUCKET_S} AS bucket_ts"), Arel.sql("AVG(apower_w) AS avg_w"))
 
     totals = Hash.new(0.0)
-    rows.each { |r| totals[r.bucket_ts] += r.avg_w.to_f }
+    bucket_avg_rows(@now.to_i - FLOOR_WINDOW_S).each { |r| totals[r.bucket_ts] += r.avg_w.to_f }
     totals.empty? ? 0.0 : totals.values.min
   end
 
@@ -63,19 +57,23 @@ class ConsumptionReader
     return [] if ranges.empty?
 
     cutoff = ranges.map(&:first).min.to_i
-    rows = Sample
-      .where(plug_id: @consumer_ids)
-      .where("ts >= ?", cutoff)
-      .group("plug_id", Arel.sql("(ts / #{BUCKET_S}) * #{BUCKET_S}"))
-      .select("plug_id", Arel.sql("(ts / #{BUCKET_S}) * #{BUCKET_S} AS bucket_ts"), Arel.sql("AVG(apower_w) AS avg_w"))
-
     totals = Hash.new(0.0)
-    rows.each do |row|
+    bucket_avg_rows(cutoff).each do |row|
       bucket_ts = row.bucket_ts.to_i
       next unless ranges.any? { |start_at, end_at| bucket_ts >= start_at.to_i && bucket_ts < end_at.to_i }
       totals[bucket_ts] += row.avg_w.to_f
     end
     totals.values
+  end
+
+  # Per-plug, per-5-min-bucket average power since `cutoff` (unix seconds).
+  # Shared by guaranteed_floor_w (24h min) and night_bucket_totals (night P20).
+  def bucket_avg_rows(cutoff)
+    Sample
+      .where(plug_id: @consumer_ids)
+      .where("ts >= ?", cutoff)
+      .group("plug_id", Arel.sql("(ts / #{BUCKET_S}) * #{BUCKET_S}"))
+      .select("plug_id", Arel.sql("(ts / #{BUCKET_S}) * #{BUCKET_S} AS bucket_ts"), Arel.sql("AVG(apower_w) AS avg_w"))
   end
 
   def night_ranges(lat:, lon:, timezone:, days:)

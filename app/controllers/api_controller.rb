@@ -70,27 +70,74 @@ class ApiController < ApplicationController
       SolakonReading.latest_fresh(stale_after_s: stale_after_s, now: Time.zone.at(@now_ts))
     end
 
-    @energy_flow =
-      if reading
-        {
-          solakon_online: true,
-          home_w: consumer_w,
-          solakon_ac_w: reading.active_power_w,
-          solar_w: reading.pv_power_w,
-          battery_soc_pct: reading.battery_soc_pct,
-          battery_w: reading.battery_display_power_w,
-          grid_w: consumer_w.nil? ? nil : consumer_w - reading.active_power_w
-        }
-      else
-        {
-          solakon_online: false,
-          home_w: consumer_w,
-          solakon_ac_w: nil,
-          solar_w: nil,
-          battery_soc_pct: nil,
-          battery_w: nil,
-          grid_w: nil
-        }
-      end
+    # When the Solakon reading is stale/absent, every Solakon-derived field is
+    # nil and energy_flow_flows returns the empty set, so a single hash with
+    # safe-navigation covers both the online and offline cases.
+    grid_w = reading && consumer_w ? consumer_w - reading.active_power_w : nil
+    @energy_flow = {
+      solakon_online: reading.present?,
+      home_w: consumer_w,
+      solakon_ac_w: reading&.active_power_w,
+      solar_w: reading&.pv_power_w,
+      battery_soc_pct: reading&.battery_soc_pct,
+      battery_w: reading&.battery_display_power_w,
+      battery_state: reading&.battery_state,
+      grid_w: grid_w,
+      flows: energy_flow_flows(
+        home_w: consumer_w,
+        solar_w: reading&.pv_power_w,
+        battery_w: reading&.battery_display_power_w,
+        grid_w: grid_w
+      )
+    }
+  end
+
+  private
+
+  ENERGY_FLOW_KEYS = %i[
+    solar_to_home_w solar_to_grid_w solar_to_battery_w
+    grid_to_home_w grid_to_battery_w battery_to_home_w
+  ].freeze
+
+  def empty_energy_flow_flows
+    ENERGY_FLOW_KEYS.index_with { nil }
+  end
+
+  def energy_flow_flows(home_w:, solar_w:, battery_w:, grid_w:)
+    return empty_energy_flow_flows if [ home_w, solar_w, battery_w, grid_w ].any?(&:nil?)
+
+    home = [ home_w.to_f, 0.0 ].max
+    solar = [ solar_w.to_f, 0.0 ].max
+    battery = battery_w.to_f
+    grid = grid_w.to_f
+
+    grid_import = [ grid, 0.0 ].max
+    solar_to_grid = [ -grid, 0.0 ].max
+    grid_to_home = [ grid_import, home ].min
+    home_remaining = [ home - grid_to_home, 0.0 ].max
+    solar_remaining = [ solar - solar_to_grid, 0.0 ].max
+
+    solar_to_home = [ solar_remaining, home_remaining ].min
+    solar_remaining -= solar_to_home
+    home_remaining -= solar_to_home
+
+    if battery.positive?
+      solar_to_battery = solar_remaining
+      grid_to_battery = [ grid_import - grid_to_home, [ battery - solar_to_battery, 0.0 ].max ].min
+      battery_to_home = 0.0
+    else
+      solar_to_battery = 0.0
+      grid_to_battery = 0.0
+      battery_to_home = [ -battery, home_remaining ].min
+    end
+
+    {
+      solar_to_home_w: solar_to_home,
+      solar_to_grid_w: solar_to_grid,
+      solar_to_battery_w: solar_to_battery,
+      grid_to_home_w: grid_to_home,
+      grid_to_battery_w: grid_to_battery,
+      battery_to_home_w: battery_to_home
+    }.transform_values { |value| value.round(1) }
   end
 end

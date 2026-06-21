@@ -43,7 +43,12 @@ class ZeroExportTickJobTest < ActiveSupport::TestCase
 
   setup do
     Sample.delete_all
+    SolakonControlState.delete_all
     @cache = ActiveSupport::Cache::MemoryStore.new
+  end
+
+  teardown do
+    SolakonControlState.delete_all
   end
 
   def run_job(client:, now: Time.at(1_000_000), cfg: config, state: nil)
@@ -132,27 +137,27 @@ class ZeroExportTickJobTest < ActiveSupport::TestCase
     assert_includes heartbeat.calls, [ :apply_power, 350, 10 ]
   end
 
-  test "hot battery clamps the whole target to 400W" do
+  test "hot battery clamps the whole target to 800W" do
     now = Time.zone.local(2026, 6, 20, 12, 0, 0)
     Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 900, aenergy_wh: 1)
-    client = FakeClient.new(state: state_with(soc: 55, pv: 700, temp: 42))
+    client = FakeClient.new(state: state_with(soc: 55, pv: 700, temp: 45))
 
     run_job(client: client, now: now)
 
-    assert_includes client.calls, [ :apply_power, 400, 10 ]
+    assert_includes client.calls, [ :apply_power, 800, 10 ]
   end
 
   test "thermal cutoff to zero writes immediately despite the deadband" do
     now = Time.zone.local(2026, 6, 20, 12, 0, 0)
     Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 900, aenergy_wh: 1)
 
-    # Warm: the de-rating ceiling is ~40 W at 47.4 C, written as the target.
-    run_job(client: FakeClient.new(state: state_with(soc: 55, pv: 700, temp: 47.4)), now: now)
+    # Warm: the de-rating ceiling is ~40 W at 48.8 C, written as the target.
+    run_job(client: FakeClient.new(state: state_with(soc: 55, pv: 700, temp: 48.8)), now: now)
 
-    # Crossing the 48 C cutoff drops the target to 0 W -- a sub-deadband decrease
+    # Crossing the 49 C cutoff drops the target to 0 W -- a sub-deadband decrease
     # that must still write so the battery stops discharging without waiting for
     # the heartbeat.
-    cutoff = FakeClient.new(state: state_with(soc: 55, pv: 700, temp: 48.0))
+    cutoff = FakeClient.new(state: state_with(soc: 55, pv: 700, temp: 49.0))
     run_job(client: cutoff, now: now + 30.seconds)
 
     assert_includes cutoff.calls, [ :apply_power, 0, 10 ]
@@ -198,5 +203,16 @@ class ZeroExportTickJobTest < ActiveSupport::TestCase
     failing2 = FakeClient.new(fail: true)
     2.times { run_job(client: failing2, now: now) }  # only 2 again -> no release
     refute_includes failing2.calls, :release
+  end
+
+  test "no-op when runtime auto regulation is paused even if config permits control" do
+    SolakonControlState.current.pause_auto_regulation!
+    now = Time.zone.local(2026, 6, 20, 12, 0, 0)
+    Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 250, aenergy_wh: 1)
+    client = FakeClient.new(state: healthy_state)
+
+    run_job(client: client, now: now)
+
+    assert_empty client.calls
   end
 end

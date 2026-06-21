@@ -1,20 +1,19 @@
 import { Controller } from "@hotwired/stimulus"
 import consumer from "channels/consumer"
+import { EF_PATHS, EF_LENS, efSetDots, setBatteryImage } from "controllers/energy_flow"
 
 // Connects to data-controller="dashboard"
 // Manages: hero watt display, live tiles (consumption/balance), plug chips,
 //          energy flow SVG, and periodic today-summary fetch.
 export default class extends Controller {
   static targets = [
-    "heroValue", "heroBattery", "heroBatterySoc",
+    "heroValue", "heroBattery", "heroBatteryImage", "heroBatterySoc",
     "tileConsumption", "tileNetbalance",
     "tileProduced", "tileConsumed", "tileSavings", "tileNettoday",
     "tileAutarky", "tileSelfConsumption",
     "plugList",
     // Energy flow SVG elements
-    "efPvW", "efGridW", "efConsumerW", "efBatterySoc", "efBatteryW",
-    "efLineSolarHome", "efLineSolarGrid", "efLineSolarBattery",
-    "efLineGridHome", "efLineGridBattery", "efLineBatteryHome",
+    "efPvW", "efGridW", "efConsumerW", "efBatterySoc", "efBatteryW", "efBatteryImage",
     "efDotsSolarHome", "efDotsSolarGrid", "efDotsSolarBattery",
     "efDotsGridHome", "efDotsGridBattery", "efDotsBatteryHome",
     "efConsumerRing",
@@ -116,6 +115,7 @@ export default class extends Controller {
         const soc = flow.battery_soc_pct
         const s = soc == null ? "—" : soc.toFixed(0)
         this.heroBatterySocTarget.innerHTML = `<span class="hero-number">${s}</span> <span class="hero-unit">%</span>`
+        if (this.hasHeroBatteryImageTarget) setBatteryImage(this.heroBatteryImageTarget, flow.battery_state)
       }
     }
   }
@@ -210,15 +210,13 @@ export default class extends Controller {
     const batteryW = flow?.battery_w
     const batterySoc = flow?.battery_soc_pct
 
-    const gridToHome = gridW > 0 ? gridW : 0
-    const solarToGrid = gridW < 0 ? Math.abs(gridW) : 0
-    const batteryChargeW = batteryW > 0 ? batteryW : 0
-    const batteryDischargeW = batteryW < 0 ? Math.abs(batteryW) : 0
-    const solarForBattery = pvW == null ? 0 : Math.max(0, pvW - solarToGrid)
-    const solarToBattery = Math.min(batteryChargeW, solarForBattery)
-    const gridToBattery = Math.max(0, batteryChargeW - solarToBattery)
-    const batteryToHome = Math.min(batteryDischargeW, homeW || 0)
-    const solarToHome = pvW == null ? 0 : Math.max(0, pvW - solarToGrid - solarToBattery)
+    const flows = flow?.flows || {}
+    const solarToHome = Number(flows.solar_to_home_w || 0)
+    const solarToGrid = Number(flows.solar_to_grid_w || 0)
+    const solarToBattery = Number(flows.solar_to_battery_w || 0)
+    const gridToHome = Number(flows.grid_to_home_w || 0)
+    const gridToBattery = Number(flows.grid_to_battery_w || 0)
+    const batteryToHome = Number(flows.battery_to_home_w || 0)
 
     if (this.hasEfPvWTarget)
       this.efPvWTarget.textContent = pvW == null ? "— W" : pvW.toFixed(0) + " W"
@@ -232,6 +230,8 @@ export default class extends Controller {
     }
     if (this.hasEfBatterySocTarget)
       this.efBatterySocTarget.textContent = batterySoc == null ? "— %" : batterySoc.toFixed(0) + "%"
+    this._efSetBatteryImage(flow?.battery_state)
+
     if (this.hasEfBatteryWTarget)
       // Charging (positive display power) is drawn from the household, so it
       // gets a "−"; discharging feeds the house and is shown without a sign.
@@ -240,29 +240,12 @@ export default class extends Controller {
         batteryW > 0 ? "−" + batteryW.toFixed(0) + " W" :
         batteryW < 0 ? Math.abs(batteryW).toFixed(0) + " W" : "0 W"
 
-    const EF_PATHS = {
-      solarHome: "M 200,122 C 205,150 250,166 306,170",
-      solarGrid: "M 200,122 C 195,150 150,166 94,170",
-      solarBattery: "M 200,122 L 200,218",
-      gridHome: "M 94,170 L 306,170",
-      gridBattery: "M 94,170 C 150,174 195,190 200,218",
-      batteryHome: "M 200,218 C 205,190 250,174 306,170",
-    }
-    const EF_LENS = {
-      solarHome: 123,
-      solarGrid: 123,
-      solarBattery: 96,
-      gridHome: 212,
-      gridBattery: 123,
-      batteryHome: 123,
-    }
-
-    this._efSetDots("efDotsSolarHomeTarget", EF_PATHS.solarHome, "#f59f00", solarToHome, EF_LENS.solarHome)
-    this._efSetDots("efDotsSolarGridTarget", EF_PATHS.solarGrid, "#8b5cf6", solarToGrid, EF_LENS.solarGrid)
-    this._efSetDots("efDotsSolarBatteryTarget", EF_PATHS.solarBattery, "#ec4899", solarToBattery, EF_LENS.solarBattery)
-    this._efSetDots("efDotsGridHomeTarget", EF_PATHS.gridHome, "#3b82f6", gridToHome, EF_LENS.gridHome)
-    this._efSetDots("efDotsGridBatteryTarget", EF_PATHS.gridBattery, "#94a3b8", gridToBattery, EF_LENS.gridBattery)
-    this._efSetDots("efDotsBatteryHomeTarget", EF_PATHS.batteryHome, "#14b8a6", batteryToHome, EF_LENS.batteryHome)
+    efSetDots(this, "efDotsSolarHomeTarget", EF_PATHS.solarHome, "#f59f00", solarToHome, EF_LENS.solarHome)
+    efSetDots(this, "efDotsSolarGridTarget", EF_PATHS.solarGrid, "#8b5cf6", solarToGrid, EF_LENS.solarGrid)
+    efSetDots(this, "efDotsSolarBatteryTarget", EF_PATHS.solarBattery, "#ec4899", solarToBattery, EF_LENS.solarBattery)
+    efSetDots(this, "efDotsGridHomeTarget", EF_PATHS.gridHome, "#3b82f6", gridToHome, EF_LENS.gridHome)
+    efSetDots(this, "efDotsGridBatteryTarget", EF_PATHS.gridBattery, "#94a3b8", gridToBattery, EF_LENS.gridBattery)
+    efSetDots(this, "efDotsBatteryHomeTarget", EF_PATHS.batteryHome, "#14b8a6", batteryToHome, EF_LENS.batteryHome)
 
     // Verbraucher ring: share of consumption by source (solar / grid / battery).
     this._efSetConsumerRing([
@@ -270,6 +253,11 @@ export default class extends Controller {
       { w: gridToHome,    color: "#3b82f6" },
       { w: batteryToHome, color: "#14b8a6" },
     ])
+  }
+
+  _efSetBatteryImage(state) {
+    if (!this.hasEfBatteryImageTarget) return
+    setBatteryImage(this.efBatteryImageTarget, state)
   }
 
   // Renders the Verbraucher node ring as colored arcs proportional to each
@@ -297,44 +285,6 @@ export default class extends Controller {
       c.setAttribute("stroke-dashoffset", `${-acc}`)
       g.appendChild(c)
       acc += pct
-    }
-  }
-
-  _efDur(w, len) {
-    return w < 1 ? null : Math.max(0.5, Math.min(8, len / w))
-  }
-
-  _efSetDots(targetName, path, color, w, len) {
-    const target = this[targetName]
-    if (!target) return
-    const dur = this._efDur(w, len)
-    const id  = targetName
-    const prev = this.efLastDur[id]
-    const changed = dur === null ? prev != null
-                                 : prev == null || Math.abs(dur - prev) / prev > 0.05
-    if (!changed) return
-    this.efLastDur[id] = dur
-    target.innerHTML = ""
-    if (!dur) return
-
-    // Respect prefers-reduced-motion: place static dots, skip the infinite animation.
-    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches
-
-    for (let i = 0; i < 3; i++) {
-      const c = document.createElementNS("http://www.w3.org/2000/svg", "circle")
-      c.setAttribute("r", "4.5")
-      c.setAttribute("fill", color)
-      if (reduceMotion) {
-        c.style.cssText = `offset-path:path("${path}");offset-distance:${25 + i * 25}%`
-        target.appendChild(c)
-      } else {
-        c.style.cssText = `offset-path:path("${path}")`
-        target.appendChild(c)
-        c.animate(
-          [{ offsetDistance: "0%" }, { offsetDistance: "100%" }],
-          { duration: dur * 1000, delay: -(i * dur / 3) * 1000, iterations: Infinity, easing: "linear" }
-        )
-      }
     }
   }
 

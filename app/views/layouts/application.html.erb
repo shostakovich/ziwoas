@@ -34,6 +34,10 @@
           <%= image_tag "nav_dashboard_plush.webp", alt: "", class: "app-nav-icon", aria: { hidden: true } %>
           <span class="app-nav-label">Home</span>
         <% end %>
+        <%= link_to solakon_path, class: [ "app-nav-link", ("active" if current_page?(solakon_path)) ] do %>
+          <%= image_tag "nav_pv_plush.webp", alt: "", class: "app-nav-icon", aria: { hidden: true } %>
+          <span class="app-nav-label">PV</span>
+        <% end %>
         <%= link_to switches_path, class: [ "app-nav-link", ("active" if current_page?(switches_path)) ] do %>
           <%= image_tag "nav_switches_plush.webp", alt: "", class: "app-nav-icon", aria: { hidden: true } %>
           <span class="app-nav-label">Schalten</span>

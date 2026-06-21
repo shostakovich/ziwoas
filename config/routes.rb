@@ -8,6 +8,11 @@ Rails.application.routes.draw do
 
   get "/switches", to: "switches#index", as: :switches
 
+  get "/solakon", to: "solakon#index", as: :solakon
+  get "/solakon/history", to: "solakon#history", as: :solakon_history
+  patch "/solakon/eps", to: "solakon_controls#eps", as: :solakon_eps
+  patch "/solakon/auto_regulation", to: "solakon_controls#auto_regulation", as: :solakon_auto_regulation
+
   scope "/plugs/:plug_id" do
     post "switch", to: "plug_switches#create", as: :plug_switch
     resources :switch_windows, only: %i[new create edit update destroy]

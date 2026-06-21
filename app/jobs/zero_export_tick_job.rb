@@ -31,13 +31,14 @@ class ZeroExportTickJob < ApplicationJob
     solakon = config.solakon
     return Rails.logger.info("zero_export: not configured") if solakon.nil?
     return Rails.logger.info("zero_export: control disabled") unless solakon.control_enabled
+    return Rails.logger.info("zero_export: runtime paused") unless SolakonControlState.current.auto_regulation_active?
 
     reader = ConsumptionReader.new(plugs: config.plugs, now: reader_now, stale_after_s: solakon.stale_after_s)
     floor  = Rails.cache.fetch(FLOOR_CACHE_KEY, expires_in: SLOW_QUERY_TTL) { reader.guaranteed_floor_w }
     night_base = night_base_w(reader, config, floor)
     load = LoadEstimate.new(current_w: reader.current_consumption_w, floor_w: floor, night_base_w: night_base)
 
-    client ||= SolakonClient.new(host: solakon.host, port: solakon.port, unit_id: solakon.unit_id)
+    client ||= SolakonClient.from_config(solakon)
 
     begin
       state ||= client.read_state

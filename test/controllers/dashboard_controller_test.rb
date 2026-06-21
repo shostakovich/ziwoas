@@ -15,7 +15,11 @@ class DashboardControllerTest < ActionDispatch::IntegrationTest
     assert_select "image[x='184'][y='55'][width='32'][height='32']", 1
     assert_select "image[href*='icon_netz']"
     assert_select "image[href*='icon_haus']"
-    assert_select "image[href*='icon_batterie']"
+    assert_select "image[href*='solakon_battery_normal']"
+    assert_select "image[data-dashboard-target='efBatteryImage'][data-battery-state-normal*='solakon_battery_normal']", 1
+    assert_select "image[data-dashboard-target='efBatteryImage'][data-battery-state-charging*='solakon_battery_charging']", 1
+    assert_select "image[data-dashboard-target='efBatteryImage'][data-battery-state-low*='solakon_battery_low']", 1
+    assert_select "image[data-dashboard-target='efBatteryImage'][data-battery-state-fault*='solakon_battery_fault']", 1
 
     assert_select "[data-dashboard-target='efPvW']"
     assert_select "[data-dashboard-target='efGridW']"
@@ -23,12 +27,15 @@ class DashboardControllerTest < ActionDispatch::IntegrationTest
     assert_select "[data-dashboard-target='efBatterySoc']"
     assert_select "[data-dashboard-target='efBatteryW']"
 
-    assert_select "[data-dashboard-target='efLineSolarHome']"
-    assert_select "[data-dashboard-target='efLineSolarGrid']"
-    assert_select "[data-dashboard-target='efLineSolarBattery']"
-    assert_select "[data-dashboard-target='efLineGridHome']"
-    assert_select "[data-dashboard-target='efLineGridBattery']"
-    assert_select "[data-dashboard-target='efLineBatteryHome']"
+    # The six static flow lines render as <path> elements (one per channel,
+    # identified by stroke colour). Only the animated efDots overlays below are
+    # driven from Stimulus, so the lines carry no data-target.
+    assert_select "path[stroke='#f59f00']" # solar -> home
+    assert_select "path[stroke='#8b5cf6']" # solar -> grid
+    assert_select "path[stroke='#ec4899']" # solar -> battery
+    assert_select "path[stroke='#3b82f6']" # grid -> home
+    assert_select "path[stroke='#94a3b8']" # grid -> battery
+    assert_select "path[stroke='#14b8a6']" # battery -> home
 
     assert_select "[data-dashboard-target='efDotsSolarHome']"
     assert_select "[data-dashboard-target='efDotsSolarGrid']"
@@ -36,6 +43,24 @@ class DashboardControllerTest < ActionDispatch::IntegrationTest
     assert_select "[data-dashboard-target='efDotsGridHome']"
     assert_select "[data-dashboard-target='efDotsGridBattery']"
     assert_select "[data-dashboard-target='efDotsBatteryHome']"
+  end
+
+  test "dashboard battery hero icon uses full sun height" do
+    css = Rails.root.join("app/assets/stylesheets/application.css").read
+
+    assert_match(/\.hero-icon-battery \{ height: 80px; \}/, css)
+    assert_match(/@media \(max-width: 480px\).*\.hero-icon-battery \{ height: 48px; \}/m, css)
+    assert_match(/@media \(max-width: 380px\).*\.hero-icon-battery \{ height: 42px; \}/m, css)
+  end
+
+  test "dashboard battery hero icon exposes live battery state assets" do
+    get "/"
+    assert_response :ok
+
+    assert_select "img.hero-icon-battery[data-dashboard-target='heroBatteryImage'][data-battery-state-normal*='solakon_battery_normal']", 1
+    assert_select "img.hero-icon-battery[data-dashboard-target='heroBatteryImage'][data-battery-state-charging*='solakon_battery_charging']", 1
+    assert_select "img.hero-icon-battery[data-dashboard-target='heroBatteryImage'][data-battery-state-low*='solakon_battery_low']", 1
+    assert_select "img.hero-icon-battery[data-dashboard-target='heroBatteryImage'][data-battery-state-fault*='solakon_battery_fault']", 1
   end
 
   test "energy flow node contents are vertically centered in circles" do

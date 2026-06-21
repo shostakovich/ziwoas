@@ -84,6 +84,7 @@ class ReportsControllerTest < ActionDispatch::IntegrationTest
 
     expected_links = {
       root_path => [ "Home", "nav_dashboard_plush.webp" ],
+      solakon_path => [ "PV", "nav_pv_plush.webp" ],
       switches_path => [ "Schalten", "nav_switches_plush.webp" ],
       reports_path => [ "Berichte", "nav_reports_plush.webp" ],
       weather_path => [ "Wetter", "nav_weather_plush.webp" ],
@@ -108,7 +109,7 @@ class ReportsControllerTest < ActionDispatch::IntegrationTest
     assert_includes stylesheet, "@media (max-width: 640px)"
     assert_includes stylesheet, "bottom: calc(14px + env(safe-area-inset-bottom));"
     assert_includes stylesheet, "backdrop-filter: blur(40px) saturate(1.8);"
-    assert_includes stylesheet, "grid-template-columns: repeat(5, minmax(0, 1fr));"
+    assert_includes stylesheet, "grid-template-columns: repeat(6, minmax(0, 1fr));"
     assert_includes stylesheet, "width: 32px;"
     assert_includes stylesheet, "font-weight: 500;"
   end

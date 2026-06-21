@@ -5,7 +5,7 @@ class ZeroExportController
   MAX_OUTPUT_W             = 800   # legal balcony-PV feed limit
   DAY_BATTERY_HELP_W       = 250   # max daytime battery assist
   EVENING_DISCHARGE_LIMIT_W = 800
-  HOT_OUTPUT_LIMIT_W       = 400   # output ceiling at HOT_TEMP_C; ramps linearly to 0 at CUTOFF_TEMP_C
+  HOT_OUTPUT_LIMIT_W       = 800   # output ceiling at HOT_TEMP_C; ramps linearly to 0 at CUTOFF_TEMP_C
   NORMAL_DEADBAND_W        = 50
   BASE_DEADBAND_W          = 15
   NIGHT_BASE_RESERVE_W     = 5
@@ -42,8 +42,8 @@ class ZeroExportController
     enough_for_morning?(reading, sun, load) ? :night_base : :evening_catch_up
   end
 
-  # Enter protection on a hard limit; once in it, stay until BOTH the SoC has
-  # resumed and the battery has cooled (hysteresis around the entry thresholds).
+  # Enter protection on a hard limit. Exit when BOTH SoC has resumed AND the
+  # battery has cooled below HOT_TEMP_C (same threshold as entry — no hysteresis).
   def self.protecting?(reading, previous_state)
     return true if reading.soc_below_minimum? || reading.battery_hot?
     return false unless previous_state == :protected
@@ -84,7 +84,7 @@ class ZeroExportController
   # the full HOT_OUTPUT_LIMIT_W, ramping straight down to 0 at CUTOFF_TEMP_C
   # (above which the battery must not discharge). A full, hot battery is throttled
   # too — the inverter simply curtails PV when there is nowhere for it to go.
-  # Cooled below the resume threshold lifts the cap entirely (hysteresis).
+  # Cooled below HOT_TEMP_C lifts the cap (same threshold, no hysteresis).
   def self.thermal_ceiling_w(reading)
     return MAX_OUTPUT_W if reading.battery_cooled?
 
