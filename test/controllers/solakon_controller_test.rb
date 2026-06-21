@@ -49,4 +49,46 @@ class SolakonControllerTest < ActionDispatch::IntegrationTest
     assert_equal "24h", data["range"]
     assert_equal [ "PV", "Akku", "Netz", "0 W" ], data.dig("chart", "datasets").map { |dataset| dataset.fetch("label") }
   end
+
+  test "page renders controls, panel, storage, balance, and status labels without protocol language" do
+    SolakonSnapshot.create!(
+      taken_at: Time.current,
+      pv1_power_w: 210,
+      pv1_voltage_v: 41.0,
+      pv1_current_a: 5.12,
+      pv2_power_w: 198,
+      pv2_voltage_v: 40.5,
+      pv2_current_a: 4.88,
+      pv3_power_w: 0,
+      pv3_voltage_v: 0,
+      pv3_current_a: 0,
+      battery_health_pct: 97,
+      battery_voltage_v: 51.3,
+      battery_current_a: 4.2,
+      battery_temperature_c: 24.8,
+      remaining_energy_wh: 123.4,
+      full_charge_capacity_ah: 51.2,
+      design_energy_wh: 1920.0,
+      inverter_temperature_c: 34.1,
+      eps_enabled: true,
+      eps_voltage_v: 230.1,
+      eps_power_w: 125
+    )
+
+    get "/solakon"
+
+    assert_response :success
+    assert_select ".solakon-control-card", 2
+    assert_select ".solakon-panel-card", 2
+    assert_select ".solakon-panel-card", text: /Panel 3/, count: 0
+    assert_select ".solakon-storage-grid .tile-label", text: "Ladestand"
+    assert_select ".solakon-storage-grid .tile-label", text: "Batteriegesundheit"
+    assert_select ".solakon-storage-grid .tile-label", text: "Aktuelle Batterieleistung"
+    assert_select ".solakon-storage-grid .tile-label", text: "Batteriespannung"
+    assert_select ".solakon-storage-grid .tile-label", text: "Batteriestrom"
+    assert_select ".solakon-storage-grid .tile-label", text: "Speichertemperatur"
+    assert_select ".solakon-storage-grid .tile-label", text: "Ladezyklen", count: 0
+    assert_select ".solakon-balance-row", minimum: 6
+    assert_no_match(/SOH|EPS|Modbus|Register|39067|46613|Fault\d|Alarm \d/, response.body)
+  end
 end
