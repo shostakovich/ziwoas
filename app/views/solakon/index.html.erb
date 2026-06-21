@@ -6,7 +6,11 @@
 <div class="solakon-page" data-controller="solakon">
   <h2 class="section-label">Energiefluss</h2>
   <div class="chart-card energy-flow-card">
-    <p class="muted-text">Live-Werte erscheinen, sobald Solakon Daten liefert.</p>
+    <%= render "shared/energy_flow",
+               target_prefix: "solakon",
+               pv_asset: "icon_sonne.webp",
+               pv_alt: "PV",
+               battery_asset: "solakon_battery_normal.webp" %>
   </div>
 
   <h2 class="section-label">Steuerung</h2>

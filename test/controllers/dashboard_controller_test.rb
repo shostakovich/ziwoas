@@ -15,7 +15,7 @@ class DashboardControllerTest < ActionDispatch::IntegrationTest
     assert_select "image[x='184'][y='55'][width='32'][height='32']", 1
     assert_select "image[href*='icon_netz']"
     assert_select "image[href*='icon_haus']"
-    assert_select "image[href*='icon_batterie']"
+    assert_select "image[href*='solakon_battery_normal']"
 
     assert_select "[data-dashboard-target='efPvW']"
     assert_select "[data-dashboard-target='efGridW']"
