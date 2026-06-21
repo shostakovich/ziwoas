@@ -137,14 +137,14 @@ class ZeroExportTickJobTest < ActiveSupport::TestCase
     assert_includes heartbeat.calls, [ :apply_power, 350, 10 ]
   end
 
-  test "hot battery clamps the whole target to 400W" do
+  test "hot battery clamps the whole target to 800W" do
     now = Time.zone.local(2026, 6, 20, 12, 0, 0)
     Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 900, aenergy_wh: 1)
     client = FakeClient.new(state: state_with(soc: 55, pv: 700, temp: 42))
 
     run_job(client: client, now: now)
 
-    assert_includes client.calls, [ :apply_power, 400, 10 ]
+    assert_includes client.calls, [ :apply_power, 800, 10 ]
   end
 
   test "thermal cutoff to zero writes immediately despite the deadband" do

@@ -3,8 +3,7 @@ require "solakon_client"
 class SolakonReading < ApplicationRecord
   MIN_SOC_PCT       = 10
   RESUME_SOC_PCT    = 11
-  HOT_TEMP_C        = 42.0   # start of thermal de-rating (full output ceiling)
-  HOT_RESUME_TEMP_C = 41.8   # hysteresis: leave de-rating once cooled to here
+  HOT_TEMP_C        = 42.0   # start of thermal de-rating (full output ceiling); exit PROTECTED below this (no hysteresis)
   CUTOFF_TEMP_C     = 48.0   # de-rating reaches zero: no battery discharge above this
   PV_PRESENT_W      = 50
   USABLE_CAPACITY_WH = 1920
@@ -35,7 +34,7 @@ class SolakonReading < ApplicationRecord
   def soc_below_minimum? = battery_soc_pct <= MIN_SOC_PCT
   def soc_at_resume?     = battery_soc_pct >= RESUME_SOC_PCT
   def battery_hot?       = battery_temperature_c.present? && battery_temperature_c >= HOT_TEMP_C
-  def battery_cooled?    = battery_temperature_c.blank? || battery_temperature_c <= HOT_RESUME_TEMP_C
+  def battery_cooled?    = battery_temperature_c.blank? || battery_temperature_c < HOT_TEMP_C
   def pv_present?        = pv_power_w.to_f >= PV_PRESENT_W
 
   def usable_wh

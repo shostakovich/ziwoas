@@ -38,24 +38,24 @@ class ZeroExportControllerTest < ActiveSupport::TestCase
     assert_equal 350, d.target_w # 100 PV + min(286, 250) help
   end
 
-  test "hot battery enters protected and follows load capped at 400" do
+  test "hot battery enters protected and follows load capped at 800" do
     d = decide(reading: reading(soc: 55, pv: 700, temp: 42.0), load: load(current: 900), now: DAY.call)
     assert_equal :protected, d.state
-    assert_equal 400, d.target_w
+    assert_equal 800, d.target_w
   end
 
-  test "hot battery still tracks a low load below the 400 ceiling" do
+  test "hot battery still tracks a low load below the 800 ceiling" do
     d = decide(reading: reading(soc: 55, pv: 0, temp: 42.0), load: load(current: 180), now: DAY.call)
     assert_equal :protected, d.state
     assert_equal 180, d.target_w
   end
 
-  test "thermal ceiling ramps linearly from 400W at 42C to 0W at 48C" do
+  test "thermal ceiling ramps linearly from 800W at 42C to 0W at 48C" do
     high = load(current: 900)
-    assert_equal 400, decide(reading: reading(soc: 55, pv: 700, temp: 42.0), load: high, now: DAY.call).target_w
-    assert_equal 300, decide(reading: reading(soc: 55, pv: 700, temp: 43.5), load: high, now: DAY.call).target_w
-    assert_equal 200, decide(reading: reading(soc: 55, pv: 700, temp: 45.0), load: high, now: DAY.call).target_w
-    assert_equal 100, decide(reading: reading(soc: 55, pv: 700, temp: 46.5), load: high, now: DAY.call).target_w
+    assert_equal 800, decide(reading: reading(soc: 55, pv: 700, temp: 42.0), load: high, now: DAY.call).target_w
+    assert_equal 600, decide(reading: reading(soc: 55, pv: 700, temp: 43.5), load: high, now: DAY.call).target_w
+    assert_equal 400, decide(reading: reading(soc: 55, pv: 700, temp: 45.0), load: high, now: DAY.call).target_w
+    assert_equal 200, decide(reading: reading(soc: 55, pv: 700, temp: 46.5), load: high, now: DAY.call).target_w
     assert_equal 0,   decide(reading: reading(soc: 55, pv: 700, temp: 48.0), load: high, now: DAY.call).target_w
   end
 
@@ -76,15 +76,15 @@ class ZeroExportControllerTest < ActiveSupport::TestCase
     assert_equal 0, d.target_w
   end
 
-  test "thermal protection holds until cooled to 41.8" do
-    d = decide(reading: reading(soc: 55, pv: 0, temp: 41.9), load: load(current: 900),
+  test "thermal protection holds at 42.0 and releases at 41.9 (no hysteresis)" do
+    d = decide(reading: reading(soc: 55, pv: 0, temp: 42.0), load: load(current: 900),
                now: DAY.call, previous_state: :protected)
     assert_equal :protected, d.state
-    assert_equal 400, d.target_w
+    assert_equal 800, d.target_w
   end
 
-  test "thermal protection releases once cooled" do
-    d = decide(reading: reading(soc: 55, pv: 0, temp: 41.8), load: load(current: 300),
+  test "thermal protection releases once cooled below 42" do
+    d = decide(reading: reading(soc: 55, pv: 0, temp: 41.9), load: load(current: 300),
                now: DAY.call, previous_state: :protected)
     assert_equal :pv_priority, d.state
   end
