@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_21_071252) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_21_111500) do
   create_table "daily_energy_summary", primary_key: "date", id: :string, force: :cascade do |t|
     t.float "consumed_wh", null: false
     t.float "produced_wh", null: false
@@ -97,6 +97,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_21_071252) do
   end
 
   create_table "solakon_snapshots", force: :cascade do |t|
+    t.float "active_power_w"
     t.integer "alarm1"
     t.integer "alarm2"
     t.integer "alarm3"

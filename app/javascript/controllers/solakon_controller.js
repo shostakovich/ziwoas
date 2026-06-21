@@ -18,6 +18,7 @@ export default class extends Controller {
   connect() {
     this.chart = null
     this.efLastDur = {}
+    this.currentRange = "24h"
     this._buildChart(this._readPayload())
     this.subscription = consumer.subscriptions.create("DashboardChannel", {
       received: (data) => {
@@ -26,15 +27,18 @@ export default class extends Controller {
       },
     })
     this.fetchLive()
+    this.historyInterval = setInterval(() => this.refreshHistory(), 60_000)
   }
 
   disconnect() {
     this.subscription?.unsubscribe()
+    clearInterval(this.historyInterval)
     this.chart?.destroy()
   }
 
   async selectRange(event) {
     const range = event.currentTarget.dataset.solakonRangeParam
+    this.currentRange = range
     try {
       const response = await fetch(`/solakon/history.json?range=${encodeURIComponent(range)}`)
       if (!response.ok) return
@@ -44,6 +48,21 @@ export default class extends Controller {
       this._renderBalanceRows(payload.balance_rows || [])
     } catch (error) {
       console.error("solakon history load failed:", error)
+    }
+  }
+
+
+  async refreshHistory() {
+    const activeButton = this.element.querySelector(".preset-link.active")
+    const range = activeButton?.dataset.solakonRangeParam || this.currentRange || "24h"
+    try {
+      const response = await fetch(`/solakon/history.json?range=${encodeURIComponent(range)}`)
+      if (!response.ok) return
+      const payload = await response.json()
+      this._buildChart(payload)
+      this._renderBalanceRows(payload.balance_rows || [])
+    } catch (error) {
+      console.error("solakon history refresh failed:", error)
     }
   }
 
@@ -155,7 +174,7 @@ export default class extends Controller {
   _buildChart(payload) {
     if (!this.hasHistoryCanvasTarget) return
     const chart = payload?.chart || { labels: [], datasets: [] }
-    const colors = { "PV": "#f59f00", "Akku": "#14b8a6", "Netz": "#3b82f6", "0 W": "#6c757d" }
+    const colors = { "PV": "#f59f00", "Akku": "#14b8a6", "Außensteckdose": "#3b82f6", "0 W": "#6c757d" }
     const datasets = (chart.datasets || []).map((dataset) => ({
       label: dataset.label,
       data: dataset.data,

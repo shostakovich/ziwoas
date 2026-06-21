@@ -34,6 +34,7 @@ class SolakonSnapshotJobTest < ActiveJob::TestCase
         SolakonClient::PanelData.new(index: 3, voltage_v: 0.0, current_a: 0.0, power_w: 0),
         SolakonClient::PanelData.new(index: 4, voltage_v: 0.0, current_a: 0.0, power_w: 0)
       ],
+      active_power_w: 320,
       battery_voltage_v: 51.3,
       battery_current_a: 4.2,
       battery_temperature_c: 24.8,
@@ -77,6 +78,7 @@ class SolakonSnapshotJobTest < ActiveJob::TestCase
     assert_equal now, row.taken_at
     assert_equal 210, row.pv1_power_w
     assert_equal 198, row.pv2_power_w
+    assert_equal 320, row.active_power_w
     assert_equal(-180, row.battery_power_w)
     assert_equal 97, row.battery_health_pct
     assert_equal true, row.eps_enabled
@@ -84,7 +86,9 @@ class SolakonSnapshotJobTest < ActiveJob::TestCase
 
     payload = SolakonHistory.new(range_key: "24h", now: now + 1.minute).payload
     battery_dataset = payload.dig(:chart, :datasets).detect { |dataset| dataset.fetch(:label) == "Akku" }
+    ac_dataset = payload.dig(:chart, :datasets).detect { |dataset| dataset.fetch(:label) == "Außensteckdose" }
     assert_equal [ -180.0 ], battery_dataset.fetch(:data)
+    assert_equal [ 320.0 ], ac_dataset.fetch(:data)
   end
 
   test "does not read when Solakon monitoring is disabled" do

@@ -26,6 +26,7 @@ class SolakonSnapshotJob < ApplicationJob
   def snapshot_attributes(data, now)
     attrs = {
       taken_at: now,
+      active_power_w: data.active_power_w,
       battery_voltage_v: data.battery_voltage_v,
       battery_current_a: data.battery_current_a,
       battery_power_w: data.battery_power_w,

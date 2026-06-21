@@ -10,6 +10,7 @@ class SolakonHistoryTest < ActiveSupport::TestCase
         pv1_power_w: 100,
         pv2_power_w: 50,
         battery_power_w: 20,
+        active_power_w: 300,
         grid_power_w: 30,
         pv_total_kwh: 10.0,
         battery_charge_total_kwh: 5.0,
@@ -22,6 +23,7 @@ class SolakonHistoryTest < ActiveSupport::TestCase
         pv1_power_w: 150,
         pv2_power_w: 75,
         battery_power_w: -40,
+        active_power_w: -120,
         grid_power_w: -60,
         pv_total_kwh: 11.2,
         battery_charge_total_kwh: 5.4,
@@ -33,10 +35,10 @@ class SolakonHistoryTest < ActiveSupport::TestCase
       payload = SolakonHistory.new(range_key: "24h", now: Time.current).payload
 
       assert_equal "24h", payload.fetch(:range)
-      assert_equal [ "PV", "Akku", "Netz", "0 W" ], payload.dig(:chart, :datasets).map { |dataset| dataset.fetch(:label) }
+      assert_equal [ "PV", "Akku", "Außensteckdose", "0 W" ], payload.dig(:chart, :datasets).map { |dataset| dataset.fetch(:label) }
       assert_equal [ 150.0, 225.0 ], payload.dig(:chart, :datasets).first.fetch(:data)
       assert_equal [ 20.0, -40.0 ], payload.dig(:chart, :datasets)[1].fetch(:data)
-      assert_equal [ 30.0, -60.0 ], payload.dig(:chart, :datasets)[2].fetch(:data)
+      assert_equal [ 300.0, -120.0 ], payload.dig(:chart, :datasets)[2].fetch(:data)
       assert_equal [ 0, 0 ], payload.dig(:chart, :datasets)[3].fetch(:data)
 
       rows = payload.fetch(:balance_rows)

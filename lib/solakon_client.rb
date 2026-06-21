@@ -88,7 +88,7 @@ class SolakonClient
 
   PanelData = Struct.new(:index, :voltage_v, :current_a, :power_w, keyword_init: true)
   SnapshotData = Struct.new(
-    :panels, :battery_voltage_v, :battery_current_a, :battery_power_w, :battery_temperature_c,
+    :panels, :active_power_w, :battery_voltage_v, :battery_current_a, :battery_power_w, :battery_temperature_c,
     :battery_min_temperature_c, :battery_health_pct, :remaining_energy_wh,
     :full_charge_capacity_ah, :design_energy_wh, :inverter_temperature_c,
     :grid_power_w, :eps_enabled, :eps_voltage_v, :eps_power_w,
@@ -213,7 +213,7 @@ class SolakonClient
     energy = decode_energy_counters(groups.fetch(:energy_counters))
 
     SnapshotData.new(
-      **fields.slice(:battery_voltage_v, :battery_current_a, :battery_power_w, :battery_temperature_c,
+      **fields.slice(:active_power_w, :battery_voltage_v, :battery_current_a, :battery_power_w, :battery_temperature_c,
                      :battery_min_temperature_c, :battery_health_pct, :remaining_energy_wh,
                      :full_charge_capacity_ah, :design_energy_wh, :inverter_temperature_c,
                      :grid_power_w, :eps_voltage_v, :eps_power_w,

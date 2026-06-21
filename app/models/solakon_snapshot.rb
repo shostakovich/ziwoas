@@ -3,7 +3,7 @@ require "solakon_client"
 class SolakonSnapshot < ApplicationRecord
   PANEL_FIELDS = (1..4).flat_map { |idx| [ :"pv#{idx}_power_w", :"pv#{idx}_voltage_v", :"pv#{idx}_current_a" ] }.freeze
   NUMERIC_FIELDS = (PANEL_FIELDS + %i[
-    battery_voltage_v battery_current_a battery_power_w battery_temperature_c
+    active_power_w battery_voltage_v battery_current_a battery_power_w battery_temperature_c
     battery_min_temperature_c remaining_energy_wh full_charge_capacity_ah
     design_energy_wh inverter_temperature_c grid_power_w eps_voltage_v eps_power_w
     pv_total_kwh battery_charge_total_kwh battery_discharge_total_kwh

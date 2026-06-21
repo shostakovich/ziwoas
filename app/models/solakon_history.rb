@@ -36,7 +36,7 @@ class SolakonHistory
         datasets: [
           { label: "PV", data: [] },
           { label: "Akku", data: [] },
-          { label: "Netz", data: [] },
+          { label: "Außensteckdose", data: [] },
           { label: "0 W", data: [] }
         ]
       },
@@ -51,10 +51,21 @@ class SolakonHistory
       datasets: [
         { label: "PV", data: rows.map { |row| (row.pv1_power_w.to_f + row.pv2_power_w.to_f).round(1) } },
         { label: "Akku", data: rows.map { |row| row.battery_power_w.to_f.round(1) } },
-        { label: "Netz", data: rows.map { |row| row.grid_power_w.to_f.round(1) } },
+        { label: "Außensteckdose", data: rows.map { |row| outlet_power_w(row).round(1) } },
         { label: "0 W", data: rows.map { 0 } }
       ]
     }
+  end
+
+
+  def outlet_power_w(row)
+    return row.active_power_w.to_f if row.active_power_w.present?
+
+    nearest = SolakonReading
+      .where(taken_at: (row.taken_at - 2.minutes)..(row.taken_at + 2.minutes))
+      .order(Arel.sql("ABS(strftime('%s', taken_at) - #{row.taken_at.to_i})"))
+      .first
+    nearest&.active_power_w.to_f
   end
 
   def label_for(time)

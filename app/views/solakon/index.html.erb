@@ -53,6 +53,7 @@
     <% end %>
     <details>
       <summary>Details</summary>
+      <p class="muted-text">Speichertemperatur (Status/Regelung) <%= fmt.call(battery_temp_c, 1) %> °C</p>
       <p class="muted-text">Wechselrichtertemperatur <%= fmt.call(reading&.inverter_temperature_c || latest&.inverter_temperature_c, 1) %> °C</p>
       <p class="muted-text">Außensteckdose <%= reading&.eps_enabled ? "bereit" : "aus" %></p>
     </details>
@@ -126,7 +127,7 @@
     <div class="chart-frame">
       <canvas data-solakon-target="historyCanvas"></canvas>
     </div>
-    <p class="muted-text">Akku: + lädt, − entlädt. Netz: + Bezug, − Einspeisung.</p>
+    <p class="muted-text">Akku: + lädt, − entlädt. Außensteckdose: + liefert ins Hausnetz, − zieht Leistung.</p>
     <div class="solakon-balance" data-solakon-target="balanceRows">
       <% @history_payload.fetch(:balance_rows).each do |row| %>
         <div class="solakon-balance-row <%= row.fetch(:role) %>">

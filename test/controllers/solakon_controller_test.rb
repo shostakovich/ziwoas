@@ -50,14 +50,14 @@ class SolakonControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "history endpoint returns selected range payload" do
-    SolakonSnapshot.create!(taken_at: 10.minutes.ago, pv1_power_w: 100, pv2_power_w: 50, battery_power_w: 20, grid_power_w: 30)
+    SolakonSnapshot.create!(taken_at: 10.minutes.ago, pv1_power_w: 100, pv2_power_w: 50, battery_power_w: 20, active_power_w: 140, grid_power_w: 30)
 
     get "/solakon/history.json", params: { range: "24h" }
 
     assert_response :success
     data = response.parsed_body
     assert_equal "24h", data["range"]
-    assert_equal [ "PV", "Akku", "Netz", "0 W" ], data.dig("chart", "datasets").map { |dataset| dataset.fetch("label") }
+    assert_equal [ "PV", "Akku", "Außensteckdose", "0 W" ], data.dig("chart", "datasets").map { |dataset| dataset.fetch("label") }
   end
 
   test "page renders controls, panel, storage, balance, and status labels without protocol language" do
@@ -91,6 +91,9 @@ class SolakonControllerTest < ActionDispatch::IntegrationTest
     assert_select ".solakon-control-card", 2
     assert_select ".solakon-panel-card", 2
     assert_select ".solakon-panel-card", text: /Panel 3/, count: 0
+    assert_select ".muted-text", text: /Speichertemperatur.*24,8 °C/
+    assert_select ".muted-text", text: /Wechselrichtertemperatur.*34,1 °C/
+
     assert_select ".solakon-storage-grid .tile-label", text: "Ladestand"
     assert_select ".solakon-storage-grid .tile-label", text: "Batteriegesundheit"
     assert_select ".solakon-storage-grid .tile-label", text: "Aktuelle Batterieleistung"
