@@ -1,0 +1,65 @@
+<% content_for :title, "PV" %>
+<% content_for :body_class, "page-solakon" %>
+
+<h1>PV</h1>
+
+<div class="solakon-page" data-controller="solakon">
+  <h2 class="section-label">Energiefluss</h2>
+  <div class="chart-card energy-flow-card">
+    <p class="muted-text">Live-Werte erscheinen, sobald Solakon Daten liefert.</p>
+  </div>
+
+  <h2 class="section-label">Steuerung</h2>
+  <section class="solakon-control-grid">
+    <article class="tile solakon-control-card" data-solakon-target="epsCard">
+      <div class="tile-label">Außensteckdose</div>
+      <div class="tile-value" data-solakon-target="epsState"><%= @latest_reading&.eps_enabled ? "An" : "Aus" %></div>
+      <p class="muted-text">Notstrom-Ausgang</p>
+    </article>
+    <article class="tile solakon-control-card" data-solakon-target="autoRegulationCard">
+      <div class="tile-label">Auto-Regelung</div>
+      <div class="tile-value" data-solakon-target="autoRegulationState"><%= @control_enabled && @runtime_state.auto_regulation_active? ? "Aktiv" : "Pausiert" %></div>
+      <p class="muted-text"><%= @control_enabled ? "hält Einspeisung nahe 0 W" : "in Konfiguration deaktiviert" %></p>
+    </article>
+  </section>
+
+  <h2 class="section-label">Panels</h2>
+  <section class="tiles solakon-panel-grid">
+    <% (@latest_snapshot&.connected_panels || []).each do |panel| %>
+      <article class="tile">
+        <div class="tile-label"><%= panel.fetch(:label) %></div>
+        <div class="tile-value"><%= number_with_precision(panel.fetch(:power_w), precision: 0, delimiter: ".", separator: ",") %> W</div>
+      </article>
+    <% end %>
+  </section>
+
+  <h2 class="section-label">Speicher</h2>
+  <section class="tiles solakon-storage-grid">
+    <article class="tile">
+      <div class="tile-label">Batteriegesundheit</div>
+      <div class="tile-value"><%= @latest_snapshot&.battery_health_pct || "—" %> %</div>
+    </article>
+  </section>
+
+  <h2 class="section-label">Solakon-Verlauf</h2>
+  <section class="chart-card">
+    <div class="preset-actions" role="group" aria-label="Zeitraum">
+      <button type="button" class="preset-link active" data-solakon-range-param="24h" data-action="solakon#selectRange">Letzte 24 h</button>
+      <button type="button" class="preset-link" data-solakon-range-param="7d" data-action="solakon#selectRange">Letzte 7 Tage</button>
+      <button type="button" class="preset-link" data-solakon-range-param="30d" data-action="solakon#selectRange">Letzte 30 Tage</button>
+    </div>
+    <div class="chart-frame">
+      <canvas data-solakon-target="historyCanvas"></canvas>
+    </div>
+    <p class="muted-text">Akku: + lädt, − entlädt. Netz: + Bezug, − Einspeisung.</p>
+  </section>
+
+  <h2 class="section-label">Status</h2>
+  <section class="chart-card solakon-status-card">
+    <% (@latest_snapshot&.status_messages || [ "Alles ruhig" ]).each do |message| %>
+      <p class="muted-text"><%= message %></p>
+    <% end %>
+  </section>
+
+  <script type="application/json" data-solakon-target="historyPayload"><%= raw json_escape(@history_payload.to_json) %></script>
+</div>
