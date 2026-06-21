@@ -6,7 +6,7 @@ import consumer from "channels/consumer"
 //          energy flow SVG, and periodic today-summary fetch.
 export default class extends Controller {
   static targets = [
-    "heroValue", "heroBattery", "heroBatterySoc",
+    "heroValue", "heroBattery", "heroBatteryImage", "heroBatterySoc",
     "tileConsumption", "tileNetbalance",
     "tileProduced", "tileConsumed", "tileSavings", "tileNettoday",
     "tileAutarky", "tileSelfConsumption",
@@ -116,6 +116,7 @@ export default class extends Controller {
         const soc = flow.battery_soc_pct
         const s = soc == null ? "—" : soc.toFixed(0)
         this.heroBatterySocTarget.innerHTML = `<span class="hero-number">${s}</span> <span class="hero-unit">%</span>`
+        if (this.hasHeroBatteryImageTarget) this._setBatteryImage(this.heroBatteryImageTarget, flow.battery_state)
       }
     }
   }
@@ -274,9 +275,15 @@ export default class extends Controller {
 
   _efSetBatteryImage(state) {
     if (!this.hasEfBatteryImageTarget) return
+    this._setBatteryImage(this.efBatteryImageTarget, state)
+  }
+
+  _setBatteryImage(image, state) {
     const key = state || "normal"
-    const src = this.efBatteryImageTarget.dataset[`batteryState${key.charAt(0).toUpperCase()}${key.slice(1)}`]
-    if (src) this.efBatteryImageTarget.setAttribute("href", src)
+    const src = image.dataset[`batteryState${key.charAt(0).toUpperCase()}${key.slice(1)}`]
+    if (!src) return
+    if (image.tagName.toLowerCase() === "img") image.src = src
+    else image.setAttribute("href", src)
   }
 
   // Renders the Verbraucher node ring as colored arcs proportional to each

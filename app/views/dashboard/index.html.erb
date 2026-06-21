@@ -10,7 +10,19 @@
       <div class="hero-value" data-dashboard-target="heroValue">— <span class="hero-unit">W</span></div>
     </div>
     <div class="hero-half" data-dashboard-target="heroBattery">
-      <%= image_tag "solakon_battery_normal.webp", class: "hero-icon hero-icon-battery", alt: "Batterie" %>
+      <%= image_tag "solakon_battery_normal.webp",
+                    class: "hero-icon hero-icon-battery",
+                    alt: "Batterie",
+                    data: {
+                      dashboard_target: "heroBatteryImage",
+                      battery_state_normal: asset_path("solakon_battery_normal.webp"),
+                      battery_state_discharging: asset_path("solakon_battery_normal.webp"),
+                      battery_state_charging: asset_path("solakon_battery_charging.webp"),
+                      battery_state_low: asset_path("solakon_battery_low.webp"),
+                      battery_state_hot: asset_path("solakon_battery_hot.webp"),
+                      battery_state_cold: asset_path("solakon_battery_cold.webp"),
+                      battery_state_fault: asset_path("solakon_battery_fault.webp")
+                    } %>
       <div class="hero-value" data-dashboard-target="heroBatterySoc">— <span class="hero-unit">%</span></div>
     </div>
   </div>

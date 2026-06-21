@@ -50,6 +50,16 @@ class DashboardControllerTest < ActionDispatch::IntegrationTest
     assert_match(/@media \(max-width: 380px\).*\.hero-icon-battery \{ height: 42px; \}/m, css)
   end
 
+  test "dashboard battery hero icon exposes live battery state assets" do
+    get "/"
+    assert_response :ok
+
+    assert_select "img.hero-icon-battery[data-dashboard-target='heroBatteryImage'][data-battery-state-normal*='solakon_battery_normal']", 1
+    assert_select "img.hero-icon-battery[data-dashboard-target='heroBatteryImage'][data-battery-state-charging*='solakon_battery_charging']", 1
+    assert_select "img.hero-icon-battery[data-dashboard-target='heroBatteryImage'][data-battery-state-low*='solakon_battery_low']", 1
+    assert_select "img.hero-icon-battery[data-dashboard-target='heroBatteryImage'][data-battery-state-fault*='solakon_battery_fault']", 1
+  end
+
   test "energy flow node contents are vertically centered in circles" do
     get "/"
     assert_response :ok
