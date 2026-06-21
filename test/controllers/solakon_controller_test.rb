@@ -23,6 +23,11 @@ class SolakonControllerTest < ActionDispatch::IntegrationTest
     assert_match(/Außensteckdose/, response.body)
     assert_match(/Auto-Regelung/, response.body)
     assert_match(/Batteriegesundheit/, response.body)
+    assert_select "canvas[data-solakon-target='historyCanvas']", 1
+    assert_select "script[data-solakon-target='historyPayload']", 1
+    assert_select "[data-solakon-target='balanceRows']", 1
+    assert_select "input[data-solakon-target='epsToggle'][data-action='change->solakon#toggleEps']", 1
+    assert_select "input[data-solakon-target='autoRegulationToggle'][data-action='change->solakon#toggleAutoRegulation']", 1
   end
 
   test "page reuses four-node energy flow with Solakon targets" do
