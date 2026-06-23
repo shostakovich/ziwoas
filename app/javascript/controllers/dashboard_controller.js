@@ -22,7 +22,7 @@ export default class extends Controller {
   connect() {
     // Keyed by plug_id — holds latest broadcast per plug
     this.plugState = {}
-    this.plugChips = {}
+    this.plugColors = {}
     this.efLastDur = {}
     this.energyFlow = null
 
@@ -75,7 +75,7 @@ export default class extends Controller {
     const plugs = Object.values(this.plugState)
     this.updateHero(plugs)
     this.updateLiveTiles(plugs)
-    this.updatePlugChips(plugs)
+    this.updatePlugBar(plugs)
     this.updateEnergyFlow(plugs)
   }
 
@@ -138,63 +138,97 @@ export default class extends Controller {
       this.tileNetbalanceTarget.textContent = gridW == null ? "—" : (gridW <= 0 ? "+" : "−") + Math.abs(gridW).toFixed(0) + " W"
   }
 
-  // --- Plug chips ---
+  // --- Plug bar ---
 
-  updatePlugChips(plugs) {
-    if (!this.hasPlugListTarget) return
-    if (!this.plugListInitialized) {
-      this.plugListTarget.textContent = ""
-      this.plugListInitialized = true
-    }
-    const seen = new Set()
+  // Consumer palette mirrors today_chart_controller for visual consistency.
+  // Producer/solar always uses the accent (#f59f00).
+  static PLUG_COLORS = [
+    "#3b82f6", "#10b981", "#8b5cf6", "#ef4444", "#06b6d4",
+    "#ec4899", "#84cc16", "#6366f1", "#14b8a6", "#f43f5e",
+  ]
+  static PRODUCER_COLOR = "#f59f00"
 
-    for (const p of plugs) {
-      seen.add(p.plug_id)
-      const chip = this._plugChip(p)
-      const dot = chip.querySelector(".dot")
-      const name = chip.querySelector(".plug-name")
-      const value = chip.querySelector(".plug-value")
-
-      chip.classList.toggle("offline", !p.online)
-      dot.classList.toggle("offline", !p.online)
-      name.textContent = p.name
-      const label = p.online
-        ? `${p.apower_w.toFixed(0)} W`
-        : "offline"
-      value.textContent = label
-    }
-
-    for (const [id, chip] of Object.entries(this.plugChips)) {
-      if (seen.has(id)) continue
-      chip.remove()
-      delete this.plugChips[id]
-    }
+  // Stable color per plug_id, assigned on first sighting so segments keep their
+  // color even when the consumption ranking reorders.
+  _plugColor(plugId) {
+    if (this.plugColors[plugId]) return this.plugColors[plugId]
+    const palette = this.constructor.PLUG_COLORS
+    const color = palette[this.plugColorIdx++ % palette.length] || palette[0]
+    this.plugColors[plugId] = color
+    return color
   }
 
-  _plugChip(plug) {
-    let chip = this.plugChips[plug.plug_id]
-    if (chip) return chip
+  updatePlugBar(plugs) {
+    if (!this.hasPlugListTarget) return
+    this.plugColorIdx ??= 0
 
-    chip = document.createElement("span")
-    chip.className = "plug-chip"
+    const producers = plugs.filter(p => p.role === "producer" && p.online)
+    const consumers = plugs
+      .filter(p => p.role === "consumer" && p.online && p.apower_w > 0)
+      .sort((a, b) => b.apower_w - a.apower_w)
 
-    const dot = document.createElement("span")
-    dot.className = "dot"
-    chip.appendChild(dot)
+    const total = consumers.reduce((s, p) => s + p.apower_w, 0)
 
-    const name = document.createElement("span")
-    name.className = "plug-name"
-    chip.appendChild(name)
+    // Small widget, updates at most once per broadcast interval — a full rebuild
+    // is simpler and cheaper than diffing segments.
+    this.plugListTarget.textContent = ""
 
-    chip.appendChild(document.createTextNode(" · "))
+    const bar = document.createElement("div")
+    bar.className = "plug-bar"
+    for (const p of consumers) {
+      const seg = document.createElement("span")
+      seg.className = "plug-seg"
+      seg.style.width = `${(p.apower_w / total) * 100}%`
+      seg.style.background = this._plugColor(p.plug_id)
+      seg.title = `${p.name} · ${p.apower_w.toFixed(0)} W`
+      bar.appendChild(seg)
+    }
+    this.plugListTarget.appendChild(bar)
 
-    const value = document.createElement("span")
-    value.className = "plug-value"
-    chip.appendChild(value)
+    const meta = document.createElement("div")
+    meta.className = "plug-bar-meta"
+    const label = document.createElement("span")
+    label.textContent = "Verbrauch gesamt"
+    const value = document.createElement("b")
+    value.textContent = `${total.toFixed(0)} W`
+    meta.append(label, value)
+    this.plugListTarget.appendChild(meta)
 
-    this.plugChips[plug.plug_id] = chip
-    this.plugListTarget.appendChild(chip)
-    return chip
+    const legend = document.createElement("div")
+    legend.className = "plug-legend"
+    for (const p of producers) {
+      legend.appendChild(
+        this._legendItem(p.name, `-${Math.abs(p.apower_w).toFixed(0)} W`,
+                         this.constructor.PRODUCER_COLOR))
+    }
+    for (const p of consumers) {
+      legend.appendChild(
+        this._legendItem(p.name, `${p.apower_w.toFixed(0)} W`,
+                         this._plugColor(p.plug_id)))
+    }
+    this.plugListTarget.appendChild(legend)
+  }
+
+  _legendItem(name, value, color) {
+    const item = document.createElement("span")
+    item.className = "plug-legend-item"
+
+    const swatch = document.createElement("span")
+    swatch.className = "plug-legend-swatch"
+    swatch.style.background = color
+    item.appendChild(swatch)
+
+    const nameEl = document.createElement("span")
+    nameEl.className = "plug-name"
+    nameEl.textContent = name
+    item.appendChild(nameEl)
+
+    const valueEl = document.createElement("span")
+    valueEl.className = "plug-value"
+    valueEl.textContent = value
+    item.appendChild(valueEl)
+
+    return item
   }
 
   // --- Energy flow SVG ---
