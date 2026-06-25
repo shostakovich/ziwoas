@@ -50,7 +50,7 @@ class ZeroExportCacheTest < ActiveSupport::TestCase
     last = @cache.last_write
     assert last.missing?
 
-    decision = ZeroExportController::Decision.new(state: :pv_priority, target_w: 240, deadband_w: 50)
+    decision = ZeroExportController::Decision.new(state: :pv_priority, target_w: 240)
     at = Time.zone.local(2026, 6, 20, 12, 0, 0)
 
     @cache.remember_write(decision, at)

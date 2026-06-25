@@ -35,7 +35,6 @@ class ZeroExportControllerTest < ActiveSupport::TestCase
     d = decide(reading: reading(soc: 55, pv: 0), load: load(current: 300))
     assert_equal :pv_priority, d.state
     assert_equal 300, d.target_w
-    assert_equal ZeroExportController::NORMAL_DEADBAND_W, d.deadband_w
   end
 
   test "hot battery enters protected and follows load capped at 800" do
@@ -114,12 +113,12 @@ class ZeroExportControllerTest < ActiveSupport::TestCase
   end
 
   test "falling target uses the smaller downward deadband" do
-    d = ZeroExportController::Decision.new(state: :pv_priority, target_w: 180, deadband_w: 50)
-    assert d.differs_from?(200)
+    d = ZeroExportController::Decision.new(state: :pv_priority, target_w: 180)
+    assert d.differs_from?(200) # 20W drop clears the 15W downward deadband
   end
 
-  test "rising target still uses the state's normal deadband" do
-    d = ZeroExportController::Decision.new(state: :pv_priority, target_w: 230, deadband_w: 50)
-    refute d.differs_from?(200)
+  test "rising target uses the normal deadband" do
+    d = ZeroExportController::Decision.new(state: :pv_priority, target_w: 230)
+    refute d.differs_from?(200) # 30W rise stays inside the 50W normal deadband
   end
 end

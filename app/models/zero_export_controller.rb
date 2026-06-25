@@ -7,10 +7,12 @@ class ZeroExportController
   NORMAL_DEADBAND_W  = 50
   DOWN_DEADBAND_W    = 15
 
-  Decision = Struct.new(:state, :target_w, :deadband_w, keyword_init: true) do
+  Decision = Struct.new(:state, :target_w, keyword_init: true) do
+    # Rises must clear the normal deadband; falls use the smaller downward one so
+    # the target tracks a dropping load promptly (export-safe).
     def differs_from?(previous_target_w)
       previous = previous_target_w.to_i
-      return target_w - previous >= deadband_w if target_w >= previous
+      return target_w - previous >= NORMAL_DEADBAND_W if target_w >= previous
 
       previous - target_w >= DOWN_DEADBAND_W
     end
@@ -21,7 +23,7 @@ class ZeroExportController
     raw = target_for(state, reading: reading, load: load)
     target = raw.to_f.clamp(0.0, MAX_OUTPUT_W).round
 
-    Decision.new(state: state, target_w: target, deadband_w: NORMAL_DEADBAND_W)
+    Decision.new(state: state, target_w: target)
   end
 
   # Two modes only: PROTECTED (battery safety / thermal) and the normal mode,
@@ -44,7 +46,9 @@ class ZeroExportController
     when :protected
       protected_target(reading, load)
     when :pv_priority
-      pv_priority_target(load)
+      # Normal mode: target the measured load. The Solakon One serves it from PV
+      # first and tops up from the battery internally; we don't manage that split.
+      load.effective_w
     end
   end
 
@@ -68,12 +72,5 @@ class ZeroExportController
     span  = SolakonReading::CUTOFF_TEMP_C - SolakonReading::HOT_TEMP_C
     ratio = (SolakonReading::CUTOFF_TEMP_C - reading.battery_temperature_c) / span
     (HOT_OUTPUT_LIMIT_W * ratio).round.clamp(0, HOT_OUTPUT_LIMIT_W)
-  end
-
-  # Normal mode: target the measured household load. The Solakon One serves it
-  # from PV first and tops up from the battery internally; the controller does
-  # not manage that split. The legal cap is applied by `decide`.
-  def self.pv_priority_target(load)
-    load.effective_w
   end
 end
