@@ -2,14 +2,10 @@
 # target with simple pure functions. Battery-safety thresholds live on
 # SolakonReading; control tuning lives here as constants.
 class ZeroExportController
-  MAX_OUTPUT_W             = 800   # legal balcony-PV feed limit
-  DAY_BATTERY_HELP_W       = 250   # max daytime battery assist
-  EVENING_DISCHARGE_LIMIT_W = 800
-  HOT_OUTPUT_LIMIT_W       = 800   # output ceiling at HOT_TEMP_C; ramps linearly to 0 at CUTOFF_TEMP_C
-  NORMAL_DEADBAND_W        = 50
-  BASE_DEADBAND_W          = 15
-  DOWN_DEADBAND_W          = 15
-  NIGHT_BASE_RESERVE_W     = 5
+  MAX_OUTPUT_W       = 800   # legal balcony-PV feed limit
+  HOT_OUTPUT_LIMIT_W = 800   # output ceiling at HOT_TEMP_C; ramps linearly to 0 at CUTOFF_TEMP_C
+  NORMAL_DEADBAND_W  = 50
+  DOWN_DEADBAND_W    = 15
 
   Decision = Struct.new(:state, :target_w, :deadband_w, keyword_init: true) do
     def differs_from?(previous_target_w)
@@ -20,23 +16,18 @@ class ZeroExportController
     end
   end
 
-  def self.decide(reading:, load:, sun:, previous_state:)
-    state = choose_state(reading: reading, sun: sun, load: load, previous_state: previous_state)
+  def self.decide(reading:, load:, previous_state:)
+    state = choose_state(reading: reading, previous_state: previous_state)
     raw = target_for(state, reading: reading, load: load)
     target = raw.to_f.clamp(0.0, MAX_OUTPUT_W).round
 
-    Decision.new(
-      state: state,
-      target_w: target,
-      deadband_w: state == :night_base ? BASE_DEADBAND_W : NORMAL_DEADBAND_W
-    )
+    Decision.new(state: state, target_w: target, deadband_w: NORMAL_DEADBAND_W)
   end
 
-  def self.choose_state(reading:, sun:, load:, previous_state:)
-    return :protected if protecting?(reading, previous_state)
-    return :pv_priority if sun.daytime? || reading.pv_present?
-
-    enough_for_morning?(reading, sun, load) ? :night_base : :evening_catch_up
+  # Two modes only: PROTECTED (battery safety / thermal) and the normal mode,
+  # which simply follows the measured household load up to the legal cap.
+  def self.choose_state(reading:, previous_state:)
+    protecting?(reading, previous_state) ? :protected : :pv_priority
   end
 
   # Enter protection on a hard limit. Exit when BOTH SoC has resumed AND the
@@ -48,20 +39,12 @@ class ZeroExportController
     !(reading.soc_at_resume? && reading.battery_cooled?)
   end
 
-  def self.enough_for_morning?(reading, sun, load)
-    reading.usable_wh <= load.night_base_w * sun.hours_until_sunrise
-  end
-
   def self.target_for(state, reading:, load:)
     case state
     when :protected
       protected_target(reading, load)
     when :pv_priority
-      pv_priority_target(reading, load)
-    when :evening_catch_up
-      [ load.effective_w, EVENING_DISCHARGE_LIMIT_W ].min
-    when :night_base
-      [ load.night_base_w - NIGHT_BASE_RESERVE_W, load.effective_w ].min
+      pv_priority_target(load)
     end
   end
 
@@ -87,9 +70,10 @@ class ZeroExportController
     (HOT_OUTPUT_LIMIT_W * ratio).round.clamp(0, HOT_OUTPUT_LIMIT_W)
   end
 
-  def self.pv_priority_target(reading, load)
-    pv_direct = [ reading.pv_power_w, load.effective_w ].min
-    remaining = [ load.effective_w - pv_direct, 0.0 ].max
-    pv_direct + [ remaining, DAY_BATTERY_HELP_W ].min
+  # Normal mode: target the measured household load. The Solakon One serves it
+  # from PV first and tops up from the battery internally; the controller does
+  # not manage that split. The legal cap is applied by `decide`.
+  def self.pv_priority_target(load)
+    load.effective_w
   end
 end

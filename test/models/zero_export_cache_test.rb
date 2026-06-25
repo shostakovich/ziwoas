@@ -1,8 +1,8 @@
 require "test_helper"
 
 class ZeroExportCacheTest < ActiveSupport::TestCase
-  Reader = Struct.new(:floor_values, :median_values, :night_values, keyword_init: true) do
-    attr_reader :floor_calls, :median_calls, :night_calls
+  Reader = Struct.new(:floor_values, :median_values, keyword_init: true) do
+    attr_reader :floor_calls, :median_calls
 
     def guaranteed_floor_w
       @floor_calls = floor_calls.to_i + 1
@@ -13,15 +13,7 @@ class ZeroExportCacheTest < ActiveSupport::TestCase
       @median_calls = median_calls.to_i + 1
       median_values.shift
     end
-
-    def night_base_w(**)
-      @night_calls = night_calls.to_i + 1
-      night_values.shift
-    end
   end
-
-  Weather = Struct.new(:lat, :lon, keyword_init: true)
-  Config = Struct.new(:weather, :timezone, keyword_init: true)
 
   setup do
     @store = ActiveSupport::Cache::MemoryStore.new
@@ -29,7 +21,7 @@ class ZeroExportCacheTest < ActiveSupport::TestCase
   end
 
   test "floor_w caches the reader floor for the slow ttl" do
-    reader = Reader.new(floor_values: [ 85.0, 200.0 ], median_values: [], night_values: [])
+    reader = Reader.new(floor_values: [ 85.0, 200.0 ], median_values: [])
 
     assert_in_delta 85.0, @cache.floor_w(reader), 0.001
     assert_in_delta 85.0, @cache.floor_w(reader), 0.001
@@ -37,7 +29,7 @@ class ZeroExportCacheTest < ActiveSupport::TestCase
   end
 
   test "median_w caches the reader median for the median ttl" do
-    reader = Reader.new(floor_values: [], median_values: [ 240.0, 800.0 ], night_values: [])
+    reader = Reader.new(floor_values: [], median_values: [ 240.0, 800.0 ])
 
     assert_in_delta 240.0, @cache.median_w(reader), 0.001
     assert_in_delta 240.0, @cache.median_w(reader), 0.001
@@ -48,27 +40,10 @@ class ZeroExportCacheTest < ActiveSupport::TestCase
     recording_store = Minitest::Mock.new
     recording_store.expect(:fetch, 240.0, [ ZeroExportCache::MEDIAN_CACHE_KEY ], expires_in: 60.seconds)
     cache = ZeroExportCache.new(cache: recording_store)
-    reader = Reader.new(floor_values: [], median_values: [ 240.0 ], night_values: [])
+    reader = Reader.new(floor_values: [], median_values: [ 240.0 ])
 
     assert_in_delta 240.0, cache.median_w(reader), 0.001
     recording_store.verify
-  end
-
-  test "night_base_w falls back to floor when weather is missing" do
-    reader = Reader.new(floor_values: [], median_values: [], night_values: [ 120.0 ])
-    config = Config.new(weather: nil, timezone: "Europe/Berlin")
-
-    assert_in_delta 85.0, @cache.night_base_w(reader, config, 85.0), 0.001
-    assert_nil reader.night_calls
-  end
-
-  test "night_base_w caches weather based reader value for the slow ttl" do
-    reader = Reader.new(floor_values: [], median_values: [], night_values: [ 90.0, 120.0 ])
-    config = Config.new(weather: Weather.new(lat: 52.52, lon: 13.405), timezone: "Europe/Berlin")
-
-    assert_in_delta 90.0, @cache.night_base_w(reader, config, 85.0), 0.001
-    assert_in_delta 90.0, @cache.night_base_w(reader, config, 85.0), 0.001
-    assert_equal 1, reader.night_calls
   end
 
   test "last write state is missing until remembered" do
