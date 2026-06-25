@@ -27,13 +27,13 @@ class ZeroExportControllerTest < ActiveSupport::TestCase
 
   test "normal mode covers the measured load from PV and battery" do
     d = decide(reading: reading(soc: 55, pv: 100), load: load(current: 386))
-    assert_equal :pv_priority, d.state
+    assert_equal :normal, d.state
     assert_equal 386, d.target_w # full load, no battery-help cap
   end
 
   test "normal mode covers the load from the battery at night too" do
     d = decide(reading: reading(soc: 55, pv: 0), load: load(current: 300))
-    assert_equal :pv_priority, d.state
+    assert_equal :normal, d.state
     assert_equal 300, d.target_w
   end
 
@@ -85,18 +85,18 @@ class ZeroExportControllerTest < ActiveSupport::TestCase
   test "thermal protection releases once cooled below 45" do
     d = decide(reading: reading(soc: 55, pv: 0, temp: 44.9), load: load(current: 300),
                previous_state: :protected)
-    assert_equal :pv_priority, d.state
+    assert_equal :normal, d.state
   end
 
   test "target never exceeds the legal cap" do
     d = decide(reading: reading(soc: 90, pv: 0), load: load(current: 2000))
-    assert_equal :pv_priority, d.state
+    assert_equal :normal, d.state
     assert_equal 800, d.target_w
   end
 
   test "median cap applies in normal mode" do
     d = decide(reading: reading(soc: 55, pv: 100), load: load(current: 800, median: 240))
-    assert_equal :pv_priority, d.state
+    assert_equal :normal, d.state
     assert_equal 240, d.target_w
   end
 
@@ -108,17 +108,17 @@ class ZeroExportControllerTest < ActiveSupport::TestCase
 
   test "load drop follows current load below median immediately" do
     d = decide(reading: reading(soc: 90, pv: 0), load: load(current: 120, median: 240))
-    assert_equal :pv_priority, d.state
+    assert_equal :normal, d.state
     assert_equal 120, d.target_w
   end
 
   test "falling target uses the smaller downward deadband" do
-    d = ZeroExportController::Decision.new(state: :pv_priority, target_w: 180)
+    d = ZeroExportController::Decision.new(state: :normal, target_w: 180)
     assert d.differs_from?(200) # 20W drop clears the 15W downward deadband
   end
 
   test "rising target uses the normal deadband" do
-    d = ZeroExportController::Decision.new(state: :pv_priority, target_w: 230)
+    d = ZeroExportController::Decision.new(state: :normal, target_w: 230)
     refute d.differs_from?(200) # 30W rise stays inside the 50W normal deadband
   end
 end

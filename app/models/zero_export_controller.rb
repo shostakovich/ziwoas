@@ -29,7 +29,7 @@ class ZeroExportController
   # Two modes only: PROTECTED (battery safety / thermal) and the normal mode,
   # which simply follows the measured household load up to the legal cap.
   def self.choose_state(reading:, previous_state:)
-    protecting?(reading, previous_state) ? :protected : :pv_priority
+    protecting?(reading, previous_state) ? :protected : :normal
   end
 
   # Enter protection on a hard limit. Exit when BOTH SoC has resumed AND the
@@ -45,7 +45,7 @@ class ZeroExportController
     case state
     when :protected
       protected_target(reading, load)
-    when :pv_priority
+    when :normal
       # Normal mode: target the measured load. The Solakon One serves it from PV
       # first and tops up from the battery internally; we don't manage that split.
       load.effective_w

@@ -50,18 +50,18 @@ class ZeroExportCacheTest < ActiveSupport::TestCase
     last = @cache.last_write
     assert last.missing?
 
-    decision = ZeroExportController::Decision.new(state: :pv_priority, target_w: 240)
+    decision = ZeroExportController::Decision.new(state: :normal, target_w: 240)
     at = Time.zone.local(2026, 6, 20, 12, 0, 0)
 
     @cache.remember_write(decision, at)
     @cache.remember_state(decision)
 
     last = @cache.last_write
-    assert_equal :pv_priority, last.state
+    assert_equal :normal, last.state
     assert_equal 240, last.target_w
     assert_equal at, last.at
     refute last.missing?
-    assert_equal :pv_priority, @cache.previous_state
+    assert_equal :normal, @cache.previous_state
   end
 
   test "failure counter increments and resets" do
