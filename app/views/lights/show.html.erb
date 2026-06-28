@@ -34,21 +34,7 @@
     <button class="ld-tab" data-action="light-detail#tab" data-light-detail-tab-param="scenes">Szenen</button>
   </div>
 
-  <div class="ld-panel" data-light-detail-target="panel" data-tab="white">
-    <div class="ld-card">
-      <p class="ld-label">Lichtfarbe</p>
-      <input class="ld-range ld-white" type="range" min="2700" max="6500" step="100"
-             value="<%= @snapshot.color_temp_k || 2700 %>"
-             data-light-detail-target="temp" data-action="light-detail#temp"
-             aria-label="Lichtfarbe (Kelvin)">
-      <div class="ld-scale"><span>2700 K · warm</span><span>6500 K · kalt</span></div>
-      <div class="ld-presets">
-        <button class="ld-preset" data-action="light-detail#temp" data-light-detail-temp-param="2700">Gemütlich</button>
-        <button class="ld-preset" data-action="light-detail#temp" data-light-detail-temp-param="4000">Neutral</button>
-        <button class="ld-preset" data-action="light-detail#temp" data-light-detail-temp-param="6000">Arbeiten</button>
-      </div>
-    </div>
-  </div>
+  <%= render Lights::WhitePanelComponent.new(snapshot: @snapshot) %>
 
   <% if @light.supports_color %>
     <%= render Lights::ColorPanelComponent.new(snapshot: @snapshot) %>

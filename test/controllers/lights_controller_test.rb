@@ -65,6 +65,17 @@ class LightsControllerTest < ActionDispatch::IntegrationTest
     assert_select "button[data-light-detail-tab-param='color']"
   end
 
+  test "white slider and presets follow the lamp's persisted Kelvin range" do
+    @light = Light.create!(key: "ABCDEF09", name: "Stehlampe",
+                           supports_color_temp: true, color_temp_min_k: 2200, color_temp_max_k: 6500)
+    LightState.record_state(@light.key, on: true, color_temp_k: 2200)
+    get light_url(@light.key)
+    assert_response :success
+    assert_select "input[data-light-detail-target='temp'][min='2200'][max='6500']"
+    assert_select "button.ld-preset[data-light-detail-temp-param='2200']", text: "Gemütlich"
+    assert_select "button.ld-preset.ld-preset--active[data-light-detail-temp-param='2200']"
+  end
+
   test "show hides colour tab when the light has no colour support" do
     @light = Light.create!(key: "ABCDEF02", name: "Weißlampe",
                            supports_color: false, supports_color_temp: true)

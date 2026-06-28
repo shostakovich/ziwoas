@@ -76,8 +76,29 @@ class LightTest < ActiveSupport::TestCase
     assert_equal "side",      Light::ZONE_META["rippleLightToggle"][:role]
   end
 
+  test "ZONE_META labels the H60A6 ceiling lamp's main lamp and ceiling ring" do
+    assert_equal "Hauptlampe", Light::ZONE_META["mainLightToggle"][:label]
+    assert_equal "main",       Light::ZONE_META["mainLightToggle"][:role]
+    assert_equal "Ring",       Light::ZONE_META["backgroundLightToggle"][:label]
+    assert_equal "side",       Light::ZONE_META["backgroundLightToggle"][:role]
+  end
+
   test "max_active_zones is 2 for the H60B0 uplighter and nil otherwise" do
     assert_equal 2,   Light.new(sku: "H60B0").max_active_zones
     assert_nil        Light.new(sku: "H607C").max_active_zones
+  end
+
+  test "color temperature range reads the persisted values" do
+    l = Light.new(color_temp_min_k: 2200, color_temp_max_k: 6500)
+    assert_equal 2200, l.color_temp_min_k
+    assert_equal 6500, l.color_temp_max_k
+    assert_equal (2200..6500), l.color_temp_range
+  end
+
+  test "color temperature range falls back to 2700..6500 when not discovered" do
+    l = Light.new
+    assert_equal 2700, l.color_temp_min_k
+    assert_equal 6500, l.color_temp_max_k
+    assert_equal (2700..6500), l.color_temp_range
   end
 end

@@ -64,13 +64,17 @@ module Govees
       power_only = instances == [ "powerSwitch" ]
       zones      = instances & Light::ZONE_META.keys
       scenes, index = power_only ? [ [], {} ] : load_scenes(raw)
+      ct_cap     = caps.find { |c| c["instance"] == "colorTemperatureK" }
+      ct_range   = ct_cap&.dig("parameters", "range")
 
       Device.new(
         key: key, api_id: api_id, sku: raw["sku"].to_s,
         name: (override && override[:name].presence) || raw["deviceName"].to_s,
         ip: nil,
         supports_color:      instances.include?("colorRgb"),
-        supports_color_temp: instances.include?("colorTemperatureK"),
+        supports_color_temp: !ct_cap.nil?,
+        color_temp_min_k:    ct_range&.dig("min"),
+        color_temp_max_k:    ct_range&.dig("max"),
         zones: zones, scenes: scenes, scene_index: index, power_only: power_only)
     end
 

@@ -1211,6 +1211,7 @@ body.page-light-detail { max-width: 760px; }
 .ld-presets { display: flex; gap: 8px; margin-top: 12px; }
 .ld-preset { flex: 1; padding: 8px 0; border-radius: 10px; border: 1px solid var(--border);
              background: var(--card); color: var(--text); font-size: 12px; cursor: pointer; }
+.ld-preset--active { background: var(--accent-bg); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
 .ld-tabs { display: flex; gap: 6px; margin-bottom: 12px; }
 .ld-tab { flex: 1; padding: 9px 0; border-radius: 11px; font-size: 12px; font-weight: 600;
           border: 1px solid var(--border); background: var(--card); color: var(--muted); cursor: pointer; }

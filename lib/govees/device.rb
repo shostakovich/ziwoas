@@ -13,6 +13,8 @@ module Govees
     attribute :ip,                  Types::String.optional
     attribute :supports_color,      Types::Bool
     attribute :supports_color_temp, Types::Bool
+    attribute :color_temp_min_k,    Types::Integer.optional.default(nil)
+    attribute :color_temp_max_k,    Types::Integer.optional.default(nil)
     attribute :zones,               Types::Array.of(Types::String)
     attribute :scenes,              Types::Array.of(Types::String)
     attribute :scene_index,         Types::Hash

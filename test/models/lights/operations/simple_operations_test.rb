@@ -40,6 +40,15 @@ class Lights::Operations::SimpleOperationsTest < ActiveSupport::TestCase
     assert_equal 4000, seen
   end
 
+  test "SetColorTemp clamps kelvin to the lamp's own range before sending" do
+    light = Light.create!(name: "Ceiling", key: "C2", color_temp_min_k: 2700, color_temp_max_k: 6500)
+    seen = nil
+    Govees::Commander.stub(:set_color_temp, ->(l, kelvin:, mqtt_config:) { seen = kelvin }) do
+      Lights::Operations::SetColorTemp.new.call(light: light, params: { temp_k: "2200" }, mqtt_config: @cfg)
+    end
+    assert_equal 2700, seen
+  end
+
   test "SetScene accepts the effect param" do
     seen = nil
     Govees::Commander.stub(:set_scene, ->(l, scene:, mqtt_config:) { seen = scene }) do
