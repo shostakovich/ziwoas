@@ -34,8 +34,9 @@ module Govees
       @router     = router     || CommandRouter.new(registry: @registry, lan: @lan, api: api, store: @store, logger: logger)
       @reconciler = reconciler || Reconciler.new(registry: @registry, lan: @lan, api: api, store: @store, logger: logger)
       @mqtt_factory   = mqtt_factory || -> { MQTT::Client.new(host: @mqtt_config.host, port: @mqtt_config.port) }
-      @publisher      = nil
-      @command_client = nil
+      @publisher       = nil
+      @publisher_mutex = Mutex.new
+      @command_client  = nil
       @listener_socket = nil
     end
 
@@ -91,8 +92,10 @@ module Govees
     private
 
     def publisher
-      @publisher ||= begin
-        c = @mqtt_factory.call; c.connect; c
+      @publisher_mutex.synchronize do
+        @publisher ||= begin
+          c = @mqtt_factory.call; c.connect; c
+        end
       end
     end
 

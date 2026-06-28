@@ -199,6 +199,23 @@ class GoveesBridgeTest < ActiveSupport::TestCase
     assert_equal %w[A C], published, "A and C must be published despite failure on B"
   end
 
+  # ── Task 4: publisher mutex ───────────────────────────────────────────────────
+
+  test "publisher opens exactly one connection under concurrent access" do
+    calls = 0
+    factory = lambda do
+      calls += 1
+      fake = Object.new
+      fake.define_singleton_method(:connect) { sleep 0.02 }  # simulate GVL release
+      fake.define_singleton_method(:disconnect) { nil }
+      fake
+    end
+    bridge = build_bridge(mqtt_factory: factory)
+    threads = 10.times.map { Thread.new { bridge.send(:publisher) } }
+    threads.each(&:join)
+    assert_equal 1, calls, "publisher must open only one connection"
+  end
+
   test "run brings up the command subscriber without waiting for a slow refresh and stops cleanly" do
     refresh_gate = Queue.new # refresh! blocks here until the test releases it
     registry = Object.new
