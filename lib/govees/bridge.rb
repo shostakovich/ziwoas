@@ -132,11 +132,21 @@ module Govees
           @registry.refresh!
           if @registry.all.any?
             @lan.discover
-            @registry.all.each { |d| publish_config(d); @lan.request_status(d.ip) if d.ip }
-            @logger.info("Govees::Bridge: bootstrapped #{@registry.all.size} devices")
-            break
+            all_ok = true
+            @registry.all.each do |d|
+              publish_config(d)
+              @lan.request_status(d.ip) if d.ip
+            rescue => e
+              all_ok = false
+              @logger.error("Govees::Bridge: publish_config #{d.key} failed: #{e.class}: #{e.message}")
+            end
+            if all_ok
+              @logger.info("Govees::Bridge: bootstrapped #{@registry.all.size} devices")
+              break
+            end
+          else
+            @logger.warn("Govees::Bridge: no devices after refresh; retrying in #{@cfg.api_poll_seconds}s")
           end
-          @logger.warn("Govees::Bridge: no devices after refresh; retrying in #{@cfg.api_poll_seconds}s")
           sleep_interruptible(@cfg.api_poll_seconds)
         end
       rescue => e

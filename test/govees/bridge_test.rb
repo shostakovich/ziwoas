@@ -174,6 +174,31 @@ class GoveesBridgeTest < ActiveSupport::TestCase
     assert_operator attempts, :>=, 2, "command_thread must reconnect after a drop"
   end
 
+  # ── Task 3: bootstrap per-device rescue ──────────────────────────────────────
+
+  test "bootstrap publishes every device even if one publish fails" do
+    devices = [ fake_device("A"), fake_device("B"), fake_device("C") ]
+    bridge = build_bridge
+    bridge.instance_variable_get(:@registry).define_singleton_method(:refresh!) { devices }
+    bridge.instance_variable_get(:@registry).define_singleton_method(:all) { devices }
+    bridge.instance_variable_get(:@lan).tap do |lan|
+      lan.define_singleton_method(:discover) { nil }
+      lan.define_singleton_method(:request_status) { |_| nil }
+    end
+
+    published = []
+    bridge.define_singleton_method(:publish_config) do |d|
+      raise "broker drop" if d.key == "B"
+      published << d.key
+    end
+
+    t = bridge.send(:bootstrap_thread)
+    sleep 0.1
+    bridge.instance_variable_set(:@stopping, true)
+    t.kill; t.join
+    assert_equal %w[A C], published, "A and C must be published despite failure on B"
+  end
+
   test "run brings up the command subscriber without waiting for a slow refresh and stops cleanly" do
     refresh_gate = Queue.new # refresh! blocks here until the test releases it
     registry = Object.new
