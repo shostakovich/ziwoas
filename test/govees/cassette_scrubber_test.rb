@@ -38,10 +38,28 @@ class GoveesCassetteScrubberTest < ActiveSupport::TestCase
     refute_includes ia.response.body, "12:34:56:78:9A:BC"
   end
 
+  test "scrub! fully replaces an 8-octet Govee device id (no real bytes leak)" do
+    body = '{"device":"AB:CD:EF:12:34:56:78:90"}'
+    ia   = build_interaction("{}", body)
+    Govees::CassetteScrubber.scrub!(ia)
+    refute_includes ia.response.body, "AB:CD:EF:12:34:56:78:90"
+    refute_includes ia.response.body, "78:90"  # trailing octets must not survive
+  end
+
+  test "scrub! replaces a device id regardless of format via the device key" do
+    body = '{"data":[{"device":"DEADBEEF","sku":"H60B0"},{"device":"11:22:33:44","sku":"H60B0"}]}'
+    ia   = build_interaction("{}", body)
+    Govees::CassetteScrubber.scrub!(ia)
+    devs = JSON.parse(ia.response.body)["data"].map { |d| d["device"] }
+    refute_includes devs, "DEADBEEF"
+    refute_includes devs, "11:22:33:44"
+    assert devs.all? { |d| d == Govees::CassetteScrubber::PLACEHOLDER_MAC }
+  end
+
   # ── scrub! replaces 16-hex device key ───────────────────────────────────────
 
-  test "scrub! replaces a 16-hex device key in the response body" do
-    body = '{"device":"ABCDEF0123456789"}'
+  test "scrub! replaces a bare 16-hex id outside the device key" do
+    body = '{"note":"ABCDEF0123456789"}'  # 16-hex not under a device key
     ia   = build_interaction("{}", body)
     Govees::CassetteScrubber.scrub!(ia)
     assert_includes ia.response.body, Govees::CassetteScrubber::PLACEHOLDER_KEY16
