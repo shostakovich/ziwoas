@@ -5,7 +5,7 @@ import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
   static values = { key: String, tab: String }
-  static targets = ["panel", "temp"]
+  static targets = ["panel", "temp", "preset"]
 
   connect() { this.showTab(this.tabValue || "white") }
 
@@ -26,7 +26,18 @@ export default class extends Controller {
   temp(event) {
     const k = event.params.temp ?? event.target.value
     if (this.hasTempTarget && event.params.temp) this.tempTarget.value = k
+    this.markActivePreset(k)
     this.debounce(() => this.send({ command: "color_temp", temp_k: k }))
+  }
+
+  // Immediate feedback: the matching preset button lights up before the Turbo
+  // state round-trip returns (which re-renders the panel server-side anyway).
+  markActivePreset(k) {
+    this.presetTargets.forEach((b) => {
+      const active = b.dataset.lightDetailTempParam === String(k)
+      b.classList.toggle("ld-preset--active", active)
+      b.setAttribute("aria-pressed", active)
+    })
   }
 
   swatch(event) { this.applyHex(event.params.color) }

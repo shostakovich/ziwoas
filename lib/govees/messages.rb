@@ -52,12 +52,15 @@ module Govees
       attribute :name,                Types::String.default("".freeze)
       attribute :supports_color,      Types::Bool.default(false)
       attribute :supports_color_temp, Types::Bool.default(false)
+      attribute :color_temp_min_k,    Types::Integer.optional.default(nil)
+      attribute :color_temp_max_k,    Types::Integer.optional.default(nil)
       attribute :zones,               Types::Array.of(Types::ZoneName).default([].freeze)
       attribute :scenes,              Types::Array.of(Types::SceneName).default([].freeze)
 
       def self.from_device(device)
         new(sku: device.sku, name: device.name,
             supports_color: device.supports_color, supports_color_temp: device.supports_color_temp,
+            color_temp_min_k: device.color_temp_min_k, color_temp_max_k: device.color_temp_max_k,
             zones: device.zones, scenes: device.scenes)
       end
 
@@ -66,6 +69,7 @@ module Govees
       def to_wire
         { "sku" => sku, "name" => name,
           "supports_color" => supports_color, "supports_color_temp" => supports_color_temp,
+          "color_temp_min_k" => color_temp_min_k, "color_temp_max_k" => color_temp_max_k,
           "zones" => zones, "scenes" => scenes }
       end
     end

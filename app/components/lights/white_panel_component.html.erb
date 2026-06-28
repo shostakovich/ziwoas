@@ -1,0 +1,23 @@
+<%# app/components/lights/white_panel_component.html.erb %>
+<div class="ld-panel" data-light-detail-target="panel" data-tab="white">
+  <div class="ld-card">
+    <p class="ld-label">Lichtfarbe</p>
+    <input class="ld-range ld-white" type="range"
+           min="<%= light.color_temp_min_k %>" max="<%= light.color_temp_max_k %>" step="100"
+           value="<%= slider_value %>"
+           data-light-detail-target="temp" data-action="light-detail#temp"
+           aria-label="Lichtfarbe (Kelvin)">
+    <div class="ld-scale">
+      <span><%= light.color_temp_min_k %> K · warm</span>
+      <span><%= light.color_temp_max_k %> K · kalt</span>
+    </div>
+    <div class="ld-presets">
+      <% presets.each do |label, kelvin| %>
+        <button class="ld-preset<%= " ld-preset--active" if active?(kelvin) %>"
+                data-action="light-detail#temp" data-light-detail-target="preset"
+                data-light-detail-temp-param="<%= kelvin %>"
+                aria-pressed="<%= active?(kelvin) %>"><%= label %></button>
+      <% end %>
+    </div>
+  </div>
+</div>

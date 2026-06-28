@@ -26,6 +26,15 @@ class GoveesSubscriberConfigTest < ActiveSupport::TestCase
     assert_equal [ "Sunset" ], l.firmware_scenes
   end
 
+  test "config persists the color temperature range" do
+    @sub.handle("govees/K1/config", JSON.generate(
+      "sku" => "H607C", "name" => "Floor", "supports_color_temp" => true,
+      "color_temp_min_k" => 2200, "color_temp_max_k" => 6500, "zones" => [], "scenes" => []))
+    l = Light.find_by(key: "K1")
+    assert_equal 2200, l.read_attribute(:color_temp_min_k)
+    assert_equal 6500, l.read_attribute(:color_temp_max_k)
+  end
+
   test "user rename is preserved on later config" do
     Light.create!(key: "K1", name: "Mein Name", zones: [])
     @sub.handle("govees/K1/config", JSON.generate("sku" => "H60B0", "name" => "Uplighter", "zones" => [], "scenes" => []))

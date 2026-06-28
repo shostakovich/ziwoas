@@ -105,22 +105,38 @@ end
 class GoveesMessagesConfigTest < ActiveSupport::TestCase
   M = Govees::Messages
 
-  Dev = Struct.new(:sku, :name, :supports_color, :supports_color_temp, :zones, :scenes,
+  Dev = Struct.new(:sku, :name, :supports_color, :supports_color_temp,
+                   :color_temp_min_k, :color_temp_max_k, :zones, :scenes,
                    keyword_init: true)
 
-  test "from_device emits the six curated wire fields" do
-    dev = Dev.new(sku: "H60B0", name: "Uplighter", supports_color: true,
-                  supports_color_temp: true, zones: [ "rippleLightToggle" ], scenes: [ "Sunset" ])
-    w = M::Config.from_device(dev).to_wire
+  def build_dev(**overrides)
+    Dev.new(sku: "H60B0", name: "Uplighter", supports_color: true,
+            supports_color_temp: true, color_temp_min_k: 2700, color_temp_max_k: 6500,
+            zones: [ "rippleLightToggle" ], scenes: [ "Sunset" ], **overrides)
+  end
+
+  test "from_device emits the curated wire fields" do
+    w = M::Config.from_device(build_dev).to_wire
     assert_equal "H60B0", w["sku"]
     assert_equal true, w["supports_color"]
     assert_equal [ "rippleLightToggle" ], w["zones"]
     assert_equal [ "Sunset" ], w["scenes"]
   end
 
-  test "from_hash defaults absent collections and flags" do
+  test "from_device carries the color temperature range and round-trips through from_hash" do
+    w = M::Config.from_device(build_dev).to_wire
+    assert_equal 2700, w["color_temp_min_k"]
+    assert_equal 6500, w["color_temp_max_k"]
+    c = M::Config.from_hash(w)
+    assert_equal 2700, c.color_temp_min_k
+    assert_equal 6500, c.color_temp_max_k
+  end
+
+  test "from_hash defaults absent collections, flags and range" do
     c = M::Config.from_hash("sku" => "H60B0", "name" => "L")
     assert_equal [], c.zones
     assert_equal false, c.supports_color
+    assert_nil c.color_temp_min_k
+    assert_nil c.color_temp_max_k
   end
 end
