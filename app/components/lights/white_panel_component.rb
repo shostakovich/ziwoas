@@ -25,7 +25,7 @@ module Lights
     # button shows.
     def presets
       lo = light.color_temp_min_k
-      hi = PRESET_MAX_K.clamp(lo, light.color_temp_max_k)
+      hi = PRESET_MAX_K.clamp(light.color_temp_range)
       {
         "Gemütlich" => lo,
         "Neutral"   => ((lo + hi) / 2.0 / 100).round * 100,

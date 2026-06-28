@@ -30,8 +30,6 @@ export default class extends Controller {
     this.debounce(() => this.send({ command: "color_temp", temp_k: k }))
   }
 
-  // Immediate feedback: the matching preset button lights up before the Turbo
-  // state round-trip returns (which re-renders the panel server-side anyway).
   markActivePreset(k) {
     this.presetTargets.forEach((b) => {
       const active = b.dataset.lightDetailTempParam === String(k)

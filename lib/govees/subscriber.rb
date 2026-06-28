@@ -35,8 +35,8 @@ module Govees
       light.sku = cfg.sku if cfg.sku.present?
       light.supports_color      = cfg.supports_color
       light.supports_color_temp = cfg.supports_color_temp
-      light.color_temp_min_k = cfg.color_temp_min_k
-      light.color_temp_max_k = cfg.color_temp_max_k
+      light.color_temp_min_k = cfg.color_temp_min_k unless cfg.color_temp_min_k.nil?
+      light.color_temp_max_k = cfg.color_temp_max_k unless cfg.color_temp_max_k.nil?
       light.zones           = cfg.zones
       light.firmware_scenes = cfg.scenes
       light.save!
