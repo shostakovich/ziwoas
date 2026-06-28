@@ -8,12 +8,12 @@ module Lights
 
         evicted = on ? evict_for(light, zone) : nil
         if evicted
-          LightState.record_zone_state(light.key, evicted, false)
           step via_commander { Govees::Commander.set_zone(light, zone: evicted, on: false, mqtt_config: mqtt_config) }
+          LightState.record_zone_state(light.key, evicted, false)
         end
 
-        LightState.record_zone_state(light.key, zone, on)
         step via_commander { Govees::Commander.set_zone(light, zone: zone, on: on, mqtt_config: mqtt_config) }
+        LightState.record_zone_state(light.key, zone, on)
 
         toast = evicted ? { evicted: evicted, added: zone } : nil
         Results::Zones.new(light: light, zone_keys: [ zone, evicted ].compact, toast: toast)

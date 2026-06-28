@@ -46,6 +46,19 @@ class Lights::Operations::ZoneOperationsTest < ActiveSupport::TestCase
     assert_includes calls, [ "sideLightToggle", true ]
   end
 
+  test "SetZone does not touch the DB when the commander fails" do
+    light = Light.create!(key: "K", name: "L", sku: "H60B0", zones: %w[rippleLightToggle sideLightToggle])
+    LightState.create!(light_key: "K", zone_states: {})
+
+    Govees::Commander.stub :set_zone, ->(*, **) { raise Govees::Commander::Error, "broker down" } do
+      result = Lights::Operations::SetZone.new.call(light: light, params: { zone: "rippleLightToggle", on: "true" }, mqtt_config: nil)
+      assert result.failure?
+    end
+
+    assert_equal({}, LightState.find_by(light_key: "K").zone_states,
+                 "Bei Commander-Fehler darf der DB-Zustand nicht verändert sein")
+  end
+
   test "UndoZone restores victim, turns off added, clears the toast" do
     light = Light.create!(name: "U", key: "Z3", zones: %w[rippleLightToggle sideLightToggle])
     LightState.record_zone_state("Z3", "sideLightToggle", true)

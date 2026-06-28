@@ -6,11 +6,11 @@ module Lights
         victim = attrs[:victim]
         added  = attrs[:added]
 
-        LightState.record_zone_state(light.key, victim, true)
         step via_commander { Govees::Commander.set_zone(light, zone: victim, on: true, mqtt_config: mqtt_config) }
+        LightState.record_zone_state(light.key, victim, true)
 
-        LightState.record_zone_state(light.key, added, false)
         step via_commander { Govees::Commander.set_zone(light, zone: added, on: false, mqtt_config: mqtt_config) }
+        LightState.record_zone_state(light.key, added, false)
 
         Results::Zones.new(light: light, zone_keys: [ victim, added ], toast: :clear)
       end
