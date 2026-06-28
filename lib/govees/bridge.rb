@@ -56,8 +56,8 @@ module Govees
       verb  = JSON.parse(payload_string)
       state = @router.handle(key, verb)
       publish_state(key, state) if state
-    rescue JSON::ParserError, Dry::Struct::Error, Dry::Types::CoercionError => e
-      @logger.warn("Govees::Bridge: invalid set verb for #{key}: #{e.message}")
+    rescue => e
+      @logger.warn("Govees::Bridge: set verb for #{key} failed: #{e.class}: #{e.message}")
     end
 
     def run
@@ -99,12 +99,24 @@ module Govees
     def command_thread
       Thread.new do
         Thread.current.name = "govees_command"
-        @command_client = @mqtt_factory.call
-        @command_client.connect
-        @command_client.subscribe(SET_FILTER)
-        @command_client.get { |topic, payload| on_set(topic.split("/")[1], payload) }
-      rescue => e
-        @logger.error("Govees::Bridge command: #{e.class}: #{e.message}")
+        backoff = 0  # first retry is immediate; subsequent retries use exponential back-off
+        until @stopping
+          begin
+            @command_client = @mqtt_factory.call
+            @command_client.connect
+            @command_client.subscribe(SET_FILTER)
+            backoff = 0  # reset on successful connect
+            @command_client.get { |topic, payload| on_set(topic.split("/")[1], payload) }
+          rescue MQTT::Exception, StandardError => e
+            # MQTT::Exception inherits from ::Exception (not StandardError), so both
+            # branches are needed to catch broker drops and API/network errors alike.
+            @logger.error("Govees::Bridge command: #{e.class}: #{e.message}")
+            sleep_interruptible([ backoff, 60 ].min) unless @stopping
+            backoff = [ backoff > 0 ? backoff * 2 : 1, 60 ].min
+          ensure
+            begin; @command_client&.disconnect; rescue StandardError; nil; end
+          end
+        end
       end
     end
 

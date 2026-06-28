@@ -32,6 +32,31 @@ class GoveesBridgeTest < ActiveSupport::TestCase
       mqtt_factory: -> { @pub })
   end
 
+  # Flexible builder used by Tasks 2–4; accepts an optional mqtt_factory override.
+  def build_bridge(mqtt_factory: nil)
+    @pub = FakePublisher.new
+    registry = Object.new.tap do |r|
+      r.define_singleton_method(:find) { |_| device }
+      r.define_singleton_method(:all)  { [] }
+    end
+    store = Govees::StateStore.new(clock: -> { 0.0 })
+    router = Object.new
+    router.define_singleton_method(:handle) { |_k, _v| { on: true, brightness: 60 } }
+    mqtt = Struct.new(:host, :port).new("h", 1883)
+    cfg  = Struct.new(:lan_poll_seconds, :api_poll_seconds, :pending_window_seconds).new(5, 180, 5)
+    Govees::Bridge.new(mqtt_config: mqtt, govee_config: cfg, api: nil, logger: Logger.new(IO::NULL),
+      registry: registry, store: store, router: router, reconciler: nil,
+      mqtt_factory: mqtt_factory || -> { @pub })
+  end
+
+  # Minimal fake device for bootstrap/publish tests.
+  def fake_device(key, ip: nil)
+    d = Object.new
+    d.define_singleton_method(:key) { key }
+    d.define_singleton_method(:ip)  { ip }
+    d
+  end
+
   test "publish_config emits a retained config payload with curated fields" do
     bridge = build
     bridge.publish_config(device)
@@ -109,6 +134,44 @@ class GoveesBridgeTest < ActiveSupport::TestCase
       logger: Logger.new(IO::NULL), registry: registry, store: store, router: router,
       reconciler: nil, mqtt_factory: -> { pub })
     assert_nothing_raised { bridge.on_set("K", JSON.generate("brightness" => 999)) }
+  end
+
+  # ── Task 2: on_set rescue + command_thread reconnect ─────────────────────────
+
+  test "on_set swallows router errors (API/network) without raising" do
+    bridge = build_bridge
+    bridge.instance_variable_get(:@router).define_singleton_method(:handle) do |*|
+      raise Govees::PlatformApi::Error, "HTTP 429"
+    end
+    assert_nothing_raised { bridge.on_set("K", JSON.generate("zone" => { "name" => "rippleLightToggle", "on" => true })) }
+  end
+
+  test "on_set swallows a null JSON payload (NoMethodError) without raising" do
+    bridge = build_bridge
+    assert_nothing_raised { bridge.on_set("K", "null") }
+  end
+
+  test "command_thread reconnects after a broker drop instead of dying" do
+    attempts = 0
+    factory = lambda do
+      fake = Object.new
+      fake.define_singleton_method(:connect) { nil }
+      fake.define_singleton_method(:subscribe) { |_| nil }
+      fake.define_singleton_method(:get) do |&_blk|
+        attempts += 1
+        raise MQTT::NotConnectedException, "drop" if attempts == 1
+        sleep 0.2  # second round: blocks "normally"
+      end
+      fake.define_singleton_method(:disconnect) { nil }
+      fake
+    end
+    bridge = build_bridge(mqtt_factory: factory)
+    t = bridge.send(:command_thread)
+    # enough time for: 1st get raises -> backoff -> 2nd connect/get
+    sleep 0.15
+    bridge.instance_variable_set(:@stopping, true)
+    t.kill; t.join
+    assert_operator attempts, :>=, 2, "command_thread must reconnect after a drop"
   end
 
   test "run brings up the command subscriber without waiting for a slow refresh and stops cleanly" do
