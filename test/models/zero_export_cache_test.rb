@@ -64,6 +64,16 @@ class ZeroExportCacheTest < ActiveSupport::TestCase
     assert_equal :normal, @cache.previous_state
   end
 
+  test "remember_state persists whether the decision was trimming" do
+    refute @cache.previous_trim
+
+    @cache.remember_state(ZeroExportController::Decision.new(state: :protected, target_w: 85, trim: true))
+    assert @cache.previous_trim
+
+    @cache.remember_state(ZeroExportController::Decision.new(state: :protected, target_w: 386))
+    refute @cache.previous_trim
+  end
+
   test "failure counter increments and resets" do
     assert_equal 1, @cache.increment_failures
     assert_equal 2, @cache.increment_failures

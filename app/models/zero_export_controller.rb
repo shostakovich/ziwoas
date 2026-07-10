@@ -6,24 +6,34 @@ class ZeroExportController
   HOT_OUTPUT_LIMIT_W = 800   # output ceiling at HOT_TEMP_C; ramps linearly to 0 at CUTOFF_TEMP_C
   NORMAL_DEADBAND_W  = 50
   DOWN_DEADBAND_W    = 15
+  # Below resume SoC the trim aims for slight charging, not neutral, so
+  # conversion losses can never bleed the SoC under 10%.
+  CHARGE_BIAS_W      = 15
+  TRIM_GAIN          = 0.5   # damped correction per tick; keeps noisy samples from swinging the target
+  ENTRY_DERATE       = 0.85  # conservative first target on entering low-SoC protection (≈ inverter efficiency)
+  PROTECTED_DEADBAND_W = 5   # trim steps are small; the power register is volatile, writes are cheap
 
-  Decision = Struct.new(:state, :target_w, keyword_init: true) do
-    # Rises must clear the normal deadband; falls use the smaller downward one so
-    # the target tracks a dropping load promptly (export-safe).
+  Decision = Struct.new(:state, :target_w, :trim, keyword_init: true) do
+    # Trim corrections are small and symmetric; anything else keeps the original
+    # asymmetric bands: rises must clear the normal deadband, falls use the smaller
+    # downward one so the target tracks a dropping load promptly (export-safe).
     def differs_from?(previous_target_w)
       previous = previous_target_w.to_i
+      return (target_w - previous).abs >= PROTECTED_DEADBAND_W if trim
       return target_w - previous >= NORMAL_DEADBAND_W if target_w >= previous
 
       previous - target_w >= DOWN_DEADBAND_W
     end
   end
 
-  def self.decide(reading:, load:, previous_state:)
+  def self.decide(reading:, load:, previous_state:, previous_trim: false, previous_target_w: nil)
     state = choose_state(reading: reading, previous_state: previous_state)
-    raw = target_for(state, reading: reading, load: load)
+    raw = target_for(state, reading: reading, load: load,
+                     previous_trim: previous_trim, previous_target_w: previous_target_w)
     target = raw.to_f.clamp(0.0, MAX_OUTPUT_W).round
 
-    Decision.new(state: state, target_w: target)
+    Decision.new(state: state, target_w: target,
+                 trim: state == :protected && !reading.soc_at_resume?)
   end
 
   # Two modes only: PROTECTED (battery safety / thermal) and the normal mode,
@@ -41,10 +51,10 @@ class ZeroExportController
     !(reading.soc_at_resume? && reading.battery_cooled?)
   end
 
-  def self.target_for(state, reading:, load:)
+  def self.target_for(state, reading:, load:, previous_trim:, previous_target_w:)
     case state
     when :protected
-      protected_target(reading, load)
+      protected_target(reading, load, previous_trim: previous_trim, previous_target_w: previous_target_w)
     when :normal
       # Normal mode: target the measured load. The Solakon One serves it from PV
       # first and tops up from the battery internally; we don't manage that split.
@@ -52,13 +62,33 @@ class ZeroExportController
     end
   end
 
-  # Below resume SoC: no intentional discharge (PV only). Above it: normal PV
-  # priority. While the battery is warm, throttle the *whole* AC output to the
-  # thermal ceiling — but always follow the (lower) load, since less throughput
-  # means less inverter heat.
-  def self.protected_target(reading, load)
-    base = reading.soc_at_resume? ? load.effective_w : [ reading.pv_power_w, load.effective_w ].min
+  # Below resume SoC: closed-loop trim towards slight battery charging (the open
+  # min(pv, load) estimate is DC-side and bleeds conversion losses out of the
+  # battery). At or above resume: normal PV priority. While the battery is warm,
+  # throttle the *whole* AC output to the thermal ceiling — but always follow the
+  # (lower) load, since less throughput means less inverter heat.
+  def self.protected_target(reading, load, previous_trim:, previous_target_w:)
+    base = if reading.soc_at_resume?
+      load.effective_w
+    else
+      trimmed_target(reading, load, previous_trim: previous_trim, previous_target_w: previous_target_w)
+    end
     [ base, thermal_ceiling_w(reading) ].min
+  end
+
+  # Damped feedback on the measured battery power (+ = charging): steer the AC
+  # target so the battery charges by about CHARGE_BIAS_W instead of discharging
+  # through conversion losses. min(pv, load) stays as a feedforward ceiling —
+  # output beyond either would discharge or export regardless of the trim.
+  # Unless the previous tick was already trimming (a bare :protected may be
+  # thermal protection with a stale, high target) start conservatively below
+  # the PV estimate and let the loop find the operating point.
+  def self.trimmed_target(reading, load, previous_trim:, previous_target_w:)
+    ceiling = [ reading.pv_power_w.to_f, load.effective_w ].min
+    return ENTRY_DERATE * ceiling unless previous_trim && previous_target_w
+
+    error = reading.battery_power_w.to_f - CHARGE_BIAS_W
+    (previous_target_w + TRIM_GAIN * error).clamp(0.0, ceiling)
   end
 
   # Linear thermal de-rating, independent of SoC: at HOT_TEMP_C the ceiling is
