@@ -1,14 +1,29 @@
 # Reads current measured household consumption from Shelly/Fritz samples
-# and computes the export-safe lower bound (guaranteed_floor_w).
+# and computes the export-safe lower bound (guaranteed_floor_w). The two
+# window aggregations are expensive at the 30s control tick, so load_estimate
+# memoizes them in Rails.cache; the live sum is always read fresh.
 class ConsumptionReader
   FLOOR_WINDOW_S         = 24 * 60 * 60
   MEDIAN_WINDOW_S        = 30 * 60
   BUCKET_S               = 300
 
+  FLOOR_CACHE_KEY  = "zero_export.floor_w".freeze
+  MEDIAN_CACHE_KEY = "zero_export.median_w".freeze
+  FLOOR_CACHE_TTL  = 1.hour
+  MEDIAN_CACHE_TTL = 60.seconds
+
   def initialize(plugs:, now: Time.now, stale_after_s: 120)
     @consumer_ids  = plugs.select { |p| p.role == :consumer }.map(&:id)
     @now           = now
     @stale_after_s = stale_after_s
+  end
+
+  def load_estimate
+    LoadEstimate.new(
+      current_w: current_consumption_w,
+      floor_w: Rails.cache.fetch(FLOOR_CACHE_KEY, expires_in: FLOOR_CACHE_TTL) { guaranteed_floor_w },
+      median_w: Rails.cache.fetch(MEDIAN_CACHE_KEY, expires_in: MEDIAN_CACHE_TTL) { median_consumption_w }
+    )
   end
 
   # Sum of the latest fresh apower_w across consumer plugs, or nil when no

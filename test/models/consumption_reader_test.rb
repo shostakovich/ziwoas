@@ -106,6 +106,36 @@ class ConsumptionReaderTest < ActiveSupport::TestCase
     assert_nil reader.median_consumption_w
   end
 
+  test "load_estimate memoizes floor and median in Rails.cache but reads live consumption fresh" do
+    now = Time.at(1_000_000)
+    Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 120, aenergy_wh: 1)
+    cache = ActiveSupport::Cache::MemoryStore.new
+    cache.write(ConsumptionReader::FLOOR_CACHE_KEY, 85.0)
+    cache.write(ConsumptionReader::MEDIAN_CACHE_KEY, 240.0)
+
+    estimate = Rails.stub(:cache, cache) do
+      ConsumptionReader.new(plugs: plugs, now: now, stale_after_s: 120).load_estimate
+    end
+
+    assert_in_delta 120.0, estimate.current_w
+    assert_in_delta 85.0, estimate.floor_w   # cached, not recomputed
+    assert_in_delta 240.0, estimate.median_w # cached, not recomputed
+  end
+
+  test "load_estimate computes and stores floor and median on a cold cache" do
+    now = Time.zone.local(2026, 6, 20, 12, 0, 0)
+    Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 120, aenergy_wh: 1)
+    cache = ActiveSupport::Cache::MemoryStore.new
+
+    estimate = Rails.stub(:cache, cache) do
+      ConsumptionReader.new(plugs: plugs, now: now, stale_after_s: 120).load_estimate
+    end
+
+    assert_in_delta 120.0, estimate.floor_w
+    assert_in_delta 120.0, cache.read(ConsumptionReader::FLOOR_CACHE_KEY)
+    assert_in_delta 120.0, cache.read(ConsumptionReader::MEDIAN_CACHE_KEY)
+  end
+
   test "no consumer plugs: consumption is nil, floor is zero" do
     reader = ConsumptionReader.new(plugs: [], now: Time.at(1_000_000))
     assert_nil reader.current_consumption_w

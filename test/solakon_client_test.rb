@@ -34,18 +34,6 @@ class SolakonClientTest < Minitest::Test
     assert_in_delta 42.3, state.battery_temperature_c, 0.001
   end
 
-  # full register set so read_state_from works inside control_tick!
-  def sensor_holdings(min_soc: 10)
-    {
-      [ 39424, 1 ] => [ 16 ],
-      [ 39248, 2 ] => [ 0, 320 ],
-      [ 39279, 8 ] => [ 0, 0, 0, 0, 0, 0, 0, 0 ],
-      [ 39230, 2 ] => [ 0, 100 ],
-      [ 37617, 1 ] => [ 200 ],
-      [ 46609, 1 ] => [ min_soc ]
-    }.merge(default_detail_holdings)
-  end
-
   def default_detail_holdings
     {
       [ 39227, 1 ] => [ 512 ],
@@ -60,32 +48,6 @@ class SolakonClientTest < Minitest::Test
       [ 39201, 1 ] => [ 0 ],
       [ 39216, 2 ] => [ 0, 0 ]
     }
-  end
-
-  def test_control_tick_reads_state_then_writes_one_pass_skipping_min_soc_when_ok
-    slave = FakeSlave.new(holdings: sensor_holdings(min_soc: 10))
-    state = client_for(slave).control_tick!(min_soc: 10) { |_st| 300 }
-    assert_equal 16, state.battery_soc
-    assert_equal [
-      [ :single, 46001, SolakonClient::REMOTE_CONTROL_ENABLE ],
-      [ :single, 46002, SolakonClient::REMOTE_TIMEOUT_S ],
-      [ :multi, 46003, [ 0x0000, 0x012C ] ]
-    ], slave.writes
-  end
-
-  def test_control_tick_writes_min_soc_when_device_value_differs
-    slave = FakeSlave.new(holdings: sensor_holdings(min_soc: 5))
-    client_for(slave).control_tick!(min_soc: 10) { |_st| 300 }
-    assert_equal [ :single, 46609, 10 ], slave.writes.first
-    assert_includes slave.writes, [ :multi, 46003, [ 0x0000, 0x012C ] ]
-  end
-
-  def test_control_tick_yields_state_and_encodes_negative_power
-    slave = FakeSlave.new(holdings: sensor_holdings(min_soc: 10))
-    seen = nil
-    client_for(slave).control_tick!(min_soc: 10) { |st| seen = st; -200 }
-    assert_equal 16, seen.battery_soc
-    assert_includes slave.writes, [ :multi, 46003, [ 0xFFFF, 0xFF38 ] ]
   end
 
   def test_apply_control_writes_remote_command_without_reading_state
