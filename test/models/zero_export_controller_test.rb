@@ -15,9 +15,9 @@ class ZeroExportControllerTest < ActiveSupport::TestCase
     LoadEstimate.new(**attrs)
   end
 
-  def decide(reading:, load:, previous_state: nil, previous_target_w: nil)
+  def decide(reading:, load:, previous_state: nil, previous_trim: false, previous_target_w: nil)
     ZeroExportController.decide(reading: reading, load: load, previous_state: previous_state,
-                                previous_target_w: previous_target_w)
+                                previous_trim: previous_trim, previous_target_w: previous_target_w)
   end
 
   test "low soc entry starts from the derated PV estimate" do
@@ -28,32 +28,32 @@ class ZeroExportControllerTest < ActiveSupport::TestCase
 
   test "low soc trim lowers the target while the battery discharges" do
     d = decide(reading: reading(soc: 10, pv: 100, battery: -40), load: load(current: 386),
-               previous_state: :protected, previous_target_w: 85)
+               previous_state: :protected, previous_trim: true, previous_target_w: 85)
     assert_equal :protected, d.state
     assert_equal 58, d.target_w # 85 + 0.5 × (−40 − 15) = 57.5 → 58
   end
 
   test "low soc trim raises the target while the battery charges above the bias" do
     d = decide(reading: reading(soc: 10, pv: 300, battery: 80), load: load(current: 386),
-               previous_state: :protected, previous_target_w: 85)
+               previous_state: :protected, previous_trim: true, previous_target_w: 85)
     assert_equal 118, d.target_w # 85 + 0.5 × (80 − 15) = 117.5 → 118
   end
 
   test "low soc trim never exceeds pv" do
     d = decide(reading: reading(soc: 10, pv: 100, battery: 200), load: load(current: 386),
-               previous_state: :protected, previous_target_w: 90)
+               previous_state: :protected, previous_trim: true, previous_target_w: 90)
     assert_equal 100, d.target_w # 90 + 92.5 clamped at pv
   end
 
   test "low soc trim never exceeds the load" do
     d = decide(reading: reading(soc: 10, pv: 300, battery: 200), load: load(current: 120),
-               previous_state: :protected, previous_target_w: 110)
+               previous_state: :protected, previous_trim: true, previous_target_w: 110)
     assert_equal 120, d.target_w # clamped at the measured load
   end
 
   test "low soc trim clamps at zero" do
     d = decide(reading: reading(soc: 10, pv: 100, battery: -100), load: load(current: 386),
-               previous_state: :protected, previous_target_w: 10)
+               previous_state: :protected, previous_trim: true, previous_target_w: 10)
     assert_equal 0, d.target_w # 10 − 57.5 → clamped
   end
 
@@ -63,9 +63,18 @@ class ZeroExportControllerTest < ActiveSupport::TestCase
     assert_equal 85, d.target_w # fresh entry ignores the stale normal-mode target
   end
 
+  test "low soc entry applies when the previous tick was protected but not trimming" do
+    # Thermal protection at good SoC follows the load with a high target; when the
+    # SoC then hits the minimum, the first trim tick must derate, not continue
+    # from the stale thermal target.
+    d = decide(reading: reading(soc: 10, pv: 700, battery: -200, temp: 45.0), load: load(current: 386),
+               previous_state: :protected, previous_trim: false, previous_target_w: 800)
+    assert_equal 328, d.target_w # 0.85 × min(pv, load) — not the un-derated min(pv, load)
+  end
+
   test "low soc trim respects the thermal ceiling" do
     d = decide(reading: reading(soc: 10, pv: 700, battery: 200, temp: 48.0), load: load(current: 386),
-               previous_state: :protected, previous_target_w: 386)
+               previous_state: :protected, previous_trim: true, previous_target_w: 386)
     assert_equal 200, d.target_w # trim would allow 386, the 48C ceiling caps it
   end
 
@@ -75,7 +84,7 @@ class ZeroExportControllerTest < ActiveSupport::TestCase
     target = 85
     6.times do
       d = decide(reading: reading(soc: 10, pv: 100, battery: 88 - target), load: load(current: 386),
-                 previous_state: :protected, previous_target_w: target)
+                 previous_state: :protected, previous_trim: true, previous_target_w: target)
       target = d.target_w
     end
     assert_in_delta 74, target, 1 # 85 → 79 → 76 → 75 → 74 → stable

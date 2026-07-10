@@ -140,6 +140,21 @@ class ZeroExportTickJobTest < ActiveSupport::TestCase
     assert_equal [ :read_state, [ :apply_power, 58, 10 ] ], second.calls # 85 + 0.5 × (−40 − 15)
   end
 
+  test "falling to low soc during thermal protection re-enters via the entry derate" do
+    now = Time.zone.local(2026, 6, 20, 12, 0, 0)
+    Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 386, aenergy_wh: 1)
+
+    # Hot battery at good SoC: protected follows the load (writes 386).
+    run_job(client: FakeClient.new(state: state_with(soc: 55, pv: 700, temp: 45)), now: now)
+
+    # SoC hits the minimum while still protected: the first trim tick must start
+    # from the derated PV estimate, not continue from the stale thermal target.
+    second = FakeClient.new(state: state_with(soc: 10, pv: 700, temp: 45, battery: -200))
+    run_job(client: second, now: now + 30.seconds)
+
+    assert_equal [ :read_state, [ :apply_power, 328, 10 ] ], second.calls # 0.85 × min(pv, load)
+  end
+
   test "low soc trim skips sub-deadband corrections" do
     now = Time.zone.local(2026, 6, 20, 12, 0, 0)
     Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 386, aenergy_wh: 1)

@@ -30,6 +30,7 @@ class ZeroExportTickJob < ApplicationJob
       decision = ZeroExportController.decide(
         reading: reading, load: load,
         previous_state: cache.previous_state,
+        previous_trim: cache.previous_trim,
         previous_target_w: cache.last_write.target_w
       )
 

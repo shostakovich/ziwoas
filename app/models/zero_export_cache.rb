@@ -2,6 +2,7 @@ class ZeroExportCache
   FLOOR_CACHE_KEY         = "zero_export.floor_w".freeze
   MEDIAN_CACHE_KEY        = "zero_export.median_w".freeze
   STATE_CACHE_KEY         = "zero_export.state".freeze
+  TRIM_CACHE_KEY          = "zero_export.trim".freeze
   LAST_TARGET_CACHE_KEY   = "zero_export.last_target_w".freeze
   LAST_WRITE_AT_CACHE_KEY = "zero_export.last_write_at".freeze
   FAILURE_COUNT_CACHE_KEY = "zero_export.consecutive_failures".freeze
@@ -29,8 +30,16 @@ class ZeroExportCache
     @cache.read(STATE_CACHE_KEY)&.to_sym
   end
 
+  # :protected alone does not say why — thermal protection and low-SoC trimming
+  # share the state. The trim flag is what tells the controller whether the loop
+  # was already running, so persist it alongside.
+  def previous_trim
+    !!@cache.read(TRIM_CACHE_KEY)
+  end
+
   def remember_state(decision)
     @cache.write(STATE_CACHE_KEY, decision.state)
+    @cache.write(TRIM_CACHE_KEY, !!decision.trim)
   end
 
   def last_write
