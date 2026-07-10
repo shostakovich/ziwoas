@@ -4,9 +4,9 @@ class ZeroExportControllerTest < ActiveSupport::TestCase
   setup { @tz = Time.zone; Time.zone = "Europe/Berlin" }
   teardown { Time.zone = @tz }
 
-  def reading(soc:, pv:, temp: 30.0)
+  def reading(soc:, pv:, temp: 30.0, battery: 0)
     SolakonReading.new(taken_at: Time.current, active_power_w: 0, pv_power_w: pv,
-                       battery_power_w: 0, battery_soc_pct: soc, battery_temperature_c: temp)
+                       battery_power_w: battery, battery_soc_pct: soc, battery_temperature_c: temp)
   end
 
   def load(current:, median: nil)
@@ -15,14 +15,70 @@ class ZeroExportControllerTest < ActiveSupport::TestCase
     LoadEstimate.new(**attrs)
   end
 
-  def decide(reading:, load:, previous_state: nil)
-    ZeroExportController.decide(reading: reading, load: load, previous_state: previous_state)
+  def decide(reading:, load:, previous_state: nil, previous_target_w: nil)
+    ZeroExportController.decide(reading: reading, load: load, previous_state: previous_state,
+                                previous_target_w: previous_target_w)
   end
 
-  test "low soc protection passes PV only" do
+  test "low soc entry starts from the derated PV estimate" do
     d = decide(reading: reading(soc: 10, pv: 100), load: load(current: 386))
     assert_equal :protected, d.state
-    assert_equal 100, d.target_w
+    assert_equal 85, d.target_w # 0.85 × min(pv, load)
+  end
+
+  test "low soc trim lowers the target while the battery discharges" do
+    d = decide(reading: reading(soc: 10, pv: 100, battery: -40), load: load(current: 386),
+               previous_state: :protected, previous_target_w: 85)
+    assert_equal :protected, d.state
+    assert_equal 58, d.target_w # 85 + 0.5 × (−40 − 15) = 57.5 → 58
+  end
+
+  test "low soc trim raises the target while the battery charges above the bias" do
+    d = decide(reading: reading(soc: 10, pv: 300, battery: 80), load: load(current: 386),
+               previous_state: :protected, previous_target_w: 85)
+    assert_equal 118, d.target_w # 85 + 0.5 × (80 − 15) = 117.5 → 118
+  end
+
+  test "low soc trim never exceeds pv" do
+    d = decide(reading: reading(soc: 10, pv: 100, battery: 200), load: load(current: 386),
+               previous_state: :protected, previous_target_w: 90)
+    assert_equal 100, d.target_w # 90 + 92.5 clamped at pv
+  end
+
+  test "low soc trim never exceeds the load" do
+    d = decide(reading: reading(soc: 10, pv: 300, battery: 200), load: load(current: 120),
+               previous_state: :protected, previous_target_w: 110)
+    assert_equal 120, d.target_w # clamped at the measured load
+  end
+
+  test "low soc trim clamps at zero" do
+    d = decide(reading: reading(soc: 10, pv: 100, battery: -100), load: load(current: 386),
+               previous_state: :protected, previous_target_w: 10)
+    assert_equal 0, d.target_w # 10 − 57.5 → clamped
+  end
+
+  test "low soc entry applies when the previous state was not protected" do
+    d = decide(reading: reading(soc: 10, pv: 100, battery: -40), load: load(current: 386),
+               previous_state: :normal, previous_target_w: 300)
+    assert_equal 85, d.target_w # fresh entry ignores the stale normal-mode target
+  end
+
+  test "low soc trim respects the thermal ceiling" do
+    d = decide(reading: reading(soc: 10, pv: 700, battery: 200, temp: 48.0), load: load(current: 386),
+               previous_state: :protected, previous_target_w: 386)
+    assert_equal 200, d.target_w # trim would allow 386, the 48C ceiling caps it
+  end
+
+  test "low soc trim converges to the bias operating point without oscillating" do
+    # Simple plant model: the battery absorbs whatever the AC target leaves over,
+    # neutral at 88W (PV minus conversion losses). Fixed point: battery ≈ +15W.
+    target = 85
+    6.times do
+      d = decide(reading: reading(soc: 10, pv: 100, battery: 88 - target), load: load(current: 386),
+                 previous_state: :protected, previous_target_w: target)
+      target = d.target_w
+    end
+    assert_in_delta 74, target, 1 # 85 → 79 → 76 → 75 → 74 → stable
   end
 
   test "normal mode covers the measured load from PV and battery" do
