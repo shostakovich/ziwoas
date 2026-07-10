@@ -64,8 +64,8 @@ class ZeroExportTickJobTest < ActiveSupport::TestCase
                               battery_temperature_c: 30)
   end
 
-  def state_with(soc:, pv: 100, temp: 30)
-    SolakonClient::State.new(battery_soc: soc, active_power_w: 0, pv_power_w: pv, battery_power_w: 0,
+  def state_with(soc:, pv: 100, temp: 30, battery: 0)
+    SolakonClient::State.new(battery_soc: soc, active_power_w: 0, pv_power_w: pv, battery_power_w: battery,
                               battery_temperature_c: temp)
   end
 
@@ -119,14 +119,37 @@ class ZeroExportTickJobTest < ActiveSupport::TestCase
     assert_equal [ :read_state, [ :apply_power, 146, 10 ] ], client.calls
   end
 
-  test "low soc passes PV only and no longer runs recovery" do
+  test "low soc entry writes the derated PV estimate" do
     now = Time.zone.local(2026, 6, 20, 12, 0, 0)
     Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 386, aenergy_wh: 1)
     client = FakeClient.new(state: state_with(soc: 10, pv: 100, temp: 30))
 
     run_job(client: client, now: now)
 
-    assert_equal [ :read_state, [ :apply_power, 100, 10 ] ], client.calls
+    assert_equal [ :read_state, [ :apply_power, 85, 10 ] ], client.calls
+  end
+
+  test "low soc trim corrects the next tick from the measured battery power" do
+    now = Time.zone.local(2026, 6, 20, 12, 0, 0)
+    Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 386, aenergy_wh: 1)
+
+    run_job(client: FakeClient.new(state: state_with(soc: 10, pv: 100)), now: now) # entry: writes 85
+    second = FakeClient.new(state: state_with(soc: 10, pv: 100, battery: -40))
+    run_job(client: second, now: now + 30.seconds)
+
+    assert_equal [ :read_state, [ :apply_power, 58, 10 ] ], second.calls # 85 + 0.5 × (−40 − 15)
+  end
+
+  test "low soc trim skips sub-deadband corrections" do
+    now = Time.zone.local(2026, 6, 20, 12, 0, 0)
+    Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 386, aenergy_wh: 1)
+
+    run_job(client: FakeClient.new(state: state_with(soc: 10, pv: 100)), now: now) # entry: writes 85
+    second = FakeClient.new(state: state_with(soc: 10, pv: 100, battery: 9))
+    run_job(client: second, now: now + 30.seconds)
+
+    # error = 9 − 15 = −6 → correction −3 → target 82; |85 − 82| < 5W → no write
+    assert_equal [ :read_state ], second.calls
   end
 
   test "does not rewrite inside the deadband before the heartbeat" do
