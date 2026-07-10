@@ -11,12 +11,15 @@ class ZeroExportController
   CHARGE_BIAS_W      = 15
   TRIM_GAIN          = 0.5   # damped correction per tick; keeps noisy samples from swinging the target
   ENTRY_DERATE       = 0.85  # conservative first target on entering low-SoC protection (≈ inverter efficiency)
+  PROTECTED_DEADBAND_W = 5   # trim steps are small; the power register is volatile, writes are cheap
 
-  Decision = Struct.new(:state, :target_w, keyword_init: true) do
-    # Rises must clear the normal deadband; falls use the smaller downward one so
-    # the target tracks a dropping load promptly (export-safe).
+  Decision = Struct.new(:state, :target_w, :trim, keyword_init: true) do
+    # Trim corrections are small and symmetric; anything else keeps the original
+    # asymmetric bands: rises must clear the normal deadband, falls use the smaller
+    # downward one so the target tracks a dropping load promptly (export-safe).
     def differs_from?(previous_target_w)
       previous = previous_target_w.to_i
+      return (target_w - previous).abs >= PROTECTED_DEADBAND_W if trim
       return target_w - previous >= NORMAL_DEADBAND_W if target_w >= previous
 
       previous - target_w >= DOWN_DEADBAND_W
@@ -29,7 +32,8 @@ class ZeroExportController
                      previous_state: previous_state, previous_target_w: previous_target_w)
     target = raw.to_f.clamp(0.0, MAX_OUTPUT_W).round
 
-    Decision.new(state: state, target_w: target)
+    Decision.new(state: state, target_w: target,
+                 trim: state == :protected && !reading.soc_at_resume?)
   end
 
   # Two modes only: PROTECTED (battery safety / thermal) and the normal mode,

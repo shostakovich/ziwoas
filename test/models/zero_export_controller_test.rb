@@ -177,4 +177,28 @@ class ZeroExportControllerTest < ActiveSupport::TestCase
     d = ZeroExportController::Decision.new(state: :normal, target_w: 230)
     refute d.differs_from?(200) # 30W rise stays inside the 50W normal deadband
   end
+
+  test "trim decisions use the small symmetric protected deadband" do
+    refute ZeroExportController::Decision.new(state: :protected, target_w: 104, trim: true).differs_from?(100)
+    assert ZeroExportController::Decision.new(state: :protected, target_w: 105, trim: true).differs_from?(100)
+    refute ZeroExportController::Decision.new(state: :protected, target_w: 96, trim: true).differs_from?(100)
+    assert ZeroExportController::Decision.new(state: :protected, target_w: 95, trim: true).differs_from?(100)
+  end
+
+  test "decisions without trim keep the asymmetric deadbands" do
+    refute ZeroExportController::Decision.new(state: :protected, target_w: 230).differs_from?(200)
+    assert ZeroExportController::Decision.new(state: :protected, target_w: 180).differs_from?(200)
+  end
+
+  test "decide marks only low-soc protection as trimming" do
+    low = decide(reading: reading(soc: 10, pv: 100), load: load(current: 386))
+    assert low.trim
+
+    hot = decide(reading: reading(soc: 55, pv: 0, temp: 45.0), load: load(current: 180))
+    assert_equal :protected, hot.state
+    refute hot.trim
+
+    normal = decide(reading: reading(soc: 55, pv: 100), load: load(current: 386))
+    refute normal.trim
+  end
 end
