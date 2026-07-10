@@ -14,27 +14,9 @@ class SolakonMonitorJob < ApplicationJob
     client ||= SolakonClient.from_config(solakon)
     state = client.read_state
 
-    SolakonReading.create!(
-      taken_at: now,
-      active_power_w: state.active_power_w,
-      pv_power_w: state.pv_power_w,
-      battery_power_w: state.battery_power_w,
-      battery_soc_pct: state.battery_soc,
-      battery_temperature_c: state.battery_temperature_c,
-      battery_voltage_v: state.battery_voltage_v,
-      battery_current_a: state.battery_current_a,
-      inverter_temperature_c: state.inverter_temperature_c,
-      status1: state.status1,
-      status3: state.status3,
-      alarm1: state.alarm1,
-      alarm2: state.alarm2,
-      alarm3: state.alarm3,
-      eps_enabled: state.eps_enabled,
-      eps_voltage_v: state.eps_voltage_v,
-      eps_power_w: state.eps_power_w
-    )
+    SolakonReading.from_state(state, taken_at: now).save!
 
-    ZeroExportTickJob.perform_now(state: state) if solakon.control_enabled
+    ZeroExportTickJob.perform_now(client: client, state: state, reader_now: now) if solakon.control_enabled
     broadcast_dashboard_refresh
   rescue SolakonClient::Error => e
     # A read failure aborts here, so control never runs and no setpoint is

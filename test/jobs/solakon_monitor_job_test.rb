@@ -138,7 +138,7 @@ class SolakonMonitorJobTest < ActiveSupport::TestCase
 
     assert_no_difference -> { SolakonReading.count } do
       assert_nothing_raised do
-        run_job(client: client, cfg: config(control_enabled: true), &->(state:) { control_calls << state })
+        run_job(client: client, cfg: config(control_enabled: true), &->(client:, state:, reader_now:) { control_calls << state })
       end
     end
 
@@ -156,7 +156,7 @@ class SolakonMonitorJobTest < ActiveSupport::TestCase
       client: client,
       cfg: config(control_enabled: true),
       broadcaster: broadcaster,
-      &->(state:) { control_calls << state }
+      &->(client:, state:, reader_now:) { control_calls << state }
     )
 
     assert_equal [ current_state ], control_calls
@@ -176,7 +176,7 @@ class SolakonMonitorJobTest < ActiveSupport::TestCase
 
     assert_no_difference -> { SolakonReading.count } do
       assert_nothing_raised do
-        run_job(client: client, cfg: config(control_enabled: true), &->(state:) { control_calls << state })
+        run_job(client: client, cfg: config(control_enabled: true), &->(client:, state:, reader_now:) { control_calls << state })
       end
     end
 
@@ -195,7 +195,7 @@ class SolakonMonitorJobTest < ActiveSupport::TestCase
         client: client,
         cfg: config(control_enabled: true),
         broadcaster: broadcaster,
-        &->(state:) { control_calls << state }
+        &->(client:, state:, reader_now:) { control_calls << state }
       )
     end
 

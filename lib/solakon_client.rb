@@ -162,20 +162,6 @@ class SolakonClient
     with_slave { |slave| read_snapshot_from(slave) }
   end
 
-  # A full control cycle over a SINGLE Modbus connection: read inverter state,
-  # let the caller decide the setpoint from it (the yielded block returns the
-  # desired watts), then write the control command. Returns the State that was
-  # read. Doing read+write on one connection halves connection churn, which
-  # matters at higher tick rates (e.g. every 30s).
-  def control_tick!(min_soc:)
-    with_slave do |slave|
-      state   = read_state_from(slave)
-      power_w = yield(state)
-      write_control!(slave, power_w: power_w, min_soc: min_soc)
-      state
-    end
-  end
-
   def apply_control!(power_w:, min_soc:)
     with_slave do |slave|
       write_control!(slave, power_w: power_w.to_i, min_soc: min_soc)

@@ -23,6 +23,31 @@ class SolakonReading < ApplicationRecord
 
   scope :newest_first, -> { order(taken_at: :desc) }
 
+  # Builds an (unsaved) reading from a SolakonClient::State — the single place
+  # that maps Modbus field names onto our columns. The monitor persists it;
+  # the control loop uses it in-memory for the threshold predicates below.
+  def self.from_state(state, taken_at:)
+    new(
+      taken_at: taken_at,
+      active_power_w: state.active_power_w,
+      pv_power_w: state.pv_power_w,
+      battery_power_w: state.battery_power_w,
+      battery_soc_pct: state.battery_soc,
+      battery_temperature_c: state.battery_temperature_c,
+      battery_voltage_v: state.battery_voltage_v,
+      battery_current_a: state.battery_current_a,
+      inverter_temperature_c: state.inverter_temperature_c,
+      status1: state.status1,
+      status3: state.status3,
+      alarm1: state.alarm1,
+      alarm2: state.alarm2,
+      alarm3: state.alarm3,
+      eps_enabled: state.eps_enabled,
+      eps_voltage_v: state.eps_voltage_v,
+      eps_power_w: state.eps_power_w
+    )
+  end
+
   def self.latest_fresh(stale_after_s:, now: Time.current)
     newest_first.where("taken_at >= ?", now - stale_after_s.to_i.seconds).first
   end
