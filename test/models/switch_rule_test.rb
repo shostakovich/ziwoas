@@ -57,6 +57,11 @@ class SwitchRuleTest < ActiveSupport::TestCase
     rule.at_minute_time = "18:00:00"
     assert_equal 1080, rule.at_minute
 
+    # A leading zero must not be read as an octal prefix.
+    rule.at_minute_time = "08:09"
+    assert_equal 489, rule.at_minute
+    assert_equal "08:09", rule.at_minute_time
+
     rule.at_minute_time = ""
     assert_nil rule.at_minute
     assert_nil rule.at_minute_time

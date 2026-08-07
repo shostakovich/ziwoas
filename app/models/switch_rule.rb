@@ -25,8 +25,10 @@ class SwitchRule < ApplicationRecord
     format("%02d:%02d", at_minute / 60, at_minute % 60)
   end
 
+  # Base 10 spelled out: "08" carries a leading zero, which Integer() would
+  # otherwise read as an octal prefix and reject.
   def at_minute_time=(str)
-    self.at_minute = str.to_s =~ /\A([01]?\d|2[0-3]):([0-5]\d)(?::[0-5]\d)?\z/ ? Integer($1) * 60 + Integer($2) : nil
+    self.at_minute = str.to_s =~ /\A([01]?\d|2[0-3]):([0-5]\d)(?::[0-5]\d)?\z/ ? Integer($1, 10) * 60 + Integer($2, 10) : nil
   end
 
   private
