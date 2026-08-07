@@ -17,3 +17,21 @@ Abweichungen zwischen Code und PDF.
   **nicht** für simples CRUD. Vorbild: `app/models/lights/` und `lib/govees/`.
 - **ViewComponent** für logikreiche UI statt Logik im ERB. Triviales Markup und einfache
   Views (`_form`, `index`, …) bleiben ERB.
+
+## Agent skills
+
+### Issue tracker
+
+Issues leben in den GitHub Issues von `shostakovich/zihas`, bedient über die `gh`-CLI.
+Siehe [`docs/agents/issue-tracker.md`](docs/agents/issue-tracker.md).
+
+### Triage labels
+
+Die fünf kanonischen Triage-Rollen mit ihren Standardnamen (`needs-triage`, `needs-info`,
+`ready-for-agent`, `ready-for-human`, `wontfix`).
+Siehe [`docs/agents/triage-labels.md`](docs/agents/triage-labels.md).
+
+### Domain docs
+
+Single-context: ein `CONTEXT.md` und ein `docs/adr/` im Repo-Root.
+Siehe [`docs/agents/domain.md`](docs/agents/domain.md).
