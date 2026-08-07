@@ -3,11 +3,11 @@ require "test_helper"
 class SwitchesHelperTest < ActionView::TestCase
   include SwitchesHelper
 
-  def row(on: true, offline: false, last_command: nil, next_edge: nil, windows: [], last_seen_at: nil)
+  def row(on: true, offline: false, last_command: nil, next_edge: nil, entries: [], last_seen_at: nil)
     now = Time.zone.local(2026, 6, 15, 19, 0)
     seen = offline ? last_seen_at : now - 1.minute
     SwitchRow.new(
-      plug: nil, windows: windows,
+      plug: nil, entries: entries,
       state: PlugState.new(plug_id: "x", output: on, updated_at: now),
       last_command: last_command, next_edge: next_edge,
       last_seen_at: seen, watt: nil, now: now
