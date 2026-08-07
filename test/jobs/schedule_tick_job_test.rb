@@ -15,15 +15,40 @@ class ScheduleTickJobTest < ActiveSupport::TestCase
     SwitchWindow.create!(plug_id: plug_id, on_at: on_at, off_at: off_at, days: days, enabled: enabled)
   end
 
-  test "first run only initializes the watermark" do
-    create_window
+  # These two pin the width of the grace window from the no-watermark side.
+  # The edge that actually proves edges lapse is the ancient-watermark one below.
+  test "without a watermark an edge nine minutes old still fires" do
+    create_window(on_at: 1076, off_at: 1380)  # on edge at 17:56, nine minutes old
     travel_to monday_18_05 do
       PlugCommander.stub :switch, @recorder do
         ScheduleTickJob.perform_now
       end
+      assert_equal [ [ "fridge", :on, :schedule ] ], @calls
       assert_equal Time.current, SchedulerState.last_tick_at
     end
-    assert_empty @calls
+  end
+
+  test "without a watermark an edge eleven minutes old does not fire" do
+    create_window(on_at: 1074, off_at: 1380)  # on edge at 17:54, eleven minutes old
+    travel_to monday_18_05 do
+      PlugCommander.stub :switch, @recorder do
+        ScheduleTickJob.perform_now
+      end
+      assert_empty @calls
+      assert_equal Time.current, SchedulerState.last_tick_at
+    end
+  end
+
+  test "an edge older than the grace window lapses despite an ancient watermark" do
+    create_window(on_at: 600, off_at: 1380)  # Mo 10:00-23:00, on edge at 10:00
+    travel_to monday_18_05 do
+      SchedulerState.advance!(9.hours.ago)  # 09:05, i.e. before the 10:00 edge
+      PlugCommander.stub :switch, @recorder do
+        ScheduleTickJob.perform_now
+      end
+      assert_empty @calls
+      assert_equal Time.current, SchedulerState.last_tick_at
+    end
   end
 
   test "fires the edge between watermark and now and advances the watermark" do

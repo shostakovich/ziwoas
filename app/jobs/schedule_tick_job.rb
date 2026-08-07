@@ -3,18 +3,21 @@ require "config_loader"
 class ScheduleTickJob < ApplicationJob
   queue_as :default
 
-  def perform
-    config    = load_config
-    now       = Time.current
-    watermark = SchedulerState.last_tick_at
+  # A missed edge is replayed at most this far back; anything older lapses.
+  # Switching a running appliance off hours late is worse than not switching
+  # it at all (ADR-0001). The lower bound also removes the first-run special
+  # case: a nil watermark is indistinguishable from a restart after an outage.
+  GRACE = 10.minutes
 
-    # First run ever: set the watermark and stop — no unbounded replay.
-    return SchedulerState.advance!(now) if watermark.nil?
+  def perform
+    config = load_config
+    now    = Time.current
+    from   = [ SchedulerState.last_tick_at, now - GRACE ].compact.max
 
     plugs   = config.plugs.select(&:switchable).index_by(&:id)
     windows = SwitchWindow.enabled.where(plug_id: plugs.keys)
     edges   = SwitchEdgeCalculator.new(windows: windows)
-                                  .latest_edge_per_plug(watermark, now)
+                                  .latest_edge_per_plug(from, now)
     edges   = edges.reject { |edge| SwitchCommand.manual_after?(edge.plug_id, edge.at) }
 
     failed = false

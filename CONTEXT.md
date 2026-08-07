@@ -39,7 +39,7 @@ _Avoid_: Edge (im deutschen UI-Text), Event, Trigger
 **Karenz**:
 Die Frist, innerhalb derer eine verpasste Flanke noch nachgeholt wird. Danach verfällt sie
 ersatzlos, statt verspätet zu schalten.
-_Avoid_: Grace Period, Nachlauf, Toleranz
+_Avoid_: Grace Period (im deutschen UI-Text; im Code heißt die Konstante `GRACE`), Nachlauf, Toleranz
 
 **Manuelle Schaltung**:
 Ein Schaltbefehl, der vom Menschen kommt — über den Knopf in der App oder am Gerät selbst.
