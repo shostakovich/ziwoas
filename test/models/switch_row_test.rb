@@ -70,6 +70,16 @@ class SwitchRowTest < ActiveSupport::TestCase
     end
   end
 
+  test "adjoining windows announce the on edge, like the tick performs it" do
+    travel_to Time.zone.local(2026, 6, 15, 9, 0) do  # Monday
+      SwitchWindow.create!(plug_id: "fridge", on_at: 360, off_at: 600, days: [ 1 ])  # 06:00-10:00
+      SwitchWindow.create!(plug_id: "fridge", on_at: 600, off_at: 840, days: [ 1 ])  # 10:00-14:00
+      row = SwitchRow.build(@plug)
+      assert_equal Time.zone.local(2026, 6, 15, 10, 0), row.next_edge.at
+      assert_equal :on, row.next_edge.action
+    end
+  end
+
   test "build_all returns same rows as individual build" do
     travel_to Time.zone.local(2026, 6, 15, 17, 0) do
       plug_a = ConfigLoader::PlugCfg.new(id: "a", name: "A", role: :consumer,

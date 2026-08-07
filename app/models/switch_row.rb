@@ -30,7 +30,7 @@ class SwitchRow
         state:        states_by_plug[plug.id],
         last_command: commands_by_plug[plug.id],
         next_edge:    SwitchEdgeCalculator.new(windows: windows.select(&:enabled))
-                                          .edges_between(now, now + LOOKAHEAD).first,
+                                          .next_edge_per_plug(now, now + LOOKAHEAD).first,
         last_seen_at: last_sample && Time.zone.at(last_sample.ts),
         watt:         last_sample&.apower_w,
         now:          now,

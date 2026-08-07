@@ -83,6 +83,32 @@ class SwitchEdgeCalculatorTest < ActiveSupport::TestCase
     assert_equal [ :on, :off, :on ], all.map(&:action)
   end
 
+  test "next_edge_per_plug collapses to the earliest edge per plug" do
+    c = calc(
+      W.new(plug_id: "lamp", on_at: 1080, off_at: 1140, days: [ 1 ]),  # Mo 18:00-19:00
+      W.new(plug_id: "fan",  on_at: 1100, off_at: 1380, days: [ 1 ])   # Mo 18:20-23:00
+    )
+    edges = c.next_edge_per_plug(tz.local(2026, 6, 15, 17, 0), tz.local(2026, 6, 15, 20, 0))
+    assert_equal 2, edges.length
+    lamp = edges.find { |e| e.plug_id == "lamp" }
+    fan  = edges.find { |e| e.plug_id == "fan" }
+    assert_equal :on, lamp.action  # 18:00 beats 19:00
+    assert_equal tz.local(2026, 6, 15, 18, 0), lamp.at
+    assert_equal :on, fan.action
+    assert_equal tz.local(2026, 6, 15, 18, 20), fan.at
+  end
+
+  test "on edge wins a same-timestamp tie in next_edge_per_plug" do
+    c = calc(
+      W.new(plug_id: "lamp", on_at: 360, off_at: 600, days: [ 1 ]),  # Mo 06:00-10:00
+      W.new(plug_id: "lamp", on_at: 600, off_at: 840, days: [ 1 ])   # Mo 10:00-14:00
+    )
+    edges = c.next_edge_per_plug(tz.local(2026, 6, 15, 9, 0), tz.local(2026, 6, 15, 20, 0))
+    assert_equal 1, edges.length
+    assert_equal :on, edges.first.action
+    assert_equal tz.local(2026, 6, 15, 10, 0), edges.first.at
+  end
+
   test "spring-forward gap shifts the edge forward" do
     # 2026-03-29 (Sunday) 02:00 -> 03:00 in Europe/Berlin; 02:30 does not exist.
     c = calc(W.new(plug_id: "lamp", on_at: 150, off_at: 240, days: [ 7 ]))  # So 02:30-04:00

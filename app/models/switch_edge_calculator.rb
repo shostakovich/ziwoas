@@ -29,7 +29,19 @@ class SwitchEdgeCalculator
     edges_between(from, to).group_by(&:plug_id).map { |_, edges| edges.last }
   end
 
+  # At most one edge per plug: the earliest within the interval. Mirror of
+  # latest_edge_per_plug, so the preview announces what the tick performs.
+  def next_edge_per_plug(from, to)
+    edges_between(from, to).group_by(&:plug_id).map { |_, edges| tie_winner(edges) }
+  end
+
   private
+
+  # Among the edges sharing the earliest timestamp, the one ACTION_ORDER ranks
+  # highest — :on, the same winner "last edge wins" picks at a tie.
+  def tie_winner(edges)
+    edges.take_while { |e| e.at == edges.first.at }.last
+  end
 
   def edges_for_date(date)
     @windows.select { |w| w.days.include?(date.cwday) }.flat_map do |w|
