@@ -16,7 +16,15 @@ Rails.application.routes.draw do
 
   scope "/plugs/:plug_id" do
     post "switch", to: "plug_switches#create", as: :plug_switch
-    resources :switch_windows, only: %i[new create edit update destroy]
+    # Two resources, two identities: a Zeitfenster is its group, an
+    # Einzelschaltung is its rule. Pausing gets its own member route, because it
+    # sends a boolean and no form.
+    resources :switch_windows, param: :group_id, only: %i[new create edit update destroy] do
+      patch :enabled, on: :member
+    end
+    resources :switch_rules, only: %i[new create edit update destroy] do
+      patch :enabled, on: :member
+    end
   end
 
   scope "/lights/:light_key" do

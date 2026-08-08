@@ -10,6 +10,17 @@ class SwitchRule < ApplicationRecord
   ACTIONS      = %w[on off].freeze
   ISO_DAYS     = (1..7).to_a.freeze
   MINUTE_RANGE = (0..1439)
+  CLOCK_TIME   = /\A([01]?\d|2[0-3]):([0-5]\d)(?::[0-5]\d)?\z/
+
+  # "18:00" -> 1080, anything else -> nil. Shared with the form contracts, which
+  # have to tell a well-formed time from a typo before anything is saved.
+  #
+  # Base 10 spelled out: "08" carries a leading zero, which Integer() would
+  # otherwise read as an octal prefix and reject.
+  def self.minutes_from(str)
+    m = CLOCK_TIME.match(str.to_s) or return nil
+    Integer(m[1], 10) * 60 + Integer(m[2], 10)
+  end
 
   before_validation :normalize_days
 
@@ -25,10 +36,8 @@ class SwitchRule < ApplicationRecord
     format("%02d:%02d", at_minute / 60, at_minute % 60)
   end
 
-  # Base 10 spelled out: "08" carries a leading zero, which Integer() would
-  # otherwise read as an octal prefix and reject.
   def at_minute_time=(str)
-    self.at_minute = str.to_s =~ /\A([01]?\d|2[0-3]):([0-5]\d)(?::[0-5]\d)?\z/ ? Integer($1, 10) * 60 + Integer($2, 10) : nil
+    self.at_minute = self.class.minutes_from(str)
   end
 
   private
