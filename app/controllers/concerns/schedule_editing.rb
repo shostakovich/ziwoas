@@ -24,7 +24,8 @@ module ScheduleEditing
   # is not a single record.
   def entry_id(id) = "sw_entry_#{@plug.id}_#{id}"
 
-  # Re-render the rules AND the head: the next edge in the status line may have
+  # Re-render the rules, the summary AND the head: the count above the list is
+  # one Schaltzeit off otherwise, and the next edge in the status line may have
   # moved.
   def render_entries
     row = SwitchRow.build(@plug)
@@ -32,6 +33,8 @@ module ScheduleEditing
       turbo_stream.replace("sw_rules_#{@plug.id}",
                            partial: "switches/entries",
                            locals: { plug: @plug, entries: row.entries }),
+      turbo_stream.replace("sw_count_#{@plug.id}",
+                           partial: "switches/summary", locals: { row: row }),
       turbo_stream.replace("sw_head_#{@plug.id}",
                            partial: "switches/head", locals: { row: row })
     ]

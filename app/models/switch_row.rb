@@ -70,4 +70,10 @@ class SwitchRow
   def schedule?
     entries.any?(&:enabled?)
   end
+
+  # How many Schaltzeiten the plug has, not how many rows they make: a
+  # Zeitfenster is one row and two of them.
+  def rule_count
+    entries.sum { |entry| entry.rules.size }
+  end
 end

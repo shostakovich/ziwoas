@@ -4,14 +4,23 @@ module SwitchesHelper
 
   def weekday_label(days)
     sorted = days.sort
-    return "täglich" if sorted == SwitchWindow::ISO_DAYS
+    return "täglich" if sorted == SwitchRule::ISO_DAYS
     sorted.slice_when { |a, b| b != a + 1 }
           .map { |group| group.size >= 2 ? "#{DAY_ABBR[group.first]}–#{DAY_ABBR[group.last]}" : DAY_ABBR[group.first] }
           .join(", ")
   end
 
-  def window_label(window)
-    "#{weekday_label(window.days)} · #{window.on_at_time}–#{window.off_at_time}"
+  # The text of one schedule row, for both kinds: "Mo–Fr · 10:00–20:00" for a
+  # Zeitfenster, "täglich · 22:00" for an Einzelschaltung — the direction of a
+  # single is markup, not text, and stays in the component.
+  #
+  # Both kinds answer +days+ and +rules+, so neither the weekdays nor the times
+  # need a branch here. A window's rules are its on and its off rule in that
+  # order, and its days are the on rule's — which is exactly the day shift of a
+  # window past midnight undone: "22:00 an Mo–Fr, 06:00 aus Di–Sa" reads back
+  # as "Mo–Fr · 22:00–06:00".
+  def entry_label(entry)
+    "#{weekday_label(entry.days)} · #{entry.rules.map(&:at_minute_time).join('–')}"
   end
 
   def switch_status_line(row)

@@ -28,6 +28,9 @@ class SwitchRulesControllerTest < ActionDispatch::IntegrationTest
     assert_nil rule.group_id
     assert_match "sw_rules_fridge", @response.body
     assert_match "sw_head_fridge", @response.body
+    # The count sits outside the rules container and is streamed on its own.
+    assert_match "sw_count_fridge", @response.body
+    assert_match "Schaltzeiten (1)", @response.body
   end
 
   test "create rejects a direction that is neither on nor off" do

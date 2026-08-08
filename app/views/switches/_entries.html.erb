@@ -2,8 +2,7 @@
     first. Two add buttons, because the choice is made before the form. %>
 <div id="sw_rules_<%= plug.id %>">
   <% entries.each do |entry| %>
-    <%# The row itself is Switches::ScheduleEntryComponent — see #105. %>
-    <div id="sw_entry_<%= plug.id %>_<%= entry.id %>"></div>
+    <%= render Switches::ScheduleEntryComponent.new(entry: entry, plug: plug) %>
   <% end %>
   <div id="sw_editor_<%= plug.id %>"></div>
   <%= link_to "+ Zeitfenster", new_switch_window_path(plug_id: plug.id),

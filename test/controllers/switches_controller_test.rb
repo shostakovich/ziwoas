@@ -43,6 +43,8 @@ class SwitchesControllerTest < ActionDispatch::IntegrationTest
     assert_no_match(/Balkonkraftwerk/, @response.body)  # bkw: producer, not switchable
   end
 
+  # One string hit as a smoke probe that the row really reaches the page; what a
+  # row is made of is the component's own test.
   test "shows the plug's schedule" do
     SwitchRules::SaveWindow.call(
       plug_id: "fridge",
@@ -50,6 +52,26 @@ class SwitchesControllerTest < ActionDispatch::IntegrationTest
     )
     get "/switches"
     assert_match "Mo–Fr · 18:00–23:00", @response.body
+    assert_select "#sw_card_fridge a.sw-add", count: 2
+  end
+
+  test "the summary counts Schaltzeiten, not rows" do
+    SwitchRules::SaveWindow.call(
+      plug_id: "fridge", attrs: { on_at_time: "18:00", off_at_time: "23:00", days: [ 1 ] }
+    )
+    2.times do |i|
+      SwitchRules::SaveSingle.call(
+        plug_id: "fridge", attrs: { at_minute_time: "0#{i + 1}:00", action: "off", days: [ 1 ] }
+      )
+    end
+
+    get "/switches"
+    assert_select "#sw_card_fridge summary", "Schaltzeiten (4)"
+  end
+
+  test "a plug without a schedule shows the bare summary" do
+    get "/switches"
+    assert_select "#sw_card_fridge summary", "Schaltzeiten"
   end
 
   test "rules of a plug that left ziwoas.yml stay out of sight, not deleted" do

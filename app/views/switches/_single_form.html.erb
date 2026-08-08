@@ -11,12 +11,16 @@
     <% end %>
     <div class="sw-form-row">
       <%= f.time_field :at_minute_time, value: form.at_minute_time, class: "sw-time" %>
-      <% { "on" => "an", "off" => "aus" }.each do |value, label| %>
-        <label class="sw-dir-choice">
-          <%= f.radio_button :action, value, checked: form.action == value %>
-          <span><%= label %></span>
-        </label>
-      <% end %>
+      <%# Two radios styled as one segmented switch: the direction is a choice
+          between two, never a checkbox that could end up neither. %>
+      <div class="sw-seg">
+        <% { "on" => "an", "off" => "aus" }.each do |value, label| %>
+          <label class="sw-seg-choice">
+            <%= f.radio_button :action, value, checked: form.action == value %>
+            <span><%= label %></span>
+          </label>
+        <% end %>
+      </div>
     </div>
     <div class="sw-form-row">
       <input type="hidden" name="switch_rule[days][]" value="">
