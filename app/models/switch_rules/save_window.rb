@@ -9,7 +9,7 @@ module SwitchRules
   # row's DOM id, and the case "saved while the tick is running"; a window can
   # never change which half points which way anyway.
   class SaveWindow
-    ISO_DAYS = 7
+    DAYS_PER_WEEK = 7
 
     def self.call(...) = new(...).call
 
@@ -49,7 +49,7 @@ module SwitchRules
     # validation gets to have the last word — and the transaction rolls back.
     def past_midnight?(on_minute, off_minute) = off_minute.to_i < on_minute.to_i
 
-    def next_day(days) = days.map { |d| d % ISO_DAYS + 1 }.sort
+    def next_day(days) = days.map { |d| d % DAYS_PER_WEEK + 1 }.sort
 
     def write(group_id, action, at_minute, days)
       rule = SwitchRule.find_or_initialize_by(group_id: group_id, action: action)

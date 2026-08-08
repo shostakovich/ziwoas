@@ -77,6 +77,17 @@ class SwitchRulesControllerTest < ActionDispatch::IntegrationTest
     assert_match "sw_rules_fridge", @response.body
   end
 
+  test "update leaves a paused rule paused" do
+    rule = a_single
+    rule.update!(enabled: false)
+
+    patch "/plugs/fridge/switch_rules/#{rule.id}",
+          params: { switch_rule: { at_minute_time: "07:30", action: "on", days: [ "1" ] } },
+          as: :turbo_stream
+    assert_response :success
+    refute rule.reload.enabled
+  end
+
   test "failed update re-renders the form into the same row and 422" do
     rule = a_single
 

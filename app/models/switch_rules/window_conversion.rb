@@ -7,7 +7,7 @@ module SwitchRules
   # Rows are plain string-keyed hashes on both sides, exactly the shape
   # +attributes+ hands out and +insert_all+ takes back.
   module WindowConversion
-    ISO_DAYS = 7
+    DAYS_PER_WEEK = 7
 
     class << self
       # One window hash -> the on and the off rule it becomes, joined by a
@@ -41,7 +41,7 @@ module SwitchRules
       private
 
       def next_day(days)
-        days.map { |d| d % ISO_DAYS + 1 }.sort
+        days.map { |d| d % DAYS_PER_WEEK + 1 }.sort
       end
 
       def rule(window, action, at_minute, days, group_id)
