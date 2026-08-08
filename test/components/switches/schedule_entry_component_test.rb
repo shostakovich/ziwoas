@@ -35,7 +35,7 @@ class Switches::ScheduleEntryComponentTest < ViewComponent::TestCase
     assert rendered.css("span.sw-pill").any?
     assert rendered.css("span.sw-pill.single").none?
     assert rendered.css("span.sw-dir").none?
-    assert_includes rendered.css("span.sw-pill").text, "Mo–Fr · 10:00–20:00"
+    assert_equal "Mo–Fr · 10:00–20:00", rendered.css("span.sw-pill").text.squish
   end
 
   test "an Einzelschaltung is a dashed, directed pill in a row named by its rule" do
@@ -44,7 +44,7 @@ class Switches::ScheduleEntryComponentTest < ViewComponent::TestCase
     assert rendered.css("div.sw-entry#sw_entry_fridge_7").any?
     assert rendered.css("span.sw-pill.single").any?
     assert_equal "→ aus", rendered.css("span.sw-pill.single .sw-dir").text
-    assert_includes rendered.css("span.sw-pill").text, "täglich · 22:00"
+    assert_equal "täglich · 22:00 → aus", rendered.css("span.sw-pill").text.squish
   end
 
   test "an Einzelschaltung that switches on points the other way" do

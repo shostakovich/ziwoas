@@ -1,7 +1,12 @@
 <%# The row keeps the id its own edit form will take over, so a form can replace
     the row and be replaced by it again. %>
 <div class="sw-entry" id="<%= row_id %>">
-  <span class="<%= pill_class %>"><%= helpers.entry_label(entry) %><% unless window? %> <span class="sw-dir"><%= direction %></span><% end %></span>
+  <%# Only an Einzelschaltung carries an arrow: a Zeitfenster says both
+      directions by having two times. %>
+  <span class="<%= pill_class %>">
+    <%= helpers.entry_label(entry) %>
+    <% unless window? %><span class="sw-dir"><%= direction %></span><% end %>
+  </span>
   <%= button_to entry.enabled? ? "⏸" : "▶", enabled_path,
                 method: :patch, params: { enabled: (!entry.enabled?).to_s },
                 class: "sw-icon-btn", form_class: "sw-inline-form",
