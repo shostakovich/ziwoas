@@ -29,8 +29,6 @@ module SwitchRules
 
       private
 
-      # "Mo–Fr 22:00 an / 06:00 aus" becomes on Mo–Fr, off Di–Sa: the shift
-      # leaves the edge calculation and becomes plain stored data.
       def off_days(window, days)
         past_midnight?(window) ? next_day(days) : days
       end
@@ -63,8 +61,7 @@ module SwitchRules
           "plug_id"    => on["plug_id"],
           "on_at"      => on["at_minute"],
           "off_at"     => off["at_minute"],
-          # The mirror of +off_days+: the on rule kept the days a human typed, so
-          # undoing the shift means not reading the off rule's.
+          # Undoing +off_days+ means not reading the off rule's.
           "days"       => on["days"],
           "enabled"    => on["enabled"],
           "created_at" => on["created_at"],

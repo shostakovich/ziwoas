@@ -25,8 +25,7 @@ class SwitchRule < ApplicationRecord
 
   scope :enabled, -> { where(enabled: true) }
 
-  # True while the group still holds both halves. Such a rule belongs to the
-  # Zeitfenster and may only be touched together with its partner.
+  # Such a rule may only be touched together with its partner.
   def half_of_a_window?
     group_id.present? && self.class.where(group_id: group_id).count == 2
   end

@@ -31,10 +31,8 @@ module SwitchRules
 
     private
 
-    # "Mo–Fr 22:00 an / 06:00 aus" is stored as on Mo–Fr, off Di–Sa. The shift
-    # happens here and never again at runtime; WindowConversion keeps its own
-    # copy for the migration, so that a change to the form cannot reach
-    # historical data.
+    # WindowConversion keeps its own copy of this for the migration, so that a
+    # change here cannot reach historical data.
     def off_days(days, on_minute, off_minute)
       past_midnight?(on_minute, off_minute) ? next_day(days) : days
     end
