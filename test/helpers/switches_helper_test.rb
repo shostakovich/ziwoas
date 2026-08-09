@@ -64,6 +64,11 @@ class SwitchesHelperTest < ActionView::TestCase
     assert_equal "an seit 18:00 (Zeitplan) · nächste Schaltung: 23:00 → aus", line
   end
 
+  test "status line names the direction of the next edge" do
+    line = switch_status_line(row(on: false, next_edge: edge(:on, 6, 30)))
+    assert_equal "aus · nächste Schaltung: 06:30 → an", line
+  end
+
   test "status line shows bare state when command mismatches, and kein Zeitplan" do
     cmd = SwitchCommand.new(plug_id: "x", action: "on", source: "manual",
                             created_at: Time.zone.local(2026, 6, 15, 18, 0))

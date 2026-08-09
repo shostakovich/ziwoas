@@ -1,7 +1,10 @@
 require "simplecov"
 SimpleCov.start "rails" do
   enable_coverage :branch
-  minimum_coverage line: 70, branch: 71
+  # The floor of what the suite reaches across run orders, not the best run:
+  # the thread-timing of the Govee bridge tests moves six lines and four
+  # branches in lib/govees/bridge.rb from one seed to the next.
+  minimum_coverage line: 83, branch: 79
 end
 
 ENV["RAILS_ENV"] ||= "test"
