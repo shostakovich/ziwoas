@@ -22,20 +22,22 @@ module SwitchRules
       group_id   = @group_id || SecureRandom.uuid
 
       SwitchRule.transaction do
-        write(group_id, "on",  on_minute,  days)
-        # An off time before the on time means the window runs past midnight, so
-        # the off rule carries the weekdays shifted one day forward: "Mo–Fr 22:00
-        # an / 06:00 aus" is stored as on Mo–Fr, off Di–Sa. The shift happens
-        # once, here, never again at runtime. SwitchRules::WindowConversion
-        # repeats it for the migration on purpose — a change to the form must not
-        # reach historical data.
-        write(group_id, "off", off_minute, past_midnight?(on_minute, off_minute) ? next_day(days) : days)
+        write(group_id, "on",  on_minute, days)
+        write(group_id, "off", off_minute, off_days(days, on_minute, off_minute))
       end
 
       group_id
     end
 
     private
+
+    # "Mo–Fr 22:00 an / 06:00 aus" is stored as on Mo–Fr, off Di–Sa. The shift
+    # happens here and never again at runtime; WindowConversion keeps its own
+    # copy for the migration, so that a change to the form cannot reach
+    # historical data.
+    def off_days(days, on_minute, off_minute)
+      past_midnight?(on_minute, off_minute) ? next_day(days) : days
+    end
 
     # +to_i+ only keeps an unparseable time from raising here, so that the Active
     # Record validation gets the last word and the transaction rolls back.

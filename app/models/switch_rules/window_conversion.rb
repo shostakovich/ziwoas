@@ -7,18 +7,13 @@ module SwitchRules
     DAYS_PER_WEEK = 7
 
     class << self
-      # An off time before the on time means the window runs past midnight, so
-      # the off rule carries its weekdays shifted one day forward: "Mo–Fr 22:00
-      # an / 06:00 aus" becomes on Mo–Fr, off Di–Sa. The shift leaves the edge
-      # calculation and becomes plain stored data.
       def split(window)
         group_id = SecureRandom.uuid
         days     = Array(window["days"])
-        crosses  = window["on_at"] > window["off_at"]
 
         [
           rule(window, "on",  window["on_at"],  days, group_id),
-          rule(window, "off", window["off_at"], crosses ? next_day(days) : days, group_id)
+          rule(window, "off", window["off_at"], off_days(window, days), group_id)
         ]
       end
 
@@ -33,6 +28,14 @@ module SwitchRules
       end
 
       private
+
+      # "Mo–Fr 22:00 an / 06:00 aus" becomes on Mo–Fr, off Di–Sa: the shift
+      # leaves the edge calculation and becomes plain stored data.
+      def off_days(window, days)
+        past_midnight?(window) ? next_day(days) : days
+      end
+
+      def past_midnight?(window) = window["on_at"] > window["off_at"]
 
       def next_day(days)
         days.map { |d| d % DAYS_PER_WEEK + 1 }.sort
@@ -60,7 +63,8 @@ module SwitchRules
           "plug_id"    => on["plug_id"],
           "on_at"      => on["at_minute"],
           "off_at"     => off["at_minute"],
-          # Undoing the day shift is a matter of not reading the off rule's days.
+          # The mirror of +off_days+: the on rule kept the days a human typed, so
+          # undoing the shift means not reading the off rule's.
           "days"       => on["days"],
           "enabled"    => on["enabled"],
           "created_at" => on["created_at"],

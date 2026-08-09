@@ -49,24 +49,16 @@ class SwitchRulesController < ApplicationController
 
   private
 
-  # One half of an intact Zeitfenster is not addressable here, whatever its id
-  # says: pausing or deleting it alone would leave the group half-open while the
-  # card still folds it into one row. A group that already lost its partner does
-  # stay reachable — folding shows it as an Einzelschaltung, and this is where
-  # that row's buttons point.
+  # The leftover of a group that lost its partner stays reachable here: folding
+  # shows it as an Einzelschaltung, and that row's buttons point at these routes.
   def rule_scope
     @rule_scope ||= begin
       scope = SwitchRule.where(plug_id: @plug.id, id: params[:id])
-      paired?(scope.first) ? SwitchRule.none : scope
+      scope.first&.half_of_a_window? ? SwitchRule.none : scope
     end
   end
 
   def find_rule = rule_scope.first
-
-  def paired?(rule)
-    rule&.group_id.present? &&
-      SwitchRule.where(plug_id: @plug.id, group_id: rule.group_id).count == 2
-  end
 
   def single_attrs
     attrs = params.fetch(:switch_rule, {})
