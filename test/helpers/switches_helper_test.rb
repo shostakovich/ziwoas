@@ -3,11 +3,11 @@ require "test_helper"
 class SwitchesHelperTest < ActionView::TestCase
   include SwitchesHelper
 
-  def row(on: true, offline: false, last_command: nil, next_edge: nil, windows: [], last_seen_at: nil)
+  def row(on: true, offline: false, last_command: nil, next_edge: nil, entries: [], last_seen_at: nil)
     now = Time.zone.local(2026, 6, 15, 19, 0)
     seen = offline ? last_seen_at : now - 1.minute
     SwitchRow.new(
-      plug: nil, windows: windows,
+      plug: nil, entries: entries,
       state: PlugState.new(plug_id: "x", output: on, updated_at: now),
       last_command: last_command, next_edge: next_edge,
       last_seen_at: seen, watt: nil, now: now
@@ -28,17 +28,45 @@ class SwitchesHelperTest < ActionView::TestCase
     assert_equal "Do", weekday_label([ 4 ])
   end
 
-  test "window_label combines weekdays and times" do
-    w = SwitchWindow.new(plug_id: "x", on_at: 1080, off_at: 1380, days: [ 1, 2, 3, 4, 5 ])
-    assert_equal "Mo–Fr · 18:00–23:00", window_label(w)
+  def rule(action:, at_minute:, days:)
+    SwitchRule.new(plug_id: "x", action: action, at_minute: at_minute, days: days, group_id: "g")
+  end
+
+  test "entry_label combines weekdays and both times of a Zeitfenster" do
+    entry = SwitchRules::Schedule::Window.new(
+      on:  rule(action: "on",  at_minute: 1080, days: [ 1, 2, 3, 4, 5 ]),
+      off: rule(action: "off", at_minute: 1380, days: [ 1, 2, 3, 4, 5 ])
+    )
+    assert_equal "Mo–Fr · 18:00–23:00", entry_label(entry)
+  end
+
+  # The off half of a window past midnight carries Di–Sa; the label has to show
+  # the Mo–Fr a human typed.
+  test "entry_label reads a Zeitfenster past midnight back to the days that were typed" do
+    entry = SwitchRules::Schedule::Window.new(
+      on:  rule(action: "on",  at_minute: 1320, days: [ 1, 2, 3, 4, 5 ]),
+      off: rule(action: "off", at_minute: 360,  days: [ 2, 3, 4, 5, 6 ])
+    )
+    assert_equal "Mo–Fr · 22:00–06:00", entry_label(entry)
+  end
+
+  test "entry_label of an Einzelschaltung names one time and no direction" do
+    entry = SwitchRules::Schedule::Single.new(
+      rule: rule(action: "off", at_minute: 1320, days: SwitchRule::ISO_DAYS)
+    )
+    assert_equal "täglich · 22:00", entry_label(entry)
   end
 
   test "status line shows state with source and time when command matches" do
     cmd = SwitchCommand.new(plug_id: "x", action: "on", source: "schedule",
                             created_at: Time.zone.local(2026, 6, 15, 18, 0))
-    line = switch_status_line(row(on: true, last_command: cmd, next_edge: edge(:off, 23, 0),
-                                  windows: [ SwitchWindow.new(enabled: true) ]))
+    line = switch_status_line(row(on: true, last_command: cmd, next_edge: edge(:off, 23, 0)))
     assert_equal "an seit 18:00 (Zeitplan) · nächste Schaltung: 23:00 → aus", line
+  end
+
+  test "status line names the direction of the next edge" do
+    line = switch_status_line(row(on: false, next_edge: edge(:on, 6, 30)))
+    assert_equal "aus · nächste Schaltung: 06:30 → an", line
   end
 
   test "status line shows bare state when command mismatches, and kein Zeitplan" do

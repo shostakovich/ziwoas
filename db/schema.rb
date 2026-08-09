@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_07_10_080000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_07_090000) do
   create_table "daily_energy_summary", primary_key: "date", id: :string, force: :cascade do |t|
     t.float "consumed_wh", null: false
     t.float "produced_wh", null: false
@@ -82,7 +82,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_10_080000) do
   create_table "scheduler_states", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.datetime "last_tick_at", null: false
+    t.string "plug_id", null: false
     t.datetime "updated_at", null: false
+    t.index [ "plug_id" ], name: "index_scheduler_states_on_plug_id", unique: true
   end
 
   create_table "sensor_readings", force: :cascade do |t|
@@ -187,15 +189,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_07_10_080000) do
     t.index [ "plug_id", "created_at" ], name: "index_switch_commands_on_plug_id_and_created_at"
   end
 
-  create_table "switch_windows", force: :cascade do |t|
+  create_table "switch_rules", force: :cascade do |t|
+    t.string "action", null: false
+    t.integer "at_minute", null: false
     t.datetime "created_at", null: false
     t.json "days", null: false
     t.boolean "enabled", default: true, null: false
-    t.integer "off_at", null: false
-    t.integer "on_at", null: false
+    t.string "group_id"
     t.string "plug_id", null: false
     t.datetime "updated_at", null: false
-    t.index [ "plug_id" ], name: "index_switch_windows_on_plug_id"
+    t.index [ "group_id", "action" ], name: "index_switch_rules_on_group_id_and_action", unique: true, where: "group_id IS NOT NULL"
+    t.index [ "plug_id" ], name: "index_switch_rules_on_plug_id"
   end
 
   create_table "weather_records", force: :cascade do |t|

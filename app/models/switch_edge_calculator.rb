@@ -1,22 +1,21 @@
-# Pure edge computation: no I/O, no clock. Windows only need to respond to
-# plug_id, on_at, off_at and days (SwitchWindow records or plain structs).
+# Pure edge computation: no I/O, no clock. One rule, one edge — a rule carries
+# its weekdays absolutely, so nothing here knows about midnight.
 class SwitchEdgeCalculator
-  Edge = Struct.new(:plug_id, :action, :at, keyword_init: true)
+  Edge = Struct.new(:plug_id, :rule_id, :action, :at, keyword_init: true)
 
-  # Total order for simultaneous edges: :off sorts before :on, so that
-  # "last edge wins" resolves a tie in favor of switching on.
+  # :off sorts before :on, so "last edge wins" resolves a tie towards on.
   ACTION_ORDER = { off: 0, on: 1 }.freeze
 
-  def initialize(windows:, timezone: Time.zone)
-    @windows = windows
-    @tz      = timezone
+  def initialize(rules:, timezone: Time.zone)
+    @rules = rules
+    @tz    = timezone
   end
 
   # All edges with from < at <= to, ascending by time.
   def edges_between(from, to)
     return [] if to <= from
 
-    first_date = from.in_time_zone(@tz).to_date - 1  # catches off edges of midnight-crossers
+    first_date = from.in_time_zone(@tz).to_date
     last_date  = to.in_time_zone(@tz).to_date
     (first_date..last_date)
       .flat_map { |date| edges_for_date(date) }
@@ -29,15 +28,24 @@ class SwitchEdgeCalculator
     edges_between(from, to).group_by(&:plug_id).map { |_, edges| edges.last }
   end
 
+  # At most one edge per plug: the earliest within the interval. Mirror of
+  # latest_edge_per_plug, so the status line announces what the tick performs.
+  def next_edge_per_plug(from, to)
+    edges_between(from, to).group_by(&:plug_id).map { |_, edges| tie_winner(edges) }
+  end
+
   private
 
+  # Among the edges sharing the earliest timestamp, the one ACTION_ORDER ranks
+  # highest — the same winner "last edge wins" picks.
+  def tie_winner(edges)
+    edges.take_while { |e| e.at == edges.first.at }.last
+  end
+
   def edges_for_date(date)
-    @windows.select { |w| w.days.include?(date.cwday) }.flat_map do |w|
-      off_date = w.on_at > w.off_at ? date + 1 : date
-      [
-        Edge.new(plug_id: w.plug_id, action: :on,  at: local_time(date, w.on_at)),
-        Edge.new(plug_id: w.plug_id, action: :off, at: local_time(off_date, w.off_at))
-      ]
+    @rules.select { |r| r.days.include?(date.cwday) }.map do |r|
+      Edge.new(plug_id: r.plug_id, rule_id: r.id, action: r.action.to_sym,
+               at: local_time(date, r.at_minute))
     end
   end
 

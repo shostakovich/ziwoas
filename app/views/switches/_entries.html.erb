@@ -1,0 +1,13 @@
+<%# Two add buttons, because the choice is made before the form. %>
+<div id="sw_rules_<%= plug.id %>">
+  <% entries.each do |entry| %>
+    <%= render Switches::ScheduleEntryComponent.new(entry: entry, plug: plug) %>
+  <% end %>
+  <div id="sw_editor_<%= plug.id %>"></div>
+  <div class="sw-add-row">
+    <%= link_to "+ Zeitfenster", new_switch_window_path(plug_id: plug.id),
+                class: "sw-add", data: { turbo_stream: true } %>
+    <%= link_to "+ Einzelschaltung", new_switch_rule_path(plug_id: plug.id),
+                class: "sw-add", data: { turbo_stream: true } %>
+  </div>
+</div>

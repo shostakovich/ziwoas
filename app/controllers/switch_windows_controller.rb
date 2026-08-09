@@ -1,83 +1,82 @@
+# The Zeitfenster as a resource: identified by its group, never by one of the
+# two rules it is made of, so pausing, editing and deleting always hit both
+# halves.
 class SwitchWindowsController < ApplicationController
-  before_action :set_plug, except: :destroy
+  include ScheduleEditing
+
+  FORM = "switches/window_form".freeze
 
   def new
-    window = SwitchWindow.new(plug_id: @plug.id, days: [])
-    render turbo_stream: turbo_stream.update(
-      "sw_editor_#{@plug.id}",
-      partial: "switches/window_form", locals: { plug: @plug, window: window }
-    )
+    render_editor(SwitchRules::WindowForm.new)
   end
 
   def create
-    window = SwitchWindow.new(window_params.merge(plug_id: @plug.id))
-    if window.save
-      render_windows
-    else
-      render turbo_stream: turbo_stream.update(
-        "sw_editor_#{@plug.id}",
-        partial: "switches/window_form", locals: { plug: @plug, window: window }
-      ), status: :unprocessable_entity
-    end
+    result = SwitchRules::Contracts::Window.new.call(window_attrs)
+    return render_editor(form_from(result), status: :unprocessable_entity) if result.failure?
+
+    SwitchRules::SaveWindow.call(plug_id: @plug.id, attrs: result.to_h)
+    render_entries
   end
 
   def edit
-    window = SwitchWindow.where(plug_id: @plug.id).find(params[:id])
-    render turbo_stream: turbo_stream.replace(
-      helpers.dom_id(window),
-      partial: "switches/window_form", locals: { plug: @plug, window: window }
-    )
+    pair = halves
+    return head :not_found unless pair
+
+    on, off = pair
+    render_row(SwitchRules::WindowForm.for_group(group_id, on: on, off: off), group_id)
   end
 
   def update
-    window = SwitchWindow.where(plug_id: @plug.id).find(params[:id])
-    if window.update(window_params)
-      render_windows
-    else
-      render turbo_stream: turbo_stream.replace(
-        helpers.dom_id(window),
-        partial: "switches/window_form", locals: { plug: @plug, window: window }
-      ), status: :unprocessable_entity
-    end
+    return head :not_found unless halves
+
+    result = SwitchRules::Contracts::Window.new.call(window_attrs)
+    return render_row(form_from(result, group_id: group_id), group_id, status: :unprocessable_entity) if result.failure?
+
+    SwitchRules::SaveWindow.call(plug_id: @plug.id, attrs: result.to_h, group_id: group_id)
+    render_entries
+  end
+
+  # Pausing has its own member route: a toggle carries one boolean and would
+  # fall through a contract that demands times and weekdays.
+  def enabled
+    return head :not_found if group_rules.empty?
+
+    SwitchRules::SetEnabled.call(group_rules, enabled: ActiveModel::Type::Boolean.new.cast(params[:enabled]))
+    render_entries
   end
 
   def destroy
-    window = SwitchWindow.find(params[:id])
-    window.destroy!
-    plug = find_plug
-    if plug&.switchable
-      @plug = plug
-      render_windows
-    else
-      render turbo_stream: turbo_stream.remove("orphan_window_#{window.id}")
-    end
+    return head :not_found if group_rules.empty?
+
+    group_rules.destroy_all
+    render_entries
   end
 
   private
 
-  def set_plug
-    @plug = find_plug
-    return head :not_found unless @plug
-    head :unprocessable_entity unless @plug.switchable
+  def group_id    = params[:group_id]
+  def group_rules = SwitchRule.where(plug_id: @plug.id, group_id: group_id)
+
+  # Both halves or nothing: a group that lost one is shown and edited as an
+  # Einzelschaltung, which is the other controller's business.
+  def halves
+    rules = group_rules.to_a
+    on    = rules.find { |r| r.action == "on" }
+    off   = rules.find { |r| r.action == "off" }
+    [ on, off ] if on && off
   end
 
-  def find_plug
-    app_config.plugs.find { |p| p.id == params[:plug_id] }
+  def window_attrs
+    attrs = params.fetch(:switch_window, {})
+    { on_at_time: attrs[:on_at_time], off_at_time: attrs[:off_at_time], days: weekdays(attrs[:days]) }
   end
 
-  def window_params
-    params.require(:switch_window).permit(:on_at_time, :off_at_time, :enabled, days: [])
-  end
-
-  # Re-render windows AND head: the next-edge in the status line may have changed.
-  def render_windows
-    row = SwitchRow.build(@plug)
-    render turbo_stream: [
-      turbo_stream.replace("sw_windows_#{@plug.id}",
-                           partial: "switches/windows",
-                           locals: { plug: @plug, windows: row.windows }),
-      turbo_stream.replace("sw_head_#{@plug.id}",
-                           partial: "switches/head", locals: { row: row })
-    ]
+  # Whatever the contract could still coerce comes back, so the human does not
+  # lose the fields that were fine.
+  def form_from(result, group_id: nil)
+    SwitchRules::WindowForm.new(
+      group_id: group_id, errors: error_messages(result),
+      **result.to_h.slice(:on_at_time, :off_at_time, :days).compact
+    )
   end
 end

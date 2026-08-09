@@ -1,22 +1,24 @@
-<%= tag.div id: (dom_id(window) if window.persisted?), class: "sw-form-wrapper" do %>
-  <%= form_with model: window,
-                url: window.persisted? ? switch_window_path(plug_id: plug.id, id: window.id)
-                                       : switch_windows_path(plug_id: plug.id),
-                class: "sw-form" do |f| %>
-    <% if window.errors.any? %>
-      <div class="sw-form-errors"><%= window.errors.full_messages.join(", ") %></div>
+<%# A persisted window takes the id of its row, so the form can replace it and
+    be replaced by it again. %>
+<%= tag.div id: (form.persisted? ? "sw_entry_#{plug.id}_#{form.group_id}" : nil), class: "sw-form-wrapper" do %>
+  <%= form_with url: (form.persisted? ? switch_window_path(plug_id: plug.id, group_id: form.group_id)
+                                      : switch_windows_path(plug_id: plug.id)),
+                method: (form.persisted? ? :patch : :post),
+                scope: :switch_window, class: "sw-form" do |f| %>
+    <% if form.errors.any? %>
+      <div class="sw-form-errors"><%= form.errors.join(", ") %></div>
     <% end %>
     <div class="sw-form-row">
-      <%= f.time_field :on_at_time, class: "sw-time" %>
+      <%= f.time_field :on_at_time, value: form.on_at_time, class: "sw-time" %>
       <span class="sw-hint">bis</span>
-      <%= f.time_field :off_at_time, class: "sw-time" %>
+      <%= f.time_field :off_at_time, value: form.off_at_time, class: "sw-time" %>
     </div>
     <div class="sw-form-row">
       <input type="hidden" name="switch_window[days][]" value="">
       <% SwitchesHelper::DAY_ABBR.each do |num, label| %>
         <label class="sw-day">
-          <%= check_box_tag "switch_window[days][]", num, window.days.include?(num),
-                            id: "sw_day_#{plug.id}_#{window.id || 'new'}_#{num}" %>
+          <%= check_box_tag "switch_window[days][]", num, form.days.include?(num),
+                            id: "sw_day_#{plug.id}_#{form.group_id || 'new'}_#{num}" %>
           <span><%= label %></span>
         </label>
       <% end %>

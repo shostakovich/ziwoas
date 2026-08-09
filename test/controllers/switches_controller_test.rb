@@ -2,7 +2,7 @@ require "test_helper"
 
 class SwitchesControllerTest < ActionDispatch::IntegrationTest
   setup do
-    SwitchWindow.delete_all
+    SwitchRule.delete_all
     PlugState.delete_all
     SwitchCommand.delete_all
     Sample.delete_all
@@ -43,21 +43,43 @@ class SwitchesControllerTest < ActionDispatch::IntegrationTest
     assert_no_match(/Balkonkraftwerk/, @response.body)  # bkw: producer, not switchable
   end
 
-  test "shows the plug's windows" do
-    SwitchWindow.create!(plug_id: "fridge", on_at: 1080, off_at: 1380, days: [ 1, 2, 3, 4, 5 ])
+  # One string hit as a smoke probe that the row really reaches the page; what a
+  # row is made of is the component's own test.
+  test "shows the plug's schedule" do
+    SwitchRules::SaveWindow.call(
+      plug_id: "fridge",
+      attrs:   { on_at_time: "18:00", off_at_time: "23:00", days: [ 1, 2, 3, 4, 5 ] }
+    )
     get "/switches"
     assert_match "Mo–Fr · 18:00–23:00", @response.body
+    assert_select "#sw_card_fridge a.sw-add", count: 2
   end
 
-  test "lists orphaned windows with delete option" do
-    SwitchWindow.create!(plug_id: "gone", on_at: 60, off_at: 120, days: [ 1 ])
+  test "the summary counts Schaltzeiten, not rows" do
+    SwitchRules::SaveWindow.call(
+      plug_id: "fridge", attrs: { on_at_time: "18:00", off_at_time: "23:00", days: [ 1 ] }
+    )
+    2.times do |i|
+      SwitchRules::SaveSingle.call(
+        plug_id: "fridge", attrs: { at_minute_time: "0#{i + 1}:00", action: "off", days: [ 1 ] }
+      )
+    end
+
     get "/switches"
-    assert_match "Verwaiste Zeitfenster", @response.body
-    assert_match "gone", @response.body
+    assert_select "#sw_card_fridge summary", "Schaltzeiten (4)"
   end
 
-  test "no orphan section without orphans" do
+  test "a plug without a schedule shows the bare summary" do
     get "/switches"
-    assert_no_match(/Verwaiste Zeitfenster/, @response.body)
+    assert_select "#sw_card_fridge summary", "Schaltzeiten"
+  end
+
+  test "rules of a plug that left ziwoas.yml stay out of sight, not deleted" do
+    SwitchRules::SaveSingle.call(
+      plug_id: "gone", attrs: { at_minute_time: "01:00", action: "off", days: [ 1 ] }
+    )
+    get "/switches"
+    assert_no_match(/gone/, @response.body)
+    assert_equal 1, SwitchRule.where(plug_id: "gone").count
   end
 end

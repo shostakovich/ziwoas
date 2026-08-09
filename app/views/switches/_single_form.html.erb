@@ -1,0 +1,39 @@
+<%# The hint spells out what the missing partner means, so that "bleibt aus"
+    reads as a decision rather than an omission. %>
+<%= tag.div id: (form.persisted? ? "sw_entry_#{plug.id}_#{form.id}" : nil), class: "sw-form-wrapper" do %>
+  <%= form_with url: (form.persisted? ? switch_rule_path(plug_id: plug.id, id: form.id)
+                                      : switch_rules_path(plug_id: plug.id)),
+                method: (form.persisted? ? :patch : :post),
+                scope: :switch_rule, class: "sw-form" do |f| %>
+    <% if form.errors.any? %>
+      <div class="sw-form-errors"><%= form.errors.join(", ") %></div>
+    <% end %>
+    <div class="sw-form-row">
+      <%= f.time_field :at_minute_time, value: form.at_minute_time, class: "sw-time" %>
+      <%# Radios, not a checkbox: the direction can never end up neither. %>
+      <div class="sw-seg">
+        <% { "on" => "an", "off" => "aus" }.each do |value, label| %>
+          <label class="sw-seg-choice">
+            <%= f.radio_button :action, value, checked: form.action == value %>
+            <span><%= label %></span>
+          </label>
+        <% end %>
+      </div>
+    </div>
+    <div class="sw-form-row">
+      <input type="hidden" name="switch_rule[days][]" value="">
+      <% SwitchesHelper::DAY_ABBR.each do |num, label| %>
+        <label class="sw-day">
+          <%= check_box_tag "switch_rule[days][]", num, form.days.include?(num),
+                            id: "sw_day_#{plug.id}_#{form.id || 'new'}_#{num}" %>
+          <span><%= label %></span>
+        </label>
+      <% end %>
+    </div>
+    <div class="sw-form-row sw-form-actions">
+      <%= f.submit "Speichern", class: "sw-btn" %>
+      <%= link_to "Abbrechen", switches_path, class: "sw-btn ghost" %>
+      <span class="sw-hint">Bleibt aus, bis etwas anderes einschaltet.</span>
+    </div>
+  <% end %>
+<% end %>

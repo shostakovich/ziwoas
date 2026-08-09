@@ -1,14 +1,12 @@
+# One row per plug: how far the schedule tick has walked for it. Per plug, so
+# that a failed switch command only makes its own plug retry instead of holding
+# back the ones that already switched.
 class SchedulerState < ApplicationRecord
-  # Single-row table: the schedule tick watermark.
-  def self.last_tick_at
-    first&.last_tick_at
+  def self.last_tick_at(plug_id)
+    find_by(plug_id: plug_id)&.last_tick_at
   end
 
-  def self.advance!(time, expected: nil)
-    row = first
-    return new(last_tick_at: time).save! if row.nil?
-    return row.update!(last_tick_at: time) if expected.nil?
-
-    where(id: row.id, last_tick_at: expected).update_all(last_tick_at: time, updated_at: Time.current) == 1
+  def self.advance!(plug_id, time)
+    find_or_initialize_by(plug_id: plug_id).update!(last_tick_at: time)
   end
 end

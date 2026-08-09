@@ -1000,7 +1000,10 @@ svg text[data-dashboard-target] {
 /* 2x2 grid: name/status + knob on top, Zeitfenster + power on the bottom row,
    so the schedule toggle lines up with the power chip. head and knob-col are
    display:contents so their children land directly in this grid. */
-.sw-plug-card { display: grid; grid-template-columns: 1fr auto;
+/* minmax(0, 1fr), not 1fr: a plain fr track refuses to go below the min-content
+   of the schedule rows, which grows the column and pushes the knob out of the
+   card on a narrow screen. */
+.sw-plug-card { display: grid; grid-template-columns: minmax(0, 1fr) auto;
                 column-gap: 14px; row-gap: 8px; align-items: center;
                 grid-template-areas: "info knob" "sched watt"; }
 .sw-head { display: contents; }
@@ -1008,7 +1011,7 @@ svg text[data-dashboard-target] {
 .sw-name { font-weight: 600; font-size: 18px; }
 .sw-knob-col { display: contents; }
 .sw-knob-form { grid-area: knob; justify-self: end; }
-.sw-details { grid-area: sched; align-self: start; margin: 0; }
+.sw-details { grid-area: sched; align-self: start; margin: 0; min-width: 0; }
 .sw-watt-chip { grid-area: watt; justify-self: end; align-self: start;
                 display: inline-flex; align-items: center; gap: 5px;
                 background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm);
@@ -1034,10 +1037,15 @@ svg text[data-dashboard-target] {
 .sw-knob:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
 
 .sw-details summary { font-size: 13px; color: var(--muted); cursor: pointer; }
-.sw-window { display: flex; align-items: center; gap: 8px; padding: 8px 0;
-             border-top: 1px solid var(--surface-sunk); font-size: 13px; }
+.sw-entry { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 8px 0;
+            border-top: 1px solid var(--surface-sunk); font-size: 13px; }
 .sw-pill { background: var(--accent-tint); border: 1px solid var(--accent); color: var(--accent-ink);
            border-radius: var(--radius-pill); padding: 2px 10px; font-size: 12px; white-space: nowrap; }
+/* An Einzelschaltung is the same pill, drawn open: the dashed border says the
+   counter-direction is missing. Card and text colour keep it legible whatever
+   the theme fills the variables with. */
+.sw-pill.single { background: var(--card); border-style: dashed; color: var(--text); }
+.sw-pill .sw-dir { font-weight: 700; }
 .sw-pill.paused { background: var(--surface-sunk); border-color: var(--offline); color: var(--muted);
                   text-decoration: line-through; }
 .sw-icon-btn { border: none; background: none; color: var(--muted); font-size: 16px;
@@ -1046,10 +1054,21 @@ svg text[data-dashboard-target] {
                border-radius: var(--radius-sm); }
 .sw-icon-btn:hover { background: var(--surface-hover); }
 .sw-icon-btn:focus-visible { outline: var(--focus-ring); outline-offset: 2px; }
-.sw-window .sw-inline-form:first-of-type { margin-left: auto; }
-.sw-add { display: inline-block; margin-top: 10px; font-size: 13px; color: var(--muted);
+.sw-entry .sw-inline-form:first-of-type { margin-left: auto; }
+/* A flex row rather than inline-block siblings: a margin between the two would
+   stay on the second one when it wraps, indenting it against the first. */
+.sw-add-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.sw-add { font-size: 13px; color: var(--muted);
           border: 1px dashed var(--offline); border-radius: var(--radius-pill); padding: 4px 12px;
           cursor: pointer; text-decoration: none; }
+
+/* The schedule shares its column with the 88px knob, which leaves it about
+   215px on a phone — too little for a Zeitfenster row or the two add buttons
+   side by side. Below this width it takes the whole card instead, and the power
+   chip moves up under the knob it belongs to. */
+@media (max-width: 480px) {
+  .sw-plug-card { grid-template-areas: "info knob" "watt watt" "sched sched"; }
+}
 
 .sw-form { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm);
            padding: 12px; margin-top: 10px; }
@@ -1065,13 +1084,21 @@ svg text[data-dashboard-target] {
 .sw-day:has(input:checked) { background: var(--accent-tint); border-color: var(--accent);
                              color: var(--accent-ink); font-weight: 600; }
 .sw-day:has(input:focus-visible) { outline: var(--focus-ring); outline-offset: 2px; }
+/* The direction of an Einzelschaltung: two radios drawn as one segment. */
+.sw-seg { display: inline-flex; border: 1px solid var(--border); border-radius: var(--radius-sm);
+          overflow: hidden; }
+.sw-seg-choice span { display: inline-block; padding: 6px 14px; font-size: 13px; cursor: pointer;
+                      background: var(--card); color: var(--muted); user-select: none; }
+.sw-seg-choice input { position: absolute; opacity: 0; pointer-events: none; }
+.sw-seg-choice:has(input:checked) span { background: var(--accent-tint); color: var(--accent-ink);
+                                         font-weight: 600; }
+.sw-seg-choice:has(input:focus-visible) { outline: var(--focus-ring); outline-offset: 2px; }
 .sw-btn { border-radius: var(--radius-sm); padding: 7px 14px; font-size: 13px; border: 1px solid var(--accent);
           background: var(--accent); color: #fff; font-weight: 600; cursor: pointer;
           text-decoration: none; }
 .sw-btn.ghost { background: var(--card); color: var(--muted); border-color: var(--border); }
 .sw-hint { font-size: 11px; color: var(--muted); }
 .sw-form-actions .sw-hint { margin-left: auto; }
-.sw-orphan { display: flex; align-items: center; gap: 8px; }
 .sw-empty { color: var(--muted); font-size: 14px; }
 
 body.page-solakon { max-width: 1040px; }

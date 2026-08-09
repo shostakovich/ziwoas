@@ -1,8 +1,10 @@
 class SwitchesController < ApplicationController
   def index
-    plugs    = app_config.plugs.select(&:switchable)
-    @rows    = SwitchRow.build_all(plugs)
-    @orphaned_windows = SwitchWindow.where.not(plug_id: plugs.map(&:id)).order(:plug_id, :on_at)
+    # Verwaiste Schaltzeiten — those of a plug no longer in ziwoas.yml — stay in
+    # the database unseen and switch nothing, so a typo in the YAML costs no
+    # data. When the plug comes back, so does its schedule.
+    plugs = app_config.plugs.select(&:switchable)
+    @rows = SwitchRow.build_all(plugs)
     @light_snapshots = LightSnapshot.build_all(Light.order(:name))
   end
 end
