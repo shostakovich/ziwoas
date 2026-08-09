@@ -1,14 +1,9 @@
-# Pure edge computation: no I/O, no clock. Rules only need to respond to
-# id, plug_id, action, at_minute and days (SwitchRule records or plain structs).
-#
-# One rule, one edge: a rule carries its weekdays absolutely, so nothing here
-# knows about midnight. A Zeitfenster reaching past midnight is stored as an on
-# rule and an off rule on the following weekdays.
+# Pure edge computation: no I/O, no clock. One rule, one edge — a rule carries
+# its weekdays absolutely, so nothing here knows about midnight.
 class SwitchEdgeCalculator
   Edge = Struct.new(:plug_id, :rule_id, :action, :at, keyword_init: true)
 
-  # Total order for simultaneous edges: :off sorts before :on, so that
-  # "last edge wins" resolves a tie in favor of switching on.
+  # :off sorts before :on, so "last edge wins" resolves a tie towards on.
   ACTION_ORDER = { off: 0, on: 1 }.freeze
 
   def initialize(rules:, timezone: Time.zone)
@@ -34,7 +29,7 @@ class SwitchEdgeCalculator
   end
 
   # At most one edge per plug: the earliest within the interval. Mirror of
-  # latest_edge_per_plug, so the preview announces what the tick performs.
+  # latest_edge_per_plug, so the status line announces what the tick performs.
   def next_edge_per_plug(from, to)
     edges_between(from, to).group_by(&:plug_id).map { |_, edges| tie_winner(edges) }
   end
@@ -42,7 +37,7 @@ class SwitchEdgeCalculator
   private
 
   # Among the edges sharing the earliest timestamp, the one ACTION_ORDER ranks
-  # highest — :on, the same winner "last edge wins" picks at a tie.
+  # highest — the same winner "last edge wins" picks.
   def tie_winner(edges)
     edges.take_while { |e| e.at == edges.first.at }.last
   end

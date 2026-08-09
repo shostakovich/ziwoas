@@ -1,7 +1,5 @@
-<%# The Zeitfenster form. Its object is a SwitchRules::WindowForm, not a record:
-    new, a failed create, edit and a failed update all arrive here as the same
-    thing — fields plus errors. A persisted window takes the id of its row, so
-    the form can replace it and be replaced by it again. %>
+<%# A persisted window takes the id of its row, so the form can replace it and
+    be replaced by it again. %>
 <%= tag.div id: (form.persisted? ? "sw_entry_#{plug.id}_#{form.group_id}" : nil), class: "sw-form-wrapper" do %>
   <%= form_with url: (form.persisted? ? switch_window_path(plug_id: plug.id, group_id: form.group_id)
                                       : switch_windows_path(plug_id: plug.id)),

@@ -10,15 +10,11 @@ module SwitchesHelper
           .join(", ")
   end
 
-  # The text of one schedule row, for both kinds: "Mo–Fr · 10:00–20:00" for a
-  # Zeitfenster, "täglich · 22:00" for an Einzelschaltung — the direction of a
-  # single is markup, not text, and stays in the component.
-  #
-  # Both kinds answer +days+ and +rules+, so neither the weekdays nor the times
-  # need a branch here. A window's rules are its on and its off rule in that
-  # order, and its days are the on rule's — which is exactly the day shift of a
-  # window past midnight undone: "22:00 an Mo–Fr, 06:00 aus Di–Sa" reads back
-  # as "Mo–Fr · 22:00–06:00".
+  # "Mo–Fr · 10:00–20:00" for a Zeitfenster, "täglich · 22:00" for an
+  # Einzelschaltung. Both kinds answer +days+ and +rules+, so no branch is
+  # needed — and taking a window's days from its on rule reads the shift past
+  # midnight back out: "22:00 an Mo–Fr, 06:00 aus Di–Sa" becomes "Mo–Fr ·
+  # 22:00–06:00".
   def entry_label(entry)
     "#{weekday_label(entry.days)} · #{entry.rules.map(&:at_minute_time).join('–')}"
   end

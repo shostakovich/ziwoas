@@ -1,5 +1,4 @@
-<%# The Einzelschaltung form: one time, an explicit direction, and the weekdays.
-    The hint spells out what the missing partner means, so that "bleibt aus"
+<%# The hint spells out what the missing partner means, so that "bleibt aus"
     reads as a decision rather than an omission. %>
 <%= tag.div id: (form.persisted? ? "sw_entry_#{plug.id}_#{form.id}" : nil), class: "sw-form-wrapper" do %>
   <%= form_with url: (form.persisted? ? switch_rule_path(plug_id: plug.id, id: form.id)
@@ -11,8 +10,7 @@
     <% end %>
     <div class="sw-form-row">
       <%= f.time_field :at_minute_time, value: form.at_minute_time, class: "sw-time" %>
-      <%# Two radios styled as one segmented switch: the direction is a choice
-          between two, never a checkbox that could end up neither. %>
+      <%# Radios, not a checkbox: the direction can never end up neither. %>
       <div class="sw-seg">
         <% { "on" => "an", "off" => "aus" }.each do |value, label| %>
           <label class="sw-seg-choice">

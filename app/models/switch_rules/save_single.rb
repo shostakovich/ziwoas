@@ -4,8 +4,6 @@ module SwitchRules
   class SaveSingle
     def self.call(...) = new(...).call
 
-    # +attrs+ is the output of SwitchRules::Contracts::Single. +rule+ is nil for
-    # a new Einzelschaltung and the existing record when editing.
     def initialize(plug_id:, attrs:, rule: nil)
       @plug_id = plug_id
       @attrs   = attrs

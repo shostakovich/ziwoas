@@ -1,6 +1,6 @@
 # The Zeitfenster as a resource: identified by its group, never by one of the
-# two rules it is made of. Pausing, editing and deleting always hit both halves,
-# so a half-open state cannot be reached through this controller.
+# two rules it is made of, so pausing, editing and deleting always hit both
+# halves.
 class SwitchWindowsController < ApplicationController
   include ScheduleEditing
 
@@ -36,8 +36,8 @@ class SwitchWindowsController < ApplicationController
     render_entries
   end
 
-  # Pausing bypasses the contract on its own member route: a toggle carries one
-  # boolean and no times at all.
+  # Pausing has its own member route: a toggle carries one boolean and would
+  # fall through a contract that demands times and weekdays.
   def enabled
     return head :not_found if group_rules.empty?
 
@@ -71,8 +71,8 @@ class SwitchWindowsController < ApplicationController
     { on_at_time: attrs[:on_at_time], off_at_time: attrs[:off_at_time], days: weekdays(attrs[:days]) }
   end
 
-  # Whatever the contract could still coerce comes back into the form, so the
-  # human does not lose the fields that were fine.
+  # Whatever the contract could still coerce comes back, so the human does not
+  # lose the fields that were fine.
   def form_from(result, group_id: nil)
     SwitchRules::WindowForm.new(
       group_id: group_id, errors: error_messages(result),

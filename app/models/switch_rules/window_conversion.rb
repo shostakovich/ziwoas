@@ -1,20 +1,15 @@
 module SwitchRules
   # Pure translation between the old paired switch_windows row and the two flat
-  # switch_rules rows it becomes. No Active Record, no I/O, no clock — the
-  # migration body is a naked call to this, so that the interesting cases stay
-  # testable (SimpleCov does not look inside db/).
-  #
-  # Rows are plain string-keyed hashes on both sides, exactly the shape
-  # +attributes+ hands out and +insert_all+ takes back.
+  # switch_rules rows it becomes: string-keyed hashes in, string-keyed hashes
+  # out. The migration body is a naked call to this, because SimpleCov does not
+  # look inside db/ and logic there would go unmeasured.
   module WindowConversion
     DAYS_PER_WEEK = 7
 
     class << self
-      # One window hash -> the on and the off rule it becomes, joined by a
-      # fresh group. An off time before the on time means the window runs past
-      # midnight: the off rule then carries its weekdays shifted one day
-      # forward, so "Mo-Fr 22:00 an / 06:00 aus" is stored as an on rule on
-      # Mo-Fr and an off rule on Di-Sa. The day shift leaves the edge
+      # An off time before the on time means the window runs past midnight, so
+      # the off rule carries its weekdays shifted one day forward: "Mo–Fr 22:00
+      # an / 06:00 aus" becomes on Mo–Fr, off Di–Sa. The shift leaves the edge
       # calculation and becomes plain stored data.
       def split(window)
         group_id = SecureRandom.uuid
@@ -27,10 +22,9 @@ module SwitchRules
         ]
       end
 
-      # The mirror of +split+: rule hashes -> window hashes, one per complete
-      # group. Anything that cannot become a window — a rule without a group, a
-      # group missing its partner, a group pointing twice the same way — is
-      # dropped, because the old table has no shape for it.
+      # The mirror of +split+. Anything that cannot become a window — no group,
+      # a missing partner, twice the same direction — is dropped: the old table
+      # has no shape for it.
       def join(rules)
         rules
           .reject { |r| r["group_id"].nil? }
@@ -66,9 +60,7 @@ module SwitchRules
           "plug_id"    => on["plug_id"],
           "on_at"      => on["at_minute"],
           "off_at"     => off["at_minute"],
-          # The on rule already carries the window's own weekdays; the off
-          # rule's shifted days are redundant with them, so undoing the shift
-          # is simply a matter of not looking at them.
+          # Undoing the day shift is a matter of not reading the off rule's days.
           "days"       => on["days"],
           "enabled"    => on["enabled"],
           "created_at" => on["created_at"],

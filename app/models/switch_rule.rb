@@ -1,22 +1,16 @@
 # The smallest unit of the schedule: switch one plug on or off at one time of
-# day, on a fixed set of weekdays. Weekdays are absolute — a window running past
-# midnight is stored as an on rule and an off rule on the following days, so
-# nothing here needs to know about midnight.
-#
-# A +group_id+ ties the two halves of a Zeitfenster together for display and
-# editing; a rule without one is an Einzelschaltung. The edge calculation never
-# looks at the group.
+# day, on a fixed set of weekdays. A +group_id+ ties the two halves of a
+# Zeitfenster together for display and editing; a rule without one is an
+# Einzelschaltung. The edge calculation never looks at the group.
 class SwitchRule < ApplicationRecord
   ACTIONS      = %w[on off].freeze
   ISO_DAYS     = (1..7).to_a.freeze
   MINUTE_RANGE = (0..1439)
   CLOCK_TIME   = /\A([01]?\d|2[0-3]):([0-5]\d)(?::[0-5]\d)?\z/
 
-  # "18:00" -> 1080, anything else -> nil. Shared with the form contracts, which
-  # have to tell a well-formed time from a typo before anything is saved.
-  #
-  # Base 10 spelled out: "08" carries a leading zero, which Integer() would
-  # otherwise read as an octal prefix and reject.
+  # "18:00" -> 1080, anything else -> nil. Base 10 spelled out: "08" carries a
+  # leading zero, which Integer() would otherwise read as an octal prefix and
+  # reject.
   def self.minutes_from(str)
     m = CLOCK_TIME.match(str.to_s) or return nil
     Integer(m[1], 10) * 60 + Integer(m[2], 10)

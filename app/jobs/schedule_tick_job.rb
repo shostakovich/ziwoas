@@ -3,10 +3,10 @@ require "config_loader"
 class ScheduleTickJob < ApplicationJob
   queue_as :default
 
-  # A missed edge is replayed at most this far back; anything older lapses.
-  # Switching a running appliance off hours late is worse than not switching
-  # it at all (ADR-0001). The lower bound also removes the first-run special
-  # case: a nil watermark is indistinguishable from a restart after an outage.
+  # A missed edge is replayed at most this far back; anything older lapses,
+  # because switching a running appliance off hours late is worse than not
+  # switching it at all (ADR-0001). The lower bound also makes a nil watermark
+  # indistinguishable from a restart, so the first run needs no special case.
   GRACE = 10.minutes
 
   def perform
@@ -28,8 +28,8 @@ class ScheduleTickJob < ApplicationJob
 
   private
 
-  # The single edge this plug is due for, or nil. The calculator knows neither
-  # clock nor grace window: both live here, in the interval we hand it.
+  # The calculator knows neither clock nor grace window: both live here, in the
+  # interval we hand it.
   def due_edge(plug_id, rules, now)
     from = [ SchedulerState.last_tick_at(plug_id), now - GRACE ].compact.max
     edge = SwitchEdgeCalculator.new(rules: rules).latest_edge_per_plug(from, now).first

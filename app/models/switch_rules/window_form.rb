@@ -1,19 +1,16 @@
 module SwitchRules
   # What the Zeitfenster form partial renders from. A contract is not an
-  # ActiveModel, so +form_with model:+ is out; this is the one object that new,
-  # a failed create, edit and a failed update all hand to the same partial —
-  # fields in, errors out.
+  # ActiveModel, so +form_with model:+ is out; new, a failed create, edit and a
+  # failed update all hand the partial this one object instead.
   class WindowForm < Data.define(:group_id, :on_at_time, :off_at_time, :days, :errors)
     def initialize(group_id: nil, on_at_time: nil, off_at_time: nil, days: [], errors: [])
       super
     end
 
-    # An existing window is addressed by its group, never by a rule id.
+    # +days+ comes from the on rule alone: those are the weekdays a human typed,
+    # and not reading the off rule's undoes the shift past midnight.
     def self.for_group(group_id, on:, off:, errors: [])
       new(group_id: group_id, on_at_time: on.at_minute_time,
-          # The on rule carries the weekdays a human typed; the off rule's are
-          # the same set, shifted a day forward when the window runs past
-          # midnight. Undoing the shift is a matter of not reading them.
           off_at_time: off.at_minute_time, days: on.days, errors: errors)
     end
 

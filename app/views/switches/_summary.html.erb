@@ -1,5 +1,3 @@
-<%# The count is Schaltzeiten, not rows: a Zeitfenster is one row and two of
-    them. It sits above the rules container rather than inside it — a summary
-    has to be the first child of its details — so it needs a Turbo target of its
-    own, or it would still show the old number after every edit. %>
+<%# A summary has to be the first child of its details, so the count sits outside
+    the rules container and needs a Turbo target of its own. %>
 <summary id="sw_count_<%= row.plug.id %>">Schaltzeiten<%= " (#{row.rule_count})" if row.rule_count.positive? %></summary>
