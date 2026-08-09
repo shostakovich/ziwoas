@@ -135,10 +135,34 @@ class SwitchRulesControllerTest < ActionDispatch::IntegrationTest
     assert_response :not_found
   end
 
-  test "the half of a group left over is editable as an Einzelschaltung" do
-    group_id = SwitchRules::SaveWindow.call(
+  def a_window
+    SwitchRules::SaveWindow.call(
       plug_id: "fridge", attrs: { on_at_time: "10:00", off_at_time: "20:00", days: [ 1 ] }
     )
+  end
+
+  # Addressing one half of a window through the single-rule routes would pause or
+  # delete that half alone, while the card keeps folding the group into one row.
+  test "one half of an intact Zeitfenster is not addressable as an Einzelschaltung" do
+    a_window
+    half = SwitchRule.find_by(action: "off")
+
+    get "/plugs/fridge/switch_rules/#{half.id}/edit", as: :turbo_stream
+    assert_response :not_found
+    patch "/plugs/fridge/switch_rules/#{half.id}", params: valid_params, as: :turbo_stream
+    assert_response :not_found
+
+    patch "/plugs/fridge/switch_rules/#{half.id}/enabled", params: { enabled: "false" }, as: :turbo_stream
+    assert_response :not_found
+    assert half.reload.enabled
+
+    delete "/plugs/fridge/switch_rules/#{half.id}", as: :turbo_stream
+    assert_response :not_found
+    assert_equal 2, SwitchRule.count
+  end
+
+  test "the half of a group left over is editable as an Einzelschaltung" do
+    group_id = a_window
     SwitchRule.find_by(group_id: group_id, action: "on").destroy!
     orphan = SwitchRule.sole
 
