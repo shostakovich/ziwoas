@@ -4,8 +4,10 @@
     <%= render Switches::ScheduleEntryComponent.new(entry: entry, plug: plug) %>
   <% end %>
   <div id="sw_editor_<%= plug.id %>"></div>
-  <%= link_to "+ Zeitfenster", new_switch_window_path(plug_id: plug.id),
-              class: "sw-add", data: { turbo_stream: true } %>
-  <%= link_to "+ Einzelschaltung", new_switch_rule_path(plug_id: plug.id),
-              class: "sw-add", data: { turbo_stream: true } %>
+  <div class="sw-add-row">
+    <%= link_to "+ Zeitfenster", new_switch_window_path(plug_id: plug.id),
+                class: "sw-add", data: { turbo_stream: true } %>
+    <%= link_to "+ Einzelschaltung", new_switch_rule_path(plug_id: plug.id),
+                class: "sw-add", data: { turbo_stream: true } %>
+  </div>
 </div>
