@@ -22,6 +22,15 @@ class SolakonReadingTest < ActiveSupport::TestCase
     assert_not reading(soc: 50, temp: 45.0).battery_cooled?
   end
 
+  test "battery_state ranks a low charge above the charging flow" do
+    charging = SolakonReading.new(taken_at: Time.current, active_power_w: 120,
+                                  pv_power_w: 200, battery_power_w: 40, battery_soc_pct: 18)
+    assert_equal "low", charging.battery_state
+
+    charging.battery_soc_pct = 50
+    assert_equal "charging", charging.battery_state
+  end
+
   test "pv presence and usable energy" do
     assert reading(soc: 50, pv: 50).pv_present?
     assert_not reading(soc: 50, pv: 49).pv_present?
