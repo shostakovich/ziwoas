@@ -23,7 +23,7 @@ module ScheduleEditing
   # The count and the status line sit outside the rules container, and both can
   # move with any write, so all three regions are streamed together.
   def render_entries
-    row = SwitchRow.build(@plug)
+    row = Switching::Row.build(@plug)
     render turbo_stream: [
       turbo_stream.replace("sw_rules_#{@plug.id}",
                            partial: "switches/entries",

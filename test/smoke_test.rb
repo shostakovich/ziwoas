@@ -5,7 +5,7 @@ class SmokeTest < ActiveSupport::TestCase
     assert_kind_of Ziwoas::Application, Rails.application
   end
 
-  test "Sample model connects to database" do
-    assert_nothing_raised { Sample.count }
+  test "Plugs::Sample model connects to database" do
+    assert_nothing_raised { Plugs::Sample.count }
   end
 end

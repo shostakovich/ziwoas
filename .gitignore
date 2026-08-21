@@ -49,3 +49,6 @@
 
 # ruby-lsp local tooling
 /.ruby-lsp/
+
+# mutant incremental result cache
+/.mutant/

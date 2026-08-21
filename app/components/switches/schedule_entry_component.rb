@@ -14,7 +14,7 @@ module Switches
 
     attr_reader :entry, :plug
 
-    def window? = entry.is_a?(SwitchRules::Schedule::Window)
+    def window? = entry.is_a?(Switching::Rules::Schedule::Window)
 
     # +entry.id+ is the group of a Zeitfenster and the rule id of an
     # Einzelschaltung, so one expression serves both.

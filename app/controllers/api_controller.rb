@@ -22,7 +22,7 @@ class ApiController < ApplicationController
     @days   = (params["days"] || "14").to_i.clamp(1, 365)
     cutoff = (Date.today - @days).to_s
 
-    rows_by_plug = DailyTotal.where("date >= ?", cutoff).order(:date).group_by(&:plug_id)
+    rows_by_plug = Plugs::DailyTotal.where("date >= ?", cutoff).order(:date).group_by(&:plug_id)
 
     @series = app_config.plugs.map do |plug|
       points = (rows_by_plug[plug.id] || [])
@@ -37,7 +37,7 @@ class ApiController < ApplicationController
     now     = Time.zone.at(@now_ts)
     solakon = config.solakon
 
-    measurements = PlugMeasurement.for(config.plugs.map(&:id), now: now)
+    measurements = Plugs::Measurement.for(config.plugs.map(&:id), now: now)
 
     @plugs = config.plugs.map do |plug|
       measurement = measurements[plug.id]
@@ -51,7 +51,7 @@ class ApiController < ApplicationController
       }
     end
 
-    consumer_ids = config.plugs.select { |plug| plug.role == :consumer }.map(&:id)
+    consumer_ids = config.plug_roster.consumer_ids
     reading = if solakon&.monitoring_enabled
       SolakonReading.latest_fresh(now: now)
     end

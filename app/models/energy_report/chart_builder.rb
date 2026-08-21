@@ -2,7 +2,7 @@ class EnergyReport
   # Chart payload builders (daily + detail) including weather overlay.
   class ChartBuilder
     def initialize(plugs:, timezone:, store:, weather_loader: nil)
-      @plugs = plugs
+      @roster = Plugs::Roster.wrap(plugs)
       @timezone = timezone
       @store = store
       @weather_loader = weather_loader
@@ -49,8 +49,8 @@ class EnergyReport
     end
 
     def consumer_daily_series(labels)
-      @plugs
-        .select { |plug| plug.role == :consumer }
+      @roster
+        .consumers
         .map do |plug|
           rows_by_date = @store.daily_totals_for_plug(plug.id, labels)
           {
@@ -76,9 +76,9 @@ class EnergyReport
       rows = @store.sample_rows(start_ts, end_ts)
       timestamps = rows.map(&:bucket_ts).uniq.sort
       multi_day = start_date != end_date
-      power_series = PowerSeries.from_5min(rows, plugs: @plugs)
+      power_series = PowerSeries.from_5min(rows, plugs: @roster)
 
-      series = @plugs.map do |plug|
+      series = @roster.all.map do |plug|
         watts_by_ts = power_series.signed_watts_by_ts(plug.id)
         {
           plug_id: plug.id,
@@ -100,7 +100,7 @@ class EnergyReport
       rows_by_plug_and_date = rows.group_by { |row| [ row.plug_id, row.date ] }
       dates = (start_date..end_date).to_a
 
-      series = @plugs.map do |plug|
+      series = @roster.all.map do |plug|
         {
           plug_id: plug.id,
           name: plug.name,

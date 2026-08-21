@@ -6,8 +6,8 @@ require "stringio"
 
 class ShellyStatusHandlerTest < ActiveSupport::TestCase
   setup do
-    Sample.delete_all
-    PlugState.delete_all
+    Plugs::Sample.delete_all
+    Plugs::State.delete_all
     @log_io = StringIO.new
     @logger = Logger.new(@log_io)
     @now    = 1_700_000_000.0
@@ -49,8 +49,8 @@ class ShellyStatusHandlerTest < ActiveSupport::TestCase
   test "handle_message inserts sample for known plug" do
     @handler.handle("shellies/bkw/status/switch:0",
                     status_payload(apower: 300.0, total: 1234.5))
-    assert_equal 1, Sample.count
-    s = Sample.first
+    assert_equal 1, Plugs::Sample.count
+    s = Plugs::Sample.first
     assert_equal "bkw", s.plug_id
     assert_equal @now.to_i, s.ts
     assert_in_delta 300.0, s.apower_w
@@ -60,7 +60,7 @@ class ShellyStatusHandlerTest < ActiveSupport::TestCase
   test "handle_message warns and skips unknown plug" do
     @handler.handle("shellies/unknown/status/switch:0",
                     status_payload(apower: 1.0, total: 1.0))
-    assert_equal 0, Sample.count
+    assert_equal 0, Plugs::Sample.count
     assert_match(/unknown plug.*unknown/i, @log_io.string)
   end
 
@@ -68,17 +68,17 @@ class ShellyStatusHandlerTest < ActiveSupport::TestCase
     assert_nothing_raised do
       @handler.handle("shellies/bkw/status/switch:0", "not-json{")
     end
-    assert_equal 0, Sample.count
+    assert_equal 0, Plugs::Sample.count
     assert_match(/invalid json/i, @log_io.string)
   end
 
   test "handle_message handles duplicate ts gracefully" do
-    Sample.create!(plug_id: "bkw", ts: @now.to_i, apower_w: 1.0, aenergy_wh: 1.0)
+    Plugs::Sample.create!(plug_id: "bkw", ts: @now.to_i, apower_w: 1.0, aenergy_wh: 1.0)
     assert_nothing_raised do
       @handler.handle("shellies/bkw/status/switch:0",
                       status_payload(apower: 300.0, total: 1234.5))
     end
-    assert_equal 1, Sample.where(plug_id: "bkw").count
+    assert_equal 1, Plugs::Sample.where(plug_id: "bkw").count
   end
 
   test "handle_message broadcasts immediately on first message after startup" do
@@ -163,7 +163,7 @@ class ShellyStatusHandlerTest < ActiveSupport::TestCase
   test "handle_message records output state" do
     @handler.handle("shellies/fridge/status/switch:0",
                     status_payload(apower: 50.0, total: 1.0, output: true))
-    assert_equal true, PlugState.find_by(plug_id: "fridge").output
+    assert_equal true, Plugs::State.find_by(plug_id: "fridge").output
   end
 
   test "handle_message updates output state on change" do
@@ -172,14 +172,14 @@ class ShellyStatusHandlerTest < ActiveSupport::TestCase
     @now += 1
     @handler.handle("shellies/fridge/status/switch:0",
                     status_payload(apower: 0.0, total: 1.0, output: false))
-    assert_equal false, PlugState.find_by(plug_id: "fridge").output
-    assert_equal 1, PlugState.count
+    assert_equal false, Plugs::State.find_by(plug_id: "fridge").output
+    assert_equal 1, Plugs::State.count
   end
 
   test "handle_message without output field leaves plug_states untouched" do
     @handler.handle("shellies/fridge/status/switch:0",
                     status_payload(apower: 50.0, total: 1.0))
-    assert_equal 0, PlugState.count
+    assert_equal 0, Plugs::State.count
   end
 
   test "handle_message includes output in the broadcast payload" do
@@ -193,12 +193,12 @@ class ShellyStatusHandlerTest < ActiveSupport::TestCase
 
   test "handle_message tolerates non-boolean output without raising" do
     # An empty string casts to nil for the boolean `output` column, which
-    # fails PlugState's inclusion validation and raises RecordInvalid.
+    # fails Plugs::State's inclusion validation and raises RecordInvalid.
     assert_nothing_raised do
       @handler.handle("shellies/fridge/status/switch:0",
                       status_payload(apower: 50.0, total: 1.0, output: ""))
     end
-    assert_equal 0, PlugState.count
+    assert_equal 0, Plugs::State.count
     assert_match(/invalid output/i, @log_io.string)
   end
 end

@@ -40,13 +40,9 @@ class EnergySummary
     [ start_utc, start_utc + 86_400, local_today ]
   end
 
-  def producer_ids
-    @config.plugs.select { |p| p.role == :producer }.map(&:id)
-  end
+  def producer_ids = @config.plug_roster.producer_ids
 
-  def consumer_ids
-    @config.plugs.select { |p| p.role == :consumer }.map(&:id)
-  end
+  def consumer_ids = @config.plug_roster.consumer_ids
 
   def energy_delta_wh(plug_ids, start_ts, end_ts)
     return 0.0 if plug_ids.empty?

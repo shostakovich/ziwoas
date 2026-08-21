@@ -1,3 +1,4 @@
+unless ENV["SKIP_COVERAGE"]
 require "simplecov"
 SimpleCov.start "rails" do
   enable_coverage :branch
@@ -6,11 +7,13 @@ SimpleCov.start "rails" do
   # branches in lib/govees/bridge.rb from one seed to the next.
   minimum_coverage line: 83, branch: 79
 end
+end
 
 ENV["RAILS_ENV"] ||= "test"
 require_relative "../config/environment"
 require "rails/test_help"
 require "minitest/mock"
+require "mutant/minitest/coverage"
 require "webmock/minitest"
 WebMock.disable_net_connect!(allow_localhost: true)
 

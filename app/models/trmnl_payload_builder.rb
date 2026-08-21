@@ -66,7 +66,7 @@ class TrmnlPayloadBuilder
     plug_ids = @config.plugs.map(&:id)
     return Time.now.to_i if plug_ids.empty?
 
-    max_ts = Sample.where(plug_id: plug_ids, ts: start_ts...end_ts).maximum(:ts)
+    max_ts = Plugs::Sample.where(plug_id: plug_ids, ts: start_ts...end_ts).maximum(:ts)
     max_ts || Time.now.to_i
   end
 end

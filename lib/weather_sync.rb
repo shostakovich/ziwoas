@@ -49,7 +49,7 @@ class WeatherSync
   end
 
   def backfill_historic_from_daily_totals
-    DailyTotal.distinct.pluck(:date).sort.each do |date_s|
+    Plugs::DailyTotal.distinct.pluck(:date).sort.each do |date_s|
       date = Date.parse(date_s)
       next if historic_complete?(date)
       sync_historic_date(date)

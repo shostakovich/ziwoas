@@ -4,7 +4,7 @@ require "weather_sync"
 class WeatherSyncTest < ActiveSupport::TestCase
   setup do
     WeatherRecord.delete_all
-    DailyTotal.delete_all
+    Plugs::DailyTotal.delete_all
     @config = ConfigLoader::Config.new(timezone: "Europe/Berlin", weather: ConfigLoader::WeatherCfg.new(lat: 52.52, lon: 13.405))
     @client = Minitest::Mock.new
     @sync = WeatherSync.new(config: @config, client: @client)
@@ -51,7 +51,7 @@ class WeatherSyncTest < ActiveSupport::TestCase
   end
 
   test "backfills_daily_total_dates_without_historic_weather" do
-    DailyTotal.create!(plug_id: "bkw", date: "2026-05-01", energy_wh: 1000)
+    Plugs::DailyTotal.create!(plug_id: "bkw", date: "2026-05-01", energy_wh: 1000)
     @client.expect(:weather_for_date, [ weather_row(timestamp: "2026-05-01T10:00:00+00:00") ], [ Date.new(2026, 5, 1) ])
 
     @sync.backfill_historic_from_daily_totals

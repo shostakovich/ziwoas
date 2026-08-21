@@ -31,7 +31,7 @@ class ZeroExportTickJobTest < ActiveSupport::TestCase
   end
 
   setup do
-    Sample.delete_all
+    Plugs::Sample.delete_all
     SolakonControlState.delete_all
     @cache = ActiveSupport::Cache::MemoryStore.new
   end
@@ -60,7 +60,7 @@ class ZeroExportTickJobTest < ActiveSupport::TestCase
 
   test "applies control derived from measured consumption, with min_soc guard" do
     now = Time.at(1_000_000)
-    Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 250, aenergy_wh: 1)
+    Plugs::Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 250, aenergy_wh: 1)
     client = FakeClient.new
     run_job(client: client, state: healthy_state, now: now)
     assert_equal [ [ :apply_power, 250, 10 ] ], client.calls
@@ -68,7 +68,7 @@ class ZeroExportTickJobTest < ActiveSupport::TestCase
 
   test "remembers the applied decision as the control loop state" do
     now = Time.at(1_000_000)
-    Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 250, aenergy_wh: 1)
+    Plugs::Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 250, aenergy_wh: 1)
 
     run_job(client: FakeClient.new, state: healthy_state, now: now)
 
@@ -81,7 +81,7 @@ class ZeroExportTickJobTest < ActiveSupport::TestCase
   test "caps a fresh consumption spike at the recent median" do
     now = Time.zone.local(2026, 6, 20, 12, 0, 0)
     [ 240, 240, 240, 240, 800 ].each_with_index do |watts, i|
-      Sample.create!(plug_id: "fridge", ts: (now - (25 - i * 5).minutes).to_i,
+      Plugs::Sample.create!(plug_id: "fridge", ts: (now - (25 - i * 5).minutes).to_i,
                      apower_w: watts, aenergy_wh: 1)
     end
 
@@ -94,7 +94,7 @@ class ZeroExportTickJobTest < ActiveSupport::TestCase
 
   test "fresh low consumption is not overridden by a stale cached floor" do
     now = Time.at(1_000_000)
-    Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 20, aenergy_wh: 1)
+    Plugs::Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 20, aenergy_wh: 1)
     @cache.write(ConsumptionReader::FLOOR_CACHE_KEY, 200.0) # stale, high cached floor
     client = FakeClient.new
     run_job(client: client, state: healthy_state, now: now)
@@ -104,7 +104,7 @@ class ZeroExportTickJobTest < ActiveSupport::TestCase
   test "falls back to the floor when no fresh samples are available" do
     now = Time.at(1_000_000)
     # only a stale sample exists -> consumption unknown -> use floor (146)
-    Sample.create!(plug_id: "fridge", ts: now.to_i - 600, apower_w: 146, aenergy_wh: 1)
+    Plugs::Sample.create!(plug_id: "fridge", ts: now.to_i - 600, apower_w: 146, aenergy_wh: 1)
     client = FakeClient.new
     run_job(client: client, state: healthy_state, now: now)
     assert_equal [ [ :apply_power, 146, 10 ] ], client.calls
@@ -112,7 +112,7 @@ class ZeroExportTickJobTest < ActiveSupport::TestCase
 
   test "low soc entry writes the derated PV estimate" do
     now = Time.zone.local(2026, 6, 20, 12, 0, 0)
-    Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 386, aenergy_wh: 1)
+    Plugs::Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 386, aenergy_wh: 1)
     client = FakeClient.new
 
     run_job(client: client, state: state_with(soc: 10, pv: 100, temp: 30), now: now)
@@ -122,7 +122,7 @@ class ZeroExportTickJobTest < ActiveSupport::TestCase
 
   test "low soc trim corrects the next tick from the measured battery power" do
     now = Time.zone.local(2026, 6, 20, 12, 0, 0)
-    Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 386, aenergy_wh: 1)
+    Plugs::Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 386, aenergy_wh: 1)
 
     run_job(client: FakeClient.new, state: state_with(soc: 10, pv: 100), now: now) # entry: writes 85
     second = FakeClient.new
@@ -133,7 +133,7 @@ class ZeroExportTickJobTest < ActiveSupport::TestCase
 
   test "falling to low soc during thermal protection re-enters via the entry derate" do
     now = Time.zone.local(2026, 6, 20, 12, 0, 0)
-    Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 386, aenergy_wh: 1)
+    Plugs::Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 386, aenergy_wh: 1)
 
     # Hot battery at good SoC: protected follows the load (writes 386).
     run_job(client: FakeClient.new, state: state_with(soc: 55, pv: 700, temp: 45), now: now)
@@ -149,7 +149,7 @@ class ZeroExportTickJobTest < ActiveSupport::TestCase
 
   test "writes every tick even when the target is unchanged" do
     now = Time.zone.local(2026, 6, 20, 12, 0, 0)
-    Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 386, aenergy_wh: 1)
+    Plugs::Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 386, aenergy_wh: 1)
 
     run_job(client: FakeClient.new, state: state_with(soc: 55, pv: 100, temp: 30), now: now)
     second = FakeClient.new
@@ -161,7 +161,7 @@ class ZeroExportTickJobTest < ActiveSupport::TestCase
 
   test "low soc trim applies small corrections on the very next tick" do
     now = Time.zone.local(2026, 6, 20, 12, 0, 0)
-    Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 386, aenergy_wh: 1)
+    Plugs::Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 386, aenergy_wh: 1)
 
     run_job(client: FakeClient.new, state: state_with(soc: 10, pv: 100), now: now) # entry: writes 85
     second = FakeClient.new
@@ -172,7 +172,7 @@ class ZeroExportTickJobTest < ActiveSupport::TestCase
 
   test "hot battery clamps the whole target to 800W" do
     now = Time.zone.local(2026, 6, 20, 12, 0, 0)
-    Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 900, aenergy_wh: 1)
+    Plugs::Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 900, aenergy_wh: 1)
     client = FakeClient.new
 
     run_job(client: client, state: state_with(soc: 55, pv: 700, temp: 45), now: now)
@@ -182,7 +182,7 @@ class ZeroExportTickJobTest < ActiveSupport::TestCase
 
   test "crossing the thermal cutoff writes a zero target" do
     now = Time.zone.local(2026, 6, 20, 12, 0, 0)
-    Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 900, aenergy_wh: 1)
+    Plugs::Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 900, aenergy_wh: 1)
 
     # Warm: the de-rating ceiling is ~40 W at 48.8 C, written as the target.
     run_job(client: FakeClient.new, state: state_with(soc: 55, pv: 700, temp: 48.8), now: now)
@@ -208,7 +208,7 @@ class ZeroExportTickJobTest < ActiveSupport::TestCase
 
   test "a single failure does not raise, relinquish control, or advance the loop state" do
     now = Time.zone.local(2026, 6, 20, 12, 0, 0)
-    Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 250, aenergy_wh: 1)
+    Plugs::Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 250, aenergy_wh: 1)
     client = FakeClient.new(fail: true)
     assert_nothing_raised { run_job(client: client, state: healthy_state, now: now) }
     refute_includes client.calls, :release
@@ -217,7 +217,7 @@ class ZeroExportTickJobTest < ActiveSupport::TestCase
 
   test "relinquishes remote control after repeated failures" do
     now = Time.zone.local(2026, 6, 20, 12, 0, 0)
-    Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 250, aenergy_wh: 1)
+    Plugs::Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 250, aenergy_wh: 1)
     client = FakeClient.new(fail: true)
     3.times { run_job(client: client, state: healthy_state, now: now) }
     assert_equal 1, client.calls.count(:release)
@@ -225,7 +225,7 @@ class ZeroExportTickJobTest < ActiveSupport::TestCase
 
   test "a success resets the failure counter" do
     now = Time.zone.local(2026, 6, 20, 12, 0, 0)
-    Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 250, aenergy_wh: 1)
+    Plugs::Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 250, aenergy_wh: 1)
 
     failing = FakeClient.new(fail: true)
     2.times { run_job(client: failing, state: healthy_state, now: now) }   # 2 consecutive failures
@@ -240,7 +240,7 @@ class ZeroExportTickJobTest < ActiveSupport::TestCase
   test "no-op when runtime auto regulation is paused even if config permits control" do
     SolakonControlState.current.pause_auto_regulation!
     now = Time.zone.local(2026, 6, 20, 12, 0, 0)
-    Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 250, aenergy_wh: 1)
+    Plugs::Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 250, aenergy_wh: 1)
     client = FakeClient.new
 
     run_job(client: client, state: healthy_state, now: now)

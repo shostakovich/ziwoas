@@ -10,7 +10,7 @@ class ConsumptionReaderTest < ActiveSupport::TestCase
   end
 
   setup do
-    Sample.delete_all
+    Plugs::Sample.delete_all
     @original_time_zone = Time.zone
     Time.zone = "Europe/Berlin"
   end
@@ -19,10 +19,10 @@ class ConsumptionReaderTest < ActiveSupport::TestCase
 
   test "current_consumption_w sums latest fresh consumer samples, ignores producer" do
     now = Time.at(1_000_000)
-    Sample.create!(plug_id: "fridge", ts: now.to_i - 10, apower_w: 100, aenergy_wh: 1)
-    Sample.create!(plug_id: "fridge", ts: now.to_i - 5,  apower_w: 120, aenergy_wh: 1) # latest wins
-    Sample.create!(plug_id: "tv",     ts: now.to_i - 5,  apower_w: 30,  aenergy_wh: 1)
-    Sample.create!(plug_id: "bkw",    ts: now.to_i - 5,  apower_w: 500, aenergy_wh: 1) # producer, ignored
+    Plugs::Sample.create!(plug_id: "fridge", ts: now.to_i - 10, apower_w: 100, aenergy_wh: 1)
+    Plugs::Sample.create!(plug_id: "fridge", ts: now.to_i - 5,  apower_w: 120, aenergy_wh: 1) # latest wins
+    Plugs::Sample.create!(plug_id: "tv",     ts: now.to_i - 5,  apower_w: 30,  aenergy_wh: 1)
+    Plugs::Sample.create!(plug_id: "bkw",    ts: now.to_i - 5,  apower_w: 500, aenergy_wh: 1) # producer, ignored
     reader = ConsumptionReader.new(plugs: plugs, now: now, offline_after_s: 120)
     assert_in_delta 150.0, reader.current_consumption_w
   end
@@ -30,19 +30,19 @@ class ConsumptionReaderTest < ActiveSupport::TestCase
   test "guaranteed_floor_w is the minimum 5-min total over 24h" do
     now = Time.at(1_000_000)
     # bucket A (low total = 100): -1000s
-    Sample.create!(plug_id: "fridge", ts: now.to_i - 1000, apower_w: 100, aenergy_wh: 1)
-    Sample.create!(plug_id: "tv",     ts: now.to_i - 1000, apower_w: 0,   aenergy_wh: 1)
+    Plugs::Sample.create!(plug_id: "fridge", ts: now.to_i - 1000, apower_w: 100, aenergy_wh: 1)
+    Plugs::Sample.create!(plug_id: "tv",     ts: now.to_i - 1000, apower_w: 0,   aenergy_wh: 1)
     # bucket B (high total = 300, 15 min later): -100s
-    Sample.create!(plug_id: "fridge", ts: now.to_i - 100,  apower_w: 200, aenergy_wh: 1)
-    Sample.create!(plug_id: "tv",     ts: now.to_i - 100,  apower_w: 100, aenergy_wh: 1)
+    Plugs::Sample.create!(plug_id: "fridge", ts: now.to_i - 100,  apower_w: 200, aenergy_wh: 1)
+    Plugs::Sample.create!(plug_id: "tv",     ts: now.to_i - 100,  apower_w: 100, aenergy_wh: 1)
     reader = ConsumptionReader.new(plugs: plugs, now: now)
     assert_in_delta 100.0, reader.guaranteed_floor_w
   end
 
   test "guaranteed_floor_w ignores samples older than 24h" do
     now = Time.at(1_000_000)
-    Sample.create!(plug_id: "fridge", ts: now.to_i - 100,    apower_w: 250, aenergy_wh: 1)
-    Sample.create!(plug_id: "fridge", ts: now.to_i - 90_000, apower_w: 10,  aenergy_wh: 1) # >24h
+    Plugs::Sample.create!(plug_id: "fridge", ts: now.to_i - 100,    apower_w: 250, aenergy_wh: 1)
+    Plugs::Sample.create!(plug_id: "fridge", ts: now.to_i - 90_000, apower_w: 10,  aenergy_wh: 1) # >24h
     reader = ConsumptionReader.new(plugs: plugs, now: now)
     assert_in_delta 250.0, reader.guaranteed_floor_w
   end
@@ -51,7 +51,7 @@ class ConsumptionReaderTest < ActiveSupport::TestCase
     now = Time.at(1_000_000)
     [ 120, 120, 800, 120, 120 ].each_with_index do |total, i|
       ts = now.to_i - (25 - i * 5).minutes
-      Sample.create!(plug_id: "fridge", ts: ts, apower_w: total, aenergy_wh: 1)
+      Plugs::Sample.create!(plug_id: "fridge", ts: ts, apower_w: total, aenergy_wh: 1)
     end
 
     reader = ConsumptionReader.new(plugs: plugs, now: now)
@@ -62,8 +62,8 @@ class ConsumptionReaderTest < ActiveSupport::TestCase
     now = Time.at(1_000_000)
     [ [ 60, 40 ], [ 80, 40 ], [ 200, 400 ], [ 70, 50 ], [ 90, 30 ] ].each_with_index do |(fridge, tv), i|
       ts = now.to_i - (25 - i * 5).minutes
-      Sample.create!(plug_id: "fridge", ts: ts, apower_w: fridge, aenergy_wh: 1)
-      Sample.create!(plug_id: "tv",     ts: ts, apower_w: tv,     aenergy_wh: 1)
+      Plugs::Sample.create!(plug_id: "fridge", ts: ts, apower_w: fridge, aenergy_wh: 1)
+      Plugs::Sample.create!(plug_id: "tv",     ts: ts, apower_w: tv,     aenergy_wh: 1)
     end
 
     reader = ConsumptionReader.new(plugs: plugs, now: now)
@@ -72,7 +72,7 @@ class ConsumptionReaderTest < ActiveSupport::TestCase
 
   test "median_consumption_w returns nil when the 30-minute window is empty" do
     now = Time.at(1_000_000)
-    Sample.create!(plug_id: "fridge", ts: now.to_i - 31.minutes, apower_w: 120, aenergy_wh: 1)
+    Plugs::Sample.create!(plug_id: "fridge", ts: now.to_i - 31.minutes, apower_w: 120, aenergy_wh: 1)
 
     reader = ConsumptionReader.new(plugs: plugs, now: now)
     assert_nil reader.median_consumption_w
@@ -80,7 +80,7 @@ class ConsumptionReaderTest < ActiveSupport::TestCase
 
   test "load_estimate memoizes floor and median in Rails.cache but reads live consumption fresh" do
     now = Time.at(1_000_000)
-    Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 120, aenergy_wh: 1)
+    Plugs::Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 120, aenergy_wh: 1)
     cache = ActiveSupport::Cache::MemoryStore.new
     cache.write(ConsumptionReader::FLOOR_CACHE_KEY, 85.0)
     cache.write(ConsumptionReader::MEDIAN_CACHE_KEY, 240.0)
@@ -96,7 +96,7 @@ class ConsumptionReaderTest < ActiveSupport::TestCase
 
   test "load_estimate computes and stores floor and median on a cold cache" do
     now = Time.zone.local(2026, 6, 20, 12, 0, 0)
-    Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 120, aenergy_wh: 1)
+    Plugs::Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 120, aenergy_wh: 1)
     cache = ActiveSupport::Cache::MemoryStore.new
 
     estimate = Rails.stub(:cache, cache) do

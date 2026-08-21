@@ -7,14 +7,14 @@ class SwitchWindowsController < ApplicationController
   FORM = "switches/window_form".freeze
 
   def new
-    render_editor(SwitchRules::WindowForm.new)
+    render_editor(Switching::Rules::WindowForm.new)
   end
 
   def create
-    result = SwitchRules::Contracts::Window.new.call(window_attrs)
+    result = Switching::Rules::Contracts::Window.new.call(window_attrs)
     return render_editor(form_from(result), status: :unprocessable_entity) if result.failure?
 
-    SwitchRules::SaveWindow.call(plug_id: @plug.id, attrs: result.to_h)
+    Switching::Rules::SaveWindow.call(plug_id: @plug.id, attrs: result.to_h)
     render_entries
   end
 
@@ -23,16 +23,16 @@ class SwitchWindowsController < ApplicationController
     return head :not_found unless pair
 
     on, off = pair
-    render_row(SwitchRules::WindowForm.for_group(group_id, on: on, off: off), group_id)
+    render_row(Switching::Rules::WindowForm.for_group(group_id, on: on, off: off), group_id)
   end
 
   def update
     return head :not_found unless halves
 
-    result = SwitchRules::Contracts::Window.new.call(window_attrs)
+    result = Switching::Rules::Contracts::Window.new.call(window_attrs)
     return render_row(form_from(result, group_id: group_id), group_id, status: :unprocessable_entity) if result.failure?
 
-    SwitchRules::SaveWindow.call(plug_id: @plug.id, attrs: result.to_h, group_id: group_id)
+    Switching::Rules::SaveWindow.call(plug_id: @plug.id, attrs: result.to_h, group_id: group_id)
     render_entries
   end
 
@@ -41,7 +41,7 @@ class SwitchWindowsController < ApplicationController
   def enabled
     return head :not_found if group_rules.empty?
 
-    SwitchRules::SetEnabled.call(group_rules, enabled: ActiveModel::Type::Boolean.new.cast(params[:enabled]))
+    Switching::Rules::SetEnabled.call(group_rules, enabled: ActiveModel::Type::Boolean.new.cast(params[:enabled]))
     render_entries
   end
 
@@ -55,7 +55,7 @@ class SwitchWindowsController < ApplicationController
   private
 
   def group_id    = params[:group_id]
-  def group_rules = SwitchRule.where(plug_id: @plug.id, group_id: group_id)
+  def group_rules = Switching::Rule.where(plug_id: @plug.id, group_id: group_id)
 
   # Both halves or nothing: a group that lost one is shown and edited as an
   # Einzelschaltung, which is the other controller's business.
@@ -74,7 +74,7 @@ class SwitchWindowsController < ApplicationController
   # Whatever the contract could still coerce comes back, so the human does not
   # lose the fields that were fine.
   def form_from(result, group_id: nil)
-    SwitchRules::WindowForm.new(
+    Switching::Rules::WindowForm.new(
       group_id: group_id, errors: error_messages(result),
       **result.to_h.slice(:on_at_time, :off_at_time, :days).compact
     )

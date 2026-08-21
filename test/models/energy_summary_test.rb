@@ -2,8 +2,8 @@ require "test_helper"
 
 class EnergySummaryTest < ActiveSupport::TestCase
   setup do
-    Sample.delete_all
-    DailyTotal.delete_all
+    Plugs::Sample.delete_all
+    Plugs::DailyTotal.delete_all
 
     plug_bkw    = ConfigLoader::PlugCfg.new(id: "bkw",    name: "BKW",   role: :producer, driver: :shelly, ain: nil)
     plug_fridge = ConfigLoader::PlugCfg.new(id: "fridge", name: "Fridge", role: :consumer, driver: :shelly, ain: nil)
@@ -22,10 +22,10 @@ class EnergySummaryTest < ActiveSupport::TestCase
     tz       = TZInfo::Timezone.get("Europe/Berlin")
     midnight = tz.local_to_utc(Time.parse("#{Date.today} 00:00:00")).to_i
 
-    Sample.create!(plug_id: "bkw",    ts: midnight + 60,   apower_w: 0, aenergy_wh: 0.0)
-    Sample.create!(plug_id: "bkw",    ts: midnight + 3600, apower_w: 0, aenergy_wh: 1000.0)
-    Sample.create!(plug_id: "fridge", ts: midnight + 60,   apower_w: 0, aenergy_wh: 500.0)
-    Sample.create!(plug_id: "fridge", ts: midnight + 3600, apower_w: 0, aenergy_wh: 600.0)
+    Plugs::Sample.create!(plug_id: "bkw",    ts: midnight + 60,   apower_w: 0, aenergy_wh: 0.0)
+    Plugs::Sample.create!(plug_id: "bkw",    ts: midnight + 3600, apower_w: 0, aenergy_wh: 1000.0)
+    Plugs::Sample.create!(plug_id: "fridge", ts: midnight + 60,   apower_w: 0, aenergy_wh: 500.0)
+    Plugs::Sample.create!(plug_id: "fridge", ts: midnight + 3600, apower_w: 0, aenergy_wh: 600.0)
 
     summary = EnergySummary.new(config: @config).compute_today
 
@@ -47,9 +47,9 @@ class EnergySummaryTest < ActiveSupport::TestCase
     tz       = TZInfo::Timezone.get("Europe/Berlin")
     midnight = tz.local_to_utc(Time.parse("#{Date.today} 00:00:00")).to_i
 
-    Sample.create!(plug_id: "fridge", ts: midnight + 60,  apower_w: 0, aenergy_wh: 424_440.0)
-    Sample.create!(plug_id: "fridge", ts: midnight + 120, apower_w: 0, aenergy_wh: 0.0)
-    Sample.create!(plug_id: "fridge", ts: midnight + 180, apower_w: 0, aenergy_wh: 50.0)
+    Plugs::Sample.create!(plug_id: "fridge", ts: midnight + 60,  apower_w: 0, aenergy_wh: 424_440.0)
+    Plugs::Sample.create!(plug_id: "fridge", ts: midnight + 120, apower_w: 0, aenergy_wh: 0.0)
+    Plugs::Sample.create!(plug_id: "fridge", ts: midnight + 180, apower_w: 0, aenergy_wh: 50.0)
 
     summary = EnergySummary.new(config: @config).compute_today
 
@@ -60,10 +60,10 @@ class EnergySummaryTest < ActiveSupport::TestCase
     tz       = TZInfo::Timezone.get("Europe/Berlin")
     midnight = tz.local_to_utc(Time.parse("#{Date.today} 00:00:00")).to_i
 
-    Sample.create!(plug_id: "fridge", ts: midnight + 60, apower_w: 145, aenergy_wh: 425_000.0)
-    Sample.create!(plug_id: "fridge", ts: midnight + 65, apower_w: 145, aenergy_wh: 0.0)
-    Sample.create!(plug_id: "fridge", ts: midnight + 70, apower_w: 145, aenergy_wh: 425_005.0)
-    Sample.create!(plug_id: "fridge", ts: midnight + 75, apower_w: 145, aenergy_wh: 425_010.0)
+    Plugs::Sample.create!(plug_id: "fridge", ts: midnight + 60, apower_w: 145, aenergy_wh: 425_000.0)
+    Plugs::Sample.create!(plug_id: "fridge", ts: midnight + 65, apower_w: 145, aenergy_wh: 0.0)
+    Plugs::Sample.create!(plug_id: "fridge", ts: midnight + 70, apower_w: 145, aenergy_wh: 425_005.0)
+    Plugs::Sample.create!(plug_id: "fridge", ts: midnight + 75, apower_w: 145, aenergy_wh: 425_010.0)
 
     summary = EnergySummary.new(config: @config).compute_today
 
@@ -76,8 +76,8 @@ class EnergySummaryTest < ActiveSupport::TestCase
 
     # 1h of producer 200W and consumer 100W simultaneously
     (0..3600).step(60) do |dt|
-      Sample.create!(plug_id: "bkw",    ts: midnight + dt, apower_w: 200.0, aenergy_wh: 200.0 * dt / 3600.0)
-      Sample.create!(plug_id: "fridge", ts: midnight + dt, apower_w: 100.0, aenergy_wh: 100.0 * dt / 3600.0)
+      Plugs::Sample.create!(plug_id: "bkw",    ts: midnight + dt, apower_w: 200.0, aenergy_wh: 200.0 * dt / 3600.0)
+      Plugs::Sample.create!(plug_id: "fridge", ts: midnight + dt, apower_w: 100.0, aenergy_wh: 100.0 * dt / 3600.0)
     end
 
     summary = EnergySummary.new(config: @config).compute_today

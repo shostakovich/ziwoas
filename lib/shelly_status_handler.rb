@@ -1,7 +1,7 @@
 require "json"
 
 # Consumes Shelly (and Fritz-via-bridge) status messages on the shellies topic:
-# inserts Sample rows, records PlugState output, and batches a "dashboard"
+# inserts Plugs::Sample rows, records Plugs::State output, and batches a "dashboard"
 # ActionCable broadcast. Extracted verbatim from the former MqttSubscriber.
 class ShellyStatusHandler
   BROADCAST_INTERVAL = 5
@@ -34,8 +34,8 @@ class ShellyStatusHandler
     output     = data["output"]
     ts         = @clock.call.to_i
 
-    Sample.create!(plug_id: plug_id, ts: ts, apower_w: apower_w, aenergy_wh: aenergy_wh)
-    PlugState.record_output(plug_id, output) unless output.nil?
+    Plugs::Sample.create!(plug_id: plug_id, ts: ts, apower_w: apower_w, aenergy_wh: aenergy_wh)
+    Plugs::State.record_output(plug_id, output) unless output.nil?
     @logger.debug("ShellyStatusHandler: #{plug_id} #{apower_w} W / #{aenergy_wh} Wh")
     accumulate(plug, ts, apower_w, aenergy_wh, output)
   rescue ActiveRecord::RecordNotUnique
@@ -58,7 +58,7 @@ class ShellyStatusHandler
       @buckets[plug.id] = { bucket_ts: bucket_ts, sum: apower_w, count: 1 }
       bucket = @buckets[plug.id]
     end
-    avg_power_w = PowerSeries.signed_watts(bucket[:sum].to_f / bucket[:count], role: plug.role)
+    avg_power_w = Plugs::Roster.signed_watts(bucket[:sum].to_f / bucket[:count], role: plug.role)
 
     @pending[plug.id] = {
       plug_id: plug.id, name: plug.name, role: plug.role.to_s, online: true,

@@ -7,36 +7,36 @@ class SwitchRulesController < ApplicationController
   FORM = "switches/single_form".freeze
 
   def new
-    render_editor(SwitchRules::SingleForm.new)
+    render_editor(Switching::Rules::SingleForm.new)
   end
 
   def create
-    result = SwitchRules::Contracts::Single.new.call(single_attrs)
+    result = Switching::Rules::Contracts::Single.new.call(single_attrs)
     return render_editor(form_from(result), status: :unprocessable_entity) if result.failure?
 
-    SwitchRules::SaveSingle.call(plug_id: @plug.id, attrs: result.to_h)
+    Switching::Rules::SaveSingle.call(plug_id: @plug.id, attrs: result.to_h)
     render_entries
   end
 
   def edit
     rule = find_rule or return head :not_found
-    render_row(SwitchRules::SingleForm.for_rule(rule), rule.id)
+    render_row(Switching::Rules::SingleForm.for_rule(rule), rule.id)
   end
 
   def update
     rule = find_rule or return head :not_found
 
-    result = SwitchRules::Contracts::Single.new.call(single_attrs)
+    result = Switching::Rules::Contracts::Single.new.call(single_attrs)
     return render_row(form_from(result, id: rule.id), rule.id, status: :unprocessable_entity) if result.failure?
 
-    SwitchRules::SaveSingle.call(plug_id: @plug.id, attrs: result.to_h, rule: rule)
+    Switching::Rules::SaveSingle.call(plug_id: @plug.id, attrs: result.to_h, rule: rule)
     render_entries
   end
 
   def enabled
     return head :not_found if rule_scope.empty?
 
-    SwitchRules::SetEnabled.call(rule_scope, enabled: ActiveModel::Type::Boolean.new.cast(params[:enabled]))
+    Switching::Rules::SetEnabled.call(rule_scope, enabled: ActiveModel::Type::Boolean.new.cast(params[:enabled]))
     render_entries
   end
 
@@ -53,8 +53,8 @@ class SwitchRulesController < ApplicationController
   # shows it as an Einzelschaltung, and that row's buttons point at these routes.
   def rule_scope
     @rule_scope ||= begin
-      scope = SwitchRule.where(plug_id: @plug.id, id: params[:id])
-      scope.first&.half_of_a_window? ? SwitchRule.none : scope
+      scope = Switching::Rule.where(plug_id: @plug.id, id: params[:id])
+      scope.first&.half_of_a_window? ? Switching::Rule.none : scope
     end
   end
 
@@ -66,7 +66,7 @@ class SwitchRulesController < ApplicationController
   end
 
   def form_from(result, id: nil)
-    SwitchRules::SingleForm.new(
+    Switching::Rules::SingleForm.new(
       id: id, errors: error_messages(result),
       **result.to_h.slice(:at_minute_time, :action, :days).compact
     )

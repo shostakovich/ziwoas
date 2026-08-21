@@ -2,8 +2,8 @@ require "test_helper"
 
 class EnergyReportTest < ActiveSupport::TestCase
   setup do
-    DailyTotal.delete_all
-    Sample5min.delete_all
+    Plugs::DailyTotal.delete_all
+    Plugs::Sample5min.delete_all
     DailyEnergySummary.delete_all
 
     @plugs = [
@@ -93,8 +93,8 @@ class EnergyReportTest < ActiveSupport::TestCase
   test "builds chart payloads for daily and selected day detail" do
     seed_daily("2026-04-10", pv: 2000, desk: 700, washer: 300)
     start_ts = Time.utc(2026, 4, 10, 0, 0, 0).to_i
-    Sample5min.create!(plug_id: "pv", bucket_ts: start_ts, avg_power_w: 120, energy_delta_wh: 10, sample_count: 2)
-    Sample5min.create!(plug_id: "desk", bucket_ts: start_ts, avg_power_w: 30, energy_delta_wh: 3, sample_count: 2)
+    Plugs::Sample5min.create!(plug_id: "pv", bucket_ts: start_ts, avg_power_w: 120, energy_delta_wh: 10, sample_count: 2)
+    Plugs::Sample5min.create!(plug_id: "desk", bucket_ts: start_ts, avg_power_w: 30, energy_delta_wh: 3, sample_count: 2)
 
     report = EnergyReport.new(
       params: { start_date: "2026-04-10", end_date: "2026-04-10", selected_date: "2026-04-10" },
@@ -115,8 +115,8 @@ class EnergyReportTest < ActiveSupport::TestCase
     seed_daily("2026-04-11", pv: 3000, desk: 800, washer: 400)
     day_one_ts = Time.utc(2026, 4, 10, 0, 0, 0).to_i
     day_two_ts = Time.utc(2026, 4, 11, 0, 0, 0).to_i
-    Sample5min.create!(plug_id: "pv", bucket_ts: day_one_ts, avg_power_w: 120, energy_delta_wh: 10, sample_count: 2)
-    Sample5min.create!(plug_id: "pv", bucket_ts: day_two_ts, avg_power_w: 220, energy_delta_wh: 18, sample_count: 2)
+    Plugs::Sample5min.create!(plug_id: "pv", bucket_ts: day_one_ts, avg_power_w: 120, energy_delta_wh: 10, sample_count: 2)
+    Plugs::Sample5min.create!(plug_id: "pv", bucket_ts: day_two_ts, avg_power_w: 220, energy_delta_wh: 18, sample_count: 2)
 
     report = EnergyReport.new(
       params: { start_date: "2026-04-10", end_date: "2026-04-11" },
@@ -172,9 +172,9 @@ class EnergyReportTest < ActiveSupport::TestCase
   end
 
   test "summary includes self-consumption and ratios from daily_energy_summary" do
-    DailyTotal.create!(plug_id: "pv",     date: "2026-04-10", energy_wh: 2000)
-    DailyTotal.create!(plug_id: "desk",   date: "2026-04-10", energy_wh: 700)
-    DailyTotal.create!(plug_id: "washer", date: "2026-04-10", energy_wh: 300)
+    Plugs::DailyTotal.create!(plug_id: "pv",     date: "2026-04-10", energy_wh: 2000)
+    Plugs::DailyTotal.create!(plug_id: "desk",   date: "2026-04-10", energy_wh: 700)
+    Plugs::DailyTotal.create!(plug_id: "washer", date: "2026-04-10", energy_wh: 300)
     DailyEnergySummary.create!(
       date: "2026-04-10",
       produced_wh: 2000.0,
@@ -201,7 +201,7 @@ class EnergyReportTest < ActiveSupport::TestCase
       consumed_wh: 0.0,
       self_consumed_wh: 0.0
     )
-    DailyTotal.create!(plug_id: "pv", date: "2026-04-10", energy_wh: 0)
+    Plugs::DailyTotal.create!(plug_id: "pv", date: "2026-04-10", energy_wh: 0)
 
     report = EnergyReport.new(
       params: { start_date: "2026-04-10", end_date: "2026-04-10" },
@@ -213,8 +213,8 @@ class EnergyReportTest < ActiveSupport::TestCase
   end
 
   test "chart payload includes per-day ratios with nulls for gaps" do
-    DailyTotal.create!(plug_id: "pv", date: "2026-04-10", energy_wh: 2000)
-    DailyTotal.create!(plug_id: "pv", date: "2026-04-11", energy_wh: 2000)
+    Plugs::DailyTotal.create!(plug_id: "pv", date: "2026-04-10", energy_wh: 2000)
+    Plugs::DailyTotal.create!(plug_id: "pv", date: "2026-04-11", energy_wh: 2000)
     DailyEnergySummary.create!(date: "2026-04-10", produced_wh: 2000.0, consumed_wh: 1000.0, self_consumed_wh: 500.0)
     # 2026-04-11 has no daily_energy_summary row -> gap
 
@@ -233,8 +233,8 @@ class EnergyReportTest < ActiveSupport::TestCase
   end
 
   test "summary excludes days without daily_energy_summary from totals" do
-    DailyTotal.create!(plug_id: "pv", date: "2026-04-10", energy_wh: 2000)
-    DailyTotal.create!(plug_id: "pv", date: "2026-04-11", energy_wh: 2000)
+    Plugs::DailyTotal.create!(plug_id: "pv", date: "2026-04-10", energy_wh: 2000)
+    Plugs::DailyTotal.create!(plug_id: "pv", date: "2026-04-11", energy_wh: 2000)
     DailyEnergySummary.create!(date: "2026-04-10", produced_wh: 2000.0, consumed_wh: 1000.0, self_consumed_wh: 500.0)
 
     report = EnergyReport.new(
@@ -250,9 +250,9 @@ class EnergyReportTest < ActiveSupport::TestCase
   private
 
   def seed_daily(date, pv:, desk:, washer:)
-    DailyTotal.create!(plug_id: "pv",     date: date, energy_wh: pv)
-    DailyTotal.create!(plug_id: "desk",   date: date, energy_wh: desk)
-    DailyTotal.create!(plug_id: "washer", date: date, energy_wh: washer)
+    Plugs::DailyTotal.create!(plug_id: "pv",     date: date, energy_wh: pv)
+    Plugs::DailyTotal.create!(plug_id: "desk",   date: date, energy_wh: desk)
+    Plugs::DailyTotal.create!(plug_id: "washer", date: date, energy_wh: washer)
     DailyEnergySummary.create!(
       date:             date,
       produced_wh:      pv,
