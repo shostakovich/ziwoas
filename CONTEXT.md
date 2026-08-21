@@ -96,3 +96,12 @@ The average power of a set of plugs over a run of equal time buckets. Producers 
 downstream sees production as a positive magnitude.
 _German UI_: Messreihe
 _Avoid_: Bucket list, Time series, Samples
+
+**Live state**:
+The household as it is right now, as one answer: every plug resolved against the **offline**
+deadline, the inverter's newest reading against the **stale** deadline, and the energy flow that
+follows from both. `LiveState`, the only thing `/api/live` renders. It owns neither deadline — it
+is the one place they are applied together, which is why a plug the flow dropped is offline in the
+same payload.
+_German UI_: Live-Bild
+_Avoid_: Live data, Snapshot, Live payload, Realtime state

@@ -18,6 +18,8 @@ module Plugs
 
     def offline? = age.nil? || age > @offline_after_s
 
+    def reported_watt = offline? ? nil : watt
+
     def age
       return nil if last_seen_at.nil?
       @now - last_seen_at
