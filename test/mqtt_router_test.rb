@@ -5,6 +5,8 @@ require "logger"
 require "stringio"
 
 class MqttRouterTest < ActiveSupport::TestCase
+  cover "MqttRouter*"
+
   class FakeHandler
     attr_reader :handled
     def initialize(prefix) = (@prefix = prefix; @handled = [])
@@ -34,5 +36,25 @@ class MqttRouterTest < ActiveSupport::TestCase
     router = MqttRouter.new(mqtt_config: @mqtt_config, handlers: [ FakeHandler.new("shellies") ], logger: @logger)
     router.dispatch("unknown/topic", "x")
     assert_match(/no handler/i, @log_io.string)
+  end
+
+  # A bare `rescue => e` lets MQTT::Exception escape and kills the thread for good.
+  test "run retries after a protocol exception instead of letting the thread die" do
+    router   = MqttRouter.new(mqtt_config: @mqtt_config, handlers: [ FakeHandler.new("shellies") ], logger: @logger)
+    attempts = 0
+    router.define_singleton_method(:sleep) { |_seconds| nil }
+
+    MQTT::Client.stub(:new, ->(*, **) { attempts += 1; raise MQTT::ProtocolException, "bad packet" }) do
+      thread          = Thread.new { router.run }
+      thread.report_on_exception = false
+      deadline        = Time.now + 5
+      sleep(0.01) while attempts < 2 && thread.alive? && Time.now < deadline
+      router.stop!
+
+      assert_operator attempts, :>=, 2, "expected a second connect attempt, not a dead router thread"
+      assert thread.join(5), "expected run to return after stop!"
+    end
+
+    assert_match(/MQTT::ProtocolException: bad packet/, @log_io.string)
   end
 end
