@@ -135,51 +135,36 @@ class EnergyReport
     (start_date..end_date).map do |date|
       date_s = date.to_s
       summary = summaries[date_s]
-      if summary
-        {
-          date: date_s,
-          produced_kwh:      kwh(summary.produced_wh),
-          consumed_kwh:      kwh(summary.consumed_wh),
-          self_consumed_kwh: kwh(summary.self_consumed_wh),
-          balance_kwh:       kwh(summary.produced_wh - summary.consumed_wh),
-          covered:           true
-        }
-      else
-        {
-          date: date_s,
-          produced_kwh:      0.0,
-          consumed_kwh:      0.0,
-          self_consumed_kwh: 0.0,
-          balance_kwh:       0.0,
-          covered:           false
-        }
-      end
+      next DailyPoint.uncovered(date_s) if summary.nil?
+
+      DailyPoint.new(
+        date:          date_s,
+        produced:      Energy.wh(summary.produced_wh),
+        consumed:      Energy.wh(summary.consumed_wh),
+        self_consumed: Energy.wh(summary.self_consumed_wh),
+        covered:       true
+      )
     end
   end
 
   def summarize(daily_points)
-    covered_points = daily_points.select { |p| p.fetch(:covered) }
-    produced       = covered_points.sum { |p| p.fetch(:produced_kwh) }
-    consumed       = covered_points.sum { |p| p.fetch(:consumed_kwh) }
-    self_consumed  = covered_points.sum { |p| p.fetch(:self_consumed_kwh) }
+    covered_points = daily_points.select(&:covered)
+    produced       = Energy.sum(covered_points.map(&:produced))
+    consumed       = Energy.sum(covered_points.map(&:consumed))
+    self_consumed  = Energy.sum(covered_points.map(&:self_consumed))
     days = covered_points.length
 
     {
-      produced_kwh:           produced.round(3),
-      consumed_kwh:           consumed.round(3),
-      self_consumed_kwh:      self_consumed.round(3),
-      savings_eur:            @savings_calculator.savings_eur(produced * 1000.0).round(2),
-      balance_kwh:            (produced - consumed).round(3),
+      produced_kwh:           produced.kwh.round(3),
+      consumed_kwh:           consumed.kwh.round(3),
+      self_consumed_kwh:      self_consumed.kwh.round(3),
+      savings_eur:            @savings_calculator.savings_eur(produced).round(2),
+      balance_kwh:            (produced - consumed).kwh.round(3),
       avg_produced_kwh:       average_kwh(produced, days),
       avg_consumed_kwh:       average_kwh(consumed, days),
-      autarky_ratio:          ratio(self_consumed, consumed),
-      self_consumption_ratio: ratio(self_consumed, produced)
+      autarky_ratio:          self_consumed.ratio_to(consumed).round(4),
+      self_consumption_ratio: self_consumed.ratio_to(produced).round(4)
     }
-  end
-
-  def ratio(numerator, denominator)
-    return 0.0 if denominator.nil? || denominator.zero?
-    (numerator.to_f / denominator).round(4)
   end
 
   def empty_summary
@@ -196,10 +181,10 @@ class EnergyReport
     }
   end
 
-  def average_kwh(total_kwh, days)
+  def average_kwh(total, days)
     return 0.0 if days.zero?
 
-    (total_kwh / days).round(3)
+    (total / days).kwh.round(3)
   end
 
   def ranking(rows, role)
@@ -212,15 +197,11 @@ class EnergyReport
           plug_id: plug_id,
           name: plug.name,
           role: role.to_s,
-          kwh: kwh(plug_rows.sum(&:energy_wh))
+          kwh: Energy.wh(plug_rows.sum(&:energy_wh)).kwh.round(3)
         }
       end
       .sort_by { |row| -row.fetch(:kwh) }
   end
 
   def plug_role(plug_id) = @roster.role_of(plug_id)
-
-  def kwh(wh)
-    (wh.to_f / 1000.0).round(3)
-  end
 end

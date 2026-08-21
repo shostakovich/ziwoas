@@ -22,31 +22,28 @@ class EnergyReport
 
     def daily_chart_payload(daily_points)
       {
-        labels: daily_points.map { |point| Date.iso8601(point.fetch(:date)).strftime("%d.%m.") },
-        produced_kwh: daily_points.map { |point| point.fetch(:produced_kwh) },
-        consumed_kwh: daily_points.map { |point| point.fetch(:consumed_kwh) },
-        balance_kwh: daily_points.map { |point| point.fetch(:balance_kwh) },
-        consumer_series: consumer_daily_series(daily_points.map { |point| point.fetch(:date) }),
+        labels: daily_points.map { |point| Date.iso8601(point.date).strftime("%d.%m.") },
+        produced_kwh: daily_points.map { |point| point.produced.kwh.round(3) },
+        consumed_kwh: daily_points.map { |point| point.consumed.kwh.round(3) },
+        balance_kwh: daily_points.map { |point| point.balance.kwh.round(3) },
+        consumer_series: consumer_daily_series(daily_points.map(&:date)),
         ratios: daily_points.map { |point| ratio_point(point) }
       }
     end
 
     def ratio_point(point)
-      if point.fetch(:covered)
+      if point.covered
         {
-          date: point.fetch(:date),
-          autarky_pct:          ratio_pct(point.fetch(:self_consumed_kwh), point.fetch(:consumed_kwh)),
-          self_consumption_pct: ratio_pct(point.fetch(:self_consumed_kwh), point.fetch(:produced_kwh))
+          date: point.date,
+          autarky_pct:          pct(point.self_consumed.ratio_to(point.consumed)),
+          self_consumption_pct: pct(point.self_consumed.ratio_to(point.produced))
         }
       else
-        { date: point.fetch(:date), autarky_pct: nil, self_consumption_pct: nil }
+        { date: point.date, autarky_pct: nil, self_consumption_pct: nil }
       end
     end
 
-    def ratio_pct(numerator, denominator)
-      return 0.0 if denominator.nil? || denominator.zero?
-      ((numerator.to_f / denominator) * 100).round(1)
-    end
+    def pct(ratio) = (ratio * 100).round(1)
 
     def consumer_daily_series(labels)
       @roster
@@ -58,7 +55,7 @@ class EnergyReport
             name: plug.name,
             data: labels.map do |date|
               row = rows_by_date[date]
-              row ? kwh(row.energy_wh) : 0.0
+              row ? Energy.wh(row.energy_wh).kwh.round(3) : 0.0
             end
           }
         end
@@ -203,10 +200,6 @@ class EnergyReport
 
     def hour_bucket_for(ts)
       ts - (ts % 3600)
-    end
-
-    def kwh(wh)
-      (wh.to_f / 1000.0).round(3)
     end
   end
 end

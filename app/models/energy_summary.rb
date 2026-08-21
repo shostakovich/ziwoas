@@ -1,7 +1,7 @@
 class EnergySummary
   MAX_PLAUSIBLE_W = EnergyDeltas::MAX_PLAUSIBLE_W
 
-  attr_reader :produced_wh, :consumed_wh, :self_consumed_wh, :savings_eur, :date
+  attr_reader :produced, :consumed, :self_consumed, :savings_eur, :date
 
   def initialize(config:)
     @config     = config
@@ -11,24 +11,20 @@ class EnergySummary
 
   def compute_today
     start_ts, end_ts, today = today_bounds_utc
-    @produced_wh      = energy_delta_wh(producer_ids, start_ts, end_ts)
-    @consumed_wh      = energy_delta_wh(consumer_ids, start_ts, end_ts)
-    @self_consumed_wh = today_power_series(start_ts, end_ts)
-                          .self_consumed_wh(produced_wh: @produced_wh, consumed_wh: @consumed_wh)
-    @savings_eur      = @calculator.savings_eur(@produced_wh)
-    @date             = today.to_s
+    @produced      = Energy.wh(energy_delta_wh(producer_ids, start_ts, end_ts))
+    @consumed      = Energy.wh(energy_delta_wh(consumer_ids, start_ts, end_ts))
+    @self_consumed = Energy.wh(
+      today_power_series(start_ts, end_ts)
+        .self_consumed_wh(produced_wh: @produced.wh, consumed_wh: @consumed.wh)
+    )
+    @savings_eur   = @calculator.savings_eur(@produced)
+    @date          = today.to_s
     self
   end
 
-  def autarky_ratio
-    return 0.0 if @consumed_wh.nil? || @consumed_wh.zero?
-    @self_consumed_wh / @consumed_wh
-  end
+  def autarky_ratio = @self_consumed.ratio_to(@consumed)
 
-  def self_consumption_ratio
-    return 0.0 if @produced_wh.nil? || @produced_wh.zero?
-    @self_consumed_wh / @produced_wh
-  end
+  def self_consumption_ratio = @self_consumed.ratio_to(@produced)
 
   private
 

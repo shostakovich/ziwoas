@@ -1,6 +1,8 @@
 require "test_helper"
 
 class EnergyReportTest < ActiveSupport::TestCase
+  cover "EnergyReport*"
+
   setup do
     Plugs::DailyTotal.delete_all
     Plugs::Sample5min.delete_all
@@ -88,6 +90,17 @@ class EnergyReportTest < ActiveSupport::TestCase
     assert_equal [ "Waschmaschine", "Schreibtisch" ], report.consumer_ranking.map { |row| row.fetch(:name) }
     assert_in_delta 5.0, report.producer_ranking.first.fetch(:kwh)
     assert_in_delta 1.2, report.consumer_ranking.second.fetch(:kwh)
+  end
+
+  test "ranking rows carry the plug id, the role label and a precisely rounded kwh total" do
+    Plugs::DailyTotal.create!(plug_id: "pv", date: "2026-04-10", energy_wh: 1234.5678)
+
+    report = EnergyReport.new(params: {}, plugs: @plugs).build
+
+    row = report.producer_ranking.first
+    assert_equal "pv", row.fetch(:plug_id)
+    assert_equal "producer", row.fetch(:role)
+    assert_in_delta 1.235, row.fetch(:kwh), 1e-9
   end
 
   test "builds chart payloads for daily and selected day detail" do
@@ -245,6 +258,55 @@ class EnergyReportTest < ActiveSupport::TestCase
     assert_in_delta 2.0, report.summary.fetch(:produced_kwh)
     assert_in_delta 1.0, report.summary.fetch(:consumed_kwh)
     assert_in_delta 0.5, report.summary.fetch(:self_consumed_kwh)
+    assert_in_delta 2.0, report.summary.fetch(:avg_produced_kwh)
+    assert_in_delta 1.0, report.summary.fetch(:avg_consumed_kwh)
+  end
+
+  test "averages are zero when no day in the range has a daily energy summary" do
+    Plugs::DailyTotal.create!(plug_id: "pv", date: "2026-04-10", energy_wh: 500.0)
+
+    report = EnergyReport.new(
+      params: { start_date: "2026-04-10", end_date: "2026-04-10" },
+      plugs: @plugs
+    ).build
+
+    assert_equal 0.0, report.summary.fetch(:avg_produced_kwh)
+    assert_equal 0.0, report.summary.fetch(:avg_consumed_kwh)
+  end
+
+  test "summary rounds derived kwh and ratio fields to their declared precision" do
+    Plugs::DailyTotal.create!(plug_id: "pv", date: "2026-04-10", energy_wh: 4567.891)
+    DailyEnergySummary.create!(
+      date:             "2026-04-10",
+      produced_wh:      4567.891,
+      consumed_wh:      2345.6789,
+      self_consumed_wh: 1234.5678
+    )
+
+    report = EnergyReport.new(
+      params: { start_date: "2026-04-10", end_date: "2026-04-10" },
+      plugs: @plugs
+    ).build
+
+    summary = report.summary
+    assert_in_delta 2.346,  summary.fetch(:consumed_kwh),           1e-9
+    assert_in_delta 1.235,  summary.fetch(:self_consumed_kwh),      1e-9
+    assert_in_delta 2.222,  summary.fetch(:balance_kwh),            1e-9
+    assert_in_delta 4.568,  summary.fetch(:avg_produced_kwh),       1e-9
+    assert_in_delta 2.346,  summary.fetch(:avg_consumed_kwh),       1e-9
+    assert_in_delta 0.5263, summary.fetch(:autarky_ratio),          1e-9
+    assert_in_delta 0.2703, summary.fetch(:self_consumption_ratio), 1e-9
+  end
+
+  test "totals are summed in watt-hours, not from rounded kilowatt-hours" do
+    # Each day rounds down to 0.100 kWh on its own; summing the rounded days would
+    # lose 3.5 Wh and drop the savings a whole cent.
+    7.times { |i| seed_daily((Date.new(2026, 4, 1) + i).to_s, pv: 100.4999, desk: 0.0, washer: 0.0) }
+
+    report = EnergyReport.new(params: {}, plugs: @plugs).build
+
+    assert_in_delta 0.703, report.summary.fetch(:produced_kwh), 1e-9
+    assert_in_delta 0.23,  report.summary.fetch(:savings_eur),  1e-9
   end
 
   private
