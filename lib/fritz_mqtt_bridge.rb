@@ -3,13 +3,16 @@ require "json"
 require "fritz_dect_client"
 
 class FritzMqttBridge
+  MAX_BACKOFF_SECONDS = 60
+
   def initialize(fritz_client:, plug:, mqtt_config:, fritz_poll_cfg:, logger:,
-                 mqtt_factory: nil)
+                 mqtt_factory: nil, backoff_seconds: 1)
     @fritz_client   = fritz_client
     @plug           = plug
     @mqtt_config    = mqtt_config
     @fritz_poll_cfg = fritz_poll_cfg
     @logger         = logger
+    @backoff_start  = backoff_seconds
     @stopping       = false
     @last_apower_w  = 0.0
     @mqtt_factory   = mqtt_factory || -> {
@@ -18,14 +21,18 @@ class FritzMqttBridge
   end
 
   def run
-    mqtt = @mqtt_factory.call
-    mqtt.connect
+    @backoff = @backoff_start
     until @stopping
-      poll_and_publish(mqtt)
-      sleep_interruptible(interval)
+      begin
+        connect_and_poll
+      rescue MQTT::Exception, StandardError => e
+        # MQTT::Exception inherits from ::Exception (not StandardError), so both
+        # branches are needed to survive broker drops and network errors alike.
+        @logger.error("FritzMqttBridge #{@plug.id}: #{e.class}: #{e.message}")
+        sleep_interruptible(@backoff) unless @stopping
+        @backoff = [ @backoff * 2, MAX_BACKOFF_SECONDS ].min
+      end
     end
-  ensure
-    begin; mqtt&.disconnect; rescue StandardError; nil; end
   end
 
   def stop!
@@ -48,6 +55,18 @@ class FritzMqttBridge
   end
 
   private
+
+  def connect_and_poll
+    mqtt = @mqtt_factory.call
+    mqtt.connect
+    @backoff = @backoff_start
+    until @stopping
+      poll_and_publish(mqtt)
+      sleep_interruptible(interval)
+    end
+  ensure
+    begin; mqtt&.disconnect; rescue StandardError; nil; end
+  end
 
   def sleep_interruptible(seconds)
     deadline = Time.now + seconds
