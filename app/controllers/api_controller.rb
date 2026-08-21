@@ -51,6 +51,7 @@ class ApiController < ApplicationController
         name:         plug.name,
         role:         plug.role,
         online:       !measurement.offline?,
+        stale:        measurement.stale?,
         apower_w:     measurement.offline? ? nil : measurement.watt,
         last_seen_ts: measurement.last_seen_at&.to_i
       }

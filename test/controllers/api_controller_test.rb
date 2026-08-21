@@ -105,6 +105,16 @@ class ApiControllerTest < ActionDispatch::IntegrationTest
       energy_flow = response.parsed_body["energy_flow"]
       assert_in_delta 120.0, energy_flow["home_w"]      # only the fresh desk plug, heatpump dropped
       assert_in_delta(-140.0, energy_flow["grid_w"])    # 120 - 260
+
+      # The heatpump is too old to count towards home_w but has not gone quiet
+      # long enough to be offline. Both facts travel, so nothing downstream can
+      # sum a plug the flow already dropped.
+      heatpump = response.parsed_body["plugs"].find { |p| p["id"] == "heatpump" }
+      assert_equal true, heatpump["online"]
+      assert_equal true, heatpump["stale"]
+
+      desk = response.parsed_body["plugs"].find { |p| p["id"] == "desk" }
+      assert_equal false, desk["stale"]
     end
   end
 
@@ -275,7 +285,8 @@ class ApiControllerTest < ActionDispatch::IntegrationTest
         unit_id: 1,
         monitoring_enabled: monitoring_enabled,
         control_enabled: false,
-        stale_after_s: stale_after_s
+        stale_after_s: stale_after_s,
+        load_stale_after_s: stale_after_s
       )
     )
   end
