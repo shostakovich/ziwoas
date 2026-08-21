@@ -5,7 +5,6 @@
 class ConsumptionReader
   FLOOR_WINDOW_S         = 24 * 60 * 60
   MEDIAN_WINDOW_S        = 30 * 60
-  BUCKET_S               = 300
 
   FLOOR_CACHE_KEY  = "zero_export.floor_w".freeze
   MEDIAN_CACHE_KEY = "zero_export.median_w".freeze
@@ -13,7 +12,8 @@ class ConsumptionReader
   MEDIAN_CACHE_TTL = 60.seconds
 
   def initialize(plugs:, now: Time.now, offline_after_s: PlugMeasurement::OFFLINE_AFTER_S)
-    @consumer_ids    = plugs.select { |p| p.role == :consumer }.map(&:id)
+    @consumer_plugs  = plugs.select { |p| p.role == :consumer }
+    @consumer_ids    = @consumer_plugs.map(&:id)
     @now             = now
     @offline_after_s = offline_after_s
   end
@@ -33,22 +33,15 @@ class ConsumptionReader
   # Minimum total 5-min consumption over the last 24h. Computed from raw
   # samples because samples_5min is only built daily by the Aggregator.
   def guaranteed_floor_w
-    return 0.0 if @consumer_ids.empty?
-
-    totals = Hash.new(0.0)
-    bucket_avg_rows(@now.to_i - FLOOR_WINDOW_S).each { |r| totals[r.bucket_ts] += r.avg_w.to_f }
-    totals.empty? ? 0.0 : totals.values.min
+    totals = consumption_per_bucket_w(FLOOR_WINDOW_S)
+    totals.empty? ? 0.0 : totals.min
   end
 
   # Median total 5-min consumption over the last 30 minutes. This caps short
   # live-load spikes while still letting current_consumption_w clamp downward
   # immediately after a load drop.
   def median_consumption_w
-    return nil if @consumer_ids.empty?
-
-    totals = Hash.new(0.0)
-    bucket_avg_rows(@now.to_i - MEDIAN_WINDOW_S).each { |r| totals[r.bucket_ts] += r.avg_w.to_f }
-    values = totals.values.sort
+    values = consumption_per_bucket_w(MEDIAN_WINDOW_S).sort
     return nil if values.empty?
 
     mid = values.length / 2
@@ -57,13 +50,12 @@ class ConsumptionReader
 
   private
 
-  # Per-plug, per-5-min-bucket average power since `cutoff` (unix seconds).
-  # Used by guaranteed_floor_w (24h min) and median_consumption_w.
-  def bucket_avg_rows(cutoff)
-    Sample
-      .where(plug_id: @consumer_ids)
-      .where("ts >= ?", cutoff)
-      .group("plug_id", Arel.sql("(ts / #{BUCKET_S}) * #{BUCKET_S}"))
-      .select("plug_id", Arel.sql("(ts / #{BUCKET_S}) * #{BUCKET_S} AS bucket_ts"), Arel.sql("AVG(apower_w) AS avg_w"))
+  def consumption_per_bucket_w(window_s)
+    PowerSeries.from_samples(
+      plugs: @consumer_plugs,
+      start_ts: @now.to_i - window_s,
+      end_ts: @now.to_i + 1,
+      bucket_seconds: PowerSeries::SAMPLE_5MIN_BUCKET_SECONDS
+    ).each_bucket.map(&:consumption_w)
   end
 end

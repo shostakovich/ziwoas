@@ -1,17 +1,15 @@
 class ApiController < ApplicationController
+  TODAY_BUCKET_SECONDS = 60
+
   def today
     end_ts   = Time.now.to_i
     start_ts = ((end_ts - 86_400) / 3600) * 3600
 
-    rows_by_plug = Sample.where(ts: start_ts..(end_ts - 1))
-                         .group(:plug_id, Arel.sql("(ts / 60) * 60"))
-                         .select("plug_id, (ts / 60) * 60 AS minute_ts, AVG(apower_w) AS avg_power_w")
-                         .group_by(&:plug_id)
+    series = PowerSeries.from_samples(plugs: app_config.plugs, start_ts: start_ts, end_ts: end_ts,
+                                      bucket_seconds: TODAY_BUCKET_SECONDS)
 
     @series = app_config.plugs.map do |plug|
-      points = (rows_by_plug[plug.id] || [])
-        .map { |r| { ts: r.minute_ts, avg_power_w: r.avg_power_w.to_f } }
-        .sort_by { |p| p[:ts] }
+      points = series.signed_watts_by_ts(plug.id).map { |ts, watt| { ts: ts, avg_power_w: watt } }
       { plug_id: plug.id, name: plug.name, role: plug.role, points: points }
     end
   end

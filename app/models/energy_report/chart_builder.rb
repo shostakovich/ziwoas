@@ -76,18 +76,15 @@ class EnergyReport
       rows = @store.sample_rows(start_ts, end_ts)
       timestamps = rows.map(&:bucket_ts).uniq.sort
       multi_day = start_date != end_date
+      power_series = PowerSeries.from_5min(rows, plugs: @plugs)
 
       series = @plugs.map do |plug|
-        plug_rows = rows.select { |row| row.plug_id == plug.id }
-        points_by_ts = plug_rows.index_by(&:bucket_ts)
+        watts_by_ts = power_series.signed_watts_by_ts(plug.id)
         {
           plug_id: plug.id,
           name: plug.name,
           role: plug.role.to_s,
-          data: timestamps.map do |ts|
-            row = points_by_ts[ts]
-            row ? watt_value(row.avg_power_w, plug.role) : nil
-          end
+          data: timestamps.map { |ts| watts_by_ts[ts]&.round(1) }
         }
       end.select { |series_row| series_row.fetch(:data).any?(&:present?) }
 
@@ -110,7 +107,7 @@ class EnergyReport
           role: plug.role.to_s,
           data: dates.map do |date|
             row = rows_by_plug_and_date[[ plug.id, date.to_s ]]&.first
-            row ? average_power_w(row.energy_wh, plug.role) : nil
+            row ? average_power_w(row.energy_wh) : nil
           end
         }
       end.select { |series_row| series_row.fetch(:data).any?(&:present?) }
@@ -132,17 +129,8 @@ class EnergyReport
       local_time.strftime(multi_day ? "%d.%m. %H:%M" : "%H:%M")
     end
 
-    def plug_role(plug_id)
-      @plug_by_id ||= @plugs.index_by(&:id)
-      @plug_by_id[plug_id]&.role
-    end
-
-    def watt_value(value, role)
-      role == :producer ? value.abs.round(1) : value.round(1)
-    end
-
-    def average_power_w(energy_wh, role)
-      watt_value(energy_wh.to_f / 24.0, role)
+    def average_power_w(energy_wh)
+      (energy_wh.to_f / 24.0).round(1)
     end
 
     def attach_daily_weather!(daily_payload, start_date, end_date)

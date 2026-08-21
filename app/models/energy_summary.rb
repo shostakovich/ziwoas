@@ -1,6 +1,5 @@
 class EnergySummary
   MAX_PLAUSIBLE_W = EnergyDeltas::MAX_PLAUSIBLE_W
-  BUCKET_SECONDS = 300
 
   attr_reader :produced_wh, :consumed_wh, :self_consumed_wh, :savings_eur, :date
 
@@ -14,7 +13,8 @@ class EnergySummary
     start_ts, end_ts, today = today_bounds_utc
     @produced_wh      = energy_delta_wh(producer_ids, start_ts, end_ts)
     @consumed_wh      = energy_delta_wh(consumer_ids, start_ts, end_ts)
-    @self_consumed_wh = [ compute_self_consumed_wh(start_ts, end_ts), @produced_wh, @consumed_wh ].min
+    @self_consumed_wh = today_power_series(start_ts, end_ts)
+                          .self_consumed_wh(produced_wh: @produced_wh, consumed_wh: @consumed_wh)
     @savings_eur      = @calculator.savings_eur(@produced_wh)
     @date             = today.to_s
     self
@@ -63,46 +63,12 @@ class EnergySummary
     rows.sum { |row| row["delta"] || 0 }.to_f
   end
 
-  def compute_self_consumed_wh(start_ts, end_ts)
-    plug_ids = @config.plugs.map(&:id)
-    return 0.0 if plug_ids.empty?
-
-    role_by_id = @config.plugs.each_with_object({}) { |p, h| h[p.id] = p.role }
-
-    # Self-consumption is the simultaneous power overlap. Computing it from
-    # cumulative-counter deltas would mis-state buckets where the plausibility
-    # cap zeroes one side's delta but apower_w stays real, so use bucketed
-    # average power directly. The caller clamps the result to the metered
-    # produced/consumed totals to keep the invariant.
-    rows = ActiveRecord::Base.connection.exec_query(
-      ActiveRecord::Base.sanitize_sql_array([
-        <<~SQL, plug_ids, start_ts, end_ts
-          SELECT plug_id,
-                 (ts / #{BUCKET_SECONDS}) * #{BUCKET_SECONDS} AS bucket_ts,
-                 AVG(apower_w) AS avg_w
-            FROM samples
-           WHERE plug_id IN (?) AND ts >= ? AND ts < ?
-           GROUP BY plug_id, bucket_ts
-        SQL
-      ])
+  def today_power_series(start_ts, end_ts)
+    PowerSeries.from_samples(
+      plugs: @config.plugs,
+      start_ts: start_ts,
+      end_ts: end_ts,
+      bucket_seconds: PowerSeries::SAMPLE_5MIN_BUCKET_SECONDS
     )
-
-    bucket_h = BUCKET_SECONDS / 3600.0
-    by_bucket = rows.group_by { |r| r["bucket_ts"] }
-    total = 0.0
-    by_bucket.each_value do |bucket_rows|
-      prod_w = 0.0
-      cons_w = 0.0
-      bucket_rows.each do |row|
-        case role_by_id[row["plug_id"]]
-        # Shelly reports producer apower_w with opposite sign (matches the
-        # .abs convention used by the dashboard hero / energy-flow widgets).
-        when :producer then prod_w += row["avg_w"].to_f.abs
-        when :consumer then cons_w += row["avg_w"].to_f
-        end
-      end
-      total += [ prod_w, cons_w ].min * bucket_h
-    end
-    total
   end
 end

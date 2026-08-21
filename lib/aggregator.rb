@@ -27,7 +27,7 @@ class Aggregator
       sql_5min = EnergyDeltas.cte + <<~SQL
         INSERT INTO samples_5min (plug_id, bucket_ts, avg_power_w, energy_delta_wh, sample_count)
         SELECT plug_id,
-               (ts / 300) * 300 AS bucket_ts,
+               #{PowerSeries.bucket_ts_sql(PowerSeries::SAMPLE_5MIN_BUCKET_SECONDS)} AS bucket_ts,
                AVG(apower_w) AS avg_power_w,
                SUM(delta_wh) AS energy_delta_wh,
                COUNT(*) AS sample_count

@@ -97,6 +97,25 @@ class ShellyStatusHandlerTest < ActiveSupport::TestCase
     end
   end
 
+  test "handle_message broadcasts producer avg_power_w as a positive magnitude" do
+    capture_broadcasts do |broadcasts|
+      @handler.handle("shellies/bkw/status/switch:0",
+                      status_payload(apower: -300.0, total: 1234.5))
+      producer = broadcasts.first.last[:plugs].first
+      assert_in_delta(-300.0, producer[:apower_w])
+      assert_in_delta 300.0,  producer[:avg_power_w]
+    end
+  end
+
+  test "handle_message leaves consumer avg_power_w signed" do
+    capture_broadcasts do |broadcasts|
+      @handler.handle("shellies/fridge/status/switch:0",
+                      status_payload(apower: -80.0, total: 1234.5))
+      consumer = broadcasts.first.last[:plugs].first
+      assert_in_delta(-80.0, consumer[:avg_power_w])
+    end
+  end
+
   test "handle_message batches messages within the 5-second window" do
     capture_broadcasts do |broadcasts|
       @handler.handle("shellies/bkw/status/switch:0",
