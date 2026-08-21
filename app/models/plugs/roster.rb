@@ -14,8 +14,8 @@ module Plugs
 
     def initialize(plugs)
       @all         = plugs.to_a.freeze
-      @by_id       = @all.index_by(&:id).freeze
-      @by_role     = @all.group_by(&:role).freeze
+      @by_id       = @all.index_by(&:id)
+      @by_role     = @all.group_by(&:role)
     end
 
     attr_reader :all

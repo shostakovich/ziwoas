@@ -48,7 +48,7 @@ class PowerSeries
 
       ActiveRecord::Base.connection.exec_query(
         ActiveRecord::Base.sanitize_sql_array([ sql, plug_ids, start_ts, end_ts ])
-      ).map { |row| [ row["plug_id"], row["bucket_ts"], row["avg_power_w"] ] }
+      ).map { |row| [ row.fetch("plug_id"), row.fetch("bucket_ts"), row.fetch("avg_power_w") ] }
     end
   end
 
@@ -95,8 +95,8 @@ class PowerSeries
 
   def totals_by_ts
     @readings.each_with_object({}) do |(plug_id, ts, watt), totals|
-      totals[ts] ||= { production_w: 0.0, consumption_w: 0.0 }
-      totals[ts][@roster.bucket_key(plug_id)] += signed(plug_id, watt)
+      bucket = totals[ts] ||= { production_w: 0.0, consumption_w: 0.0 }
+      bucket[@roster.bucket_key(plug_id)] += signed(plug_id, watt)
     end
   end
 

@@ -1,6 +1,8 @@
 require "test_helper"
 
 class PowerSeriesTest < ActiveSupport::TestCase
+  cover "PowerSeries*"
+
   BUCKET_H = 5.0 / 60.0
 
   setup do
@@ -236,5 +238,42 @@ class PowerSeriesTest < ActiveSupport::TestCase
   test "bucket_ts_sql floors a timestamp to the bucket width" do
     assert_equal "(ts / 300) * 300", PowerSeries.bucket_ts_sql(300)
     assert_equal "(ts / 60) * 60",   PowerSeries.bucket_ts_sql(60)
+  end
+
+  test "bucket_ts_sql coerces a float bucket width to an integer" do
+    assert_equal "(ts / 300) * 300", PowerSeries.bucket_ts_sql(300.0)
+  end
+
+  test "bucket_seconds coerces a numeric string instead of erroring" do
+    series = PowerSeries.new(readings: [], plugs: @plugs, bucket_seconds: "300")
+
+    assert_in_delta 0.0, series.self_consumed_wh(produced_wh: 0.0, consumed_wh: 0.0)
+  end
+
+  test "normalize sorts buckets numerically even when bucket_ts arrives as a string" do
+    series = PowerSeries.new(
+      readings: [ [ "pv", "20", 100 ], [ "pv", "9", 100 ] ],
+      plugs: @plugs, bucket_seconds: 300
+    )
+
+    assert_equal [ 9, 20 ], series.each_bucket.map(&:ts)
+  end
+
+  test "normalize truncates a fractional bucket_ts string instead of raising" do
+    series = PowerSeries.new(readings: [ [ "pv", "20.9", 100 ] ], plugs: @plugs, bucket_seconds: 300)
+
+    assert_equal [ 20 ], series.each_bucket.map(&:ts)
+  end
+
+  test "normalize defaults a missing avg_power_w to zero instead of raising" do
+    series = PowerSeries.new(readings: [ [ "pv", 0, nil ] ], plugs: @plugs, bucket_seconds: 300)
+
+    assert_in_delta 0.0, series.each_bucket.first.production_w
+  end
+
+  test "normalize parses a malformed numeric avg_power_w string leniently" do
+    series = PowerSeries.new(readings: [ [ "pv", 0, "42.5abc" ] ], plugs: @plugs, bucket_seconds: 300)
+
+    assert_in_delta 42.5, series.each_bucket.first.production_w
   end
 end

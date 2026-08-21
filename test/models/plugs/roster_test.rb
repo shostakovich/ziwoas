@@ -1,6 +1,8 @@
 require "test_helper"
 
 class PlugRosterTest < ActiveSupport::TestCase
+  cover "Plugs::Roster*"
+
   def plug(id, role) = ConfigLoader::PlugCfg.new(id: id, name: id.upcase, role: role, driver: :shelly)
 
   def roster
@@ -47,10 +49,30 @@ class PlugRosterTest < ActiveSupport::TestCase
     assert_equal [ "bkw" ], Plugs::Roster.wrap([ plug("bkw", :producer) ]).ids
   end
 
+  test "wrap passes a subclass instance through unchanged, without touching it" do
+    sub_roster = Class.new(Plugs::Roster).new([ plug("bkw", :producer) ])
+
+    assert_same sub_roster, Plugs::Roster.wrap(sub_roster)
+  end
+
   test "empty roster" do
     empty = Plugs::Roster.new([])
 
     assert_empty empty.consumer_ids
     assert_empty empty.producers
+  end
+
+  test "normalizes any enumerable of plugs to an array" do
+    normalized = Plugs::Roster.new([ plug("bkw", :producer) ].each).all
+
+    assert_kind_of Array, normalized
+    assert_equal [ "bkw" ], normalized.map(&:id)
+  end
+
+  test "memoized collections are frozen against accidental mutation" do
+    assert roster.all.frozen?
+    assert roster.ids.frozen?
+    assert roster.consumer_ids.frozen?
+    assert roster.producer_ids.frozen?
   end
 end
