@@ -6,7 +6,7 @@ class SwitchesHelperTest < ActionView::TestCase
   def row(on: true, offline: false, last_command: nil, next_edge: nil, entries: [], last_seen_at: nil)
     now = Time.zone.local(2026, 6, 15, 19, 0)
     seen = offline ? last_seen_at : now - 1.minute
-    SwitchRow.new(
+    Switching::Row.new(
       plug: nil, entries: entries,
       state: Plugs::State.new(plug_id: "x", output: on, updated_at: now),
       last_command: last_command, next_edge: next_edge,
@@ -16,7 +16,7 @@ class SwitchesHelperTest < ActionView::TestCase
   end
 
   def edge(action, hour, min)
-    SwitchEdgeCalculator::Edge.new(plug_id: "x", action: action,
+    Switching::EdgeCalculator::Edge.new(plug_id: "x", action: action,
                                    at: Time.zone.local(2026, 6, 15, hour, min))
   end
 
@@ -30,11 +30,11 @@ class SwitchesHelperTest < ActionView::TestCase
   end
 
   def rule(action:, at_minute:, days:)
-    SwitchRule.new(plug_id: "x", action: action, at_minute: at_minute, days: days, group_id: "g")
+    Switching::Rule.new(plug_id: "x", action: action, at_minute: at_minute, days: days, group_id: "g")
   end
 
   test "entry_label combines weekdays and both times of a Zeitfenster" do
-    entry = SwitchRules::Schedule::Window.new(
+    entry = Switching::Rules::Schedule::Window.new(
       on:  rule(action: "on",  at_minute: 1080, days: [ 1, 2, 3, 4, 5 ]),
       off: rule(action: "off", at_minute: 1380, days: [ 1, 2, 3, 4, 5 ])
     )
@@ -44,7 +44,7 @@ class SwitchesHelperTest < ActionView::TestCase
   # The off half of a window past midnight carries Di–Sa; the label has to show
   # the Mo–Fr a human typed.
   test "entry_label reads a Zeitfenster past midnight back to the days that were typed" do
-    entry = SwitchRules::Schedule::Window.new(
+    entry = Switching::Rules::Schedule::Window.new(
       on:  rule(action: "on",  at_minute: 1320, days: [ 1, 2, 3, 4, 5 ]),
       off: rule(action: "off", at_minute: 360,  days: [ 2, 3, 4, 5, 6 ])
     )
@@ -52,14 +52,14 @@ class SwitchesHelperTest < ActionView::TestCase
   end
 
   test "entry_label of an Einzelschaltung names one time and no direction" do
-    entry = SwitchRules::Schedule::Single.new(
-      rule: rule(action: "off", at_minute: 1320, days: SwitchRule::ISO_DAYS)
+    entry = Switching::Rules::Schedule::Single.new(
+      rule: rule(action: "off", at_minute: 1320, days: Switching::Rule::ISO_DAYS)
     )
     assert_equal "täglich · 22:00", entry_label(entry)
   end
 
   test "status line shows state with source and time when command matches" do
-    cmd = SwitchCommand.new(plug_id: "x", action: "on", source: "schedule",
+    cmd = Switching::Command.new(plug_id: "x", action: "on", source: "schedule",
                             created_at: Time.zone.local(2026, 6, 15, 18, 0))
     line = switch_status_line(row(on: true, last_command: cmd, next_edge: edge(:off, 23, 0)))
     assert_equal "an seit 18:00 (Zeitplan) · nächste Schaltung: 23:00 → aus", line
@@ -71,7 +71,7 @@ class SwitchesHelperTest < ActionView::TestCase
   end
 
   test "status line shows bare state when command mismatches, and kein Zeitplan" do
-    cmd = SwitchCommand.new(plug_id: "x", action: "on", source: "manual",
+    cmd = Switching::Command.new(plug_id: "x", action: "on", source: "manual",
                             created_at: Time.zone.local(2026, 6, 15, 18, 0))
     assert_equal "aus · kein Zeitplan", switch_status_line(row(on: false, last_command: cmd))
   end

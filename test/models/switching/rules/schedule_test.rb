@@ -1,6 +1,6 @@
 require "test_helper"
 
-class SwitchRules::ScheduleTest < ActiveSupport::TestCase
+class Switching::Rules::ScheduleTest < ActiveSupport::TestCase
   # Plain structs, no Active Record: the folding is pure Ruby and the test says so.
   Rule = Struct.new(:id, :action, :at_minute, :days, :enabled, :group_id, keyword_init: true)
 
@@ -8,7 +8,7 @@ class SwitchRules::ScheduleTest < ActiveSupport::TestCase
     Rule.new({ id: 1, action: "on", at_minute: 600, days: [ 1 ], enabled: true, group_id: nil }.merge(overrides))
   end
 
-  def fold(rules) = SwitchRules::Schedule.fold(rules)
+  def fold(rules) = Switching::Rules::Schedule.fold(rules)
 
   # --- folding ----------------------------------------------------------
 
@@ -19,7 +19,7 @@ class SwitchRules::ScheduleTest < ActiveSupport::TestCase
     entries = fold([ on, off ])
 
     assert_equal 1, entries.size
-    assert_instance_of SwitchRules::Schedule::Window, entries.first
+    assert_instance_of Switching::Rules::Schedule::Window, entries.first
     assert_equal on,  entries.first.on
     assert_equal off, entries.first.off
     assert_equal "g", entries.first.id
@@ -39,7 +39,7 @@ class SwitchRules::ScheduleTest < ActiveSupport::TestCase
     entries = fold([ rule(id: 7, action: "off", at_minute: 1320) ])
 
     assert_equal 1, entries.size
-    assert_instance_of SwitchRules::Schedule::Single, entries.first
+    assert_instance_of Switching::Rules::Schedule::Single, entries.first
     assert_equal "off", entries.first.action
     assert_equal 7,     entries.first.id
   end
@@ -132,7 +132,7 @@ class SwitchRules::ScheduleTest < ActiveSupport::TestCase
   test "a group missing its partner folds into a plain single" do
     entries = fold([ rule(id: 1, action: "on", at_minute: 600, group_id: "lonely") ])
 
-    assert_instance_of SwitchRules::Schedule::Single, entries.first
+    assert_instance_of Switching::Rules::Schedule::Single, entries.first
     assert_equal 1, entries.first.id
   end
 
@@ -143,6 +143,6 @@ class SwitchRules::ScheduleTest < ActiveSupport::TestCase
     ])
 
     assert_equal [ 1, 2 ], entries.map(&:id)
-    assert entries.all? { |e| e.is_a?(SwitchRules::Schedule::Single) }
+    assert entries.all? { |e| e.is_a?(Switching::Rules::Schedule::Single) }
   end
 end

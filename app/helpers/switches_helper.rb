@@ -4,7 +4,7 @@ module SwitchesHelper
 
   def weekday_label(days)
     sorted = days.sort
-    return "täglich" if sorted == SwitchRule::ISO_DAYS
+    return "täglich" if sorted == Switching::Rule::ISO_DAYS
     sorted.slice_when { |a, b| b != a + 1 }
           .map { |group| group.size >= 2 ? "#{DAY_ABBR[group.first]}–#{DAY_ABBR[group.last]}" : DAY_ABBR[group.first] }
           .join(", ")

@@ -7,20 +7,20 @@ class Switches::ScheduleEntryComponentTest < ViewComponent::TestCase
   # Rules built in memory, with the ids the row and the button targets are made
   # of — nothing here needs a database.
   def rule(id:, action:, at_minute:, days: [ 1, 2, 3, 4, 5 ], enabled: true, group_id: nil)
-    SwitchRule.new(id: id, plug_id: "fridge", action: action, at_minute: at_minute,
+    Switching::Rule.new(id: id, plug_id: "fridge", action: action, at_minute: at_minute,
                    days: days, enabled: enabled, group_id: group_id)
   end
 
   def window(enabled: true, group_id: "g-1")
-    SwitchRules::Schedule::Window.new(
+    Switching::Rules::Schedule::Window.new(
       on:  rule(id: 1, action: "on",  at_minute: 600,  enabled: enabled, group_id: group_id),
       off: rule(id: 2, action: "off", at_minute: 1200, enabled: enabled, group_id: group_id)
     )
   end
 
   def single(action: "off", enabled: true)
-    SwitchRules::Schedule::Single.new(
-      rule: rule(id: 7, action: action, at_minute: 1320, days: SwitchRule::ISO_DAYS, enabled: enabled)
+    Switching::Rules::Schedule::Single.new(
+      rule: rule(id: 7, action: action, at_minute: 1320, days: Switching::Rule::ISO_DAYS, enabled: enabled)
     )
   end
 

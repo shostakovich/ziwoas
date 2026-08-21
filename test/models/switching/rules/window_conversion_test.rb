@@ -1,6 +1,6 @@
 require "test_helper"
 
-class SwitchRules::WindowConversionTest < ActiveSupport::TestCase
+class Switching::Rules::WindowConversionTest < ActiveSupport::TestCase
   TS = Time.zone.local(2026, 6, 1, 9, 30).freeze
 
   def window(**overrides)
@@ -31,7 +31,7 @@ class SwitchRules::WindowConversionTest < ActiveSupport::TestCase
   # --- split ------------------------------------------------------------
 
   test "a daytime window splits into an on and an off rule sharing a group" do
-    on, off = SwitchRules::WindowConversion.split(window)
+    on, off = Switching::Rules::WindowConversion.split(window)
 
     assert_equal "on",  on["action"]
     assert_equal "off", off["action"]
@@ -44,47 +44,47 @@ class SwitchRules::WindowConversionTest < ActiveSupport::TestCase
   end
 
   test "each window gets its own group" do
-    a, = SwitchRules::WindowConversion.split(window)
-    b, = SwitchRules::WindowConversion.split(window)
+    a, = Switching::Rules::WindowConversion.split(window)
+    b, = Switching::Rules::WindowConversion.split(window)
     refute_equal a["group_id"], b["group_id"]
   end
 
   test "a daytime window keeps the same days on both rules" do
-    on, off = SwitchRules::WindowConversion.split(window(days: [ 1, 2, 3, 4, 5 ]))
+    on, off = Switching::Rules::WindowConversion.split(window(days: [ 1, 2, 3, 4, 5 ]))
 
     assert_equal [ 1, 2, 3, 4, 5 ], on["days"]
     assert_equal [ 1, 2, 3, 4, 5 ], off["days"]
   end
 
   test "a midnight crosser shifts the off days one day forward" do
-    on, off = SwitchRules::WindowConversion.split(window(on_at: 1320, off_at: 360, days: [ 1, 2, 3, 4, 5 ]))
+    on, off = Switching::Rules::WindowConversion.split(window(on_at: 1320, off_at: 360, days: [ 1, 2, 3, 4, 5 ]))
 
     assert_equal [ 1, 2, 3, 4, 5 ], on["days"]   # Mo-Fr an
     assert_equal [ 2, 3, 4, 5, 6 ], off["days"]  # Di-Sa aus
   end
 
   test "a midnight crosser wraps Sunday around to Monday" do
-    _on, off = SwitchRules::WindowConversion.split(window(on_at: 1320, off_at: 360, days: [ 6, 7 ]))
+    _on, off = Switching::Rules::WindowConversion.split(window(on_at: 1320, off_at: 360, days: [ 6, 7 ]))
 
     assert_equal [ 1, 7 ], off["days"]           # Sa/So an -> So/Mo aus
   end
 
   test "a paused window splits into two paused rules" do
-    on, off = SwitchRules::WindowConversion.split(window(enabled: false))
+    on, off = Switching::Rules::WindowConversion.split(window(enabled: false))
 
     assert_equal false, on["enabled"]
     assert_equal false, off["enabled"]
   end
 
   test "an orphaned window migrates like any other" do
-    on, off = SwitchRules::WindowConversion.split(window(plug_id: "gone"))
+    on, off = Switching::Rules::WindowConversion.split(window(plug_id: "gone"))
 
     assert_equal "gone", on["plug_id"]
     assert_equal "gone", off["plug_id"]
   end
 
   test "both rules carry the timestamps of the window" do
-    on, off = SwitchRules::WindowConversion.split(window)
+    on, off = Switching::Rules::WindowConversion.split(window)
 
     assert_equal TS, on["created_at"]
     assert_equal TS, off["updated_at"]
@@ -93,7 +93,7 @@ class SwitchRules::WindowConversionTest < ActiveSupport::TestCase
   # --- join -------------------------------------------------------------
 
   test "a complete group joins back into one window" do
-    windows = SwitchRules::WindowConversion.join([
+    windows = Switching::Rules::WindowConversion.join([
       rule(action: "on",  at_minute: 360),
       rule(action: "off", at_minute: 1320)
     ])
@@ -108,7 +108,7 @@ class SwitchRules::WindowConversionTest < ActiveSupport::TestCase
   end
 
   test "a joined group takes the days of its on rule, undoing the shift" do
-    windows = SwitchRules::WindowConversion.join([
+    windows = Switching::Rules::WindowConversion.join([
       rule(action: "on",  at_minute: 1320, days: [ 1, 2, 3, 4, 5 ]),
       rule(action: "off", at_minute: 360,  days: [ 2, 3, 4, 5, 6 ])
     ])
@@ -117,7 +117,7 @@ class SwitchRules::WindowConversionTest < ActiveSupport::TestCase
   end
 
   test "a paused group joins into a paused window" do
-    windows = SwitchRules::WindowConversion.join([
+    windows = Switching::Rules::WindowConversion.join([
       rule(action: "on",  enabled: false),
       rule(action: "off", enabled: false)
     ])
@@ -126,7 +126,7 @@ class SwitchRules::WindowConversionTest < ActiveSupport::TestCase
   end
 
   test "a groupless single rule is dropped" do
-    windows = SwitchRules::WindowConversion.join([
+    windows = Switching::Rules::WindowConversion.join([
       rule(action: "off", group_id: nil),
       rule(action: "on",  group_id: nil)
     ])
@@ -135,13 +135,13 @@ class SwitchRules::WindowConversionTest < ActiveSupport::TestCase
   end
 
   test "a half group is dropped rather than joined" do
-    windows = SwitchRules::WindowConversion.join([ rule(action: "on", group_id: "lonely") ])
+    windows = Switching::Rules::WindowConversion.join([ rule(action: "on", group_id: "lonely") ])
 
     assert_empty windows
   end
 
   test "a group of two rules pointing the same way is dropped" do
-    windows = SwitchRules::WindowConversion.join([
+    windows = Switching::Rules::WindowConversion.join([
       rule(action: "on", group_id: "twice"),
       rule(action: "on", group_id: "twice", at_minute: 400)
     ])
@@ -150,7 +150,7 @@ class SwitchRules::WindowConversionTest < ActiveSupport::TestCase
   end
 
   test "groups are joined independently of each other" do
-    windows = SwitchRules::WindowConversion.join([
+    windows = Switching::Rules::WindowConversion.join([
       rule(group_id: "a", action: "on",  at_minute: 360),
       rule(group_id: "b", action: "on",  at_minute: 300, plug_id: "senseo"),
       rule(group_id: "a", action: "off", at_minute: 1320),
@@ -162,14 +162,14 @@ class SwitchRules::WindowConversionTest < ActiveSupport::TestCase
   end
 
   test "an empty list joins into no windows" do
-    assert_empty SwitchRules::WindowConversion.join([])
+    assert_empty Switching::Rules::WindowConversion.join([])
   end
 
   # --- round trip -------------------------------------------------------
 
   test "splitting and joining a midnight crosser returns the original window" do
     original = window(on_at: 1320, off_at: 360, days: [ 1, 2, 3, 4, 5 ])
-    rebuilt  = SwitchRules::WindowConversion.join(SwitchRules::WindowConversion.split(original)).first
+    rebuilt  = Switching::Rules::WindowConversion.join(Switching::Rules::WindowConversion.split(original)).first
 
     assert_equal original, rebuilt.slice(*original.keys)
   end

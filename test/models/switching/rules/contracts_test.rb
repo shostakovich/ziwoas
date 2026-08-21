@@ -1,14 +1,14 @@
 require "test_helper"
 
-class SwitchRules::ContractsTest < ActiveSupport::TestCase
+class Switching::Rules::ContractsTest < ActiveSupport::TestCase
   def window(**overrides)
-    SwitchRules::Contracts::Window.new.call(
+    Switching::Rules::Contracts::Window.new.call(
       { on_at_time: "10:00", off_at_time: "20:00", days: [ 1, 2 ] }.merge(overrides)
     )
   end
 
   def single(**overrides)
-    SwitchRules::Contracts::Single.new.call(
+    Switching::Rules::Contracts::Single.new.call(
       { at_minute_time: "22:00", action: "off", days: [ 1 ] }.merge(overrides)
     )
   end
@@ -29,19 +29,19 @@ class SwitchRules::ContractsTest < ActiveSupport::TestCase
   end
 
   test "Window rejects a malformed or missing time" do
-    assert_equal [ SwitchRules::Contracts::MESSAGES[:time] ], messages(window(on_at_time: "25:00"))
-    assert_equal [ SwitchRules::Contracts::MESSAGES[:time] ], messages(window(off_at_time: ""))
-    assert_equal [ SwitchRules::Contracts::MESSAGES[:time] ], messages(window(on_at_time: nil))
+    assert_equal [ Switching::Rules::Contracts::MESSAGES[:time] ], messages(window(on_at_time: "25:00"))
+    assert_equal [ Switching::Rules::Contracts::MESSAGES[:time] ], messages(window(off_at_time: ""))
+    assert_equal [ Switching::Rules::Contracts::MESSAGES[:time] ], messages(window(on_at_time: nil))
   end
 
   test "Window rejects two identical times — a window without duration" do
-    assert_equal [ SwitchRules::Contracts::MESSAGES[:same] ],
+    assert_equal [ Switching::Rules::Contracts::MESSAGES[:same] ],
                  messages(window(on_at_time: "10:00", off_at_time: "10:00"))
   end
 
   test "Window rejects an empty or out-of-range set of weekdays" do
-    assert_equal [ SwitchRules::Contracts::MESSAGES[:days] ], messages(window(days: []))
-    assert_equal [ SwitchRules::Contracts::MESSAGES[:days] ], messages(window(days: [ 8 ]))
+    assert_equal [ Switching::Rules::Contracts::MESSAGES[:days] ], messages(window(days: []))
+    assert_equal [ Switching::Rules::Contracts::MESSAGES[:days] ], messages(window(days: [ 8 ]))
   end
 
   # --- Single -----------------------------------------------------------
@@ -53,12 +53,12 @@ class SwitchRules::ContractsTest < ActiveSupport::TestCase
   end
 
   test "Single rejects a direction that is neither on nor off" do
-    assert_equal [ SwitchRules::Contracts::MESSAGES[:action] ], messages(single(action: "toggle"))
-    assert_equal [ SwitchRules::Contracts::MESSAGES[:action] ], messages(single(action: nil))
+    assert_equal [ Switching::Rules::Contracts::MESSAGES[:action] ], messages(single(action: "toggle"))
+    assert_equal [ Switching::Rules::Contracts::MESSAGES[:action] ], messages(single(action: nil))
   end
 
   test "Single rejects a malformed time and an empty set of weekdays" do
-    assert_equal [ SwitchRules::Contracts::MESSAGES[:time] ], messages(single(at_minute_time: "7:60"))
-    assert_equal [ SwitchRules::Contracts::MESSAGES[:days] ], messages(single(days: []))
+    assert_equal [ Switching::Rules::Contracts::MESSAGES[:time] ], messages(single(at_minute_time: "7:60"))
+    assert_equal [ Switching::Rules::Contracts::MESSAGES[:days] ], messages(single(days: []))
   end
 end

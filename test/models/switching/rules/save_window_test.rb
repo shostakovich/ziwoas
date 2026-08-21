@@ -1,23 +1,23 @@
 require "test_helper"
 
-class SwitchRules::SaveWindowTest < ActiveSupport::TestCase
-  setup { SwitchRule.delete_all }
+class Switching::Rules::SaveWindowTest < ActiveSupport::TestCase
+  setup { Switching::Rule.delete_all }
 
   def save(on: "10:00", off: "20:00", days: [ 1, 2, 3, 4, 5 ], group_id: nil)
-    SwitchRules::SaveWindow.call(
+    Switching::Rules::SaveWindow.call(
       plug_id: "fridge",
       attrs:   { on_at_time: on, off_at_time: off, days: days },
       group_id: group_id
     )
   end
 
-  def rules_of(group_id) = SwitchRule.where(group_id: group_id).order(:action)
+  def rules_of(group_id) = Switching::Rule.where(group_id: group_id).order(:action)
 
   test "writes exactly two rules of one group, one per direction" do
     group_id = save
 
     off, on = rules_of(group_id).to_a
-    assert_equal 2, SwitchRule.count
+    assert_equal 2, Switching::Rule.count
     assert_equal [ "fridge", "on",  600,  [ 1, 2, 3, 4, 5 ], true, group_id ],
                  [ on.plug_id, on.action, on.at_minute, on.days, on.enabled, on.group_id ]
     assert_equal [ "fridge", "off", 1200, [ 1, 2, 3, 4, 5 ], true, group_id ],
@@ -26,7 +26,7 @@ class SwitchRules::SaveWindowTest < ActiveSupport::TestCase
 
   test "two windows get two groups" do
     refute_equal save, save(on: "06:00", off: "08:00")
-    assert_equal 2, SwitchRule.where(action: "on").count
+    assert_equal 2, Switching::Rule.where(action: "on").count
   end
 
   test "an off time before the on time shifts the off weekdays one day forward" do
@@ -53,12 +53,12 @@ class SwitchRules::SaveWindowTest < ActiveSupport::TestCase
     assert_equal before, rules_of(group_id).pluck(:id)
     assert_equal [ 660, [ 6 ] ], [ on.at_minute, on.days ]
     assert_equal [ 1260, [ 6 ] ], [ off.at_minute, off.days ]
-    assert_equal 2, SwitchRule.count
+    assert_equal 2, Switching::Rule.count
   end
 
   test "editing a paused window leaves it paused" do
     group_id = save
-    SwitchRule.where(group_id: group_id).update_all(enabled: false)
+    Switching::Rule.where(group_id: group_id).update_all(enabled: false)
 
     save(on: "11:00", off: "21:00", group_id: group_id)
 
@@ -67,6 +67,6 @@ class SwitchRules::SaveWindowTest < ActiveSupport::TestCase
 
   test "a rejected half rolls the whole window back" do
     assert_raises(ActiveRecord::RecordInvalid) { save(off: "24:00") }
-    assert_equal 0, SwitchRule.count
+    assert_equal 0, Switching::Rule.count
   end
 end

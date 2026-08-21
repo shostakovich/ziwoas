@@ -1,14 +1,14 @@
 require "test_helper"
 
 class SwitchRulesControllerTest < ActionDispatch::IntegrationTest
-  setup { SwitchRule.delete_all }
+  setup { Switching::Rule.delete_all }
 
   def valid_params
     { switch_rule: { at_minute_time: "22:00", action: "off", days: [ "", "1", "2" ] } }
   end
 
   def a_single(at: "22:00", action: "off", days: [ 1 ])
-    SwitchRules::SaveSingle.call(plug_id: "fridge", attrs: { at_minute_time: at, action: action, days: days })
+    Switching::Rules::SaveSingle.call(plug_id: "fridge", attrs: { at_minute_time: at, action: action, days: days })
   end
 
   test "new renders the inline editor" do
@@ -22,7 +22,7 @@ class SwitchRulesControllerTest < ActionDispatch::IntegrationTest
     post "/plugs/fridge/switch_rules", params: valid_params, as: :turbo_stream
     assert_response :success
 
-    rule = SwitchRule.sole
+    rule = Switching::Rule.sole
     assert_equal [ "fridge", "off", 1320, [ 1, 2 ], true ],
                  [ rule.plug_id, rule.action, rule.at_minute, rule.days, rule.enabled ]
     assert_nil rule.group_id
@@ -38,7 +38,7 @@ class SwitchRulesControllerTest < ActionDispatch::IntegrationTest
          params: { switch_rule: { at_minute_time: "22:00", action: "toggle", days: [ "1" ] } },
          as: :turbo_stream
     assert_response :unprocessable_entity
-    assert_equal 0, SwitchRule.count
+    assert_equal 0, Switching::Rule.count
     assert_match "Richtung", @response.body
   end
 
@@ -47,7 +47,7 @@ class SwitchRulesControllerTest < ActionDispatch::IntegrationTest
          params: { switch_rule: { at_minute_time: "22:00", action: "off", days: [ "" ] } },
          as: :turbo_stream
     assert_response :unprocessable_entity
-    assert_equal 0, SwitchRule.count
+    assert_equal 0, Switching::Rule.count
     assert_match "Wochentag", @response.body
   end
 
@@ -76,7 +76,7 @@ class SwitchRulesControllerTest < ActionDispatch::IntegrationTest
 
     rule.reload
     assert_equal [ "on", 450, [ 6, 7 ] ], [ rule.action, rule.at_minute, rule.days ]
-    assert_equal 1, SwitchRule.count
+    assert_equal 1, Switching::Rule.count
     assert_match "sw_rules_fridge", @response.body
   end
 
@@ -117,7 +117,7 @@ class SwitchRulesControllerTest < ActionDispatch::IntegrationTest
     rule = a_single
     delete "/plugs/fridge/switch_rules/#{rule.id}", as: :turbo_stream
     assert_response :success
-    assert_equal 0, SwitchRule.count
+    assert_equal 0, Switching::Rule.count
     assert_match "sw_rules_fridge", @response.body
   end
 
@@ -136,7 +136,7 @@ class SwitchRulesControllerTest < ActionDispatch::IntegrationTest
   end
 
   def a_window
-    SwitchRules::SaveWindow.call(
+    Switching::Rules::SaveWindow.call(
       plug_id: "fridge", attrs: { on_at_time: "10:00", off_at_time: "20:00", days: [ 1 ] }
     )
   end
@@ -145,7 +145,7 @@ class SwitchRulesControllerTest < ActionDispatch::IntegrationTest
   # delete that half alone, while the card keeps folding the group into one row.
   test "one half of an intact Zeitfenster is not addressable as an Einzelschaltung" do
     a_window
-    half = SwitchRule.find_by(action: "off")
+    half = Switching::Rule.find_by(action: "off")
 
     get "/plugs/fridge/switch_rules/#{half.id}/edit", as: :turbo_stream
     assert_response :not_found
@@ -158,19 +158,19 @@ class SwitchRulesControllerTest < ActionDispatch::IntegrationTest
 
     delete "/plugs/fridge/switch_rules/#{half.id}", as: :turbo_stream
     assert_response :not_found
-    assert_equal 2, SwitchRule.count
+    assert_equal 2, Switching::Rule.count
   end
 
   test "the half of a group left over is editable as an Einzelschaltung" do
     group_id = a_window
-    SwitchRule.find_by(group_id: group_id, action: "on").destroy!
-    orphan = SwitchRule.sole
+    Switching::Rule.find_by(group_id: group_id, action: "on").destroy!
+    orphan = Switching::Rule.sole
 
     get "/plugs/fridge/switch_rules/#{orphan.id}/edit", as: :turbo_stream
     assert_response :success
 
     delete "/plugs/fridge/switch_rules/#{orphan.id}", as: :turbo_stream
     assert_response :success
-    assert_equal 0, SwitchRule.count
+    assert_equal 0, Switching::Rule.count
   end
 end

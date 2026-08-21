@@ -7,7 +7,7 @@ class SwitchEdgeCalculatorTest < ActiveSupport::TestCase
   def tz = Time.zone
 
   def calc(*rules)
-    SwitchEdgeCalculator.new(rules: rules)
+    Switching::EdgeCalculator.new(rules: rules)
   end
 
   def rule(plug_id: "lamp", action: :on, at_minute: 1080, days: [ 1 ], id: nil)

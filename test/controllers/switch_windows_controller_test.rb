@@ -1,17 +1,17 @@
 require "test_helper"
 
 class SwitchWindowsControllerTest < ActionDispatch::IntegrationTest
-  setup { SwitchRule.delete_all }
+  setup { Switching::Rule.delete_all }
 
   def valid_params
     { switch_window: { on_at_time: "18:00", off_at_time: "23:00", days: [ "", "1", "2" ] } }
   end
 
   def a_window(on: "18:00", off: "23:00", days: [ 1, 2, 3, 4, 5 ])
-    SwitchRules::SaveWindow.call(plug_id: "fridge", attrs: { on_at_time: on, off_at_time: off, days: days })
+    Switching::Rules::SaveWindow.call(plug_id: "fridge", attrs: { on_at_time: on, off_at_time: off, days: days })
   end
 
-  def rules_of(group_id) = SwitchRule.where(group_id: group_id).order(:action)
+  def rules_of(group_id) = Switching::Rule.where(group_id: group_id).order(:action)
 
   test "new renders the inline editor" do
     get "/plugs/fridge/switch_windows/new", as: :turbo_stream
@@ -24,7 +24,7 @@ class SwitchWindowsControllerTest < ActionDispatch::IntegrationTest
     post "/plugs/fridge/switch_windows", params: valid_params, as: :turbo_stream
     assert_response :success
 
-    off, on = SwitchRule.order(:action).to_a
+    off, on = Switching::Rule.order(:action).to_a
     assert_equal [ "fridge", 1080, [ 1, 2 ] ], [ on.plug_id, on.at_minute, on.days ]
     assert_equal [ "fridge", 1380, [ 1, 2 ] ], [ off.plug_id, off.at_minute, off.days ]
     assert_equal on.group_id, off.group_id
@@ -37,7 +37,7 @@ class SwitchWindowsControllerTest < ActionDispatch::IntegrationTest
          params: { switch_window: { on_at_time: "18:00", off_at_time: "23:00", days: [ "" ] } },
          as: :turbo_stream
     assert_response :unprocessable_entity
-    assert_equal 0, SwitchRule.count
+    assert_equal 0, Switching::Rule.count
     assert_match "Wochentag", @response.body
     assert_match "sw_editor_fridge", @response.body
   end
@@ -47,7 +47,7 @@ class SwitchWindowsControllerTest < ActionDispatch::IntegrationTest
          params: { switch_window: { on_at_time: "18:00", off_at_time: "18:00", days: [ "1" ] } },
          as: :turbo_stream
     assert_response :unprocessable_entity
-    assert_equal 0, SwitchRule.count
+    assert_equal 0, Switching::Rule.count
     assert_match "unterscheiden", @response.body
   end
 
@@ -101,7 +101,7 @@ class SwitchWindowsControllerTest < ActionDispatch::IntegrationTest
           as: :turbo_stream
     assert_response :unprocessable_entity
     assert_match "sw_entry_fridge_#{group_id}", @response.body
-    assert_equal [ 1080, 1380 ], SwitchRule.where(group_id: group_id).order(:at_minute).pluck(:at_minute)
+    assert_equal [ 1080, 1380 ], Switching::Rule.where(group_id: group_id).order(:at_minute).pluck(:at_minute)
   end
 
   test "the member route pauses and resumes both halves at once" do
@@ -121,13 +121,13 @@ class SwitchWindowsControllerTest < ActionDispatch::IntegrationTest
     group_id = a_window
     delete "/plugs/fridge/switch_windows/#{group_id}", as: :turbo_stream
     assert_response :success
-    assert_equal 0, SwitchRule.count
+    assert_equal 0, Switching::Rule.count
     assert_match "sw_rules_fridge", @response.body
   end
 
   test "a group that is not on this plug is not found" do
     group_id = a_window
-    SwitchRule.update_all(plug_id: "gone")
+    Switching::Rule.update_all(plug_id: "gone")
 
     get "/plugs/fridge/switch_windows/#{group_id}/edit", as: :turbo_stream
     assert_response :not_found
@@ -141,7 +141,7 @@ class SwitchWindowsControllerTest < ActionDispatch::IntegrationTest
 
   test "a group missing its off half is not editable as a window" do
     group_id = a_window
-    SwitchRule.find_by(action: "off").destroy!
+    Switching::Rule.find_by(action: "off").destroy!
 
     get "/plugs/fridge/switch_windows/#{group_id}/edit", as: :turbo_stream
     assert_response :not_found

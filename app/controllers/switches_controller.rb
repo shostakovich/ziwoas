@@ -4,7 +4,7 @@ class SwitchesController < ApplicationController
     # the database unseen and switch nothing, so a typo in the YAML costs no
     # data. When the plug comes back, so does its schedule.
     plugs = app_config.plugs.select(&:switchable)
-    @rows = SwitchRow.build_all(plugs)
+    @rows = Switching::Row.build_all(plugs)
     @light_snapshots = LightSnapshot.build_all(Light.order(:name))
   end
 end

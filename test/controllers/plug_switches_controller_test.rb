@@ -2,7 +2,7 @@ require "test_helper"
 
 class PlugSwitchesControllerTest < ActionDispatch::IntegrationTest
   setup do
-    SwitchCommand.delete_all
+    Switching::Command.delete_all
     @calls = []
     @recorder = ->(plug, action, source:, mqtt_config:) { @calls << [ plug.id, action, source ] }
   end
@@ -22,8 +22,8 @@ class PlugSwitchesControllerTest < ActionDispatch::IntegrationTest
     assert_response :unprocessable_entity
   end
 
-  test "valid switch calls PlugCommander and responds with a turbo stream" do
-    PlugCommander.stub :switch, @recorder do
+  test "valid switch calls Switching::Commander and responds with a turbo stream" do
+    Switching::Commander.stub :switch, @recorder do
       post "/plugs/fridge/switch", params: { state: "on" }, as: :turbo_stream
     end
     assert_response :success
@@ -33,13 +33,13 @@ class PlugSwitchesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "broker failure responds 503 with an error stream and writes no command" do
-    failing = ->(*, **) { raise PlugCommander::Error, "broker down" }
-    PlugCommander.stub :switch, failing do
+    failing = ->(*, **) { raise Switching::Commander::Error, "broker down" }
+    Switching::Commander.stub :switch, failing do
       post "/plugs/fridge/switch", params: { state: "on" }, as: :turbo_stream
     end
     assert_response :service_unavailable
     assert_match "sw_error_fridge", @response.body
     assert_match "nicht erreichbar", @response.body
-    assert_equal 0, SwitchCommand.count
+    assert_equal 0, Switching::Command.count
   end
 end

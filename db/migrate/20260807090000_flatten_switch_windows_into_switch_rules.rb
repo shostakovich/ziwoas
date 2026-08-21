@@ -22,7 +22,7 @@ class FlattenSwitchWindowsIntoSwitchRules < ActiveRecord::Migration[8.1]
     add_index :switch_rules, :plug_id
     add_index :switch_rules, [ :group_id, :action ], unique: true, where: "group_id IS NOT NULL"
 
-    rows = Window.order(:id).flat_map { |w| SwitchRules::WindowConversion.split(w.attributes) }
+    rows = Window.order(:id).flat_map { |w| Switching::Rules::WindowConversion.split(w.attributes) }
     Rule.insert_all(rows) if rows.any?
 
     drop_table :switch_windows
@@ -45,7 +45,7 @@ class FlattenSwitchWindowsIntoSwitchRules < ActiveRecord::Migration[8.1]
     add_index :switch_windows, :plug_id
 
     rules = Rule.order(:id).map(&:attributes)
-    rows  = SwitchRules::WindowConversion.join(rules)
+    rows  = Switching::Rules::WindowConversion.join(rules)
     Window.insert_all(rows) if rows.any?
 
     dropped = rules.size - rows.size * 2

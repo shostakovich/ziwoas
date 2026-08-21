@@ -18,4 +18,4 @@ human action wins.
   period. Switching late is more dangerous than not switching at all — a consumer may be
   in use.
 - The schedule cannot guarantee the actual device state. Whoever needs to rely on "it's
-  off now" must read `PlugState`, not the schedule.
+  off now" must read `Plugs::State`, not the schedule.
