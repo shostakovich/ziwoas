@@ -32,30 +32,6 @@ class ApiController < ApplicationController
   end
 
   def live
-    @now_ts = Time.now.to_i
-    config  = app_config
-    now     = Time.zone.at(@now_ts)
-    solakon = config.solakon
-
-    measurements = Plugs::Measurement.for(config.plugs.map(&:id), now: now)
-
-    @plugs = config.plugs.map do |plug|
-      measurement = measurements[plug.id]
-      {
-        id:           plug.id,
-        name:         plug.name,
-        role:         plug.role,
-        online:       !measurement.offline?,
-        apower_w:     measurement.offline? ? nil : measurement.watt,
-        last_seen_ts: measurement.last_seen_at&.to_i
-      }
-    end
-
-    consumer_ids = config.plug_roster.consumer_ids
-    reading = if solakon&.monitoring_enabled
-      SolakonReading.latest_fresh(now: now)
-    end
-
-    @energy_flow = EnergyFlow.build(home_w: measurements.total_w(consumer_ids), reading: reading)
+    @live = LiveState.for(config: app_config)
   end
 end

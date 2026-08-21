@@ -1,6 +1,8 @@
 require "test_helper"
 
 class PlugMeasurementTest < ActiveSupport::TestCase
+  cover "Plugs::Measurement*"
+
   setup { Plugs::Sample.delete_all }
 
   def sample(plug_id, age_s, watt, now:)
@@ -16,6 +18,18 @@ class PlugMeasurementTest < ActiveSupport::TestCase
 
     assert_in_delta 120.0, measurement.watt
     assert_equal now - 5, measurement.last_seen_at
+  end
+
+  test "an offline measurement reports no watts, though it keeps its last seen" do
+    now = Time.at(1_000_000)
+    sample("fridge", 130, 120.0, now: now)
+    sample("tv",       5,  30.0, now: now)
+
+    collection = Plugs::Measurement.for(%w[fridge tv], now: now, offline_after_s: 120)
+
+    assert_nil collection["fridge"].reported_watt
+    assert_equal now - 130, collection["fridge"].last_seen_at
+    assert_in_delta 30.0, collection["tv"].reported_watt
   end
 
   test "a plug goes offline once its newest sample outlives the Frist" do

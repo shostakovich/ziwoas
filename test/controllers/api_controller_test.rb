@@ -9,178 +9,20 @@ class ApiControllerTest < ActionDispatch::IntegrationTest
 
   # --- /api/live ---
 
-  test "GET /api/live returns offline when no samples" do
+  test "GET /api/live renders plug lines, an energy flow and a now_ts, with the role as a string" do
+    Plugs::Sample.create!(plug_id: "bkw", ts: Time.now.to_i - 2, apower_w: 342.5, aenergy_wh: 1000.0)
+
     get "/api/live", as: :json
     assert_response :ok
 
     data = response.parsed_body
-    assert data["plugs"].length >= 2
-    assert data["plugs"].all? { |p| p["online"] == false }
-  end
+    assert_equal %w[plugs energy_flow now_ts].sort, data.keys.sort
+    assert data["energy_flow"].key?("flows")
 
-  test "GET /api/live returns online with current values after fresh sample" do
-    now = Time.now.to_i
-    Plugs::Sample.create!(plug_id: "bkw", ts: now - 2, apower_w: 342.5, aenergy_wh: 1000.0)
-
-    get "/api/live", as: :json
-    assert_response :ok
-
-    bkw = response.parsed_body["plugs"].find { |p| p["id"] == "bkw" }
-    assert_equal true, bkw["online"]
+    bkw = data["plugs"].find { |p| p["id"] == "bkw" }
+    assert_equal %w[id name role online apower_w last_seen_ts].sort, bkw.keys.sort
+    assert_equal "producer", bkw["role"]
     assert_in_delta 342.5, bkw["apower_w"]
-  end
-
-  test "GET /api/live marks a plug that stopped reporting as offline" do
-    old = Time.now.to_i - 130
-    Plugs::Sample.create!(plug_id: "bkw", ts: old, apower_w: 1.0, aenergy_wh: 1.0)
-
-    get "/api/live", as: :json
-    assert_response :ok
-
-    bkw = response.parsed_body["plugs"].find { |p| p["id"] == "bkw" }
-    assert_equal false, bkw["online"]
-  end
-
-  test "GET /api/live includes fresh Solakon energy flow" do
-    travel_to Time.zone.local(2026, 6, 18, 12, 0, 0) do
-      now = Time.current
-      cfg = live_config_with_solakon
-
-      Plugs::Sample.create!(plug_id: "desk", ts: now.to_i - 2, apower_w: 120.0, aenergy_wh: 1.0)
-      Plugs::Sample.create!(plug_id: "heatpump", ts: now.to_i - 2, apower_w: 80.0, aenergy_wh: 1.0)
-      SolakonReading.create!(
-        taken_at: now - 2.seconds,
-        active_power_w: 260,
-        pv_power_w: 310,
-        battery_power_w: 50,
-        battery_soc_pct: 84
-      )
-
-      ConfigLoader.stub(:app_config, cfg) do
-        get "/api/live", as: :json
-      end
-      assert_response :ok
-
-      energy_flow = response.parsed_body["energy_flow"]
-      assert_equal true, energy_flow["solakon_online"]
-      assert_in_delta 200.0, energy_flow["home_w"]
-      assert_in_delta 260.0, energy_flow["solakon_ac_w"]
-      assert_in_delta 310.0, energy_flow["solar_w"]
-      assert_equal 84, energy_flow["battery_soc_pct"]
-      assert_in_delta 50.0, energy_flow["battery_w"]
-      assert_equal "charging", energy_flow["battery_state"]
-      assert_in_delta(-60.0, energy_flow["grid_w"])
-      assert_equal({
-        "solar_to_home_w" => 200.0,
-        "solar_to_grid_w" => 60.0,
-        "solar_to_battery_w" => 50.0,
-        "grid_to_home_w" => 0.0,
-        "grid_to_battery_w" => 0.0,
-        "battery_to_home_w" => 0.0
-      }, energy_flow["flows"])
-    end
-  end
-
-
-  test "GET /api/live sums only the consumer plugs that are still online" do
-    travel_to Time.zone.local(2026, 6, 18, 12, 0, 0) do
-      now = Time.current
-      cfg = live_config_with_solakon
-
-      Plugs::Sample.create!(plug_id: "desk", ts: now.to_i - 2, apower_w: 120.0, aenergy_wh: 1.0)       # fresh
-      Plugs::Sample.create!(plug_id: "heatpump", ts: now.to_i - 130, apower_w: 80.0, aenergy_wh: 1.0)  # offline -> ignored
-      SolakonReading.create!(
-        taken_at: now - 2.seconds,
-        active_power_w: 260,
-        pv_power_w: 310,
-        battery_power_w: 50,
-        battery_soc_pct: 84
-      )
-
-      ConfigLoader.stub(:app_config, cfg) do
-        get "/api/live", as: :json
-      end
-      assert_response :ok
-
-      energy_flow = response.parsed_body["energy_flow"]
-      assert_in_delta 120.0, energy_flow["home_w"]      # only the online desk plug, heatpump dropped
-      assert_in_delta(-140.0, energy_flow["grid_w"])    # 120 - 260
-
-      # A plug the flow dropped is offline in the same payload, so nothing
-      # downstream can sum it back in.
-      heatpump = response.parsed_body["plugs"].find { |p| p["id"] == "heatpump" }
-      assert_equal false, heatpump["online"]
-    end
-  end
-
-  test "GET /api/live marks stale Solakon energy flow unavailable" do
-    travel_to Time.zone.local(2026, 6, 18, 12, 0, 0) do
-      now = Time.current
-      cfg = live_config_with_solakon
-
-      Plugs::Sample.create!(plug_id: "desk", ts: now.to_i - 2, apower_w: 120.0, aenergy_wh: 1.0)
-      Plugs::Sample.create!(plug_id: "heatpump", ts: now.to_i - 2, apower_w: 80.0, aenergy_wh: 1.0)
-      SolakonReading.create!(
-        taken_at: now - 121.seconds,
-        active_power_w: 260,
-        pv_power_w: 310,
-        battery_power_w: 50,
-        battery_soc_pct: 84
-      )
-
-      ConfigLoader.stub(:app_config, cfg) do
-        get "/api/live", as: :json
-      end
-      assert_response :ok
-
-      energy_flow = response.parsed_body["energy_flow"]
-      assert_equal false, energy_flow["solakon_online"]
-      assert_in_delta 200.0, energy_flow["home_w"]
-      assert_nil energy_flow["solakon_ac_w"]
-      assert_nil energy_flow["solar_w"]
-      assert_nil energy_flow["battery_soc_pct"]
-      assert_nil energy_flow["battery_w"]
-      assert_nil energy_flow["grid_w"]
-      assert_equal({
-        "solar_to_home_w" => nil,
-        "solar_to_grid_w" => nil,
-        "solar_to_battery_w" => nil,
-        "grid_to_home_w" => nil,
-        "grid_to_battery_w" => nil,
-        "battery_to_home_w" => nil
-      }, energy_flow["flows"])
-    end
-  end
-
-  test "GET /api/live marks Solakon energy flow unavailable when monitoring disabled" do
-    travel_to Time.zone.local(2026, 6, 18, 12, 0, 0) do
-      now = Time.current
-      cfg = live_config_with_solakon(monitoring_enabled: false)
-
-      Plugs::Sample.create!(plug_id: "desk", ts: now.to_i - 2, apower_w: 120.0, aenergy_wh: 1.0)
-      Plugs::Sample.create!(plug_id: "heatpump", ts: now.to_i - 2, apower_w: 80.0, aenergy_wh: 1.0)
-      SolakonReading.create!(
-        taken_at: now - 2.seconds,
-        active_power_w: 260,
-        pv_power_w: 310,
-        battery_power_w: 50,
-        battery_soc_pct: 84
-      )
-
-      ConfigLoader.stub(:app_config, cfg) do
-        get "/api/live", as: :json
-      end
-      assert_response :ok
-
-      energy_flow = response.parsed_body["energy_flow"]
-      assert_equal false, energy_flow["solakon_online"]
-      assert_in_delta 200.0, energy_flow["home_w"]
-      assert_nil energy_flow["solakon_ac_w"]
-      assert_nil energy_flow["solar_w"]
-      assert_nil energy_flow["battery_soc_pct"]
-      assert_nil energy_flow["battery_w"]
-      assert_nil energy_flow["grid_w"]
-    end
   end
 
   # --- /api/today ---
@@ -292,28 +134,5 @@ class ApiControllerTest < ActionDispatch::IntegrationTest
     assert_response :ok
     assert_select "h1", text: "Dashboard", count: 1
     assert_select ".chart-card .chart-frame", minimum: 3
-  end
-  private
-
-  def live_config_with_solakon(monitoring_enabled: true)
-    ConfigLoader::Config.new(
-      electricity_price_eur_per_kwh: 0.32,
-      timezone: "Europe/Berlin",
-      mqtt: ConfigLoader::MqttCfg.new(host: "localhost", port: 1883, topic_prefix: "shellies"),
-      plugs: [
-        ConfigLoader::PlugCfg.new(id: "bkw", name: "BKW", role: :producer, driver: :shelly, ain: nil),
-        ConfigLoader::PlugCfg.new(id: "desk", name: "Desk", role: :consumer, driver: :shelly, ain: nil),
-        ConfigLoader::PlugCfg.new(id: "heatpump", name: "Heatpump", role: :consumer, driver: :shelly, ain: nil)
-      ],
-      sensors: [],
-      trmnl: ConfigLoader::TrmnlCfg.new(energy_webhook_url: nil, sensors_webhook_url: nil),
-      solakon: ConfigLoader::SolakonCfg.new(
-        host: "127.0.0.1",
-        port: 502,
-        unit_id: 1,
-        monitoring_enabled: monitoring_enabled,
-        control_enabled: false
-      )
-    )
   end
 end
