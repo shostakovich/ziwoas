@@ -1,0 +1,9 @@
+# Public repository -> mutant's free opensource usage applies.
+usage: opensource
+integration:
+  name: minitest
+requires:
+  - mutant_helper
+includes:
+  - test
+  - lib
