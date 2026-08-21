@@ -79,7 +79,7 @@ export default class extends Controller {
     const last    = dataset.data.at(-1)
     const newX    = data.bucket_ts * 1000
 
-    const y = data.role === "producer" ? Math.abs(data.avg_power_w) : data.avg_power_w
+    const y = data.avg_power_w
 
     if (last) {
       const gap = newX - last.x
@@ -138,7 +138,7 @@ export default class extends Controller {
         label: s.name,
         data: s.points.map(pt => ({
           x: pt.ts * 1000,
-          y: isProducer ? Math.abs(pt.avg_power_w) : pt.avg_power_w,
+          y: pt.avg_power_w,
         })),
         role: s.role,
         tension: 0.2,
@@ -200,7 +200,7 @@ export default class extends Controller {
     for (const series of data.series) {
       for (const pt of series.points) {
         const hourKey = Math.floor(pt.ts / 3600) * 3600
-        const wh = Math.abs(pt.avg_power_w) / 60
+        const wh = pt.avg_power_w / 60
         if (!buckets[hourKey]) buckets[hourKey] = { produced: 0, consumers: {} }
         if (series.role === "producer") {
           buckets[hourKey].produced += wh

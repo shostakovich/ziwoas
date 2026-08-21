@@ -36,19 +36,17 @@ class TrmnlPayloadBuilder
 
   def power_series
     start_ts, end_ts = window_bounds
-    rows = bucket_rows(start_ts, end_ts)
-    role_by_id = @config.plugs.each_with_object({}) { |p, h| h[p.id] = p.role }
 
     pv   = Array.new(BUCKETS, 0.0)
     cons = Array.new(BUCKETS, 0.0)
-    rows.each do |row|
-      idx = ((row["bucket_ts"] - start_ts) / BUCKET_SECONDS).to_i
+
+    PowerSeries.from_samples(plugs: @config.plugs, start_ts: start_ts, end_ts: end_ts,
+                             bucket_seconds: BUCKET_SECONDS).each_bucket do |bucket|
+      idx = (bucket.ts - start_ts) / BUCKET_SECONDS
       next if idx < 0 || idx >= BUCKETS
 
-      case role_by_id[row["plug_id"]]
-      when :producer then pv[idx]   += row["avg_w"].to_f.abs
-      when :consumer then cons[idx] += row["avg_w"].to_f
-      end
+      pv[idx]   += bucket.production_w
+      cons[idx] += bucket.consumption_w
     end
 
     [ pv.map(&:round), cons.map(&:round) ]
@@ -62,24 +60,6 @@ class TrmnlPayloadBuilder
     end_ts     = @tz.local_to_utc(slot_floor).to_i + BUCKET_SECONDS
     start_ts   = end_ts - BUCKETS * BUCKET_SECONDS
     [ start_ts, end_ts ]
-  end
-
-  def bucket_rows(start_ts, end_ts)
-    plug_ids = @config.plugs.map(&:id)
-    return [] if plug_ids.empty?
-
-    ActiveRecord::Base.connection.exec_query(
-      ActiveRecord::Base.sanitize_sql_array([
-        <<~SQL, plug_ids, start_ts, end_ts
-          SELECT plug_id,
-                 (ts / #{BUCKET_SECONDS}) * #{BUCKET_SECONDS} AS bucket_ts,
-                 AVG(apower_w) AS avg_w
-            FROM samples
-           WHERE plug_id IN (?) AND ts >= ? AND ts < ?
-           GROUP BY plug_id, bucket_ts
-        SQL
-      ])
-    ).to_a
   end
 
   def sample_ts(start_ts, end_ts)

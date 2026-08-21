@@ -58,7 +58,7 @@ class ShellyStatusHandler
       @buckets[plug.id] = { bucket_ts: bucket_ts, sum: apower_w, count: 1 }
       bucket = @buckets[plug.id]
     end
-    avg_power_w = bucket[:sum].to_f / bucket[:count]
+    avg_power_w = PowerSeries.signed_watts(bucket[:sum].to_f / bucket[:count], role: plug.role)
 
     @pending[plug.id] = {
       plug_id: plug.id, name: plug.name, role: plug.role.to_s, online: true,

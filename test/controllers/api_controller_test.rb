@@ -201,6 +201,31 @@ class ApiControllerTest < ActionDispatch::IntegrationTest
     assert bkw["points"].first.key?("avg_power_w")
   end
 
+  test "GET /api/today reports producer power as a positive magnitude" do
+    now = Time.now.to_i
+    Sample.create!(plug_id: "bkw",    ts: now - 3600, apower_w: -200.0, aenergy_wh: 100.0)
+    Sample.create!(plug_id: "fridge", ts: now - 3600, apower_w:   80.0, aenergy_wh: 100.0)
+
+    get "/api/today", as: :json
+    assert_response :ok
+
+    series = response.parsed_body["series"]
+    assert_in_delta 200.0, series.find { |s| s["plug_id"] == "bkw" }["points"].first["avg_power_w"]
+    assert_in_delta 80.0, series.find { |s| s["plug_id"] == "fridge" }["points"].first["avg_power_w"]
+  end
+
+  test "GET /api/today returns points in ascending ts order" do
+    now = Time.now.to_i
+    Sample.create!(plug_id: "bkw", ts: now -  600, apower_w: 100.0, aenergy_wh: 100.0)
+    Sample.create!(plug_id: "bkw", ts: now - 3600, apower_w: 200.0, aenergy_wh:  90.0)
+
+    get "/api/today", as: :json
+    assert_response :ok
+
+    timestamps = response.parsed_body["series"].find { |s| s["plug_id"] == "bkw" }["points"].map { |p| p["ts"] }
+    assert_equal timestamps.sort, timestamps
+  end
+
   # --- /api/today/summary ---
 
   test "GET /api/today/summary calculates energy and savings" do
