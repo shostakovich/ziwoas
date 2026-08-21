@@ -4,8 +4,8 @@ class PowerSeriesTest < ActiveSupport::TestCase
   BUCKET_H = 5.0 / 60.0
 
   setup do
-    Sample.delete_all
-    Sample5min.delete_all
+    Plugs::Sample.delete_all
+    Plugs::Sample5min.delete_all
     @plugs = [
       ConfigLoader::PlugCfg.new(id: "pv",     name: "PV",     role: :producer, driver: :shelly, ain: nil),
       ConfigLoader::PlugCfg.new(id: "desk",   name: "Desk",   role: :consumer, driver: :shelly, ain: nil),
@@ -16,21 +16,21 @@ class PowerSeriesTest < ActiveSupport::TestCase
     @end_ts   = @midnight + 86_400
   end
 
-  # Writes the same bucket to both sources: one pre-aggregated Sample5min row,
+  # Writes the same bucket to both sources: one pre-aggregated Plugs::Sample5min row,
   # and two raw samples whose average is avg_w.
   def write_bucket(plug_id:, offset_min:, avg_w:)
     bucket_ts = @midnight + offset_min * 60
-    Sample5min.create!(
+    Plugs::Sample5min.create!(
       plug_id: plug_id, bucket_ts: bucket_ts, avg_power_w: avg_w,
       energy_delta_wh: avg_w.abs * BUCKET_H, sample_count: 2
     )
-    Sample.create!(plug_id: plug_id, ts: bucket_ts +  10, apower_w: avg_w - 50, aenergy_wh: 0.0)
-    Sample.create!(plug_id: plug_id, ts: bucket_ts + 200, apower_w: avg_w + 50, aenergy_wh: 0.0)
+    Plugs::Sample.create!(plug_id: plug_id, ts: bucket_ts +  10, apower_w: avg_w - 50, aenergy_wh: 0.0)
+    Plugs::Sample.create!(plug_id: plug_id, ts: bucket_ts + 200, apower_w: avg_w + 50, aenergy_wh: 0.0)
   end
 
   def each_source
     {
-      "from_5min"    => PowerSeries.from_5min(Sample5min.where(bucket_ts: @midnight...@end_ts).to_a, plugs: @plugs),
+      "from_5min"    => PowerSeries.from_5min(Plugs::Sample5min.where(bucket_ts: @midnight...@end_ts).to_a, plugs: @plugs),
       "from_samples" => PowerSeries.from_samples(plugs: @plugs, start_ts: @midnight, end_ts: @end_ts, bucket_seconds: 300)
     }.each { |source, series| yield source, series }
   end
@@ -155,7 +155,7 @@ class PowerSeriesTest < ActiveSupport::TestCase
     write_bucket(plug_id: "washer", offset_min: 0, avg_w: 150)
 
     known_plugs = @plugs.reject { |plug| plug.id == "washer" }
-    series = PowerSeries.from_5min(Sample5min.where(bucket_ts: @midnight...@end_ts).to_a, plugs: known_plugs)
+    series = PowerSeries.from_5min(Plugs::Sample5min.where(bucket_ts: @midnight...@end_ts).to_a, plugs: known_plugs)
 
     assert_in_delta 0.0, series.each_bucket.first.consumption_w
     assert_empty series.signed_watts_by_ts("washer")
@@ -190,8 +190,8 @@ class PowerSeriesTest < ActiveSupport::TestCase
 
   test "from_samples honours the window bounds" do
     write_bucket(plug_id: "desk", offset_min: 0, avg_w: 100)
-    Sample.create!(plug_id: "desk", ts: @midnight - 60, apower_w: 999, aenergy_wh: 0.0)
-    Sample.create!(plug_id: "desk", ts: @end_ts,        apower_w: 999, aenergy_wh: 0.0)
+    Plugs::Sample.create!(plug_id: "desk", ts: @midnight - 60, apower_w: 999, aenergy_wh: 0.0)
+    Plugs::Sample.create!(plug_id: "desk", ts: @end_ts,        apower_w: 999, aenergy_wh: 0.0)
 
     series = PowerSeries.from_samples(plugs: @plugs, start_ts: @midnight, end_ts: @end_ts, bucket_seconds: 300)
 
@@ -218,7 +218,7 @@ class PowerSeriesTest < ActiveSupport::TestCase
   end
 
   test "from_samples includes a sample exactly at the window start" do
-    Sample.create!(plug_id: "desk", ts: @midnight, apower_w: 100, aenergy_wh: 0.0)
+    Plugs::Sample.create!(plug_id: "desk", ts: @midnight, apower_w: 100, aenergy_wh: 0.0)
 
     series = PowerSeries.from_samples(plugs: @plugs, start_ts: @midnight, end_ts: @end_ts, bucket_seconds: 300)
 

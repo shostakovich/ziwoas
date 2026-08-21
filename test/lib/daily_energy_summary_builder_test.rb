@@ -3,7 +3,7 @@ require "daily_energy_summary_builder"
 
 class DailyEnergySummaryBuilderTest < ActiveSupport::TestCase
   setup do
-    Sample5min.delete_all
+    Plugs::Sample5min.delete_all
     @plugs = [
       ConfigLoader::PlugCfg.new(id: "pv",     name: "PV",      role: :producer, driver: :shelly, ain: nil),
       ConfigLoader::PlugCfg.new(id: "desk",   name: "Desk",    role: :consumer, driver: :shelly, ain: nil),
@@ -15,7 +15,7 @@ class DailyEnergySummaryBuilderTest < ActiveSupport::TestCase
   end
 
   def write_5min(plug_id:, offset_min:, avg_w:)
-    Sample5min.create!(
+    Plugs::Sample5min.create!(
       plug_id: plug_id,
       bucket_ts: @midnight + offset_min * 60,
       avg_power_w: avg_w,
@@ -92,12 +92,12 @@ class DailyEnergySummaryBuilderTest < ActiveSupport::TestCase
 
     # Producer counter glitched: avg_power_w is real, but the per-sample
     # plausibility cap zeroed every delta -> energy_delta_wh = 0 for the bucket.
-    Sample5min.create!(
+    Plugs::Sample5min.create!(
       plug_id: "pv", bucket_ts: @midnight, avg_power_w: 200.0,
       energy_delta_wh: 0.0, sample_count: 60
     )
     # Consumer is healthy.
-    Sample5min.create!(
+    Plugs::Sample5min.create!(
       plug_id: "desk", bucket_ts: @midnight, avg_power_w: 150.0,
       energy_delta_wh: 150.0 * bucket_h, sample_count: 60
     )
@@ -117,11 +117,11 @@ class DailyEnergySummaryBuilderTest < ActiveSupport::TestCase
 
     # Shelly producer plug reports apower_w with opposite sign — but
     # aenergy_wh / energy_delta_wh stay positive (monotonic counter).
-    Sample5min.create!(
+    Plugs::Sample5min.create!(
       plug_id: "pv", bucket_ts: @midnight, avg_power_w: -200.0,
       energy_delta_wh: 200.0 * bucket_h, sample_count: 60
     )
-    Sample5min.create!(
+    Plugs::Sample5min.create!(
       plug_id: "desk", bucket_ts: @midnight, avg_power_w: 150.0,
       energy_delta_wh: 150.0 * bucket_h, sample_count: 60
     )
@@ -138,12 +138,12 @@ class DailyEnergySummaryBuilderTest < ActiveSupport::TestCase
   test "self-consumption clamps to consumed when overlap power exceeds metered consumption" do
     bucket_h = 5.0 / 60.0
 
-    Sample5min.create!(
+    Plugs::Sample5min.create!(
       plug_id: "pv", bucket_ts: @midnight, avg_power_w: 200.0,
       energy_delta_wh: 200.0 * bucket_h, sample_count: 60
     )
     # Consumer counter glitched: avg_power_w real, energy_delta_wh = 0.
-    Sample5min.create!(
+    Plugs::Sample5min.create!(
       plug_id: "desk", bucket_ts: @midnight, avg_power_w: 100.0,
       energy_delta_wh: 0.0, sample_count: 60
     )

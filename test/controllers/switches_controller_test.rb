@@ -3,9 +3,9 @@ require "test_helper"
 class SwitchesControllerTest < ActionDispatch::IntegrationTest
   setup do
     SwitchRule.delete_all
-    PlugState.delete_all
+    Plugs::State.delete_all
     SwitchCommand.delete_all
-    Sample.delete_all
+    Plugs::Sample.delete_all
     Light.delete_all
     @light = Light.create!(key: "ABCDEF01", name: "Wohnzimmer Stehlampe", sku: "H607C")
     LightState.record_state(@light.key, on: true, brightness: 60, color_temp_k: 2700)

@@ -3,8 +3,8 @@ require "config_loader"
 
 class SwitchRowTest < ActiveSupport::TestCase
   setup do
-    Sample.delete_all
-    PlugState.delete_all
+    Plugs::Sample.delete_all
+    Plugs::State.delete_all
     SwitchCommand.delete_all
     SwitchRule.delete_all
     @plug = ConfigLoader::PlugCfg.new(id: "fridge", name: "Kühlschrank", role: :consumer,
@@ -22,10 +22,10 @@ class SwitchRowTest < ActiveSupport::TestCase
 
   test "build collects state, last command, entries, watt and next edge" do
     travel_to Time.zone.local(2026, 6, 15, 17, 0) do  # Monday
-      PlugState.record_output("fridge", true)
+      Plugs::State.record_output("fridge", true)
       SwitchCommand.create!(plug_id: "fridge", action: "on", source: "schedule")
       window
-      Sample.create!(plug_id: "fridge", ts: Time.current.to_i - 30, apower_w: 42.0, aenergy_wh: 1.0)
+      Plugs::Sample.create!(plug_id: "fridge", ts: Time.current.to_i - 30, apower_w: 42.0, aenergy_wh: 1.0)
 
       row = SwitchRow.build(@plug)
       assert row.on?
@@ -41,9 +41,9 @@ class SwitchRowTest < ActiveSupport::TestCase
   test "offline when the last sample outlives the Frist, or is missing" do
     travel_to Time.zone.local(2026, 6, 15, 17, 0) do
       assert SwitchRow.build(@plug).offline?
-      Sample.create!(plug_id: "fridge", ts: 130.seconds.ago.to_i, apower_w: 1.0, aenergy_wh: 1.0)
+      Plugs::Sample.create!(plug_id: "fridge", ts: 130.seconds.ago.to_i, apower_w: 1.0, aenergy_wh: 1.0)
       assert SwitchRow.build(@plug).offline?
-      Sample.create!(plug_id: "fridge", ts: 60.seconds.ago.to_i, apower_w: 1.0, aenergy_wh: 1.0)
+      Plugs::Sample.create!(plug_id: "fridge", ts: 60.seconds.ago.to_i, apower_w: 1.0, aenergy_wh: 1.0)
       refute SwitchRow.build(@plug).offline?
     end
   end
@@ -56,7 +56,7 @@ class SwitchRowTest < ActiveSupport::TestCase
 
   test "on? lets a manual command fresher than the plug state win" do
     travel_to Time.zone.local(2026, 6, 15, 17, 0) do
-      PlugState.record_output("fridge", false)
+      Plugs::State.record_output("fridge", false)
     end
     travel_to Time.zone.local(2026, 6, 15, 17, 5) do
       SwitchCommand.create!(plug_id: "fridge", action: "on", source: "manual")
@@ -64,7 +64,7 @@ class SwitchRowTest < ActiveSupport::TestCase
     end
     # Device confirms afterwards: plug state is fresher again and wins.
     travel_to Time.zone.local(2026, 6, 15, 17, 6) do
-      PlugState.find_by(plug_id: "fridge").touch
+      Plugs::State.find_by(plug_id: "fridge").touch
       refute SwitchRow.build(@plug).on?
     end
   end

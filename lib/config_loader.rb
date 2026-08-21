@@ -22,7 +22,7 @@ class ConfigLoader
                             :switchbot, :sensors, :trmnl, :solakon, :govee,
                             keyword_init: true) do
     def plug_roster
-      @plug_roster ||= PlugRoster.new(plugs)
+      @plug_roster ||= Plugs::Roster.new(plugs)
     end
   end
 

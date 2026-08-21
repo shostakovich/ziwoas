@@ -11,8 +11,8 @@ class ConsumptionReader
   FLOOR_CACHE_TTL  = 1.hour
   MEDIAN_CACHE_TTL = 60.seconds
 
-  def initialize(plugs:, now: Time.now, offline_after_s: PlugMeasurement::OFFLINE_AFTER_S)
-    roster           = PlugRoster.wrap(plugs)
+  def initialize(plugs:, now: Time.now, offline_after_s: Plugs::Measurement::OFFLINE_AFTER_S)
+    roster           = Plugs::Roster.wrap(plugs)
     @consumer_plugs  = roster.consumers
     @consumer_ids    = roster.consumer_ids
     @now             = now
@@ -28,7 +28,7 @@ class ConsumptionReader
   end
 
   def current_consumption_w
-    PlugMeasurement.for(@consumer_ids, now: @now, offline_after_s: @offline_after_s).total_w
+    Plugs::Measurement.for(@consumer_ids, now: @now, offline_after_s: @offline_after_s).total_w
   end
 
   # Minimum total 5-min consumption over the last 24h. Computed from raw

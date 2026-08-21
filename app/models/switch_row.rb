@@ -9,10 +9,10 @@ class SwitchRow
 
     rules_by_plug  = SwitchRule.where(plug_id: plug_ids)
                                .order(:at_minute, :id).group_by(&:plug_id)
-    states_by_plug = PlugState.where(plug_id: plug_ids).index_by(&:plug_id)
+    states_by_plug = Plugs::State.where(plug_id: plug_ids).index_by(&:plug_id)
     commands_by_plug = SwitchCommand.latest_per_plug(plug_ids)
                                     .order(:created_at, :id).index_by(&:plug_id)
-    measurements = PlugMeasurement.for(plug_ids, now: now)
+    measurements = Plugs::Measurement.for(plug_ids, now: now)
 
     plugs.map do |plug|
       rules = rules_by_plug[plug.id] || []

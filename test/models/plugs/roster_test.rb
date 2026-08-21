@@ -4,7 +4,7 @@ class PlugRosterTest < ActiveSupport::TestCase
   def plug(id, role) = ConfigLoader::PlugCfg.new(id: id, name: id.upcase, role: role, driver: :shelly)
 
   def roster
-    @roster ||= PlugRoster.new([ plug("bkw", :producer), plug("fridge", :consumer), plug("tv", :consumer) ])
+    @roster ||= Plugs::Roster.new([ plug("bkw", :producer), plug("fridge", :consumer), plug("tv", :consumer) ])
   end
 
   test "selects by role, as objects and as ids" do
@@ -35,7 +35,7 @@ class PlugRosterTest < ActiveSupport::TestCase
   end
 
   test "a plug with an unknown role is not measured" do
-    unknown = PlugRoster.new([ plug("mystery", :whatever) ])
+    unknown = Plugs::Roster.new([ plug("mystery", :whatever) ])
 
     assert_not unknown.measured?("mystery")
     assert_not unknown.measured?("absent")
@@ -43,12 +43,12 @@ class PlugRosterTest < ActiveSupport::TestCase
   end
 
   test "wrap passes a roster through and wraps an array" do
-    assert_same roster, PlugRoster.wrap(roster)
-    assert_equal [ "bkw" ], PlugRoster.wrap([ plug("bkw", :producer) ]).ids
+    assert_same roster, Plugs::Roster.wrap(roster)
+    assert_equal [ "bkw" ], Plugs::Roster.wrap([ plug("bkw", :producer) ]).ids
   end
 
   test "empty roster" do
-    empty = PlugRoster.new([])
+    empty = Plugs::Roster.new([])
 
     assert_empty empty.consumer_ids
     assert_empty empty.producers

@@ -2,8 +2,8 @@ require "test_helper"
 
 class EnergyReport::ChartBuilderTest < ActiveSupport::TestCase
   setup do
-    DailyTotal.delete_all
-    Sample5min.delete_all
+    Plugs::DailyTotal.delete_all
+    Plugs::Sample5min.delete_all
 
     @plugs = [
       ConfigLoader::PlugCfg.new(id: "pv",     name: "Balkonkraftwerk", role: :producer, driver: :shelly, ain: nil),
@@ -19,7 +19,7 @@ class EnergyReport::ChartBuilderTest < ActiveSupport::TestCase
   end
 
   def write_5min(plug_id:, date_s:, offset_min:, avg_w:)
-    Sample5min.create!(
+    Plugs::Sample5min.create!(
       plug_id: plug_id, bucket_ts: midnight_utc(date_s) + offset_min * 60,
       avg_power_w: avg_w, energy_delta_wh: avg_w.abs * 5 / 60.0, sample_count: 1
     )
@@ -89,8 +89,8 @@ class EnergyReport::ChartBuilderTest < ActiveSupport::TestCase
 
   test "daily detail chart averages the metered day over 24 hours" do
     rows = [
-      DailyTotal.create!(plug_id: "pv",   date: "2026-04-10", energy_wh: 2400.0),
-      DailyTotal.create!(plug_id: "desk", date: "2026-04-10", energy_wh: 240.0)
+      Plugs::DailyTotal.create!(plug_id: "pv",   date: "2026-04-10", energy_wh: 2400.0),
+      Plugs::DailyTotal.create!(plug_id: "desk", date: "2026-04-10", energy_wh: 240.0)
     ]
 
     detail = payload_for(

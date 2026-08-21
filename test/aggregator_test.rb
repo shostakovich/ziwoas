@@ -8,9 +8,9 @@ class AggregatorTest < ActiveSupport::TestCase
   self.use_transactional_tests = false
 
   setup do
-    Sample.delete_all
-    Sample5min.delete_all
-    DailyTotal.delete_all
+    Plugs::Sample.delete_all
+    Plugs::Sample5min.delete_all
+    Plugs::DailyTotal.delete_all
     DailyEnergySummary.delete_all
 
     @tz         = TZInfo::Timezone.get("Europe/Berlin")
@@ -26,7 +26,7 @@ class AggregatorTest < ActiveSupport::TestCase
     start_ts = berlin_midnight_utc(date)
     (0..23).each do |h|
       ratio = h / 23.0
-      Sample.create!(
+      Plugs::Sample.create!(
         plug_id:    plug_id,
         ts:         start_ts + h * 3600,
         apower_w:   start_power  + (end_power  - start_power)  * ratio,
@@ -38,15 +38,15 @@ class AggregatorTest < ActiveSupport::TestCase
   test "daily total is energy delta" do
     seed_day(plug_id: "bkw", date: "2026-04-10", start_energy: 1000.0, end_energy: 1800.0)
     @aggregator.aggregate_day("2026-04-10")
-    row = DailyTotal.find_by!(plug_id: "bkw", date: "2026-04-10")
+    row = Plugs::DailyTotal.find_by!(plug_id: "bkw", date: "2026-04-10")
     assert_in_delta 800.0, row.energy_wh
   end
 
   test "aggregate_day writes 5-minute samples" do
     start_ts = berlin_midnight_utc("2026-04-10")
-    Sample.create!(plug_id: "bkw", ts: start_ts + 0, apower_w: 10, aenergy_wh: 100)
-    Sample.create!(plug_id: "bkw", ts: start_ts + 60, apower_w: 20, aenergy_wh: 103)
-    Sample.create!(plug_id: "bkw", ts: start_ts + 300, apower_w: 40, aenergy_wh: 110)
+    Plugs::Sample.create!(plug_id: "bkw", ts: start_ts + 0, apower_w: 10, aenergy_wh: 100)
+    Plugs::Sample.create!(plug_id: "bkw", ts: start_ts + 60, apower_w: 20, aenergy_wh: 103)
+    Plugs::Sample.create!(plug_id: "bkw", ts: start_ts + 300, apower_w: 40, aenergy_wh: 110)
 
     @aggregator.aggregate_day("2026-04-10")
 
@@ -74,28 +74,28 @@ class AggregatorTest < ActiveSupport::TestCase
   test "daily total handles meter reset" do
     start_ts = berlin_midnight_utc("2026-04-10")
 
-    Sample.create!(plug_id: "bkw", ts: start_ts,        apower_w: 0, aenergy_wh: 424_440.0)
-    Sample.create!(plug_id: "bkw", ts: start_ts + 3600, apower_w: 0, aenergy_wh: 424_440.0)
-    Sample.create!(plug_id: "bkw", ts: start_ts + 7200, apower_w: 0, aenergy_wh: 0.0)
-    Sample.create!(plug_id: "bkw", ts: start_ts + 7260, apower_w: 0, aenergy_wh: 100.0)
+    Plugs::Sample.create!(plug_id: "bkw", ts: start_ts,        apower_w: 0, aenergy_wh: 424_440.0)
+    Plugs::Sample.create!(plug_id: "bkw", ts: start_ts + 3600, apower_w: 0, aenergy_wh: 424_440.0)
+    Plugs::Sample.create!(plug_id: "bkw", ts: start_ts + 7200, apower_w: 0, aenergy_wh: 0.0)
+    Plugs::Sample.create!(plug_id: "bkw", ts: start_ts + 7260, apower_w: 0, aenergy_wh: 100.0)
 
     @aggregator.aggregate_day("2026-04-10")
 
-    row = DailyTotal.find_by!(plug_id: "bkw", date: "2026-04-10")
+    row = Plugs::DailyTotal.find_by!(plug_id: "bkw", date: "2026-04-10")
     assert_in_delta 100.0, row.energy_wh
   end
 
   test "daily total ignores glitch zero then jump back" do
     start_ts = berlin_midnight_utc("2026-04-10")
 
-    Sample.create!(plug_id: "bkw", ts: start_ts,      apower_w: 145, aenergy_wh: 425_000.0)
-    Sample.create!(plug_id: "bkw", ts: start_ts + 5,  apower_w: 145, aenergy_wh: 0.0)
-    Sample.create!(plug_id: "bkw", ts: start_ts + 10, apower_w: 145, aenergy_wh: 425_005.0)
-    Sample.create!(plug_id: "bkw", ts: start_ts + 15, apower_w: 145, aenergy_wh: 425_010.0)
+    Plugs::Sample.create!(plug_id: "bkw", ts: start_ts,      apower_w: 145, aenergy_wh: 425_000.0)
+    Plugs::Sample.create!(plug_id: "bkw", ts: start_ts + 5,  apower_w: 145, aenergy_wh: 0.0)
+    Plugs::Sample.create!(plug_id: "bkw", ts: start_ts + 10, apower_w: 145, aenergy_wh: 425_005.0)
+    Plugs::Sample.create!(plug_id: "bkw", ts: start_ts + 15, apower_w: 145, aenergy_wh: 425_010.0)
 
     @aggregator.aggregate_day("2026-04-10")
 
-    row = DailyTotal.find_by!(plug_id: "bkw", date: "2026-04-10")
+    row = Plugs::DailyTotal.find_by!(plug_id: "bkw", date: "2026-04-10")
     assert_in_delta 5.0, row.energy_wh
   end
 
@@ -103,31 +103,31 @@ class AggregatorTest < ActiveSupport::TestCase
     seed_day(plug_id: "bkw", date: "2026-04-10",
              start_power: 50, end_power: 50, start_energy: 0, end_energy: 1200)
     @aggregator.aggregate_day("2026-04-10")
-    first_count_5min = Sample5min.count
-    first_total = DailyTotal.first.energy_wh
+    first_count_5min = Plugs::Sample5min.count
+    first_total = Plugs::DailyTotal.first.energy_wh
     @aggregator.aggregate_day("2026-04-10")
-    assert_equal first_count_5min, Sample5min.count
-    assert_in_delta first_total, DailyTotal.first.energy_wh
-    assert_equal 1, DailyTotal.count
+    assert_equal first_count_5min, Plugs::Sample5min.count
+    assert_in_delta first_total, Plugs::DailyTotal.first.energy_wh
+    assert_equal 1, Plugs::DailyTotal.count
   end
 
   test "purge deletes samples older than retention" do
     old_ts   = Time.now.to_i - 10 * 86_400
     fresh_ts = Time.now.to_i - 1 * 86_400
-    Sample.create!(plug_id: "bkw", ts: old_ts,   apower_w: 1, aenergy_wh: 1)
-    Sample.create!(plug_id: "bkw", ts: fresh_ts, apower_w: 2, aenergy_wh: 2)
+    Plugs::Sample.create!(plug_id: "bkw", ts: old_ts,   apower_w: 1, aenergy_wh: 1)
+    Plugs::Sample.create!(plug_id: "bkw", ts: fresh_ts, apower_w: 2, aenergy_wh: 2)
     @aggregator.purge_old_raw!
-    assert_equal [ fresh_ts ], Sample.pluck(:ts)
+    assert_equal [ fresh_ts ], Plugs::Sample.pluck(:ts)
   end
 
   test "aggregate_day with no samples does not raise" do
     @aggregator.aggregate_day("1999-01-01")
-    assert_equal 0, DailyTotal.count
+    assert_equal 0, Plugs::DailyTotal.count
   end
 
   test "backup creates sqlite file" do
     Dir.mktmpdir do |tmp|
-      Sample.create!(plug_id: "bkw", ts: 1, apower_w: 0, aenergy_wh: 0)
+      Plugs::Sample.create!(plug_id: "bkw", ts: 1, apower_w: 0, aenergy_wh: 0)
       backup_dir = File.join(tmp, "backup")
       @aggregator.backup!(backup_dir)
 
@@ -159,16 +159,16 @@ class AggregatorTest < ActiveSupport::TestCase
 
   test "run_once with no samples returns without error" do
     assert_nothing_raised { @aggregator.run_once }
-    assert_equal 0, DailyTotal.count
+    assert_equal 0, Plugs::DailyTotal.count
   end
 
   test "run_once skips days already in daily_totals" do
     seed_day(plug_id: "bkw", date: "2026-04-10", start_energy: 0, end_energy: 800)
     @aggregator.aggregate_day("2026-04-10")
-    count_before = DailyTotal.count
+    count_before = Plugs::DailyTotal.count
 
     @aggregator.run_once(today: Date.new(2026, 4, 11))
-    assert_equal count_before, DailyTotal.count
+    assert_equal count_before, Plugs::DailyTotal.count
   end
 
   test "run_once aggregates missing days up to yesterday" do
@@ -176,16 +176,16 @@ class AggregatorTest < ActiveSupport::TestCase
     seed_day(plug_id: "bkw", date: "2026-04-11", start_energy: 800, end_energy: 1600)
 
     @aggregator.run_once(today: Date.new(2026, 4, 12))
-    assert_equal 2, DailyTotal.count
-    assert DailyTotal.find_by(plug_id: "bkw", date: "2026-04-10")
-    assert DailyTotal.find_by(plug_id: "bkw", date: "2026-04-11")
+    assert_equal 2, Plugs::DailyTotal.count
+    assert Plugs::DailyTotal.find_by(plug_id: "bkw", date: "2026-04-10")
+    assert Plugs::DailyTotal.find_by(plug_id: "bkw", date: "2026-04-11")
   end
 
   test "purge_old_raw! preserves records within retention window" do
     now = Time.now.to_i
-    Sample.create!(plug_id: "bkw", ts: now - 3 * 86_400, apower_w: 1, aenergy_wh: 1)
+    Plugs::Sample.create!(plug_id: "bkw", ts: now - 3 * 86_400, apower_w: 1, aenergy_wh: 1)
     @aggregator.purge_old_raw!
-    assert_equal 1, Sample.count
+    assert_equal 1, Plugs::Sample.count
   end
 
   test "aggregate_day writes daily_energy_summary row" do
@@ -198,8 +198,8 @@ class AggregatorTest < ActiveSupport::TestCase
     start_ts = berlin_midnight_utc("2026-04-10")
     # 1 hour of producer 200W and consumer 100W simultaneously, sampled every minute
     (0..3600).step(60) do |dt|
-      Sample.create!(plug_id: "bkw",    ts: start_ts + dt, apower_w: 200.0, aenergy_wh: 200.0 * dt / 3600.0)
-      Sample.create!(plug_id: "fridge", ts: start_ts + dt, apower_w: 100.0, aenergy_wh: 100.0 * dt / 3600.0)
+      Plugs::Sample.create!(plug_id: "bkw",    ts: start_ts + dt, apower_w: 200.0, aenergy_wh: 200.0 * dt / 3600.0)
+      Plugs::Sample.create!(plug_id: "fridge", ts: start_ts + dt, apower_w: 100.0, aenergy_wh: 100.0 * dt / 3600.0)
     end
 
     aggregator.aggregate_day("2026-04-10")
@@ -218,10 +218,10 @@ class AggregatorTest < ActiveSupport::TestCase
     aggregator = Aggregator.new(timezone: @tz, raw_retention_days: 7, plugs: plugs)
 
     start_ts = berlin_midnight_utc("2026-04-10")
-    Sample.create!(plug_id: "bkw",    ts: start_ts,         apower_w: 200, aenergy_wh: 0)
-    Sample.create!(plug_id: "bkw",    ts: start_ts + 600,   apower_w: 200, aenergy_wh: 33.3)
-    Sample.create!(plug_id: "fridge", ts: start_ts,         apower_w: 100, aenergy_wh: 0)
-    Sample.create!(plug_id: "fridge", ts: start_ts + 600,   apower_w: 100, aenergy_wh: 16.7)
+    Plugs::Sample.create!(plug_id: "bkw",    ts: start_ts,         apower_w: 200, aenergy_wh: 0)
+    Plugs::Sample.create!(plug_id: "bkw",    ts: start_ts + 600,   apower_w: 200, aenergy_wh: 33.3)
+    Plugs::Sample.create!(plug_id: "fridge", ts: start_ts,         apower_w: 100, aenergy_wh: 0)
+    Plugs::Sample.create!(plug_id: "fridge", ts: start_ts + 600,   apower_w: 100, aenergy_wh: 16.7)
 
     aggregator.aggregate_day("2026-04-10")
     first = DailyEnergySummary.find("2026-04-10").attributes

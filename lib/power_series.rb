@@ -14,7 +14,7 @@ class PowerSeries
 
   class << self
     def from_samples(plugs:, start_ts:, end_ts:, bucket_seconds:)
-      roster = PlugRoster.wrap(plugs)
+      roster = Plugs::Roster.wrap(plugs)
       new(readings: sample_readings(roster, start_ts, end_ts, bucket_seconds),
           plugs: roster,
           bucket_seconds: bucket_seconds)
@@ -53,7 +53,7 @@ class PowerSeries
   end
 
   def initialize(readings:, plugs:, bucket_seconds:)
-    @roster         = PlugRoster.wrap(plugs)
+    @roster         = Plugs::Roster.wrap(plugs)
     @bucket_seconds = Integer(bucket_seconds)
     @readings       = normalize(readings)
   end

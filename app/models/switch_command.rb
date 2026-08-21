@@ -1,5 +1,5 @@
 class SwitchCommand < ApplicationRecord
-  include LatestPerPlug
+  include Plugs::LatestPerPlug
   latest_per_plug_by :created_at
 
   ACTIONS = %w[on off].freeze

@@ -21,8 +21,8 @@ class Aggregator
     end_ts   = start_ts + 86_400
 
     ActiveRecord::Base.transaction do
-      Sample5min.where(bucket_ts: start_ts..(end_ts - 1)).delete_all
-      DailyTotal.where(date: date_s).delete_all
+      Plugs::Sample5min.where(bucket_ts: start_ts..(end_ts - 1)).delete_all
+      Plugs::DailyTotal.where(date: date_s).delete_all
 
       sql_5min = EnergyDeltas.cte + <<~SQL
         INSERT INTO samples_5min (plug_id, bucket_ts, avg_power_w, energy_delta_wh, sample_count)
@@ -64,7 +64,7 @@ class Aggregator
 
   def purge_old_raw!
     cutoff = Time.now.to_i - @raw_retention_days * 86_400
-    Sample.where("ts < ?", cutoff).delete_all
+    Plugs::Sample.where("ts < ?", cutoff).delete_all
   end
 
   def backup!(backup_dir, today: Date.today, keep: 7)
@@ -79,7 +79,7 @@ class Aggregator
 
   # Aggregate any finished day not yet in daily_totals, then purge.
   def run_once(today: Date.today)
-    existing = DailyTotal.pluck(:date).to_set
+    existing = Plugs::DailyTotal.pluck(:date).to_set
     earliest = earliest_sample_date
     return if earliest.nil?
 
@@ -95,7 +95,7 @@ class Aggregator
   private
 
   def earliest_sample_date
-    min_ts = Sample.minimum(:ts)
+    min_ts = Plugs::Sample.minimum(:ts)
     return nil if min_ts.nil?
     Time.at(min_ts).utc.to_date
   end

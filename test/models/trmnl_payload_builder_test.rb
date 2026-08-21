@@ -2,7 +2,7 @@ require "test_helper"
 
 class TrmnlPayloadBuilderTest < ActiveSupport::TestCase
   setup do
-    Sample.delete_all
+    Plugs::Sample.delete_all
     plug_bkw    = ConfigLoader::PlugCfg.new(id: "bkw",    name: "BKW",   role: :producer, driver: :shelly, ain: nil)
     plug_fridge = ConfigLoader::PlugCfg.new(id: "fridge", name: "Fridge", role: :consumer, driver: :shelly, ain: nil)
     mqtt = ConfigLoader::MqttCfg.new(host: "localhost", port: 1883, topic_prefix: "shellies")
@@ -21,10 +21,10 @@ class TrmnlPayloadBuilderTest < ActiveSupport::TestCase
   end
 
   test "build returns merge_variables hash with today aggregate fields" do
-    Sample.create!(plug_id: "bkw",    ts: @midnight_local + 60,   apower_w: 0, aenergy_wh: 0.0)
-    Sample.create!(plug_id: "bkw",    ts: @midnight_local + 3600, apower_w: 0, aenergy_wh: 1000.0)
-    Sample.create!(plug_id: "fridge", ts: @midnight_local + 60,   apower_w: 0, aenergy_wh: 500.0)
-    Sample.create!(plug_id: "fridge", ts: @midnight_local + 3600, apower_w: 0, aenergy_wh: 1100.0)
+    Plugs::Sample.create!(plug_id: "bkw",    ts: @midnight_local + 60,   apower_w: 0, aenergy_wh: 0.0)
+    Plugs::Sample.create!(plug_id: "bkw",    ts: @midnight_local + 3600, apower_w: 0, aenergy_wh: 1000.0)
+    Plugs::Sample.create!(plug_id: "fridge", ts: @midnight_local + 60,   apower_w: 0, aenergy_wh: 500.0)
+    Plugs::Sample.create!(plug_id: "fridge", ts: @midnight_local + 3600, apower_w: 0, aenergy_wh: 1100.0)
 
     payload = TrmnlPayloadBuilder.new(config: @config).build
     mv = payload.fetch("merge_variables")
@@ -56,8 +56,8 @@ class TrmnlPayloadBuilderTest < ActiveSupport::TestCase
     # Bucket index 10 covers start_ts + 10*600 .. start_ts + 11*600 (10 min slot).
     bucket_start = start_ts + 10 * 600
     (0...600).step(60) do |dt|
-      Sample.create!(plug_id: "bkw",    ts: bucket_start + dt, apower_w: 600.0, aenergy_wh: 0.0)
-      Sample.create!(plug_id: "fridge", ts: bucket_start + dt, apower_w: 200.0, aenergy_wh: 0.0)
+      Plugs::Sample.create!(plug_id: "bkw",    ts: bucket_start + dt, apower_w: 600.0, aenergy_wh: 0.0)
+      Plugs::Sample.create!(plug_id: "fridge", ts: bucket_start + dt, apower_w: 200.0, aenergy_wh: 0.0)
     end
 
     payload = TrmnlPayloadBuilder.new(config: @config).build
@@ -86,14 +86,14 @@ class TrmnlPayloadBuilderTest < ActiveSupport::TestCase
     assert_equal Array.new(144, 0), mv["cons_w"]
   end
 
-  test "build sets ts to the max Sample.ts inside the 24h window" do
+  test "build sets ts to the max Plugs::Sample.ts inside the 24h window" do
     local_now = @tz.utc_to_local(Time.now.utc)
     minute = (local_now.min / 10) * 10
     slot_floor_local = Time.new(local_now.year, local_now.month, local_now.day, local_now.hour, minute, 0)
     end_ts = @tz.local_to_utc(slot_floor_local).to_i + 600
     newest_ts = end_ts - 60 # 1 minute before the upcoming 10-min boundary
-    Sample.create!(plug_id: "bkw", ts: newest_ts, apower_w: 0, aenergy_wh: 0.0)
-    Sample.create!(plug_id: "bkw", ts: newest_ts - 3600, apower_w: 0, aenergy_wh: 0.0)
+    Plugs::Sample.create!(plug_id: "bkw", ts: newest_ts, apower_w: 0, aenergy_wh: 0.0)
+    Plugs::Sample.create!(plug_id: "bkw", ts: newest_ts - 3600, apower_w: 0, aenergy_wh: 0.0)
 
     payload = TrmnlPayloadBuilder.new(config: @config).build
     assert_equal newest_ts, payload["merge_variables"]["ts"]
@@ -115,8 +115,8 @@ class TrmnlPayloadBuilderTest < ActiveSupport::TestCase
     start_ts = end_ts - 86_400
 
     (start_ts...end_ts).step(300) do |t|
-      Sample.create!(plug_id: "bkw",    ts: t, apower_w: 999.0, aenergy_wh: 0.0)
-      Sample.create!(plug_id: "fridge", ts: t, apower_w: 999.0, aenergy_wh: 0.0)
+      Plugs::Sample.create!(plug_id: "bkw",    ts: t, apower_w: 999.0, aenergy_wh: 0.0)
+      Plugs::Sample.create!(plug_id: "fridge", ts: t, apower_w: 999.0, aenergy_wh: 0.0)
     end
 
     payload = TrmnlPayloadBuilder.new(config: @config).build
@@ -130,7 +130,7 @@ class TrmnlPayloadBuilderTest < ActiveSupport::TestCase
     slot_floor_local = Time.new(local_now.year, local_now.month, local_now.day, local_now.hour, minute, 0)
     end_ts   = @tz.local_to_utc(slot_floor_local).to_i + 600
     newest_ts = end_ts - 120
-    Sample.create!(plug_id: "bkw", ts: newest_ts, apower_w: 0, aenergy_wh: 0.0)
+    Plugs::Sample.create!(plug_id: "bkw", ts: newest_ts, apower_w: 0, aenergy_wh: 0.0)
 
     payload = TrmnlPayloadBuilder.new(config: @config).build
     expected = @tz.utc_to_local(Time.at(newest_ts).utc).strftime("%H:%M")

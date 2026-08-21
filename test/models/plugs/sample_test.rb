@@ -2,7 +2,7 @@ require "test_helper"
 
 class SampleTest < ActiveSupport::TestCase
   def valid_sample
-    Sample.new(plug_id: "bkw", ts: 1_700_000_000, apower_w: 100.0, aenergy_wh: 500.0)
+    Plugs::Sample.new(plug_id: "bkw", ts: 1_700_000_000, apower_w: 100.0, aenergy_wh: 500.0)
   end
 
   test "valid sample is valid" do
@@ -41,7 +41,7 @@ class SampleTest < ActiveSupport::TestCase
   end
 
   test "accepts post-2038 timestamps" do
-    sample = Sample.create!(plug_id: "bkw", ts: 2_200_000_000, apower_w: 1.0, aenergy_wh: 1.0)
+    sample = Plugs::Sample.create!(plug_id: "bkw", ts: 2_200_000_000, apower_w: 1.0, aenergy_wh: 1.0)
     assert_equal 2_200_000_000, sample.reload.ts
   end
 end

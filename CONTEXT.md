@@ -68,7 +68,7 @@ _Avoid_: Sample (in German UI text), Messung
 
 **Offline**:
 A plug from which no measurement has arrived for a while — unplugged, Wi-Fi gone, broker
-dead. The deadline is fixed in `PlugMeasurement::OFFLINE_AFTER_S` and applies equally to
+dead. The deadline is fixed in `Plugs::Measurement::OFFLINE_AFTER_S` and applies equally to
 all plugs: what's offline is neither shown nor counted. Zero watts isn't offline — a plug
 with nothing running on it keeps on reporting.
 _German UI_: Offline
@@ -86,7 +86,7 @@ _Avoid_: Offline (that's the state of a plug), Stale (in German UI text)
 **Plug roster**:
 The configured plugs together with their roles. The one place that knows who produces and
 who consumes, and which sign a measurement carries — every reader asks the roster instead
-of comparing roles itself. `PlugRoster`, reachable as `config.plug_roster`.
+of comparing roles itself. `Plugs::Roster`, reachable as `config.plug_roster`.
 _German UI_: Steckdosenverzeichnis
 _Avoid_: Plug list, Registry, Verzeichnis (in German UI text)
 

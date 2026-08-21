@@ -12,13 +12,13 @@ namespace :daily_energy_summary do
     timezone = TZInfo::Timezone.get(config.timezone)
     builder  = DailyEnergySummaryBuilder.new(plugs: config.plugs, timezone: timezone)
 
-    dates = DailyTotal.distinct.pluck(:date).sort
+    dates = Plugs::DailyTotal.distinct.pluck(:date).sort
     rebuilt = 0
     skipped = 0
 
     dates.each do |date_s|
       day_start = timezone.local_to_utc(Time.parse("#{date_s} 00:00:00")).to_i
-      unless Sample5min.where(bucket_ts: day_start...(day_start + 86_400)).exists?
+      unless Plugs::Sample5min.where(bucket_ts: day_start...(day_start + 86_400)).exists?
         skipped += 1
         next
       end

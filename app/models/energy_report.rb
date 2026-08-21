@@ -31,7 +31,7 @@ class EnergyReport
 
   def initialize(params:, plugs:, timezone: "UTC", electricity_price_eur_per_kwh: 0.32, weather_loader: nil)
     @params = params.to_h.with_indifferent_access
-    @roster = PlugRoster.wrap(plugs)
+    @roster = Plugs::Roster.wrap(plugs)
     @timezone = TZInfo::Timezone.get(timezone)
     @savings_calculator = SavingsCalculator.new(price_eur_per_kwh: electricity_price_eur_per_kwh)
     @store = Store.new

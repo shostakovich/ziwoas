@@ -8,9 +8,9 @@ class SwitchesHelperTest < ActionView::TestCase
     seen = offline ? last_seen_at : now - 1.minute
     SwitchRow.new(
       plug: nil, entries: entries,
-      state: PlugState.new(plug_id: "x", output: on, updated_at: now),
+      state: Plugs::State.new(plug_id: "x", output: on, updated_at: now),
       last_command: last_command, next_edge: next_edge,
-      measurement: PlugMeasurement.new(plug_id: "x", watt: nil, last_seen_at: seen,
+      measurement: Plugs::Measurement.new(plug_id: "x", watt: nil, last_seen_at: seen,
                                        now: now, offline_after_s: 120)
     )
   end

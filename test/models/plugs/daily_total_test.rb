@@ -2,7 +2,7 @@ require "test_helper"
 
 class DailyTotalTest < ActiveSupport::TestCase
   def valid_daily_total
-    DailyTotal.new(plug_id: "bkw", date: "2026-04-10", energy_wh: 800.0)
+    Plugs::DailyTotal.new(plug_id: "bkw", date: "2026-04-10", energy_wh: 800.0)
   end
 
   test "valid daily_total is valid" do

@@ -2,8 +2,8 @@ require "test_helper"
 
 class ApiControllerTest < ActionDispatch::IntegrationTest
   setup do
-    Sample.delete_all
-    DailyTotal.delete_all
+    Plugs::Sample.delete_all
+    Plugs::DailyTotal.delete_all
     SolakonReading.delete_all
   end
 
@@ -20,7 +20,7 @@ class ApiControllerTest < ActionDispatch::IntegrationTest
 
   test "GET /api/live returns online with current values after fresh sample" do
     now = Time.now.to_i
-    Sample.create!(plug_id: "bkw", ts: now - 2, apower_w: 342.5, aenergy_wh: 1000.0)
+    Plugs::Sample.create!(plug_id: "bkw", ts: now - 2, apower_w: 342.5, aenergy_wh: 1000.0)
 
     get "/api/live", as: :json
     assert_response :ok
@@ -32,7 +32,7 @@ class ApiControllerTest < ActionDispatch::IntegrationTest
 
   test "GET /api/live marks a plug that stopped reporting as offline" do
     old = Time.now.to_i - 130
-    Sample.create!(plug_id: "bkw", ts: old, apower_w: 1.0, aenergy_wh: 1.0)
+    Plugs::Sample.create!(plug_id: "bkw", ts: old, apower_w: 1.0, aenergy_wh: 1.0)
 
     get "/api/live", as: :json
     assert_response :ok
@@ -46,8 +46,8 @@ class ApiControllerTest < ActionDispatch::IntegrationTest
       now = Time.current
       cfg = live_config_with_solakon
 
-      Sample.create!(plug_id: "desk", ts: now.to_i - 2, apower_w: 120.0, aenergy_wh: 1.0)
-      Sample.create!(plug_id: "heatpump", ts: now.to_i - 2, apower_w: 80.0, aenergy_wh: 1.0)
+      Plugs::Sample.create!(plug_id: "desk", ts: now.to_i - 2, apower_w: 120.0, aenergy_wh: 1.0)
+      Plugs::Sample.create!(plug_id: "heatpump", ts: now.to_i - 2, apower_w: 80.0, aenergy_wh: 1.0)
       SolakonReading.create!(
         taken_at: now - 2.seconds,
         active_power_w: 260,
@@ -87,8 +87,8 @@ class ApiControllerTest < ActionDispatch::IntegrationTest
       now = Time.current
       cfg = live_config_with_solakon
 
-      Sample.create!(plug_id: "desk", ts: now.to_i - 2, apower_w: 120.0, aenergy_wh: 1.0)       # fresh
-      Sample.create!(plug_id: "heatpump", ts: now.to_i - 130, apower_w: 80.0, aenergy_wh: 1.0)  # offline -> ignored
+      Plugs::Sample.create!(plug_id: "desk", ts: now.to_i - 2, apower_w: 120.0, aenergy_wh: 1.0)       # fresh
+      Plugs::Sample.create!(plug_id: "heatpump", ts: now.to_i - 130, apower_w: 80.0, aenergy_wh: 1.0)  # offline -> ignored
       SolakonReading.create!(
         taken_at: now - 2.seconds,
         active_power_w: 260,
@@ -118,8 +118,8 @@ class ApiControllerTest < ActionDispatch::IntegrationTest
       now = Time.current
       cfg = live_config_with_solakon
 
-      Sample.create!(plug_id: "desk", ts: now.to_i - 2, apower_w: 120.0, aenergy_wh: 1.0)
-      Sample.create!(plug_id: "heatpump", ts: now.to_i - 2, apower_w: 80.0, aenergy_wh: 1.0)
+      Plugs::Sample.create!(plug_id: "desk", ts: now.to_i - 2, apower_w: 120.0, aenergy_wh: 1.0)
+      Plugs::Sample.create!(plug_id: "heatpump", ts: now.to_i - 2, apower_w: 80.0, aenergy_wh: 1.0)
       SolakonReading.create!(
         taken_at: now - 121.seconds,
         active_power_w: 260,
@@ -157,8 +157,8 @@ class ApiControllerTest < ActionDispatch::IntegrationTest
       now = Time.current
       cfg = live_config_with_solakon(monitoring_enabled: false)
 
-      Sample.create!(plug_id: "desk", ts: now.to_i - 2, apower_w: 120.0, aenergy_wh: 1.0)
-      Sample.create!(plug_id: "heatpump", ts: now.to_i - 2, apower_w: 80.0, aenergy_wh: 1.0)
+      Plugs::Sample.create!(plug_id: "desk", ts: now.to_i - 2, apower_w: 120.0, aenergy_wh: 1.0)
+      Plugs::Sample.create!(plug_id: "heatpump", ts: now.to_i - 2, apower_w: 80.0, aenergy_wh: 1.0)
       SolakonReading.create!(
         taken_at: now - 2.seconds,
         active_power_w: 260,
@@ -187,8 +187,8 @@ class ApiControllerTest < ActionDispatch::IntegrationTest
 
   test "GET /api/today returns series per plug" do
     now = Time.now.to_i
-    Sample.create!(plug_id: "bkw", ts: now - 3600, apower_w: 200.0, aenergy_wh: 100.0)
-    Sample.create!(plug_id: "bkw", ts: now - 3540, apower_w: 300.0, aenergy_wh: 110.0)
+    Plugs::Sample.create!(plug_id: "bkw", ts: now - 3600, apower_w: 200.0, aenergy_wh: 100.0)
+    Plugs::Sample.create!(plug_id: "bkw", ts: now - 3540, apower_w: 300.0, aenergy_wh: 110.0)
 
     get "/api/today", as: :json
     assert_response :ok
@@ -203,8 +203,8 @@ class ApiControllerTest < ActionDispatch::IntegrationTest
 
   test "GET /api/today reports producer power as a positive magnitude" do
     now = Time.now.to_i
-    Sample.create!(plug_id: "bkw",    ts: now - 3600, apower_w: -200.0, aenergy_wh: 100.0)
-    Sample.create!(plug_id: "fridge", ts: now - 3600, apower_w:   80.0, aenergy_wh: 100.0)
+    Plugs::Sample.create!(plug_id: "bkw",    ts: now - 3600, apower_w: -200.0, aenergy_wh: 100.0)
+    Plugs::Sample.create!(plug_id: "fridge", ts: now - 3600, apower_w:   80.0, aenergy_wh: 100.0)
 
     get "/api/today", as: :json
     assert_response :ok
@@ -216,8 +216,8 @@ class ApiControllerTest < ActionDispatch::IntegrationTest
 
   test "GET /api/today returns points in ascending ts order" do
     now = Time.now.to_i
-    Sample.create!(plug_id: "bkw", ts: now -  600, apower_w: 100.0, aenergy_wh: 100.0)
-    Sample.create!(plug_id: "bkw", ts: now - 3600, apower_w: 200.0, aenergy_wh:  90.0)
+    Plugs::Sample.create!(plug_id: "bkw", ts: now -  600, apower_w: 100.0, aenergy_wh: 100.0)
+    Plugs::Sample.create!(plug_id: "bkw", ts: now - 3600, apower_w: 200.0, aenergy_wh:  90.0)
 
     get "/api/today", as: :json
     assert_response :ok
@@ -232,10 +232,10 @@ class ApiControllerTest < ActionDispatch::IntegrationTest
     tz       = TZInfo::Timezone.get("Europe/Berlin")
     midnight = tz.local_to_utc(Time.parse("#{Date.today} 00:00:00")).to_i
 
-    Sample.create!(plug_id: "bkw",    ts: midnight + 60,   apower_w: 0, aenergy_wh: 0.0)
-    Sample.create!(plug_id: "bkw",    ts: midnight + 3600, apower_w: 0, aenergy_wh: 1000.0)
-    Sample.create!(plug_id: "fridge", ts: midnight + 60,   apower_w: 0, aenergy_wh: 500.0)
-    Sample.create!(plug_id: "fridge", ts: midnight + 3600, apower_w: 0, aenergy_wh: 600.0)
+    Plugs::Sample.create!(plug_id: "bkw",    ts: midnight + 60,   apower_w: 0, aenergy_wh: 0.0)
+    Plugs::Sample.create!(plug_id: "bkw",    ts: midnight + 3600, apower_w: 0, aenergy_wh: 1000.0)
+    Plugs::Sample.create!(plug_id: "fridge", ts: midnight + 60,   apower_w: 0, aenergy_wh: 500.0)
+    Plugs::Sample.create!(plug_id: "fridge", ts: midnight + 3600, apower_w: 0, aenergy_wh: 600.0)
 
     get "/api/today/summary", as: :json
     assert_response :ok
@@ -251,8 +251,8 @@ class ApiControllerTest < ActionDispatch::IntegrationTest
     midnight = tz.local_to_utc(Time.parse("#{Date.today} 00:00:00")).to_i
 
     (0..3600).step(60) do |dt|
-      Sample.create!(plug_id: "bkw",    ts: midnight + dt, apower_w: 200.0, aenergy_wh: 200.0 * dt / 3600.0)
-      Sample.create!(plug_id: "fridge", ts: midnight + dt, apower_w: 100.0, aenergy_wh: 100.0 * dt / 3600.0)
+      Plugs::Sample.create!(plug_id: "bkw",    ts: midnight + dt, apower_w: 200.0, aenergy_wh: 200.0 * dt / 3600.0)
+      Plugs::Sample.create!(plug_id: "fridge", ts: midnight + dt, apower_w: 100.0, aenergy_wh: 100.0 * dt / 3600.0)
     end
 
     get "/api/today/summary", as: :json
@@ -272,7 +272,7 @@ class ApiControllerTest < ActionDispatch::IntegrationTest
   test "GET /api/history returns requested number of days" do
     today = Date.today
     7.times do |i|
-      DailyTotal.create!(plug_id: "bkw", date: (today - (i + 1)).to_s, energy_wh: 1000 + i * 100)
+      Plugs::DailyTotal.create!(plug_id: "bkw", date: (today - (i + 1)).to_s, energy_wh: 1000 + i * 100)
     end
 
     get "/api/history?days=5", as: :json

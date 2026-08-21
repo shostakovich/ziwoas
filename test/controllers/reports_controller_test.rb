@@ -2,7 +2,7 @@ require "test_helper"
 
 class ReportsControllerTest < ActionDispatch::IntegrationTest
   setup do
-    DailyTotal.delete_all
+    Plugs::DailyTotal.delete_all
     DailyEnergySummary.delete_all
   end
 
@@ -23,7 +23,7 @@ class ReportsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "reports page renders summary ranking and chart payload" do
-    DailyTotal.create!(plug_id: "bkw", date: "2026-04-10", energy_wh: 2000)
+    Plugs::DailyTotal.create!(plug_id: "bkw", date: "2026-04-10", energy_wh: 2000)
 
     get "/reports"
 
@@ -44,7 +44,7 @@ class ReportsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "reports page orders widgets like the dashboard" do
-    DailyTotal.create!(plug_id: "bkw", date: "2026-04-10", energy_wh: 2000)
+    Plugs::DailyTotal.create!(plug_id: "bkw", date: "2026-04-10", energy_wh: 2000)
 
     get "/reports"
 
@@ -57,7 +57,7 @@ class ReportsControllerTest < ActionDispatch::IntegrationTest
 
   test "reports page describes the power chart resolution" do
     30.times do |i|
-      DailyTotal.create!(plug_id: "bkw", date: (Date.new(2026, 4, 1) + i).to_s, energy_wh: 2000)
+      Plugs::DailyTotal.create!(plug_id: "bkw", date: (Date.new(2026, 4, 1) + i).to_s, energy_wh: 2000)
     end
 
     get "/reports", params: { preset: "last_30" }
@@ -115,7 +115,7 @@ class ReportsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "reports page renders Autarkie & Eigenverbrauchsquote section" do
-    DailyTotal.create!(plug_id: "bkw", date: "2026-04-10", energy_wh: 2000)
+    Plugs::DailyTotal.create!(plug_id: "bkw", date: "2026-04-10", energy_wh: 2000)
     DailyEnergySummary.create!(date: "2026-04-10", produced_wh: 2000.0, consumed_wh: 1000.0, self_consumed_wh: 500.0)
 
     get "/reports"
