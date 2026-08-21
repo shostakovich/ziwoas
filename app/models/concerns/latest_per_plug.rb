@@ -17,8 +17,10 @@ module LatestPerPlug
       plug_ids = Array(plug_ids)
       return none if plug_ids.empty?
 
+      quoted_column = connection.quote_column_name(column)
+
       where(plug_id: plug_ids).where(
-        "(plug_id, #{column}) IN (SELECT plug_id, MAX(#{column}) FROM #{table_name} " \
+        "(plug_id, #{quoted_column}) IN (SELECT plug_id, MAX(#{quoted_column}) FROM #{quoted_table_name} " \
         "WHERE plug_id IN (?) GROUP BY plug_id)", plug_ids
       )
     end
