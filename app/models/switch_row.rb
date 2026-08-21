@@ -2,7 +2,7 @@
 class SwitchRow
   LOOKAHEAD = 7.days
 
-  attr_reader :plug, :entries, :state, :last_command, :next_edge, :measurement, :now
+  attr_reader :plug, :entries, :state, :last_command, :next_edge, :measurement
 
   def self.build_all(plugs, now: Time.current)
     plug_ids = plugs.map(&:id)
@@ -24,7 +24,6 @@ class SwitchRow
         next_edge:    SwitchEdgeCalculator.new(rules: rules.select(&:enabled))
                                           .next_edge_per_plug(now, now + LOOKAHEAD).first,
         measurement:  measurements[plug.id],
-        now:          now,
       )
     end
   end
@@ -33,19 +32,19 @@ class SwitchRow
     build_all([ plug ], now: now).first
   end
 
-  def initialize(plug:, entries:, state:, last_command:, next_edge:, measurement:, now: Time.current)
+  def initialize(plug:, entries:, state:, last_command:, next_edge:, measurement:)
     @plug         = plug
     @entries      = entries
     @state        = state
     @last_command = last_command
     @next_edge    = next_edge
     @measurement  = measurement
-    @now          = now
   end
 
   def watt         = measurement.watt
   def last_seen_at = measurement.last_seen_at
   def offline?     = measurement.offline?
+  def age          = measurement.age
 
   # The fresher signal wins: a command newer than the last confirmed device
   # state shows optimistically until the Shelly status message catches up.

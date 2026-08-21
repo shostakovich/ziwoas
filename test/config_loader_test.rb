@@ -401,7 +401,6 @@ class ConfigLoaderTest < Minitest::Test
         unit_id: 1
         monitoring_enabled: true
         control_enabled: false
-        stale_after_s: 90
     YAML
   end
 
@@ -416,24 +415,6 @@ class ConfigLoaderTest < Minitest::Test
     assert_equal 1, sol.unit_id
     assert_equal true, sol.monitoring_enabled
     assert_equal false, sol.control_enabled
-    assert_equal 90, sol.stale_after_s
-  end
-
-  def test_solakon_load_stale_after_s_falls_back_to_the_inverter_threshold
-    sol = load_yaml(valid_yaml_with_solakon).solakon
-    assert_equal 90, sol.load_stale_after_s
-  end
-
-  def test_solakon_load_stale_after_s_is_independent_of_the_inverter_threshold
-    yaml = valid_yaml + <<~YAML
-      solakon:
-        host: 192.168.1.50
-        stale_after_s: 90
-        load_stale_after_s: 45
-    YAML
-    sol = load_yaml(yaml).solakon
-    assert_equal 90, sol.stale_after_s
-    assert_equal 45, sol.load_stale_after_s
   end
 
   def test_solakon_parses_monitoring_and_control_flags
@@ -534,8 +515,6 @@ class ConfigLoaderTest < Minitest::Test
     assert_equal 1, sol.unit_id
     assert_equal true, sol.monitoring_enabled
     assert_equal false, sol.control_enabled
-    assert_equal 120, sol.stale_after_s
-    assert_equal 120, sol.load_stale_after_s
   end
 
   def test_solakon_requires_host

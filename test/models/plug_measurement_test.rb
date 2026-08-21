@@ -18,24 +18,15 @@ class PlugMeasurementTest < ActiveSupport::TestCase
     assert_equal now - 5, measurement.last_seen_at
   end
 
-  test "a sample goes stale long before its plug counts as offline" do
+  test "a plug goes offline once its newest sample outlives the Frist" do
     now = Time.at(1_000_000)
     sample("fridge", 130, 120.0, now: now)
+    sample("tv",     110, 30.0,  now: now)
 
-    measurement = PlugMeasurement.for([ "fridge" ], now: now, stale_after_s: 120)["fridge"]
+    collection = PlugMeasurement.for(%w[fridge tv], now: now, offline_after_s: 120)
 
-    assert measurement.stale?
-    refute measurement.offline?
-  end
-
-  test "a plug that stopped reporting altogether is offline" do
-    now = Time.at(1_000_000)
-    sample("fridge", 6 * 60, 120.0, now: now)
-
-    measurement = PlugMeasurement.for([ "fridge" ], now: now, stale_after_s: 120)["fridge"]
-
-    assert measurement.offline?
-    assert measurement.stale?
+    assert collection["fridge"].offline?
+    refute collection["tv"].offline?
   end
 
   test "a plug that never reported has no reading and is offline" do
@@ -46,25 +37,24 @@ class PlugMeasurementTest < ActiveSupport::TestCase
     assert_nil measurement.watt
     assert_nil measurement.last_seen_at
     assert measurement.offline?
-    assert measurement.stale?
   end
 
-  test "total_w adds up the samples that are not stale" do
+  test "total_w adds up the plugs that are not offline" do
     now = Time.at(1_000_000)
     sample("fridge", 5,   120.0, now: now)
     sample("tv",     5,   30.0,  now: now)
     sample("heater", 130, 500.0, now: now)
 
-    collection = PlugMeasurement.for(%w[fridge tv heater], now: now, stale_after_s: 120)
+    collection = PlugMeasurement.for(%w[fridge tv heater], now: now, offline_after_s: 120)
 
     assert_in_delta 150.0, collection.total_w
   end
 
-  test "total_w is unknown rather than zero when nothing is fresh" do
+  test "total_w is unknown rather than zero when everything is offline" do
     now = Time.at(1_000_000)
     sample("fridge", 130, 120.0, now: now)
 
-    collection = PlugMeasurement.for([ "fridge" ], now: now, stale_after_s: 120)
+    collection = PlugMeasurement.for([ "fridge" ], now: now, offline_after_s: 120)
 
     assert_nil collection.total_w
   end
@@ -73,7 +63,7 @@ class PlugMeasurementTest < ActiveSupport::TestCase
     now = Time.at(1_000_000)
     sample("fridge", 5, 0.0, now: now)
 
-    collection = PlugMeasurement.for(%w[fridge tv], now: now, stale_after_s: 120)
+    collection = PlugMeasurement.for(%w[fridge tv], now: now, offline_after_s: 120)
 
     assert_equal 0.0, collection.total_w
   end
@@ -83,9 +73,15 @@ class PlugMeasurementTest < ActiveSupport::TestCase
     sample("fridge", 5, 120.0, now: now)
     sample("bkw",    5, 500.0, now: now)
 
-    collection = PlugMeasurement.for(%w[fridge bkw], now: now, stale_after_s: 120)
+    collection = PlugMeasurement.for(%w[fridge bkw], now: now, offline_after_s: 120)
 
     assert_in_delta 120.0, collection.total_w([ "fridge" ])
+  end
+
+  test "total_w refuses plugs the collection never measured" do
+    collection = PlugMeasurement.for([ "fridge" ], now: Time.at(1_000_000))
+
+    assert_raises(ArgumentError) { collection.total_w(%w[fridge tv]) }
   end
 
   test "total_w of no plugs at all is unknown" do

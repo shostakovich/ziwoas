@@ -11,8 +11,7 @@ class SwitchesHelperTest < ActionView::TestCase
       state: PlugState.new(plug_id: "x", output: on, updated_at: now),
       last_command: last_command, next_edge: next_edge,
       measurement: PlugMeasurement.new(plug_id: "x", watt: nil, last_seen_at: seen,
-                                       now: now, stale_after_s: 120),
-      now: now
+                                       now: now, offline_after_s: 120)
     )
   end
 

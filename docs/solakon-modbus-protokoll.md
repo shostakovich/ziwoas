@@ -34,8 +34,7 @@
 | Host | `solakon.host` (z. B. `192.168.1.50`) | [`config/ziwoas.example.yml`](../config/ziwoas.example.yml) |
 | Port | `solakon.port`, Default **502** | `ConfigLoader::SolakonCfg` ([config_loader.rb](../lib/config_loader.rb)) |
 | Unit / Slave ID | `solakon.unit_id`, Default **1** | s. o. |
-| Stale-Schwelle (Reading) | `solakon.stale_after_s`, Default **120 s** | s. o. |
-| Stale-Schwelle (Steckdosen-Messwerte) | `solakon.load_stale_after_s`, Default **120 s**, ersatzweise `stale_after_s` | s. o. |
+| Stale-Schwelle | `solakon.stale_after_s`, Default **120 s** | s. o. |
 | Monitoring an? | `solakon.monitoring_enabled`, Default **true** | s. o. |
 | Steuerung (Nulleinspeisung) an? | `solakon.control_enabled`, Default **false** | s. o. |
 

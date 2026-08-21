@@ -18,13 +18,13 @@ class SolakonControlsControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
-  Sol = Struct.new(:host, :port, :unit_id, :monitoring_enabled, :control_enabled, :stale_after_s, keyword_init: true)
+  Sol = Struct.new(:host, :port, :unit_id, :monitoring_enabled, :control_enabled, keyword_init: true)
   Cfg = Struct.new(:solakon, keyword_init: true)
 
   setup { SolakonControlState.delete_all }
 
   def config(control_enabled: true, solakon: true)
-    Cfg.new(solakon: (Sol.new(host: "h", port: 502, unit_id: 1, monitoring_enabled: true, control_enabled: control_enabled, stale_after_s: 120) if solakon))
+    Cfg.new(solakon: (Sol.new(host: "h", port: 502, unit_id: 1, monitoring_enabled: true, control_enabled: control_enabled) if solakon))
   end
 
   test "eps endpoint writes directly through SolakonClient" do

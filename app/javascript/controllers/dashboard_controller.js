@@ -163,11 +163,8 @@ export default class extends Controller {
     this.plugColorIdx ??= 0
 
     const producers = plugs.filter(p => p.role === "producer" && p.online)
-    // "Verbrauch gesamt" is the same figure as the flow picture's home_w, so it
-    // drops the same plugs. Live broadcasts carry no stale flag and are fresh
-    // by definition.
     const consumers = plugs
-      .filter(p => p.role === "consumer" && p.online && !p.stale && p.apower_w > 0)
+      .filter(p => p.role === "consumer" && p.online && p.apower_w > 0)
       .sort((a, b) => b.apower_w - a.apower_w)
 
     const total = consumers.reduce((s, p) => s + p.apower_w, 0)

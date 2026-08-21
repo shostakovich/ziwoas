@@ -31,7 +31,7 @@ class ApiControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "GET /api/live marks a plug that stopped reporting as offline" do
-    old = Time.now.to_i - 6.minutes.to_i
+    old = Time.now.to_i - 130
     Sample.create!(plug_id: "bkw", ts: old, apower_w: 1.0, aenergy_wh: 1.0)
 
     get "/api/live", as: :json
@@ -44,7 +44,7 @@ class ApiControllerTest < ActionDispatch::IntegrationTest
   test "GET /api/live includes fresh Solakon energy flow" do
     travel_to Time.zone.local(2026, 6, 18, 12, 0, 0) do
       now = Time.current
-      cfg = live_config_with_solakon(stale_after_s: 120)
+      cfg = live_config_with_solakon
 
       Sample.create!(plug_id: "desk", ts: now.to_i - 2, apower_w: 120.0, aenergy_wh: 1.0)
       Sample.create!(plug_id: "heatpump", ts: now.to_i - 2, apower_w: 80.0, aenergy_wh: 1.0)
@@ -82,13 +82,13 @@ class ApiControllerTest < ActionDispatch::IntegrationTest
   end
 
 
-  test "GET /api/live sums only the fresh consumer plugs and ignores stale ones" do
+  test "GET /api/live sums only the consumer plugs that are still online" do
     travel_to Time.zone.local(2026, 6, 18, 12, 0, 0) do
       now = Time.current
-      cfg = live_config_with_solakon(stale_after_s: 120)
+      cfg = live_config_with_solakon
 
       Sample.create!(plug_id: "desk", ts: now.to_i - 2, apower_w: 120.0, aenergy_wh: 1.0)       # fresh
-      Sample.create!(plug_id: "heatpump", ts: now.to_i - 130, apower_w: 80.0, aenergy_wh: 1.0)  # stale -> ignored
+      Sample.create!(plug_id: "heatpump", ts: now.to_i - 130, apower_w: 80.0, aenergy_wh: 1.0)  # offline -> ignored
       SolakonReading.create!(
         taken_at: now - 2.seconds,
         active_power_w: 260,
@@ -103,25 +103,20 @@ class ApiControllerTest < ActionDispatch::IntegrationTest
       assert_response :ok
 
       energy_flow = response.parsed_body["energy_flow"]
-      assert_in_delta 120.0, energy_flow["home_w"]      # only the fresh desk plug, heatpump dropped
+      assert_in_delta 120.0, energy_flow["home_w"]      # only the online desk plug, heatpump dropped
       assert_in_delta(-140.0, energy_flow["grid_w"])    # 120 - 260
 
-      # The heatpump is too old to count towards home_w but has not gone quiet
-      # long enough to be offline. Both facts travel, so nothing downstream can
-      # sum a plug the flow already dropped.
+      # A plug the flow dropped is offline in the same payload, so nothing
+      # downstream can sum it back in.
       heatpump = response.parsed_body["plugs"].find { |p| p["id"] == "heatpump" }
-      assert_equal true, heatpump["online"]
-      assert_equal true, heatpump["stale"]
-
-      desk = response.parsed_body["plugs"].find { |p| p["id"] == "desk" }
-      assert_equal false, desk["stale"]
+      assert_equal false, heatpump["online"]
     end
   end
 
   test "GET /api/live marks stale Solakon energy flow unavailable" do
     travel_to Time.zone.local(2026, 6, 18, 12, 0, 0) do
       now = Time.current
-      cfg = live_config_with_solakon(stale_after_s: 120)
+      cfg = live_config_with_solakon
 
       Sample.create!(plug_id: "desk", ts: now.to_i - 2, apower_w: 120.0, aenergy_wh: 1.0)
       Sample.create!(plug_id: "heatpump", ts: now.to_i - 2, apower_w: 80.0, aenergy_wh: 1.0)
@@ -146,13 +141,21 @@ class ApiControllerTest < ActionDispatch::IntegrationTest
       assert_nil energy_flow["battery_soc_pct"]
       assert_nil energy_flow["battery_w"]
       assert_nil energy_flow["grid_w"]
+      assert_equal({
+        "solar_to_home_w" => nil,
+        "solar_to_grid_w" => nil,
+        "solar_to_battery_w" => nil,
+        "grid_to_home_w" => nil,
+        "grid_to_battery_w" => nil,
+        "battery_to_home_w" => nil
+      }, energy_flow["flows"])
     end
   end
 
   test "GET /api/live marks Solakon energy flow unavailable when monitoring disabled" do
     travel_to Time.zone.local(2026, 6, 18, 12, 0, 0) do
       now = Time.current
-      cfg = live_config_with_solakon(stale_after_s: 120, monitoring_enabled: false)
+      cfg = live_config_with_solakon(monitoring_enabled: false)
 
       Sample.create!(plug_id: "desk", ts: now.to_i - 2, apower_w: 120.0, aenergy_wh: 1.0)
       Sample.create!(plug_id: "heatpump", ts: now.to_i - 2, apower_w: 80.0, aenergy_wh: 1.0)
@@ -267,7 +270,7 @@ class ApiControllerTest < ActionDispatch::IntegrationTest
   end
   private
 
-  def live_config_with_solakon(stale_after_s:, monitoring_enabled: true)
+  def live_config_with_solakon(monitoring_enabled: true)
     ConfigLoader::Config.new(
       electricity_price_eur_per_kwh: 0.32,
       timezone: "Europe/Berlin",
@@ -284,9 +287,7 @@ class ApiControllerTest < ActionDispatch::IntegrationTest
         port: 502,
         unit_id: 1,
         monitoring_enabled: monitoring_enabled,
-        control_enabled: false,
-        stale_after_s: stale_after_s,
-        load_stale_after_s: stale_after_s
+        control_enabled: false
       )
     )
   end

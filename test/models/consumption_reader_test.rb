@@ -23,7 +23,7 @@ class ConsumptionReaderTest < ActiveSupport::TestCase
     Sample.create!(plug_id: "fridge", ts: now.to_i - 5,  apower_w: 120, aenergy_wh: 1) # latest wins
     Sample.create!(plug_id: "tv",     ts: now.to_i - 5,  apower_w: 30,  aenergy_wh: 1)
     Sample.create!(plug_id: "bkw",    ts: now.to_i - 5,  apower_w: 500, aenergy_wh: 1) # producer, ignored
-    reader = ConsumptionReader.new(plugs: plugs, now: now, stale_after_s: 120)
+    reader = ConsumptionReader.new(plugs: plugs, now: now, offline_after_s: 120)
     assert_in_delta 150.0, reader.current_consumption_w
   end
 
@@ -86,7 +86,7 @@ class ConsumptionReaderTest < ActiveSupport::TestCase
     cache.write(ConsumptionReader::MEDIAN_CACHE_KEY, 240.0)
 
     estimate = Rails.stub(:cache, cache) do
-      ConsumptionReader.new(plugs: plugs, now: now, stale_after_s: 120).load_estimate
+      ConsumptionReader.new(plugs: plugs, now: now, offline_after_s: 120).load_estimate
     end
 
     assert_in_delta 120.0, estimate.current_w
@@ -100,7 +100,7 @@ class ConsumptionReaderTest < ActiveSupport::TestCase
     cache = ActiveSupport::Cache::MemoryStore.new
 
     estimate = Rails.stub(:cache, cache) do
-      ConsumptionReader.new(plugs: plugs, now: now, stale_after_s: 120).load_estimate
+      ConsumptionReader.new(plugs: plugs, now: now, offline_after_s: 120).load_estimate
     end
 
     assert_in_delta 120.0, estimate.floor_w

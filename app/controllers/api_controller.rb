@@ -39,10 +39,7 @@ class ApiController < ApplicationController
     now     = Time.zone.at(@now_ts)
     solakon = config.solakon
 
-    measurements = PlugMeasurement.for(
-      config.plugs.map(&:id), now: now,
-      stale_after_s: solakon&.load_stale_after_s || PlugMeasurement::DEFAULT_STALE_AFTER_S
-    )
+    measurements = PlugMeasurement.for(config.plugs.map(&:id), now: now)
 
     @plugs = config.plugs.map do |plug|
       measurement = measurements[plug.id]
@@ -51,7 +48,6 @@ class ApiController < ApplicationController
         name:         plug.name,
         role:         plug.role,
         online:       !measurement.offline?,
-        stale:        measurement.stale?,
         apower_w:     measurement.offline? ? nil : measurement.watt,
         last_seen_ts: measurement.last_seen_at&.to_i
       }
@@ -59,7 +55,7 @@ class ApiController < ApplicationController
 
     consumer_ids = config.plugs.select { |plug| plug.role == :consumer }.map(&:id)
     reading = if solakon&.monitoring_enabled
-      SolakonReading.latest_fresh(stale_after_s: solakon.stale_after_s, now: now)
+      SolakonReading.latest_fresh(now: now)
     end
 
     @energy_flow = EnergyFlow.build(home_w: measurements.total_w(consumer_ids), reading: reading)

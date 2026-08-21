@@ -37,7 +37,7 @@ module SwitchesHelper
 
   def offline_line(row)
     return "noch keine Statusmeldung" if row.last_seen_at.nil?
-    minutes = ((row.now - row.last_seen_at) / 60).round
+    minutes = (row.age / 60).round
     "keine Statusmeldung seit #{minutes} min"
   end
 

@@ -58,15 +58,17 @@ melden bei Änderung, Fritz-Steckdosen werden gepollt — die Abstände sind als
 gleichmäßig.
 _Avoid_: Sample (im deutschen UI-Text), Messung
 
-**Veraltet**:
-Ein Messwert, der zu alt ist, um damit noch zu **rechnen**. Regelung und Flussbild lassen ihn
-fallen, statt mit einer stillen Zahl weiterzurechnen. Die Frist ist konfigurierbar (im Code
-heißt das Prädikat `stale?`).
-_Avoid_: Abgelaufen, Alt
-
 **Offline**:
 Eine Steckdose, von der seit einer Weile kein Messwert mehr kommt — Stecker gezogen, WLAN weg,
-Broker tot. Eine Aussage über das Gerät, nicht über den Wert: sie erscheint nur in der
-Oberfläche und hat eine eigene, trägere Frist als **Veraltet**. Null Watt ist nicht offline —
-eine Steckdose, an der nichts läuft, meldet weiter.
-_Avoid_: Stumm, Abgezogen (nennt nur eine von mehreren Ursachen)
+Broker tot. Die Frist steht fest in `PlugMeasurement::OFFLINE_AFTER_S` und gilt für alle
+Steckdosen gleich: was offline ist, wird weder angezeigt noch mitgerechnet. Null Watt ist
+nicht offline — eine Steckdose, an der nichts läuft, meldet weiter.
+_Avoid_: Veraltet (das ist die Frist des Wechselrichters), Stumm, Abgezogen
+
+**Veraltet**:
+Ein Messwert des Wechselrichters, der zu alt ist, um seinen jetzigen Zustand zu beschreiben.
+Eigene Frist in `SolakonReading::STALE_AFTER_S` — eine Steckdose und ein Wechselrichter melden
+aus verschiedenen Gründen verschieden oft, deshalb sind es zwei Fristen und nicht eine.
+Ist das Reading veraltet, gilt der Wechselrichter als offline und jeder daraus abgeleitete
+Wert ist unbekannt, nicht null.
+_Avoid_: Offline (das ist der Zustand einer Steckdose), Stale

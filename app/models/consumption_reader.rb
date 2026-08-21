@@ -12,10 +12,10 @@ class ConsumptionReader
   FLOOR_CACHE_TTL  = 1.hour
   MEDIAN_CACHE_TTL = 60.seconds
 
-  def initialize(plugs:, now: Time.now, stale_after_s: 120)
-    @consumer_ids  = plugs.select { |p| p.role == :consumer }.map(&:id)
-    @now           = now
-    @stale_after_s = stale_after_s
+  def initialize(plugs:, now: Time.now, offline_after_s: PlugMeasurement::OFFLINE_AFTER_S)
+    @consumer_ids    = plugs.select { |p| p.role == :consumer }.map(&:id)
+    @now             = now
+    @offline_after_s = offline_after_s
   end
 
   def load_estimate
@@ -27,7 +27,7 @@ class ConsumptionReader
   end
 
   def current_consumption_w
-    PlugMeasurement.for(@consumer_ids, now: @now, stale_after_s: @stale_after_s).total_w
+    PlugMeasurement.for(@consumer_ids, now: @now, offline_after_s: @offline_after_s).total_w
   end
 
   # Minimum total 5-min consumption over the last 24h. Computed from raw
