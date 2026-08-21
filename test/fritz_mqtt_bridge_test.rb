@@ -47,8 +47,7 @@ class FritzMqttBridgeTest < ActiveSupport::TestCase
     client
   end
 
-  # Poll intervals below the one-second granularity of sleep_interruptible, so
-  # tests that let the bridge really sleep between polls don't wait for a tick.
+  # Below the one-second granularity of sleep_interruptible, so a real sleep costs no tick.
   def instant_poll_cfg
     ConfigLoader::FritzPollCfg.new(active_interval_seconds: 0.01, idle_interval_seconds: 0.01,
       idle_threshold_w: 10, timeout_seconds: 2)
@@ -68,7 +67,6 @@ class FritzMqttBridgeTest < ActiveSupport::TestCase
     )
   end
 
-  # Connects, but drops the first publish — a broker that goes away mid-poll.
   def mqtt_client_failing_once
     published = []
     dropped   = false
@@ -84,8 +82,6 @@ class FritzMqttBridgeTest < ActiveSupport::TestCase
     client
   end
 
-  # Runs the bridge on its own thread until the block's condition holds, then
-  # stops it and returns.
   def run_until(bridge)
     thread = Thread.new { bridge.run }
     sleep(0.01) until yield
@@ -315,8 +311,7 @@ class FritzMqttBridgeTest < ActiveSupport::TestCase
 
   private
 
-  # Stubs Kernel#sleep on the bridge itself so the real call never blocks, records
-  # the argument it was given, then flips @stopping to end the wait after one chunk.
+  # Stubs Kernel#sleep so it records instead of blocking, then stops after one chunk.
   def capped_sleep_argument(bridge, seconds)
     captured = nil
     bridge.define_singleton_method(:sleep) do |s|

@@ -6,7 +6,6 @@ require "stringio"
 class CollectorTest < ActiveSupport::TestCase
   cover "Collector*"
 
-  # Blocks in #run until #stop! releases it — the shape every real component has.
   class FakeRunnable
     attr_reader :thread_name
 
@@ -20,16 +19,19 @@ class CollectorTest < ActiveSupport::TestCase
     def stop! = @gate.push(:stop)
   end
 
-  # Ignores #stop! and keeps running, so only a force-kill ends it.
   class StubbornRunnable
     def run = sleep
     def stop! = nil
   end
 
-  # Dies on its own, the way a bridge does when its broker is unreachable.
   class DyingRunnable
     def run = raise(Errno::EHOSTUNREACH, "no route to host")
     def stop! = nil
+  end
+
+  class UnstoppableRunnable
+    def run = sleep
+    def stop! = raise(IOError, "socket already closed")
   end
 
   setup do
@@ -42,7 +44,6 @@ class CollectorTest < ActiveSupport::TestCase
     Collector.new(config: nil, logger: @logger, components: components, join_timeout: join_timeout)
   end
 
-  # Runs the collector on its own thread and returns once every thread is up.
   def run_until_started(collector, count)
     thread = Thread.new { collector.run }
     sleep(0.01) until count.times.all? { |i| Thread.list.any? { |t| t.name == "fake_#{i}" } }
@@ -84,6 +85,9 @@ class CollectorTest < ActiveSupport::TestCase
     assert thread.join(5), "expected run to return after the force-kill"
 
     assert_match(/force-killing fake_1/, @log_io.string)
+    # Thread#kill only marks the thread; give it a moment to actually unwind.
+    deadline = Time.now + 5
+    sleep(0.01) while Thread.list.any? { |t| t.name == "fake_1" } && Time.now < deadline
     assert_nil Thread.list.find { |t| t.name == "fake_1" }
   end
 
@@ -111,6 +115,20 @@ class CollectorTest < ActiveSupport::TestCase
     refute_match(/force-killing/, @log_io.string)
   end
 
+  test "a component that raises in stop! is logged and the rest still stops" do
+    survivor  = FakeRunnable.new
+    collector = build([ UnstoppableRunnable.new, survivor ], join_timeout: 0.05)
+
+    thread = run_until_started(collector, 2)
+    collector.stop!
+    assert thread.join(5), "expected run to return although a component failed to stop"
+
+    assert_match(/fake_0 failed to stop: IOError: socket already closed/, @log_io.string)
+    assert_match(/force-killing fake_0/, @log_io.string)
+    refute_match(/force-killing fake_1/, @log_io.string)
+    assert_match(/stopped/, @log_io.string)
+  end
+
   test "without injected components the collector assembles them from the config" do
     mqtt   = ConfigLoader::MqttCfg.new(host: "localhost", port: 1883, topic_prefix: "shellies")
     config = ConfigLoader::Config.new(timezone: "Europe/Berlin", mqtt: mqtt, plugs: [], govee: nil)
@@ -128,8 +146,7 @@ class CollectorTest < ActiveSupport::TestCase
       pending_window_seconds: 5, names: {})
     config = ConfigLoader::Config.new(timezone: "Europe/Berlin", mqtt: mqtt, plugs: [], govee: govee)
 
-    # A missing api_key makes Assembly log a warning through the logger it was given.
-    # A nil logger would raise NoMethodError instead of reaching this assertion.
+    # A nil logger would raise NoMethodError before reaching the assertion.
     Collector.new(config: config, logger: @logger)
 
     assert_match(/Govees bridge disabled/, @log_io.string)

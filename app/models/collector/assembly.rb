@@ -7,7 +7,6 @@ require "fritz_mqtt_bridge"
 require "fritz_dect_client"
 
 class Collector
-  # Turns the ziwoas.yml config into the components the collector supervises.
   # No threads and no I/O: every collaborator here is inert until #run.
   class Assembly
     def initialize(config:, logger:)

@@ -12,7 +12,6 @@ logger.level = Rails.env.development? ? Logger::DEBUG : Logger::INFO
 config    = ConfigLoader.load(Rails.root.join("config", "ziwoas.yml").to_s)
 collector = Collector.new(config: config, logger: logger)
 
-# Keep the signal handler minimal: #stop! only enqueues, the teardown runs in #run.
 %w[INT TERM].each { |sig| Signal.trap(sig) { collector.stop! } }
 
 collector.run

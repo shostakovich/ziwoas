@@ -26,8 +26,7 @@ class FritzMqttBridge
       begin
         connect_and_poll
       rescue MQTT::Exception, StandardError => e
-        # MQTT::Exception inherits from ::Exception (not StandardError), so both
-        # branches are needed to survive broker drops and network errors alike.
+        # MQTT::Exception descends from ::Exception, so StandardError alone misses it.
         @logger.error("FritzMqttBridge #{@plug.id}: #{e.class}: #{e.message}")
         sleep_interruptible(@backoff) unless @stopping
         @backoff = [ @backoff * 2, MAX_BACKOFF_SECONDS ].min
