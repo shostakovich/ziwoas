@@ -18,7 +18,8 @@ class MqttRouter
       begin
         connect_and_run
         backoff = 1
-      rescue => e
+      rescue MQTT::Exception, StandardError => e
+        # MQTT::Exception descends from ::Exception, so StandardError alone misses it.
         @logger.error("MqttRouter: #{e.class}: #{e.message}")
         sleep([ backoff, 60 ].min) unless @stopping
         backoff = [ backoff * 2, 60 ].min
