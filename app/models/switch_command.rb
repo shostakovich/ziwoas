@@ -1,4 +1,7 @@
 class SwitchCommand < ApplicationRecord
+  include LatestPerPlug
+  latest_per_plug_by :created_at
+
   ACTIONS = %w[on off].freeze
   SOURCES = %w[manual schedule].freeze
 

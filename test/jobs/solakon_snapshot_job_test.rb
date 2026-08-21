@@ -17,13 +17,13 @@ class SolakonSnapshotJobTest < ActiveJob::TestCase
     end
   end
 
-  Sol = Struct.new(:host, :port, :unit_id, :monitoring_enabled, :control_enabled, :stale_after_s, keyword_init: true)
+  Sol = Struct.new(:host, :port, :unit_id, :monitoring_enabled, :control_enabled, keyword_init: true)
   Cfg = Struct.new(:solakon, keyword_init: true)
 
   setup { SolakonSnapshot.delete_all }
 
   def config(monitoring_enabled: true, solakon: true)
-    Cfg.new(solakon: (Sol.new(host: "h", port: 502, unit_id: 1, monitoring_enabled: monitoring_enabled, control_enabled: false, stale_after_s: 120) if solakon))
+    Cfg.new(solakon: (Sol.new(host: "h", port: 502, unit_id: 1, monitoring_enabled: monitoring_enabled, control_enabled: false) if solakon))
   end
 
   def snapshot_data

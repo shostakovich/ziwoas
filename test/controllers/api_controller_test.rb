@@ -30,7 +30,7 @@ class ApiControllerTest < ActionDispatch::IntegrationTest
     assert_in_delta 342.5, bkw["apower_w"]
   end
 
-  test "GET /api/live marks stale sample as offline" do
+  test "GET /api/live marks a plug that stopped reporting as offline" do
     old = Time.now.to_i - 130
     Sample.create!(plug_id: "bkw", ts: old, apower_w: 1.0, aenergy_wh: 1.0)
 
@@ -44,7 +44,7 @@ class ApiControllerTest < ActionDispatch::IntegrationTest
   test "GET /api/live includes fresh Solakon energy flow" do
     travel_to Time.zone.local(2026, 6, 18, 12, 0, 0) do
       now = Time.current
-      cfg = live_config_with_solakon(stale_after_s: 120)
+      cfg = live_config_with_solakon
 
       Sample.create!(plug_id: "desk", ts: now.to_i - 2, apower_w: 120.0, aenergy_wh: 1.0)
       Sample.create!(plug_id: "heatpump", ts: now.to_i - 2, apower_w: 80.0, aenergy_wh: 1.0)
@@ -82,119 +82,13 @@ class ApiControllerTest < ActionDispatch::IntegrationTest
   end
 
 
-  test "GET /api/live marks battery state as low before normal charging state" do
+  test "GET /api/live sums only the consumer plugs that are still online" do
     travel_to Time.zone.local(2026, 6, 18, 12, 0, 0) do
       now = Time.current
-      cfg = live_config_with_solakon(stale_after_s: 120)
-
-      Sample.create!(plug_id: "desk", ts: now.to_i - 2, apower_w: 80.0, aenergy_wh: 1.0)
-      SolakonReading.create!(
-        taken_at: now - 2.seconds,
-        active_power_w: 120,
-        pv_power_w: 200,
-        battery_power_w: 40,
-        battery_soc_pct: 18
-      )
-
-      ConfigLoader.stub(:app_config, cfg) do
-        get "/api/live", as: :json
-      end
-      assert_response :ok
-
-      assert_equal "low", response.parsed_body.dig("energy_flow", "battery_state")
-    end
-  end
-
-  test "GET /api/live uses grid reference to correct solar-to-battery flow" do
-    travel_to Time.zone.local(2026, 6, 18, 12, 0, 0) do
-      now = Time.current
-      cfg = live_config_with_solakon(stale_after_s: 120)
-
-      Sample.create!(plug_id: "desk", ts: now.to_i - 2, apower_w: 200.0, aenergy_wh: 1.0)
-      SolakonReading.create!(
-        taken_at: now - 2.seconds,
-        active_power_w: 260,
-        pv_power_w: 400,
-        battery_power_w: 50,
-        battery_soc_pct: 84
-      )
-
-      ConfigLoader.stub(:app_config, cfg) do
-        get "/api/live", as: :json
-      end
-      assert_response :ok
-
-      flows = response.parsed_body.dig("energy_flow", "flows")
-      assert_equal 200.0, flows.fetch("solar_to_home_w")
-      assert_equal 60.0, flows.fetch("solar_to_grid_w")
-      assert_equal 140.0, flows.fetch("solar_to_battery_w")
-      assert_equal 0.0, flows.fetch("battery_to_home_w")
-    end
-  end
-
-  test "GET /api/live splits house supply between solar battery and grid while discharging" do
-    travel_to Time.zone.local(2026, 6, 18, 12, 0, 0) do
-      now = Time.current
-      cfg = live_config_with_solakon(stale_after_s: 120)
-
-      Sample.create!(plug_id: "desk", ts: now.to_i - 2, apower_w: 200.0, aenergy_wh: 1.0)
-      SolakonReading.create!(
-        taken_at: now - 2.seconds,
-        active_power_w: 150,
-        pv_power_w: 100,
-        battery_power_w: -50,
-        battery_soc_pct: 84
-      )
-
-      ConfigLoader.stub(:app_config, cfg) do
-        get "/api/live", as: :json
-      end
-      assert_response :ok
-
-      flows = response.parsed_body.dig("energy_flow", "flows")
-      assert_equal 100.0, flows.fetch("solar_to_home_w")
-      assert_equal 0.0, flows.fetch("solar_to_grid_w")
-      assert_equal 0.0, flows.fetch("solar_to_battery_w")
-      assert_equal 50.0, flows.fetch("grid_to_home_w")
-      assert_equal 50.0, flows.fetch("battery_to_home_w")
-    end
-  end
-
-  test "GET /api/live reports unknown home and grid when consumer samples are stale" do
-    travel_to Time.zone.local(2026, 6, 18, 12, 0, 0) do
-      now = Time.current
-      cfg = live_config_with_solakon(stale_after_s: 120)
-
-      Sample.create!(plug_id: "desk", ts: now.to_i - 130, apower_w: 120.0, aenergy_wh: 1.0)
-      Sample.create!(plug_id: "heatpump", ts: now.to_i - 130, apower_w: 80.0, aenergy_wh: 1.0)
-      SolakonReading.create!(
-        taken_at: now - 2.seconds,
-        active_power_w: 260,
-        pv_power_w: 310,
-        battery_power_w: 50,
-        battery_soc_pct: 84
-      )
-
-      ConfigLoader.stub(:app_config, cfg) do
-        get "/api/live", as: :json
-      end
-      assert_response :ok
-
-      energy_flow = response.parsed_body["energy_flow"]
-      assert_equal true, energy_flow["solakon_online"]
-      assert_nil energy_flow["home_w"]
-      assert_in_delta 260.0, energy_flow["solakon_ac_w"]
-      assert_nil energy_flow["grid_w"]
-    end
-  end
-
-  test "GET /api/live sums only the fresh consumer plugs and ignores stale ones" do
-    travel_to Time.zone.local(2026, 6, 18, 12, 0, 0) do
-      now = Time.current
-      cfg = live_config_with_solakon(stale_after_s: 120)
+      cfg = live_config_with_solakon
 
       Sample.create!(plug_id: "desk", ts: now.to_i - 2, apower_w: 120.0, aenergy_wh: 1.0)       # fresh
-      Sample.create!(plug_id: "heatpump", ts: now.to_i - 130, apower_w: 80.0, aenergy_wh: 1.0)  # stale -> ignored
+      Sample.create!(plug_id: "heatpump", ts: now.to_i - 130, apower_w: 80.0, aenergy_wh: 1.0)  # offline -> ignored
       SolakonReading.create!(
         taken_at: now - 2.seconds,
         active_power_w: 260,
@@ -209,15 +103,20 @@ class ApiControllerTest < ActionDispatch::IntegrationTest
       assert_response :ok
 
       energy_flow = response.parsed_body["energy_flow"]
-      assert_in_delta 120.0, energy_flow["home_w"]      # only the fresh desk plug, heatpump dropped
+      assert_in_delta 120.0, energy_flow["home_w"]      # only the online desk plug, heatpump dropped
       assert_in_delta(-140.0, energy_flow["grid_w"])    # 120 - 260
+
+      # A plug the flow dropped is offline in the same payload, so nothing
+      # downstream can sum it back in.
+      heatpump = response.parsed_body["plugs"].find { |p| p["id"] == "heatpump" }
+      assert_equal false, heatpump["online"]
     end
   end
 
   test "GET /api/live marks stale Solakon energy flow unavailable" do
     travel_to Time.zone.local(2026, 6, 18, 12, 0, 0) do
       now = Time.current
-      cfg = live_config_with_solakon(stale_after_s: 120)
+      cfg = live_config_with_solakon
 
       Sample.create!(plug_id: "desk", ts: now.to_i - 2, apower_w: 120.0, aenergy_wh: 1.0)
       Sample.create!(plug_id: "heatpump", ts: now.to_i - 2, apower_w: 80.0, aenergy_wh: 1.0)
@@ -242,13 +141,21 @@ class ApiControllerTest < ActionDispatch::IntegrationTest
       assert_nil energy_flow["battery_soc_pct"]
       assert_nil energy_flow["battery_w"]
       assert_nil energy_flow["grid_w"]
+      assert_equal({
+        "solar_to_home_w" => nil,
+        "solar_to_grid_w" => nil,
+        "solar_to_battery_w" => nil,
+        "grid_to_home_w" => nil,
+        "grid_to_battery_w" => nil,
+        "battery_to_home_w" => nil
+      }, energy_flow["flows"])
     end
   end
 
   test "GET /api/live marks Solakon energy flow unavailable when monitoring disabled" do
     travel_to Time.zone.local(2026, 6, 18, 12, 0, 0) do
       now = Time.current
-      cfg = live_config_with_solakon(stale_after_s: 120, monitoring_enabled: false)
+      cfg = live_config_with_solakon(monitoring_enabled: false)
 
       Sample.create!(plug_id: "desk", ts: now.to_i - 2, apower_w: 120.0, aenergy_wh: 1.0)
       Sample.create!(plug_id: "heatpump", ts: now.to_i - 2, apower_w: 80.0, aenergy_wh: 1.0)
@@ -363,7 +270,7 @@ class ApiControllerTest < ActionDispatch::IntegrationTest
   end
   private
 
-  def live_config_with_solakon(stale_after_s:, monitoring_enabled: true)
+  def live_config_with_solakon(monitoring_enabled: true)
     ConfigLoader::Config.new(
       electricity_price_eur_per_kwh: 0.32,
       timezone: "Europe/Berlin",
@@ -380,8 +287,7 @@ class ApiControllerTest < ActionDispatch::IntegrationTest
         port: 502,
         unit_id: 1,
         monitoring_enabled: monitoring_enabled,
-        control_enabled: false,
-        stale_after_s: stale_after_s
+        control_enabled: false
       )
     )
   end

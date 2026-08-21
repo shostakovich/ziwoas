@@ -1,4 +1,7 @@
 class Sample < ApplicationRecord
+  include LatestPerPlug
+  latest_per_plug_by :ts
+
   self.primary_key = [ :plug_id, :ts ]
 
   validates :plug_id, presence: true

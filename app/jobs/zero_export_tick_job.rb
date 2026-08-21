@@ -20,7 +20,7 @@ class ZeroExportTickJob < ApplicationJob
     control = SolakonControlState.current
     return Rails.logger.info("zero_export: runtime paused") unless control.auto_regulation_active?
 
-    reader  = ConsumptionReader.new(plugs: config.plugs, now: reader_now, stale_after_s: solakon.stale_after_s)
+    reader  = ConsumptionReader.new(plugs: config.plugs, now: reader_now)
     load    = reader.load_estimate
     reading = SolakonReading.from_state(state, taken_at: reader_now)
 

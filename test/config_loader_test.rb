@@ -401,7 +401,6 @@ class ConfigLoaderTest < Minitest::Test
         unit_id: 1
         monitoring_enabled: true
         control_enabled: false
-        stale_after_s: 90
     YAML
   end
 
@@ -416,7 +415,6 @@ class ConfigLoaderTest < Minitest::Test
     assert_equal 1, sol.unit_id
     assert_equal true, sol.monitoring_enabled
     assert_equal false, sol.control_enabled
-    assert_equal 90, sol.stale_after_s
   end
 
   def test_solakon_parses_monitoring_and_control_flags
@@ -517,7 +515,6 @@ class ConfigLoaderTest < Minitest::Test
     assert_equal 1, sol.unit_id
     assert_equal true, sol.monitoring_enabled
     assert_equal false, sol.control_enabled
-    assert_equal 120, sol.stale_after_s
   end
 
   def test_solakon_requires_host

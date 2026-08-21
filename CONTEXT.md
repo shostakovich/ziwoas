@@ -49,3 +49,26 @@ Gegenstück zur Schaltung aus dem Zeitplan.
 Zustand einer Schaltzeit, deren Steckdose in `config/ziwoas.yml` nicht mehr schaltbar ist
 oder ganz fehlt. Sie schaltet nichts, bleibt aber erhalten und lebt wieder auf, sobald die
 Steckdose zurückkommt.
+
+### Messen
+
+**Messwert**:
+Eine einzelne Meldung einer Steckdose: Leistung in Watt zu einem Zeitpunkt. Shelly-Steckdosen
+melden bei Änderung, Fritz-Steckdosen werden gepollt — die Abstände sind also nicht
+gleichmäßig.
+_Avoid_: Sample (im deutschen UI-Text), Messung
+
+**Offline**:
+Eine Steckdose, von der seit einer Weile kein Messwert mehr kommt — Stecker gezogen, WLAN weg,
+Broker tot. Die Frist steht fest in `PlugMeasurement::OFFLINE_AFTER_S` und gilt für alle
+Steckdosen gleich: was offline ist, wird weder angezeigt noch mitgerechnet. Null Watt ist
+nicht offline — eine Steckdose, an der nichts läuft, meldet weiter.
+_Avoid_: Veraltet (das ist die Frist des Wechselrichters), Stumm, Abgezogen
+
+**Veraltet**:
+Ein Messwert des Wechselrichters, der zu alt ist, um seinen jetzigen Zustand zu beschreiben.
+Eigene Frist in `SolakonReading::STALE_AFTER_S` — eine Steckdose und ein Wechselrichter melden
+aus verschiedenen Gründen verschieden oft, deshalb sind es zwei Fristen und nicht eine.
+Ist das Reading veraltet, gilt der Wechselrichter als offline und jeder daraus abgeleitete
+Wert ist unbekannt, nicht null.
+_Avoid_: Offline (das ist der Zustand einer Steckdose), Stale

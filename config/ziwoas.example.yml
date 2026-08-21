@@ -17,7 +17,6 @@ mqtt:
 #   host: 192.168.1.50
 #   port: 502
 #   unit_id: 1
-#   stale_after_s: 120
 #   monitoring_enabled: true
 #   control_enabled: false
 

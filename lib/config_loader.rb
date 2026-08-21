@@ -14,7 +14,7 @@ class ConfigLoader
   SensorCfg    = Struct.new(:id, :name, :type, :room, keyword_init: true)
   TrmnlCfg     = Struct.new(:energy_webhook_url, :sensors_webhook_url, keyword_init: true)
   SolakonCfg   = Struct.new(:host, :port, :unit_id, :monitoring_enabled, :control_enabled,
-                              :stale_after_s, keyword_init: true)
+                              keyword_init: true)
   GoveeCfg     = Struct.new(:api_key, :lan_poll_seconds, :api_poll_seconds,
                             :pending_window_seconds, :names, keyword_init: true)
   Config       = Struct.new(:electricity_price_eur_per_kwh, :timezone,
@@ -255,7 +255,6 @@ class ConfigLoader
       unit_id:            (h["unit_id"] || 1).to_i,
       monitoring_enabled: monitoring_enabled,
       control_enabled:    control_enabled,
-      stale_after_s:      (h["stale_after_s"] || 120).to_i,
     )
   end
 

@@ -34,110 +34,30 @@ class ApiController < ApplicationController
   end
 
   def live
-    threshold = 120
-    @now_ts   = Time.now.to_i
-    config    = app_config
-    plug_ids  = config.plugs.map(&:id)
+    @now_ts = Time.now.to_i
+    config  = app_config
+    now     = Time.zone.at(@now_ts)
+    solakon = config.solakon
 
-    latest_by_plug = Sample
-      .where(plug_id: plug_ids)
-      .where("(plug_id, ts) IN (SELECT plug_id, MAX(ts) FROM samples WHERE plug_id IN (?) GROUP BY plug_id)", plug_ids)
-      .index_by(&:plug_id)
+    measurements = PlugMeasurement.for(config.plugs.map(&:id), now: now)
 
     @plugs = config.plugs.map do |plug|
-      latest = latest_by_plug[plug.id]
-      online = latest.present? && (@now_ts - latest.ts) <= threshold
+      measurement = measurements[plug.id]
       {
         id:           plug.id,
         name:         plug.name,
         role:         plug.role,
-        online:       online,
-        apower_w:     online ? latest.apower_w : nil,
-        last_seen_ts: latest&.ts
+        online:       !measurement.offline?,
+        apower_w:     measurement.offline? ? nil : measurement.watt,
+        last_seen_ts: measurement.last_seen_at&.to_i
       }
     end
 
-    # Per-plug freshness: include each consumer that is currently fresh and sum
-    # those. A single stale/offline plug should not blank out the whole figure;
-    # it just drops out of the sum. Only when no consumer is fresh do we report
-    # nil (shown as "—") rather than a misleading 0 W.
-    online_consumers = @plugs.select { |p| p[:role] == :consumer && p[:online] }
-    consumer_w = online_consumers.any? ? online_consumers.sum { |p| p[:apower_w].to_f } : nil
-
-    solakon_cfg = config.solakon
-    stale_after_s = solakon_cfg&.stale_after_s || threshold
-    reading = if solakon_cfg&.monitoring_enabled
-      SolakonReading.latest_fresh(stale_after_s: stale_after_s, now: Time.zone.at(@now_ts))
+    consumer_ids = config.plugs.select { |plug| plug.role == :consumer }.map(&:id)
+    reading = if solakon&.monitoring_enabled
+      SolakonReading.latest_fresh(now: now)
     end
 
-    # When the Solakon reading is stale/absent, every Solakon-derived field is
-    # nil and energy_flow_flows returns the empty set, so a single hash with
-    # safe-navigation covers both the online and offline cases.
-    grid_w = reading && consumer_w ? consumer_w - reading.active_power_w : nil
-    @energy_flow = {
-      solakon_online: reading.present?,
-      home_w: consumer_w,
-      solakon_ac_w: reading&.active_power_w,
-      solar_w: reading&.pv_power_w,
-      battery_soc_pct: reading&.battery_soc_pct,
-      battery_w: reading&.battery_display_power_w,
-      battery_state: reading&.battery_state,
-      grid_w: grid_w,
-      flows: energy_flow_flows(
-        home_w: consumer_w,
-        solar_w: reading&.pv_power_w,
-        battery_w: reading&.battery_display_power_w,
-        grid_w: grid_w
-      )
-    }
-  end
-
-  private
-
-  ENERGY_FLOW_KEYS = %i[
-    solar_to_home_w solar_to_grid_w solar_to_battery_w
-    grid_to_home_w grid_to_battery_w battery_to_home_w
-  ].freeze
-
-  def empty_energy_flow_flows
-    ENERGY_FLOW_KEYS.index_with { nil }
-  end
-
-  def energy_flow_flows(home_w:, solar_w:, battery_w:, grid_w:)
-    return empty_energy_flow_flows if [ home_w, solar_w, battery_w, grid_w ].any?(&:nil?)
-
-    home = [ home_w.to_f, 0.0 ].max
-    solar = [ solar_w.to_f, 0.0 ].max
-    battery = battery_w.to_f
-    grid = grid_w.to_f
-
-    grid_import = [ grid, 0.0 ].max
-    solar_to_grid = [ -grid, 0.0 ].max
-    grid_to_home = [ grid_import, home ].min
-    home_remaining = [ home - grid_to_home, 0.0 ].max
-    solar_remaining = [ solar - solar_to_grid, 0.0 ].max
-
-    solar_to_home = [ solar_remaining, home_remaining ].min
-    solar_remaining -= solar_to_home
-    home_remaining -= solar_to_home
-
-    if battery.positive?
-      solar_to_battery = solar_remaining
-      grid_to_battery = [ grid_import - grid_to_home, [ battery - solar_to_battery, 0.0 ].max ].min
-      battery_to_home = 0.0
-    else
-      solar_to_battery = 0.0
-      grid_to_battery = 0.0
-      battery_to_home = [ -battery, home_remaining ].min
-    end
-
-    {
-      solar_to_home_w: solar_to_home,
-      solar_to_grid_w: solar_to_grid,
-      solar_to_battery_w: solar_to_battery,
-      grid_to_home_w: grid_to_home,
-      grid_to_battery_w: grid_to_battery,
-      battery_to_home_w: battery_to_home
-    }.transform_values { |value| value.round(1) }
+    @energy_flow = EnergyFlow.build(home_w: measurements.total_w(consumer_ids), reading: reading)
   end
 end

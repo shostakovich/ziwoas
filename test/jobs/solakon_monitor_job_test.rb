@@ -32,8 +32,7 @@ class SolakonMonitorJobTest < ActiveSupport::TestCase
     end
   end
 
-  Sol = Struct.new(:host, :port, :unit_id, :monitoring_enabled, :control_enabled,
-                   :stale_after_s, keyword_init: true)
+  Sol = Struct.new(:host, :port, :unit_id, :monitoring_enabled, :control_enabled, keyword_init: true)
   Cfg = Struct.new(:solakon, keyword_init: true)
 
   setup do
@@ -48,8 +47,7 @@ class SolakonMonitorJobTest < ActiveSupport::TestCase
           port: 502,
           unit_id: 1,
           monitoring_enabled: monitoring_enabled,
-          control_enabled: control_enabled,
-          stale_after_s: 120
+          control_enabled: control_enabled
         ) if solakon
       )
     )

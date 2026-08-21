@@ -38,12 +38,12 @@ class SwitchRowTest < ActiveSupport::TestCase
     end
   end
 
-  test "offline when last sample is older than 5 minutes or missing" do
+  test "offline when the last sample outlives the Frist, or is missing" do
     travel_to Time.zone.local(2026, 6, 15, 17, 0) do
       assert SwitchRow.build(@plug).offline?
-      Sample.create!(plug_id: "fridge", ts: 6.minutes.ago.to_i, apower_w: 1.0, aenergy_wh: 1.0)
+      Sample.create!(plug_id: "fridge", ts: 130.seconds.ago.to_i, apower_w: 1.0, aenergy_wh: 1.0)
       assert SwitchRow.build(@plug).offline?
-      Sample.create!(plug_id: "fridge", ts: 4.minutes.ago.to_i, apower_w: 1.0, aenergy_wh: 1.0)
+      Sample.create!(plug_id: "fridge", ts: 60.seconds.ago.to_i, apower_w: 1.0, aenergy_wh: 1.0)
       refute SwitchRow.build(@plug).offline?
     end
   end

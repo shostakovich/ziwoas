@@ -10,7 +10,8 @@ class SwitchesHelperTest < ActionView::TestCase
       plug: nil, entries: entries,
       state: PlugState.new(plug_id: "x", output: on, updated_at: now),
       last_command: last_command, next_edge: next_edge,
-      last_seen_at: seen, watt: nil, now: now
+      measurement: PlugMeasurement.new(plug_id: "x", watt: nil, last_seen_at: seen,
+                                       now: now, offline_after_s: 120)
     )
   end
 

@@ -10,6 +10,7 @@ class SolakonReading < ApplicationRecord
   CHARGE_DEADBAND_W = 10     # |power| below this reads as idle rather than charging/discharging
   PV_PRESENT_W      = 50
   USABLE_CAPACITY_WH = 1920
+  STALE_AFTER_S      = 120    # beyond this a reading no longer describes the inverter now
 
   validates :taken_at, :active_power_w, :pv_power_w, :battery_power_w, :battery_soc_pct, presence: true
   validates :active_power_w, :pv_power_w, :battery_power_w, numericality: true
@@ -48,7 +49,7 @@ class SolakonReading < ApplicationRecord
     )
   end
 
-  def self.latest_fresh(stale_after_s:, now: Time.current)
+  def self.latest_fresh(stale_after_s: STALE_AFTER_S, now: Time.current)
     newest_first.where("taken_at >= ?", now - stale_after_s.to_i.seconds).first
   end
 
