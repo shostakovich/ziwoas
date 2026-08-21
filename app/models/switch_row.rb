@@ -1,9 +1,8 @@
 # Per-plug view model for the "Schalten" tab.
 class SwitchRow
-  OFFLINE_AFTER = 5.minutes
-  LOOKAHEAD     = 7.days
+  LOOKAHEAD = 7.days
 
-  attr_reader :plug, :entries, :state, :last_command, :next_edge, :last_seen_at, :watt, :now
+  attr_reader :plug, :entries, :state, :last_command, :next_edge, :measurement, :now
 
   def self.build_all(plugs, now: Time.current)
     plug_ids = plugs.map(&:id)
@@ -11,19 +10,12 @@ class SwitchRow
     rules_by_plug  = SwitchRule.where(plug_id: plug_ids)
                                .order(:at_minute, :id).group_by(&:plug_id)
     states_by_plug = PlugState.where(plug_id: plug_ids).index_by(&:plug_id)
-    commands_by_plug = SwitchCommand
-      .where(plug_id: plug_ids)
-      .where("(plug_id, created_at) IN (SELECT plug_id, MAX(created_at) FROM switch_commands WHERE plug_id IN (?) GROUP BY plug_id)", plug_ids)
-      .order(:created_at, :id)
-      .index_by(&:plug_id)
-    samples_by_plug = Sample
-      .where(plug_id: plug_ids)
-      .where("(plug_id, ts) IN (SELECT plug_id, MAX(ts) FROM samples WHERE plug_id IN (?) GROUP BY plug_id)", plug_ids)
-      .index_by(&:plug_id)
+    commands_by_plug = SwitchCommand.latest_per_plug(plug_ids)
+                                    .order(:created_at, :id).index_by(&:plug_id)
+    measurements = PlugMeasurement.for(plug_ids, now: now)
 
     plugs.map do |plug|
-      rules       = rules_by_plug[plug.id] || []
-      last_sample = samples_by_plug[plug.id]
+      rules = rules_by_plug[plug.id] || []
       new(
         plug:         plug,
         entries:      SwitchRules::Schedule.fold(rules),
@@ -31,8 +23,7 @@ class SwitchRow
         last_command: commands_by_plug[plug.id],
         next_edge:    SwitchEdgeCalculator.new(rules: rules.select(&:enabled))
                                           .next_edge_per_plug(now, now + LOOKAHEAD).first,
-        last_seen_at: last_sample && Time.zone.at(last_sample.ts),
-        watt:         last_sample&.apower_w,
+        measurement:  measurements[plug.id],
         now:          now,
       )
     end
@@ -42,16 +33,19 @@ class SwitchRow
     build_all([ plug ], now: now).first
   end
 
-  def initialize(plug:, entries:, state:, last_command:, next_edge:, last_seen_at:, watt:, now: Time.current)
+  def initialize(plug:, entries:, state:, last_command:, next_edge:, measurement:, now: Time.current)
     @plug         = plug
     @entries      = entries
     @state        = state
     @last_command = last_command
     @next_edge    = next_edge
-    @last_seen_at = last_seen_at
-    @watt         = watt
+    @measurement  = measurement
     @now          = now
   end
+
+  def watt         = measurement.watt
+  def last_seen_at = measurement.last_seen_at
+  def offline?     = measurement.offline?
 
   # The fresher signal wins: a command newer than the last confirmed device
   # state shows optimistically until the Shelly status message catches up.
@@ -61,10 +55,6 @@ class SwitchRow
     end
     return state.output if state
     false
-  end
-
-  def offline?
-    last_seen_at.nil? || last_seen_at < now - OFFLINE_AFTER
   end
 
   def schedule?

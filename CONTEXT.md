@@ -49,3 +49,24 @@ Gegenstück zur Schaltung aus dem Zeitplan.
 Zustand einer Schaltzeit, deren Steckdose in `config/ziwoas.yml` nicht mehr schaltbar ist
 oder ganz fehlt. Sie schaltet nichts, bleibt aber erhalten und lebt wieder auf, sobald die
 Steckdose zurückkommt.
+
+### Messen
+
+**Messwert**:
+Eine einzelne Meldung einer Steckdose: Leistung in Watt zu einem Zeitpunkt. Shelly-Steckdosen
+melden bei Änderung, Fritz-Steckdosen werden gepollt — die Abstände sind also nicht
+gleichmäßig.
+_Avoid_: Sample (im deutschen UI-Text), Messung
+
+**Veraltet**:
+Ein Messwert, der zu alt ist, um damit noch zu **rechnen**. Regelung und Flussbild lassen ihn
+fallen, statt mit einer stillen Zahl weiterzurechnen. Die Frist ist konfigurierbar (im Code
+heißt das Prädikat `stale?`).
+_Avoid_: Abgelaufen, Alt
+
+**Offline**:
+Eine Steckdose, von der seit einer Weile kein Messwert mehr kommt — Stecker gezogen, WLAN weg,
+Broker tot. Eine Aussage über das Gerät, nicht über den Wert: sie erscheint nur in der
+Oberfläche und hat eine eigene, trägere Frist als **Veraltet**. Null Watt ist nicht offline —
+eine Steckdose, an der nichts läuft, meldet weiter.
+_Avoid_: Stumm, Abgezogen (nennt nur eine von mehreren Ursachen)
