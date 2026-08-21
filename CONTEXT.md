@@ -83,9 +83,16 @@ unknown, not zero.
 _German UI_: Veraltet
 _Avoid_: Offline (that's the state of a plug), Stale (in German UI text)
 
+**Plug roster**:
+The configured plugs together with their roles. The one place that knows who produces and
+who consumes, and which sign a measurement carries — every reader asks the roster instead
+of comparing roles itself. `PlugRoster`, reachable as `config.plug_roster`.
+_German UI_: Steckdosenverzeichnis
+_Avoid_: Plug list, Registry, Verzeichnis (in German UI text)
+
 **Power series**:
 The average power of a set of plugs over a run of equal time buckets. Producers report
-`apower_w` with the opposite sign; the series applies that convention once, so every reader
+`apower_w` with the opposite sign; the roster applies that convention once, so every reader
 downstream sees production as a positive magnitude.
 _German UI_: Messreihe
 _Avoid_: Bucket list, Time series, Samples

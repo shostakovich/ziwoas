@@ -12,12 +12,11 @@ class PowerSeries
   SAMPLE_5MIN_BUCKET_SECONDS = 300
   SECONDS_PER_HOUR           = 3600.0
 
-  BUCKET_KEY_BY_ROLE = { producer: :production_w, consumer: :consumption_w }.freeze
-
   class << self
     def from_samples(plugs:, start_ts:, end_ts:, bucket_seconds:)
-      new(readings: sample_readings(plugs, start_ts, end_ts, bucket_seconds),
-          plugs: plugs,
+      roster = PlugRoster.wrap(plugs)
+      new(readings: sample_readings(roster, start_ts, end_ts, bucket_seconds),
+          plugs: roster,
           bucket_seconds: bucket_seconds)
     end
 
@@ -32,14 +31,10 @@ class PowerSeries
       "(ts / #{seconds}) * #{seconds}"
     end
 
-    def signed_watts(watt, role:)
-      role == :producer ? watt.abs : watt
-    end
-
     private
 
-    def sample_readings(plugs, start_ts, end_ts, bucket_seconds)
-      plug_ids = plugs.map(&:id)
+    def sample_readings(roster, start_ts, end_ts, bucket_seconds)
+      plug_ids = roster.ids
       return [] if plug_ids.empty?
 
       sql = <<~SQL
@@ -58,7 +53,7 @@ class PowerSeries
   end
 
   def initialize(readings:, plugs:, bucket_seconds:)
-    @role_by_plug   = plugs.each_with_object({}) { |plug, roles| roles[plug.id] = plug.role }
+    @roster         = PlugRoster.wrap(plugs)
     @bucket_seconds = Integer(bucket_seconds)
     @readings       = normalize(readings)
   end
@@ -83,19 +78,15 @@ class PowerSeries
   def normalize(readings)
     readings
       .filter_map do |plug_id, bucket_ts, avg_power_w|
-        next unless measured_role?(plug_id)
+        next unless @roster.measured?(plug_id)
 
         [ plug_id, bucket_ts.to_i, avg_power_w.to_f ]
       end
       .sort_by { |_plug_id, bucket_ts, _watt| bucket_ts }
   end
 
-  def measured_role?(plug_id)
-    BUCKET_KEY_BY_ROLE.key?(@role_by_plug[plug_id])
-  end
-
   def signed(plug_id, watt)
-    self.class.signed_watts(watt, role: @role_by_plug[plug_id])
+    @roster.signed_watts(plug_id, watt)
   end
 
   def buckets
@@ -105,7 +96,7 @@ class PowerSeries
   def totals_by_ts
     @readings.each_with_object({}) do |(plug_id, ts, watt), totals|
       totals[ts] ||= { production_w: 0.0, consumption_w: 0.0 }
-      totals[ts][BUCKET_KEY_BY_ROLE.fetch(@role_by_plug[plug_id])] += signed(plug_id, watt)
+      totals[ts][@roster.bucket_key(plug_id)] += signed(plug_id, watt)
     end
   end
 

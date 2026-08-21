@@ -20,7 +20,11 @@ class ConfigLoader
   Config       = Struct.new(:electricity_price_eur_per_kwh, :timezone,
                             :mqtt, :fritz_poll, :plugs, :fritz_box, :weather,
                             :switchbot, :sensors, :trmnl, :solakon, :govee,
-                            keyword_init: true)
+                            keyword_init: true) do
+    def plug_roster
+      @plug_roster ||= PlugRoster.new(plugs)
+    end
+  end
 
   module StringRequirement
     private

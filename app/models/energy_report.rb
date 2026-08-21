@@ -31,12 +31,11 @@ class EnergyReport
 
   def initialize(params:, plugs:, timezone: "UTC", electricity_price_eur_per_kwh: 0.32, weather_loader: nil)
     @params = params.to_h.with_indifferent_access
-    @plugs = plugs
-    @plug_by_id = plugs.index_by(&:id)
+    @roster = PlugRoster.wrap(plugs)
     @timezone = TZInfo::Timezone.get(timezone)
     @savings_calculator = SavingsCalculator.new(price_eur_per_kwh: electricity_price_eur_per_kwh)
     @store = Store.new
-    @chart_builder = ChartBuilder.new(plugs: plugs, timezone: @timezone, store: @store, weather_loader: weather_loader)
+    @chart_builder = ChartBuilder.new(plugs: @roster, timezone: @timezone, store: @store, weather_loader: weather_loader)
     @messages = []
   end
 
@@ -208,7 +207,7 @@ class EnergyReport
       .select { |row| plug_role(row.plug_id) == role }
       .group_by(&:plug_id)
       .map do |plug_id, plug_rows|
-        plug = @plug_by_id.fetch(plug_id)
+        plug = @roster.find(plug_id)
         {
           plug_id: plug_id,
           name: plug.name,
@@ -219,9 +218,7 @@ class EnergyReport
       .sort_by { |row| -row.fetch(:kwh) }
   end
 
-  def plug_role(plug_id)
-    @plug_by_id[plug_id]&.role
-  end
+  def plug_role(plug_id) = @roster.role_of(plug_id)
 
   def kwh(wh)
     (wh.to_f / 1000.0).round(3)

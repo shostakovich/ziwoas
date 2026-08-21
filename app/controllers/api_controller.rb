@@ -51,7 +51,7 @@ class ApiController < ApplicationController
       }
     end
 
-    consumer_ids = config.plugs.select { |plug| plug.role == :consumer }.map(&:id)
+    consumer_ids = config.plug_roster.consumer_ids
     reading = if solakon&.monitoring_enabled
       SolakonReading.latest_fresh(now: now)
     end

@@ -12,8 +12,9 @@ class ConsumptionReader
   MEDIAN_CACHE_TTL = 60.seconds
 
   def initialize(plugs:, now: Time.now, offline_after_s: PlugMeasurement::OFFLINE_AFTER_S)
-    @consumer_plugs  = plugs.select { |p| p.role == :consumer }
-    @consumer_ids    = @consumer_plugs.map(&:id)
+    roster           = PlugRoster.wrap(plugs)
+    @consumer_plugs  = roster.consumers
+    @consumer_ids    = roster.consumer_ids
     @now             = now
     @offline_after_s = offline_after_s
   end
