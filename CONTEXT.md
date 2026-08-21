@@ -66,6 +66,13 @@ change, Fritz plugs are polled — so the intervals aren't even.
 _German UI_: Messwert
 _Avoid_: Sample (in German UI text), Messung
 
+**Energy**:
+An amount of energy as one value. Watt-hours are canonical — everything is summed,
+subtracted and compared in Wh; kilowatt-hours are a display conversion, and rounding
+happens only where a number is rendered. `Energy`, `lib/energy.rb`.
+_German UI_: Energie
+_Avoid_: kWh value, Wh float
+
 **Offline**:
 A plug from which no measurement has arrived for a while — unplugged, Wi-Fi gone, broker
 dead. The deadline is fixed in `Plugs::Measurement::OFFLINE_AFTER_S` and applies equally to

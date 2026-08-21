@@ -1,6 +1,8 @@
 require "test_helper"
 
 class EnergySummaryTest < ActiveSupport::TestCase
+  cover "EnergySummary*"
+
   setup do
     Plugs::Sample.delete_all
     Plugs::DailyTotal.delete_all
@@ -29,16 +31,16 @@ class EnergySummaryTest < ActiveSupport::TestCase
 
     summary = EnergySummary.new(config: @config).compute_today
 
-    assert_in_delta 1000.0, summary.produced_wh
-    assert_in_delta 100.0,  summary.consumed_wh
+    assert_in_delta 1000.0, summary.produced.wh
+    assert_in_delta 100.0,  summary.consumed.wh
     assert_in_delta 0.32,   summary.savings_eur
     assert_equal Date.today.to_s, summary.date
   end
 
   test "compute_today returns zero when no samples" do
     summary = EnergySummary.new(config: @config).compute_today
-    assert_in_delta 0.0, summary.produced_wh
-    assert_in_delta 0.0, summary.consumed_wh
+    assert_in_delta 0.0, summary.produced.wh
+    assert_in_delta 0.0, summary.consumed.wh
     assert_in_delta 0.0, summary.savings_eur
     assert_equal Date.today.to_s, summary.date
   end
@@ -53,7 +55,7 @@ class EnergySummaryTest < ActiveSupport::TestCase
 
     summary = EnergySummary.new(config: @config).compute_today
 
-    assert_in_delta 50.0, summary.consumed_wh
+    assert_in_delta 50.0, summary.consumed.wh
   end
 
   test "compute_today ignores glitch zero then jump back" do
@@ -67,7 +69,7 @@ class EnergySummaryTest < ActiveSupport::TestCase
 
     summary = EnergySummary.new(config: @config).compute_today
 
-    assert_in_delta 5.0, summary.consumed_wh
+    assert_in_delta 5.0, summary.consumed.wh
   end
 
   test "compute_today returns self_consumed_wh from simultaneous overlap" do
@@ -82,9 +84,9 @@ class EnergySummaryTest < ActiveSupport::TestCase
 
     summary = EnergySummary.new(config: @config).compute_today
 
-    assert_in_delta 200.0, summary.produced_wh,      2.0
-    assert_in_delta 100.0, summary.consumed_wh,      2.0
-    assert_in_delta 100.0, summary.self_consumed_wh, 2.0
+    assert_in_delta 200.0, summary.produced.wh,      2.0
+    assert_in_delta 100.0, summary.consumed.wh,      2.0
+    assert_in_delta 100.0, summary.self_consumed.wh, 2.0
     assert_in_delta 1.0,   summary.autarky_ratio,           0.05
     assert_in_delta 0.5,   summary.self_consumption_ratio,  0.05
   end

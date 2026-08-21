@@ -1,6 +1,9 @@
 require "test_helper"
 
 class EnergyReport::ChartBuilderTest < ActiveSupport::TestCase
+  cover "EnergyReport::ChartBuilder*"
+  cover "EnergyReport::DailyPoint*"
+
   setup do
     Plugs::DailyTotal.delete_all
     Plugs::Sample5min.delete_all
@@ -26,14 +29,13 @@ class EnergyReport::ChartBuilderTest < ActiveSupport::TestCase
   end
 
   def daily_point(date_s, produced_kwh: 0.0, consumed_kwh: 0.0, self_consumed_kwh: 0.0, covered: true)
-    {
+    EnergyReport::DailyPoint.new(
       date: date_s,
-      produced_kwh: produced_kwh,
-      consumed_kwh: consumed_kwh,
-      self_consumed_kwh: self_consumed_kwh,
-      balance_kwh: produced_kwh - consumed_kwh,
+      produced: Energy.kwh(produced_kwh),
+      consumed: Energy.kwh(consumed_kwh),
+      self_consumed: Energy.kwh(self_consumed_kwh),
       covered: covered
-    }
+    )
   end
 
   def payload_for(daily_points:, rows:, start_date:, end_date:, detail_start: nil, detail_end: nil)
@@ -121,9 +123,55 @@ class EnergyReport::ChartBuilderTest < ActiveSupport::TestCase
     assert_equal [ 1.0, 0.0 ], daily.fetch(:balance_kwh)
 
     covered, uncovered = daily.fetch(:ratios)
+    assert_equal "2026-04-10", covered.fetch(:date)
     assert_in_delta 50.0, covered.fetch(:autarky_pct)
     assert_in_delta 25.0, covered.fetch(:self_consumption_pct)
+    assert_equal "2026-04-11", uncovered.fetch(:date)
     assert_nil uncovered.fetch(:autarky_pct)
+    assert_nil uncovered.fetch(:self_consumption_pct)
+  end
+
+  test "ratio percentages are rounded to one decimal place, not to a whole percent" do
+    point = daily_point("2026-04-10", produced_kwh: 3.0, consumed_kwh: 6.0, self_consumed_kwh: 1.0)
+
+    daily = payload_for(
+      daily_points: [ point ], rows: [],
+      start_date: Date.new(2026, 4, 10), end_date: Date.new(2026, 4, 10)
+    ).fetch(:daily)
+
+    ratio = daily.fetch(:ratios).first
+    assert_in_delta 16.7, ratio.fetch(:autarky_pct),          1e-9
+    assert_in_delta 33.3, ratio.fetch(:self_consumption_pct), 1e-9
+  end
+
+  test "daily kwh fields are rounded to three decimals, not truncated or over-rounded" do
+    point = daily_point("2026-04-10", produced_kwh: 4.567891, consumed_kwh: 2.345679)
+
+    daily = payload_for(
+      daily_points: [ point ], rows: [],
+      start_date: Date.new(2026, 4, 10), end_date: Date.new(2026, 4, 10)
+    ).fetch(:daily)
+
+    assert_in_delta 4.568, daily.fetch(:produced_kwh).first, 1e-9
+    assert_in_delta 2.346, daily.fetch(:consumed_kwh).first, 1e-9
+    assert_in_delta 2.222, daily.fetch(:balance_kwh).first,  1e-9
+  end
+
+  test "consumer series carries each consumer's id, name and per-day kwh, defaulting missing days to zero" do
+    Plugs::DailyTotal.create!(plug_id: "desk", date: "2026-04-10", energy_wh: 1234.5678)
+
+    daily = payload_for(
+      daily_points: [ daily_point("2026-04-10"), daily_point("2026-04-11") ], rows: [],
+      start_date: Date.new(2026, 4, 10), end_date: Date.new(2026, 4, 11)
+    ).fetch(:daily)
+
+    assert_equal(
+      [
+        { plug_id: "desk",   name: "Schreibtisch",  data: [ 1.235, 0.0 ] },
+        { plug_id: "washer", name: "Waschmaschine", data: [ 0.0, 0.0 ] }
+      ],
+      daily.fetch(:consumer_series)
+    )
   end
 
   private
