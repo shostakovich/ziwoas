@@ -18,13 +18,14 @@ class ZeroExportTickJobTest < ActiveSupport::TestCase
 
   Plug = Struct.new(:id, :role, :name, keyword_init: true)
   Sol  = Struct.new(:host, :port, :unit_id, :monitoring_enabled, :control_enabled,
-                    :stale_after_s, keyword_init: true)
+                    :stale_after_s, :load_stale_after_s, keyword_init: true)
   Cfg  = Struct.new(:plugs, :solakon, :weather, :timezone, keyword_init: true)
 
   def config(monitoring_enabled: true, control_enabled: true, solakon: true)
     sol = if solakon
             Sol.new(host: "h", port: 502, unit_id: 1, monitoring_enabled: monitoring_enabled,
-                    control_enabled: control_enabled, stale_after_s: 120)
+                    control_enabled: control_enabled, stale_after_s: 120,
+                    load_stale_after_s: 120)
     end
     Cfg.new(plugs: [ Plug.new(id: "fridge", role: :consumer, name: "Kühlschrank") ], solakon: sol,
             weather: nil, timezone: "Europe/Berlin")
