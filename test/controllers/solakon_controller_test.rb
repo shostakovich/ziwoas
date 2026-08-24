@@ -36,17 +36,17 @@ class SolakonControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_select "svg[viewBox='0 0 400 320']", 1
-    assert_select "[data-solakon-target='efPvW']", 1
-    assert_select "[data-solakon-target='efGridW']", 1
-    assert_select "[data-solakon-target='efConsumerW']", 1
-    assert_select "[data-solakon-target='efBatterySoc']", 1
-    assert_select "[data-solakon-target='efBatteryW']", 1
-    assert_select "[data-solakon-target='efDotsSolarHome']", 1
+    assert_select "[data-ef='efPvW']", 1
+    assert_select "[data-ef='efGridW']", 1
+    assert_select "[data-ef='efConsumerW']", 1
+    assert_select "[data-ef='efBatterySoc']", 1
+    assert_select "[data-ef='efBatteryW']", 1
+    assert_select "[data-ef='efDotsSolarHome']", 1
     assert_select "image[href*='solakon_battery_normal']", minimum: 1
-    assert_select "image[data-solakon-target='efBatteryImage'][data-battery-state-normal*='solakon_battery_normal']", 1
-    assert_select "image[data-solakon-target='efBatteryImage'][data-battery-state-charging*='solakon_battery_charging']", 1
-    assert_select "image[data-solakon-target='efBatteryImage'][data-battery-state-low*='solakon_battery_low']", 1
-    assert_select "image[data-solakon-target='efBatteryImage'][data-battery-state-fault*='solakon_battery_fault']", 1
+    assert_select "image[data-ef='efBatteryImage'][data-battery-state-normal*='solakon_battery_normal']", 1
+    assert_select "image[data-ef='efBatteryImage'][data-battery-state-charging*='solakon_battery_charging']", 1
+    assert_select "image[data-ef='efBatteryImage'][data-battery-state-low*='solakon_battery_low']", 1
+    assert_select "image[data-ef='efBatteryImage'][data-battery-state-fault*='solakon_battery_fault']", 1
   end
 
   test "history endpoint returns selected range payload" do

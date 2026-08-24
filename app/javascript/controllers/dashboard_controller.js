@@ -1,113 +1,52 @@
 import { Controller } from "@hotwired/stimulus"
-import consumer from "channels/consumer"
-import { EF_PATHS, EF_LENS, efSetDots, setBatteryImage } from "controllers/energy_flow"
+import liveFeed from "controllers/live_feed"
+import { EnergyFlowView, setBatteryImage } from "controllers/energy_flow"
 
-// Connects to data-controller="dashboard"
-// Manages: hero watt display, live tiles (consumption/balance), plug chips,
-//          energy flow SVG, and periodic today-summary fetch.
 export default class extends Controller {
   static targets = [
     "heroValue", "heroBattery", "heroBatteryImage", "heroBatterySoc",
     "tileConsumption", "tileNetbalance",
     "tileProduced", "tileConsumed", "tileSavings", "tileNettoday",
     "tileAutarky", "tileSelfConsumption",
-    "plugList",
-    // Energy flow SVG elements
-    "efPvW", "efGridW", "efConsumerW", "efBatterySoc", "efBatteryW", "efBatteryImage",
-    "efDotsSolarHome", "efDotsSolarGrid", "efDotsSolarBattery",
-    "efDotsGridHome", "efDotsGridBattery", "efDotsBatteryHome",
-    "efConsumerRing",
+    "plugList", "energyFlow",
   ]
 
   connect() {
-    // Keyed by plug_id — holds latest broadcast per plug
-    this.plugState = {}
     this.plugColors = {}
-    this.efLastDur = {}
-    this.energyFlow = null
+    this.flowView = this.hasEnergyFlowTarget ? new EnergyFlowView(this.energyFlowTarget) : null
 
-    this.subscription = consumer.subscriptions.create("DashboardChannel", {
-      received: (data) => this.handleReading(data),
+    this.unsubscribe = liveFeed.subscribe({
+      onState: (state) => this.render(state),
+      onResync: () => this.fetchSummary(),
     })
 
-    this.fetchLive()
-
-    // Summary tiles are cumulative daily values — not per-plug,
-    // so we fetch them periodically via HTTP rather than ActionCable.
     this.fetchSummary()
     this.summaryInterval = setInterval(() => this.fetchSummary(), 30_000)
   }
 
   disconnect() {
-    this.subscription?.unsubscribe()
+    this.unsubscribe?.()
     clearInterval(this.summaryInterval)
   }
 
-  // Called for every bundled broadcast from Poller
-  handleReading(data) {
-    if (data.energy_flow) this.energyFlow = data.energy_flow
+  render({ plugs, energyFlow, stale }) {
+    this.energyFlow = energyFlow
+    this.element.classList.toggle("live-stale", stale)
 
-    if (Array.isArray(data.plugs)) {
-      data.plugs.forEach((plug) => this.applyPlugState(plug))
-      this.renderLiveState()
-    }
-
-    if (data.solakon) this.fetchLive()
-  }
-
-  applyPlugState(data) {
-    const plugId = data.plug_id || data.id
-    if (!plugId) return
-
-    const ts = data.ts || data.last_seen_ts || 0
-    const current = this.plugState[plugId]
-    const currentTs = current?.ts || current?.last_seen_ts || 0
-    if (current && ts < currentTs) return
-
-    this.plugState[plugId] = {
-      ...data,
-      plug_id: plugId,
-      ts: ts,
-    }
-  }
-
-  renderLiveState() {
-    const plugs = Object.values(this.plugState)
     this.updateHero(plugs)
     this.updateLiveTiles(plugs)
     this.updatePlugBar(plugs)
-    this.updateEnergyFlow(plugs)
+    this.flowView?.render(energyFlow)
   }
-
-  async fetchLive() {
-    try {
-      const response = await fetch("/api/live")
-      if (!response.ok) return
-      const data = await response.json()
-      if (data.energy_flow) this.energyFlow = data.energy_flow
-
-      if (Array.isArray(data.plugs))
-        data.plugs.forEach((plug) => this.applyPlugState(plug))
-      this.renderLiveState()
-    } catch (e) {
-      console.error("fetchLive failed:", e)
-    }
-  }
-
-  // --- Hero ---
 
   updateHero(plugs) {
     if (!this.hasHeroValueTarget) return
     const flow = this.energyFlow
     const producer = plugs.find(p => p.role === "producer")
     const fallbackW = producer?.online ? Math.abs(producer.apower_w).toFixed(0) : "—"
-    // Use the Solakon PV value only when its reading is live; otherwise fall back
-    // to the producer plug so dashboards without Solakon keep showing live watts.
     const w = flow?.solakon_online ? Math.max(0, flow.solar_w || 0).toFixed(0) : fallbackW
     this.heroValueTarget.innerHTML = `<span class="hero-number">${w}</span> <span class="hero-unit">W</span>`
 
-    // The battery half is Solakon-only: hide it entirely when there is no live
-    // Solakon reading, so setups without a battery look unchanged.
     if (this.hasHeroBatteryTarget) {
       const online = !!flow?.solakon_online
       this.heroBatteryTarget.hidden = !online
@@ -120,16 +59,12 @@ export default class extends Controller {
     }
   }
 
-  // --- Live tiles ---
-
   updateLiveTiles(plugs) {
     const flow = this.energyFlow
     const consumers = plugs.filter(p => p.role === "consumer")
     const conW = flow ? flow.home_w : consumers.reduce((s, p) => s + (p.online ? p.apower_w : 0), 0)
     const gridW = flow?.grid_w
 
-    // No online plug at all → show the dash placeholder, consistent with the hero,
-    // rather than a misleading "0 W" that looks like a real measured zero.
     const anyOnline = flow?.solakon_online || plugs.some(p => p.online)
 
     if (this.hasTileConsumptionTarget)
@@ -138,18 +73,12 @@ export default class extends Controller {
       this.tileNetbalanceTarget.textContent = gridW == null ? "—" : (gridW <= 0 ? "+" : "−") + Math.abs(gridW).toFixed(0) + " W"
   }
 
-  // --- Plug bar ---
-
-  // Consumer palette mirrors today_chart_controller for visual consistency.
-  // Producer/solar always uses the accent (#f59f00).
   static PLUG_COLORS = [
     "#3b82f6", "#10b981", "#8b5cf6", "#ef4444", "#06b6d4",
     "#ec4899", "#84cc16", "#6366f1", "#14b8a6", "#f43f5e",
   ]
   static PRODUCER_COLOR = "#f59f00"
 
-  // Stable color per plug_id, assigned on first sighting so segments keep their
-  // color even when the consumption ranking reorders.
   _plugColor(plugId) {
     if (this.plugColors[plugId]) return this.plugColors[plugId]
     const palette = this.constructor.PLUG_COLORS
@@ -169,8 +98,6 @@ export default class extends Controller {
 
     const total = consumers.reduce((s, p) => s + p.apower_w, 0)
 
-    // Small widget, updates at most once per broadcast interval — a full rebuild
-    // is simpler and cheaper than diffing segments.
     this.plugListTarget.textContent = ""
 
     const bar = document.createElement("div")
@@ -179,7 +106,7 @@ export default class extends Controller {
       const seg = document.createElement("span")
       seg.className = "plug-seg"
       seg.style.width = `${(p.apower_w / total) * 100}%`
-      seg.style.background = this._plugColor(p.plug_id)
+      seg.style.background = this._plugColor(p.id)
       seg.title = `${p.name} · ${p.apower_w.toFixed(0)} W`
       bar.appendChild(seg)
     }
@@ -204,7 +131,7 @@ export default class extends Controller {
     for (const p of consumers) {
       legend.appendChild(
         this._legendItem(p.name, `${p.apower_w.toFixed(0)} W`,
-                         this._plugColor(p.plug_id)))
+                         this._plugColor(p.id)))
     }
     this.plugListTarget.appendChild(legend)
   }
@@ -230,99 +157,6 @@ export default class extends Controller {
 
     return item
   }
-
-  // --- Energy flow SVG ---
-
-  updateEnergyFlow(plugs) {
-    const flow = this.energyFlow
-    const consumers = plugs.filter(p => p.role === "consumer")
-    const fallbackHomeW = consumers.reduce((s, p) => s + (p.online ? p.apower_w : 0), 0)
-    const solakonOnline = flow?.solakon_online
-    const pvW = solakonOnline ? Math.max(0, flow.solar_w || 0) : null
-    const homeW = flow ? flow.home_w : fallbackHomeW
-    const gridW = flow?.grid_w
-    const batteryW = flow?.battery_w
-    const batterySoc = flow?.battery_soc_pct
-
-    const flows = flow?.flows || {}
-    const solarToHome = Number(flows.solar_to_home_w || 0)
-    const solarToGrid = Number(flows.solar_to_grid_w || 0)
-    const solarToBattery = Number(flows.solar_to_battery_w || 0)
-    const gridToHome = Number(flows.grid_to_home_w || 0)
-    const gridToBattery = Number(flows.grid_to_battery_w || 0)
-    const batteryToHome = Number(flows.battery_to_home_w || 0)
-
-    if (this.hasEfPvWTarget)
-      this.efPvWTarget.textContent = pvW == null ? "— W" : pvW.toFixed(0) + " W"
-    if (this.hasEfConsumerWTarget)
-      this.efConsumerWTarget.textContent = homeW == null ? "— W" : homeW.toFixed(0) + " W"
-    if (this.hasEfGridWTarget) {
-      this.efGridWTarget.textContent =
-        gridW == null ? "— W" :
-        gridW > 0 ? "+" + gridW.toFixed(0) + " W" :
-        gridW < 0 ? "−" + Math.abs(gridW).toFixed(0) + " W" : "0 W"
-    }
-    if (this.hasEfBatterySocTarget)
-      this.efBatterySocTarget.textContent = batterySoc == null ? "— %" : batterySoc.toFixed(0) + "%"
-    this._efSetBatteryImage(flow?.battery_state)
-
-    if (this.hasEfBatteryWTarget)
-      // Charging (positive display power) is drawn from the household, so it
-      // gets a "−"; discharging feeds the house and is shown without a sign.
-      this.efBatteryWTarget.textContent =
-        batteryW == null ? "— W" :
-        batteryW > 0 ? "−" + batteryW.toFixed(0) + " W" :
-        batteryW < 0 ? Math.abs(batteryW).toFixed(0) + " W" : "0 W"
-
-    efSetDots(this, "efDotsSolarHomeTarget", EF_PATHS.solarHome, "#f59f00", solarToHome, EF_LENS.solarHome)
-    efSetDots(this, "efDotsSolarGridTarget", EF_PATHS.solarGrid, "#8b5cf6", solarToGrid, EF_LENS.solarGrid)
-    efSetDots(this, "efDotsSolarBatteryTarget", EF_PATHS.solarBattery, "#ec4899", solarToBattery, EF_LENS.solarBattery)
-    efSetDots(this, "efDotsGridHomeTarget", EF_PATHS.gridHome, "#3b82f6", gridToHome, EF_LENS.gridHome)
-    efSetDots(this, "efDotsGridBatteryTarget", EF_PATHS.gridBattery, "#94a3b8", gridToBattery, EF_LENS.gridBattery)
-    efSetDots(this, "efDotsBatteryHomeTarget", EF_PATHS.batteryHome, "#14b8a6", batteryToHome, EF_LENS.batteryHome)
-
-    // Verbraucher ring: share of consumption by source (solar / grid / battery).
-    this._efSetConsumerRing([
-      { w: solarToHome,   color: "#f59f00" },
-      { w: gridToHome,    color: "#3b82f6" },
-      { w: batteryToHome, color: "#14b8a6" },
-    ])
-  }
-
-  _efSetBatteryImage(state) {
-    if (!this.hasEfBatteryImageTarget) return
-    setBatteryImage(this.efBatteryImageTarget, state)
-  }
-
-  // Renders the Verbraucher node ring as colored arcs proportional to each
-  // energy source feeding the household. Empty input leaves the grey base ring.
-  _efSetConsumerRing(sources) {
-    const g = this.hasEfConsumerRingTarget ? this.efConsumerRingTarget : null
-    if (!g) return
-    const segs = sources.filter(s => s.w > 0.5)
-    const total = segs.reduce((s, x) => s + x.w, 0)
-    g.innerHTML = ""
-    if (total <= 0) return
-
-    let acc = 0
-    for (const s of segs) {
-      const pct = (s.w / total) * 100
-      const c = document.createElementNS("http://www.w3.org/2000/svg", "circle")
-      c.setAttribute("cx", "342")
-      c.setAttribute("cy", "170")
-      c.setAttribute("r", "40")
-      c.setAttribute("fill", "none")
-      c.setAttribute("stroke", s.color)
-      c.setAttribute("stroke-width", "2.5")
-      c.setAttribute("pathLength", "100")
-      c.setAttribute("stroke-dasharray", `${pct} ${100 - pct}`)
-      c.setAttribute("stroke-dashoffset", `${-acc}`)
-      g.appendChild(c)
-      acc += pct
-    }
-  }
-
-  // --- Summary tiles (periodic HTTP) ---
 
   async fetchSummary() {
     try {

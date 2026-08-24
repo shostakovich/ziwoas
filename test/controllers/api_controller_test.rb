@@ -16,13 +16,31 @@ class ApiControllerTest < ActionDispatch::IntegrationTest
     assert_response :ok
 
     data = response.parsed_body
-    assert_equal %w[plugs energy_flow now_ts].sort, data.keys.sort
+    assert_equal %w[plugs energy_flow now_ts offline_after_s stale_after_s].sort, data.keys.sort
     assert data["energy_flow"].key?("flows")
 
     bkw = data["plugs"].find { |p| p["id"] == "bkw" }
     assert_equal %w[id name role online apower_w last_seen_ts].sort, bkw.keys.sort
     assert_equal "producer", bkw["role"]
     assert_in_delta 342.5, bkw["apower_w"]
+  end
+
+  test "GET /api/live sends both Fristen along, so a reader can re-apply them" do
+    get "/api/live", as: :json
+
+    data = response.parsed_body
+    assert_equal Plugs::Measurement::OFFLINE_AFTER_S, data["offline_after_s"]
+    assert_equal SolakonReading::STALE_AFTER_S, data["stale_after_s"]
+  end
+
+  test "GET /api/live leaves the reading date empty without a fresh reading" do
+    SolakonReading.delete_all
+
+    get "/api/live", as: :json
+
+    flow = response.parsed_body["energy_flow"]
+    assert_equal false, flow["solakon_online"]
+    assert_nil flow["reading_ts"]
   end
 
   # --- /api/today ---

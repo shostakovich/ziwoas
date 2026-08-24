@@ -5,6 +5,8 @@ require "logger"
 require "stringio"
 
 class ShellyStatusHandlerTest < ActiveSupport::TestCase
+  cover "ShellyStatusHandler*"
+
   setup do
     Plugs::Sample.delete_all
     Plugs::State.delete_all
@@ -90,10 +92,13 @@ class ShellyStatusHandlerTest < ActiveSupport::TestCase
       assert_equal "dashboard", stream
       plugs = payload[:plugs]
       assert_equal 1, plugs.length
-      assert_equal "bkw",      plugs.first[:plug_id]
-      assert_equal "Solar",    plugs.first[:name]
-      assert_equal "producer", plugs.first[:role]
-      assert_in_delta 300.0,   plugs.first[:apower_w]
+      assert_instance_of Hash, plugs.first
+      assert_equal "bkw",    plugs.first[:id]
+      assert_equal "Solar",  plugs.first[:name]
+      assert_equal :producer, plugs.first[:role]
+      assert_in_delta 300.0, plugs.first[:apower_w]
+      assert_equal @now.to_i, plugs.first[:last_seen_ts]
+      assert_equal (@now.to_i / 60) * 60, plugs.first[:bucket_ts]
     end
   end
 
@@ -154,7 +159,7 @@ class ShellyStatusHandlerTest < ActiveSupport::TestCase
 
       assert_equal 2, broadcasts.length
       _, payload = broadcasts.last
-      plug_ids = payload[:plugs].map { |p| p[:plug_id] }
+      plug_ids = payload[:plugs].map { |p| p[:id] }
       assert_includes plug_ids, "fridge"
       assert_includes plug_ids, "bkw"
     end

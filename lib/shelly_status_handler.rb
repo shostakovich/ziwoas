@@ -1,8 +1,5 @@
 require "json"
 
-# Consumes Shelly (and Fritz-via-bridge) status messages on the shellies topic:
-# inserts Plugs::Sample rows, records Plugs::State output, and batches a "dashboard"
-# ActionCable broadcast. Extracted verbatim from the former MqttSubscriber.
 class ShellyStatusHandler
   BROADCAST_INTERVAL = 5
 
@@ -37,9 +34,8 @@ class ShellyStatusHandler
     Plugs::Sample.create!(plug_id: plug_id, ts: ts, apower_w: apower_w, aenergy_wh: aenergy_wh)
     Plugs::State.record_output(plug_id, output) unless output.nil?
     @logger.debug("ShellyStatusHandler: #{plug_id} #{apower_w} W / #{aenergy_wh} Wh")
-    accumulate(plug, ts, apower_w, aenergy_wh, output)
+    accumulate(plug, ts, apower_w, output)
   rescue ActiveRecord::RecordNotUnique
-    # duplicate ts within same second — skip silently
   rescue ActiveRecord::RecordInvalid => e
     @logger.warn("ShellyStatusHandler: invalid output on #{topic}: #{e.message}")
   rescue JSON::ParserError => e
@@ -48,7 +44,7 @@ class ShellyStatusHandler
 
   private
 
-  def accumulate(plug, ts, apower_w, aenergy_wh, output = nil)
+  def accumulate(plug, ts, apower_w, output = nil)
     bucket_ts = (ts / 60) * 60
     bucket    = @buckets[plug.id]
     if bucket && bucket[:bucket_ts] == bucket_ts
@@ -60,16 +56,16 @@ class ShellyStatusHandler
     end
     avg_power_w = Plugs::Roster.signed_watts(bucket[:sum].to_f / bucket[:count], role: plug.role)
 
-    @pending[plug.id] = {
-      plug_id: plug.id, name: plug.name, role: plug.role.to_s, online: true,
-      ts: ts, bucket_ts: bucket_ts, apower_w: apower_w, avg_power_w: avg_power_w,
-      aenergy_wh: aenergy_wh, output: output
-    }
+    @pending[plug.id] = LiveState::Update.new(
+      id: plug.id, name: plug.name, role: plug.role,
+      apower_w: apower_w, last_seen_ts: ts,
+      bucket_ts: bucket_ts, avg_power_w: avg_power_w, output: output
+    )
 
     now = @clock.call
     return unless now - @last_broadcast_at >= BROADCAST_INTERVAL
 
-    ActionCable.server.broadcast("dashboard", { ts: now.to_i, plugs: @pending.values })
+    ActionCable.server.broadcast("dashboard", { plugs: @pending.values.map(&:to_h) })
     @pending.clear
     @last_broadcast_at = now
   rescue => e

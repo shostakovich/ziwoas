@@ -1,65 +1,42 @@
 import { Controller } from "@hotwired/stimulus"
 import "chart.js"
-import consumer from "channels/consumer"
+import liveFeed from "controllers/live_feed"
 
-// Connects to data-controller="today-chart"
-// Manages the 24h power line chart and the 24h energy bar chart.
-// - Initial data loaded via HTTP on connect and on visibility restore after gap.
-// - Incremental updates via ActionCable:
-//     same bucket_ts → update last point in place
-//     next bucket_ts (+60s) → push new point
-//     gap > 120s        → full reload from /api/today
 export default class extends Controller {
   static targets = ["powerCanvas", "energyCanvas"]
 
   static values = {
     gapThresholdMs: { type: Number, default: 120_000 },
-    refreshInterval: { type: Number, default: 3_600_000 }, // history reload (1h)
+    refreshInterval: { type: Number, default: 3_600_000 },
   }
 
   connect() {
     this.powerChart  = null
     this.energyChart = null
-    // plug_id → Chart.js dataset index (populated on chart build)
     this.datasetIndex = {}
 
     this.loadCharts()
 
-    this.subscription = consumer.subscriptions.create("DashboardChannel", {
-      received: (data) => this.handleReading(data),
+    this.unsubscribe = liveFeed.subscribe({
+      onDelta: (updates) => this.handleUpdates(updates),
+      onResync: () => this.loadCharts(),
     })
 
-    // Reload charts once an hour to pick up any corrected data
     this.refreshTimer = setInterval(() => this.loadCharts(), this.refreshIntervalValue)
-
-    // Reload when tab becomes visible again (laptop open after sleep, etc.)
-    this._onVisibilityChange = () => {
-      if (document.visibilityState === "visible") this.loadCharts()
-    }
-    document.addEventListener("visibilitychange", this._onVisibilityChange)
-
-    // bfcache restore (Safari back/forward)
-    this._onPageShow = (e) => { if (e.persisted) this.loadCharts() }
-    window.addEventListener("pageshow", this._onPageShow)
   }
 
   disconnect() {
-    this.subscription?.unsubscribe()
+    this.unsubscribe?.()
     clearInterval(this.refreshTimer)
-    document.removeEventListener("visibilitychange", this._onVisibilityChange)
-    window.removeEventListener("pageshow", this._onPageShow)
     this.powerChart?.destroy()
     this.energyChart?.destroy()
   }
 
-  // --- ActionCable handler ---
-
-  handleReading(data) {
+  handleUpdates(updates) {
     if (!this.powerChart) return
-    if (!Array.isArray(data.plugs)) return
 
     let changed = false
-    for (const plug of data.plugs) {
+    for (const plug of updates) {
       const result = this._updatePowerChart(plug)
       if (result === "reload") return
       changed ||= result
@@ -67,12 +44,12 @@ export default class extends Controller {
 
     if (changed) {
       this._replaceTotalConsumptionDataset()
-      this.powerChart.update("none") // "none" = no animation, instant
+      this.powerChart.update("none")
     }
   }
 
   _updatePowerChart(data) {
-    const idx = this.datasetIndex[data.plug_id]
+    const idx = this.datasetIndex[data.id]
     if (idx === undefined) return false
 
     const dataset = this.powerChart.data.datasets[idx]
@@ -84,17 +61,12 @@ export default class extends Controller {
     if (last) {
       const gap = newX - last.x
       if (gap > this.gapThresholdMsValue) {
-        // Too big a jump — data was missed while tab/laptop was sleeping.
-        // Full reload gives us the correct picture.
         this.loadCharts()
         return "reload"
       } else if (last.x === newX) {
-        // Same bucket: update running average in place
         last.y = y
       } else {
-        // Next bucket: append
         dataset.data.push({ x: newX, y })
-        // Drop points older than 25h to keep chart lean
         const cutoff = Date.now() - 25 * 3_600_000
         while (dataset.data.length > 0 && dataset.data[0].x < cutoff) {
           dataset.data.shift()
@@ -107,8 +79,6 @@ export default class extends Controller {
     return true
   }
 
-  // --- Full chart load via HTTP ---
-
   async loadCharts() {
     try {
       const response = await fetch("/api/today")
@@ -120,8 +90,6 @@ export default class extends Controller {
       console.error("loadCharts failed:", e)
     }
   }
-
-  // --- Chart builders ---
 
   _buildPowerChart(data) {
     this.datasetIndex = {}
@@ -251,7 +219,7 @@ export default class extends Controller {
     const newDataset  = this._totalPowerConsumptionDataset(others)
 
     if (existing && newDataset) {
-      existing.data = newDataset.data // update in place — preserves Chart.js hidden state
+      existing.data = newDataset.data
     } else if (!existing && newDataset) {
       this.powerChart.data.datasets.push(newDataset)
     } else if (existing && !newDataset) {

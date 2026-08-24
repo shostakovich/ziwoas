@@ -1,8 +1,4 @@
-// Shared energy-flow SVG rendering for the dashboard and solakon controllers.
-// The flow geometry and the animated-dot logic are identical on both pages, so
-// they live here to avoid the two copies drifting apart.
-
-export const EF_PATHS = {
+const PATHS = {
   solarHome: "M 200,122 C 205,150 250,166 306,170",
   solarGrid: "M 200,122 C 195,150 150,166 94,170",
   solarBattery: "M 200,122 L 200,218",
@@ -11,7 +7,7 @@ export const EF_PATHS = {
   batteryHome: "M 200,218 C 205,190 250,174 306,170",
 }
 
-export const EF_LENS = {
+const LENS = {
   solarHome: 123,
   solarGrid: 123,
   solarBattery: 96,
@@ -20,14 +16,136 @@ export const EF_LENS = {
   batteryHome: 123,
 }
 
-// Animation duration (s) for one dot traversing a path of length `len` at `w`
-// watts. Below 1 W there is no flow, so no animation.
-export function efDur(w, len) {
+const CHANNELS = [
+  { key: "solarHome",    flow: "solar_to_home_w",    dots: "efDotsSolarHome",    color: "#f59f00" },
+  { key: "solarGrid",    flow: "solar_to_grid_w",    dots: "efDotsSolarGrid",    color: "#8b5cf6" },
+  { key: "solarBattery", flow: "solar_to_battery_w", dots: "efDotsSolarBattery", color: "#ec4899" },
+  { key: "gridHome",     flow: "grid_to_home_w",     dots: "efDotsGridHome",     color: "#3b82f6" },
+  { key: "gridBattery",  flow: "grid_to_battery_w",  dots: "efDotsGridBattery",  color: "#94a3b8" },
+  { key: "batteryHome",  flow: "battery_to_home_w",  dots: "efDotsBatteryHome",  color: "#14b8a6" },
+]
+
+const CONSUMER_SOURCES = [
+  { flow: "solar_to_home_w",   color: "#f59f00" },
+  { flow: "grid_to_home_w",    color: "#3b82f6" },
+  { flow: "battery_to_home_w", color: "#14b8a6" },
+]
+
+const SVG_NS = "http://www.w3.org/2000/svg"
+
+function duration(w, len) {
   return w < 1 ? null : Math.max(0.5, Math.min(8, len / w))
 }
 
-// Swap the battery character image. Works for both <img> (src) and SVG <image>
-// (href) targets.
+export class EnergyFlowView {
+  constructor(element) {
+    this.element = element
+    this.lastDur = {}
+  }
+
+  render(flow) {
+    const online = !!flow?.solakon_online
+    const pvW = online ? Math.max(0, flow.solar_w || 0) : null
+
+    this.setText("efPvW", this.watts(pvW))
+    this.setText("efConsumerW", this.watts(flow?.home_w))
+    this.setText("efGridW", this.signedWatts(flow?.grid_w))
+    this.setText("efBatterySoc", flow?.battery_soc_pct == null ? "— %" : `${flow.battery_soc_pct.toFixed(0)}%`)
+    this.setText("efBatteryW", this.chargeWatts(flow?.battery_w))
+    setBatteryImage(this.find("efBatteryImage"), flow?.battery_state)
+
+    const flows = flow?.flows || {}
+    for (const channel of CHANNELS) {
+      this.setDots(channel, Number(flows[channel.flow] || 0))
+    }
+    this.setConsumerRing(
+      CONSUMER_SOURCES.map((source) => ({ w: Number(flows[source.flow] || 0), color: source.color }))
+    )
+  }
+
+  find(name) { return this.element?.querySelector(`[data-ef="${name}"]`) }
+
+  setText(name, text) {
+    const node = this.find(name)
+    if (node) node.textContent = text
+  }
+
+  watts(w) { return w == null ? "— W" : `${w.toFixed(0)} W` }
+
+  signedWatts(w) {
+    if (w == null) return "— W"
+    if (w > 0) return `+${w.toFixed(0)} W`
+    if (w < 0) return `−${Math.abs(w).toFixed(0)} W`
+    return "0 W"
+  }
+
+  chargeWatts(w) {
+    if (w == null) return "— W"
+    if (w > 0) return `−${w.toFixed(0)} W`
+    if (w < 0) return `${Math.abs(w).toFixed(0)} W`
+    return "0 W"
+  }
+
+  setDots({ key, dots, color }, w) {
+    const target = this.find(dots)
+    if (!target) return
+
+    const dur = duration(w, LENS[key])
+    const prev = this.lastDur[key]
+    const changed = dur === null ? prev != null : prev == null || Math.abs(dur - prev) / prev > 0.05
+    if (!changed) return
+
+    this.lastDur[key] = dur
+    target.innerHTML = ""
+    if (!dur) return
+
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    for (let i = 0; i < 3; i++) {
+      const dot = document.createElementNS(SVG_NS, "circle")
+      dot.setAttribute("r", "4.5")
+      dot.setAttribute("fill", color)
+      if (reduceMotion) {
+        dot.style.cssText = `offset-path:path("${PATHS[key]}");offset-distance:${25 + i * 25}%`
+        target.appendChild(dot)
+      } else {
+        dot.style.cssText = `offset-path:path("${PATHS[key]}")`
+        target.appendChild(dot)
+        dot.animate(
+          [ { offsetDistance: "0%" }, { offsetDistance: "100%" } ],
+          { duration: dur * 1000, delay: -(i * dur / 3) * 1000, iterations: Infinity, easing: "linear" }
+        )
+      }
+    }
+  }
+
+  setConsumerRing(sources) {
+    const ring = this.find("efConsumerRing")
+    if (!ring) return
+
+    const segments = sources.filter((s) => s.w > 0.5)
+    const total = segments.reduce((sum, s) => sum + s.w, 0)
+    ring.innerHTML = ""
+    if (total <= 0) return
+
+    let acc = 0
+    for (const segment of segments) {
+      const pct = (segment.w / total) * 100
+      const arc = document.createElementNS(SVG_NS, "circle")
+      arc.setAttribute("cx", "342")
+      arc.setAttribute("cy", "170")
+      arc.setAttribute("r", "40")
+      arc.setAttribute("fill", "none")
+      arc.setAttribute("stroke", segment.color)
+      arc.setAttribute("stroke-width", "2.5")
+      arc.setAttribute("pathLength", "100")
+      arc.setAttribute("stroke-dasharray", `${pct} ${100 - pct}`)
+      arc.setAttribute("stroke-dashoffset", `${-acc}`)
+      ring.appendChild(arc)
+      acc += pct
+    }
+  }
+}
+
 export function setBatteryImage(image, state) {
   if (!image) return
   const key = state || "normal"
@@ -35,37 +153,4 @@ export function setBatteryImage(image, state) {
   if (!src) return
   if (image.tagName.toLowerCase() === "img") image.src = src
   else image.setAttribute("href", src)
-}
-
-// Render (or update) the three animated flow dots for one path. Duration state
-// is kept on the calling controller's `efLastDur` map so unchanged flows are not
-// redrawn. Respects prefers-reduced-motion by placing static dots instead.
-export function efSetDots(controller, targetName, path, color, w, len) {
-  const target = controller[targetName]
-  if (!target) return
-  const dur = efDur(w, len)
-  const prev = controller.efLastDur[targetName]
-  const changed = dur === null ? prev != null : prev == null || Math.abs(dur - prev) / prev > 0.05
-  if (!changed) return
-  controller.efLastDur[targetName] = dur
-  target.innerHTML = ""
-  if (!dur) return
-
-  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches
-  for (let i = 0; i < 3; i++) {
-    const c = document.createElementNS("http://www.w3.org/2000/svg", "circle")
-    c.setAttribute("r", "4.5")
-    c.setAttribute("fill", color)
-    if (reduceMotion) {
-      c.style.cssText = `offset-path:path("${path}");offset-distance:${25 + i * 25}%`
-      target.appendChild(c)
-    } else {
-      c.style.cssText = `offset-path:path("${path}")`
-      target.appendChild(c)
-      c.animate(
-        [{ offsetDistance: "0%" }, { offsetDistance: "100%" }],
-        { duration: dur * 1000, delay: -(i * dur / 3) * 1000, iterations: Infinity, easing: "linear" }
-      )
-    }
-  }
 }

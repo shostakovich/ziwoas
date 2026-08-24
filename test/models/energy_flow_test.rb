@@ -1,6 +1,8 @@
 require "test_helper"
 
 class EnergyFlowTest < ActiveSupport::TestCase
+  cover "EnergyFlow*"
+
   UNKNOWN_FLOWS = {
     solar_to_home_w: nil, solar_to_grid_w: nil, solar_to_battery_w: nil,
     grid_to_home_w: nil, grid_to_battery_w: nil, battery_to_home_w: nil
@@ -54,9 +56,27 @@ class EnergyFlowTest < ActiveSupport::TestCase
     assert_equal 50.0, flow.flows.battery_to_home_w
   end
 
+  test "solar and battery power come from the reading, not from the split" do
+    flow = EnergyFlow.build(
+      home_w: 200.0,
+      reading: reading(active_power_w: 260, pv_power_w: 310, battery_power_w: 50, battery_soc_pct: 84)
+    )
+
+    assert_in_delta 310.0, flow.solar_w
+    assert_in_delta 50.0, flow.battery_w
+  end
+
+  test "the flow is dated by the reading it was built from" do
+    taken_at = Time.current - 5.seconds
+    flow = EnergyFlow.build(home_w: 200.0, reading: reading(taken_at: taken_at))
+
+    assert_equal taken_at.to_i, flow.reading_ts
+  end
+
   test "without a reading the inverter is offline and nothing is known" do
     flow = EnergyFlow.build(home_w: 200.0, reading: nil)
 
+    assert_nil flow.reading_ts
     assert_equal false, flow.solakon_online
     assert_nil flow.solakon_ac_w
     assert_nil flow.solar_w

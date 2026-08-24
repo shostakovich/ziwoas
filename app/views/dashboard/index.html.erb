@@ -3,7 +3,6 @@
 <h1>Dashboard</h1>
 
 <div data-controller="dashboard">
-  <!-- Hero: PV live | Batterie-Ladestand (zwei gleichwertige Hälften) -->
   <div class="hero">
     <div class="hero-half">
       <%= image_tag @dashboard_weather_asset, class: "hero-icon", alt: @dashboard_weather_alt %>
@@ -27,7 +26,6 @@
     </div>
   </div>
 
-  <!-- Tiles: today's numbers -->
   <div class="tiles">
     <div class="tile">
       <div class="tile-label">Erzeugt heute</div>
@@ -63,21 +61,17 @@
     </div>
   </div>
 
-  <!-- Energiefluss -->
   <h2 class="section-label">Energiefluss</h2>
-  <div class="chart-card energy-flow-card">
+  <div class="chart-card energy-flow-card" data-dashboard-target="energyFlow">
     <%= render "shared/energy_flow",
-               target_prefix: "dashboard",
                pv_asset: @dashboard_weather_asset,
                pv_alt: @dashboard_weather_alt,
                battery_asset: "solakon_battery_normal.webp" %>
   </div>
 
-  <!-- Plug bar -->
   <h2 class="section-label">Steckdosen</h2>
   <div class="plug-bar-wrap" data-dashboard-target="plugList">—</div>
 
-  <!-- Today + Energy charts -->
   <div data-controller="today-chart">
     <h2 class="section-label">Gesamtenergie — Letzte 24 h</h2>
     <div class="chart-card">
@@ -94,7 +88,6 @@
     </div>
   </div>
 
-  <!-- History chart -->
   <div data-controller="history-chart">
     <h2 class="section-label">Ertrag — Letzte 14 Tage</h2>
     <div class="chart-card">

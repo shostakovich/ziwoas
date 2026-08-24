@@ -2,8 +2,9 @@ class LiveState
   module Types
     include Dry.Types()
 
-    Watt  = Dry::Types["coercible.float"].optional
-    Epoch = Dry::Types["coercible.integer"].optional
+    Watt   = Dry::Types["coercible.float"].optional
+    Epoch  = Dry::Types["coercible.integer"].optional
+    Output = Dry::Types["strict.bool"].optional
   end
 
   class Row < Dry::Struct
@@ -26,6 +27,17 @@ class LiveState
     end
   end
 
+  class Update < Dry::Struct
+    attribute :id,           Types::Strict::String
+    attribute :name,         Types::Strict::String
+    attribute :role,         Types::Strict::Symbol
+    attribute :apower_w,     Types::Watt
+    attribute :last_seen_ts, Types::Epoch
+    attribute :bucket_ts,    Types::Epoch
+    attribute :avg_power_w,  Types::Watt
+    attribute :output,       Types::Output
+  end
+
   def self.for(config:, now: Time.current,
                offline_after_s: Plugs::Measurement::OFFLINE_AFTER_S,
                stale_after_s: SolakonReading::STALE_AFTER_S)
@@ -41,6 +53,8 @@ class LiveState
   end
 
   def now_ts = @now.to_i
+
+  attr_reader :offline_after_s, :stale_after_s
 
   def plugs
     @plugs ||= roster.all.map { |plug| Row.build(plug, measurements[plug.id]) }

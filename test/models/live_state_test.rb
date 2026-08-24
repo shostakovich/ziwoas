@@ -164,6 +164,36 @@ class LiveStateTest < ActiveSupport::TestCase
     assert_equal true, state.plugs.find { |row| row.id == "desk" }.online
   end
 
+  test "both Fristen travel with the picture, so a reader can apply them again later" do
+    state = live(offline_after_s: 200, stale_after_s: 300)
+
+    assert_equal 200, state.offline_after_s
+    assert_equal 300, state.stale_after_s
+  end
+
+  test "an update names a plug the way a row does, and dates it the same way" do
+    update = LiveState::Update.new(id: "desk", name: "DESK", role: :consumer, apower_w: 120.0,
+                                   last_seen_ts: NOW.to_i, bucket_ts: NOW.to_i - 20,
+                                   avg_power_w: -110.0, output: true)
+
+    assert_empty LiveState::Row.attribute_names - [ :online ] - LiveState::Update.attribute_names
+    assert_equal({ id: "desk", name: "DESK", role: :consumer, apower_w: 120.0,
+                   last_seen_ts: NOW.to_i, bucket_ts: NOW.to_i - 20,
+                   avg_power_w: -110.0, output: true }, update.to_h)
+  end
+
+  test "an update carries no online flag: it dates the report and leaves the Frist to the reader" do
+    refute_includes LiveState::Update.attribute_names, :online
+  end
+
+  test "an update tolerates a plug that reports no output and no bucket yet" do
+    update = LiveState::Update.new(id: "desk", name: "DESK", role: :consumer, apower_w: nil,
+                                   last_seen_ts: nil, bucket_ts: nil, avg_power_w: nil, output: nil)
+
+    assert_nil update.output
+    assert_nil update.last_seen_ts
+  end
+
   test "with no now given, live state measures from the actual current time" do
     travel_to NOW do
       state = LiveState.for(config: config)

@@ -5,6 +5,7 @@ class EnergyFlow < Dry::Struct
     Watt    = Dry::Types["coercible.float"].optional
     Percent = Dry::Types["coercible.integer"].optional
     Label   = Dry::Types["coercible.string"].optional
+    Epoch   = Dry::Types["coercible.integer"].optional
     Flag    = Dry::Types["strict.bool"]
   end
 
@@ -18,8 +19,6 @@ class EnergyFlow < Dry::Struct
 
     def self.unknown = new(**attribute_names.index_with { nil })
 
-    # One missing input makes every flow unknown: a partial split would read as
-    # measured zeroes.
     def self.split(home_w:, solar_w:, battery_w:, grid_w:)
       return unknown if [ home_w, solar_w, battery_w, grid_w ].any?(&:nil?)
 
@@ -59,6 +58,7 @@ class EnergyFlow < Dry::Struct
     end
   end
 
+  attribute :reading_ts,      Types::Epoch
   attribute :solakon_online,  Types::Flag
   attribute :home_w,          Types::Watt
   attribute :solakon_ac_w,    Types::Watt
@@ -75,6 +75,7 @@ class EnergyFlow < Dry::Struct
     grid_w    = home_w && reading ? home_w - reading.active_power_w : nil
 
     new(
+      reading_ts:      reading&.taken_at,
       solakon_online:  !reading.nil?,
       home_w:          home_w,
       solakon_ac_w:    reading&.active_power_w,
