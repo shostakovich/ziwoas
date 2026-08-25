@@ -60,6 +60,11 @@ aggregator_schedule: &aggregator_schedule
     queue: default
     schedule: every 2 minutes
 
+  broadcast_dashboard_summary:
+    class: DashboardSummaryJob
+    queue: default
+    schedule: every minute
+
 development:
   <<: *aggregator_schedule
 

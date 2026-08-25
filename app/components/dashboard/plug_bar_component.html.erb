@@ -1,0 +1,29 @@
+<div class="plug-bar-wrap" id="dashboard_plug_bar">
+  <div class="plug-bar">
+    <% consumers.each do |plug| %>
+      <span class="plug-seg"
+            style="width: <%= width_pct(plug) %>%; background: <%= color(plug) %>"
+            title="<%= plug.name %> · <%= plug.apower_w.round %> W"></span>
+    <% end %>
+  </div>
+  <div class="plug-bar-meta">
+    <span>Verbrauch gesamt</span>
+    <b><%= total_w.round %> W</b>
+  </div>
+  <div class="plug-legend">
+    <% producers.each do |plug| %>
+      <span class="plug-legend-item">
+        <span class="plug-legend-swatch" style="background: <%= PRODUCER_COLOR %>"></span>
+        <span class="plug-name"><%= plug.name %></span>
+        <span class="plug-value">-<%= (plug.apower_w || 0).abs.round %> W</span>
+      </span>
+    <% end %>
+    <% consumers.each do |plug| %>
+      <span class="plug-legend-item">
+        <span class="plug-legend-swatch" style="background: <%= color(plug) %>"></span>
+        <span class="plug-name"><%= plug.name %></span>
+        <span class="plug-value"><%= plug.apower_w.round %> W</span>
+      </span>
+    <% end %>
+  </div>
+</div>

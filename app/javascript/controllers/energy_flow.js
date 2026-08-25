@@ -33,6 +33,10 @@ const CONSUMER_SOURCES = [
 
 const SVG_NS = "http://www.w3.org/2000/svg"
 
+// Every dot animation runs one second per lap; the channel's real pace comes
+// from playbackRate, which can change without restarting the animation.
+const BASE_S = 1
+
 function duration(w, len) {
   return w < 1 ? null : Math.max(0.5, Math.min(8, len / w))
 }
@@ -86,18 +90,31 @@ export class EnergyFlowView {
     return "0 W"
   }
 
+  // Watts set the pace, not the dots' identity. A channel that keeps flowing
+  // keeps its circles and only changes playback rate, so a dot mid-path speeds
+  // up where it is instead of snapping back to the start on every new reading.
   setDots({ key, dots, color }, w) {
     const target = this.find(dots)
     if (!target) return
 
     const dur = duration(w, LENS[key])
-    const prev = this.lastDur[key]
-    const changed = dur === null ? prev != null : prev == null || Math.abs(dur - prev) / prev > 0.05
-    if (!changed) return
+
+    if (!dur) {
+      if (this.lastDur[key] == null) return
+      this.lastDur[key] = null
+      target.innerHTML = ""
+      return
+    }
+
+    if (this.lastDur[key] != null && target.childElementCount > 0) {
+      if (Math.abs(dur - this.lastDur[key]) / this.lastDur[key] <= 0.05) return
+      this.lastDur[key] = dur
+      for (const dot of target.children) dot.getAnimations()[0]?.updatePlaybackRate(BASE_S / dur)
+      return
+    }
 
     this.lastDur[key] = dur
     target.innerHTML = ""
-    if (!dur) return
 
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches
     for (let i = 0; i < 3; i++) {
@@ -110,10 +127,11 @@ export class EnergyFlowView {
       } else {
         dot.style.cssText = `offset-path:path("${PATHS[key]}")`
         target.appendChild(dot)
-        dot.animate(
+        const animation = dot.animate(
           [ { offsetDistance: "0%" }, { offsetDistance: "100%" } ],
-          { duration: dur * 1000, delay: -(i * dur / 3) * 1000, iterations: Infinity, easing: "linear" }
+          { duration: BASE_S * 1000, delay: -(i * BASE_S / 3) * 1000, iterations: Infinity, easing: "linear" }
         )
+        animation.playbackRate = BASE_S / dur
       }
     }
   }

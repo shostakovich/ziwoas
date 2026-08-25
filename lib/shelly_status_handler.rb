@@ -65,10 +65,10 @@ class ShellyStatusHandler
     now = @clock.call
     return unless now - @last_broadcast_at >= BROADCAST_INTERVAL
 
-    ActionCable.server.broadcast("dashboard", { plugs: @pending.values.map(&:to_h) })
+    DashboardBroadcaster.broadcast_live(deltas: @pending.values)
     @pending.clear
     @last_broadcast_at = now
   rescue => e
-    @logger.warn("ShellyStatusHandler: ActionCable broadcast failed: #{e.message}")
+    @logger.warn("ShellyStatusHandler: dashboard broadcast failed: #{e.message}")
   end
 end

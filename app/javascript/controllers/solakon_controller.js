@@ -1,11 +1,9 @@
 import { Controller } from "@hotwired/stimulus"
 import "chart.js"
-import liveFeed from "controllers/live_feed"
-import { EnergyFlowView } from "controllers/energy_flow"
 
 export default class extends Controller {
   static targets = [
-    "historyCanvas", "historyPayload", "balanceRows", "energyFlow",
+    "historyCanvas", "historyPayload", "balanceRows",
     "epsToggle", "epsState", "epsPower", "epsVoltage", "epsError",
     "autoRegulationToggle", "autoRegulationState", "autoRegulationHelp", "autoRegulationError",
   ]
@@ -14,21 +12,15 @@ export default class extends Controller {
     this.chart = null
     this.currentRange = "24h"
     this._buildChart(this._readPayload())
-    this.flowView = this.hasEnergyFlowTarget ? new EnergyFlowView(this.energyFlowTarget) : null
 
-    this.unsubscribe = liveFeed.subscribe({
-      onState: ({ energyFlow, stale }) => {
-        this.element.classList.toggle("live-stale", stale)
-        this.flowView?.render(energyFlow)
-      },
-      onResync: () => this.refreshHistory(),
-    })
+    this._onResync = () => this.refreshHistory()
+    document.addEventListener("live-freshness:resync", this._onResync)
 
     this.historyInterval = setInterval(() => this.refreshHistory(), 60_000)
   }
 
   disconnect() {
-    this.unsubscribe?.()
+    document.removeEventListener("live-freshness:resync", this._onResync)
     clearInterval(this.historyInterval)
     this.chart?.destroy()
   }

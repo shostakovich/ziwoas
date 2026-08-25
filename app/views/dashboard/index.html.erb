@@ -2,77 +2,40 @@
 <% content_for :body_class, "page-dashboard" %>
 <h1>Dashboard</h1>
 
-<div data-controller="dashboard">
-  <div class="hero">
-    <div class="hero-half">
-      <%= image_tag @dashboard_weather_asset, class: "hero-icon", alt: @dashboard_weather_alt %>
-      <div class="hero-value" data-dashboard-target="heroValue">— <span class="hero-unit">W</span></div>
-    </div>
-    <div class="hero-half" data-dashboard-target="heroBattery">
-      <%= image_tag "solakon_battery_normal.webp",
-                    class: "hero-icon hero-icon-battery",
-                    alt: "Batterie",
-                    data: {
-                      dashboard_target: "heroBatteryImage",
-                      battery_state_normal: asset_path("solakon_battery_normal.webp"),
-                      battery_state_discharging: asset_path("solakon_battery_normal.webp"),
-                      battery_state_charging: asset_path("solakon_battery_charging.webp"),
-                      battery_state_low: asset_path("solakon_battery_low.webp"),
-                      battery_state_hot: asset_path("solakon_battery_hot.webp"),
-                      battery_state_cold: asset_path("solakon_battery_cold.webp"),
-                      battery_state_fault: asset_path("solakon_battery_fault.webp")
-                    } %>
-      <div class="hero-value" data-dashboard-target="heroBatterySoc">— <span class="hero-unit">%</span></div>
-    </div>
-  </div>
+<%= turbo_stream_from DashboardBroadcaster::STREAM %>
+
+<div data-controller="live-freshness"
+     data-live-freshness-threshold-s-value="<%= Plugs::Measurement::OFFLINE_AFTER_S %>">
+  <%= render Dashboard::HeroComponent.new(live: @live,
+                                          weather_asset: @weather_asset,
+                                          weather_alt: @weather_alt) %>
 
   <div class="tiles">
-    <div class="tile">
-      <div class="tile-label">Erzeugt heute</div>
-      <div class="tile-value" data-dashboard-target="tileProduced">—</div>
-    </div>
-    <div class="tile">
-      <div class="tile-label">Verbraucht heute</div>
-      <div class="tile-value" data-dashboard-target="tileConsumed">—</div>
-    </div>
-    <div class="tile">
-      <div class="tile-label">Gespart heute</div>
-      <div class="tile-value" data-dashboard-target="tileSavings">—</div>
-    </div>
-    <div class="tile">
-      <div class="tile-label">Bilanz heute</div>
-      <div class="tile-value" data-dashboard-target="tileNettoday">—</div>
-    </div>
-    <div class="tile">
-      <div class="tile-label">Verbrauch jetzt</div>
-      <div class="tile-value" data-dashboard-target="tileConsumption">—</div>
-    </div>
-    <div class="tile">
-      <div class="tile-label">Bilanz jetzt</div>
-      <div class="tile-value" data-dashboard-target="tileNetbalance">—</div>
-    </div>
-    <div class="tile">
-      <div class="tile-label">Autarkie heute</div>
-      <div class="tile-value" data-dashboard-target="tileAutarky">—</div>
-    </div>
-    <div class="tile">
-      <div class="tile-label">Eigenverbrauch</div>
-      <div class="tile-value" data-dashboard-target="tileSelfConsumption">—</div>
-    </div>
+    <%= render Dashboard::TileComponent.produced(@summary) %>
+    <%= render Dashboard::TileComponent.consumed(@summary) %>
+    <%= render Dashboard::TileComponent.savings(@summary) %>
+    <%= render Dashboard::TileComponent.net_today(@summary) %>
+    <%= render Dashboard::TileComponent.consumption_now(@live) %>
+    <%= render Dashboard::TileComponent.netbalance_now(@live) %>
+    <%= render Dashboard::TileComponent.autarky(@summary) %>
+    <%= render Dashboard::TileComponent.self_consumption(@summary) %>
   </div>
 
   <h2 class="section-label">Energiefluss</h2>
-  <div class="chart-card energy-flow-card" data-dashboard-target="energyFlow">
+  <div class="chart-card energy-flow-card" data-controller="energy-flow">
+    <%= render Dashboard::EnergyFlowStateComponent.new(live: @live) %>
     <%= render "shared/energy_flow",
-               pv_asset: @dashboard_weather_asset,
-               pv_alt: @dashboard_weather_alt,
+               pv_asset: @weather_asset,
+               pv_alt: @weather_alt,
                battery_asset: "solakon_battery_normal.webp" %>
   </div>
 
   <h2 class="section-label">Steckdosen</h2>
-  <div class="plug-bar-wrap" data-dashboard-target="plugList">—</div>
+  <%= render Dashboard::PlugBarComponent.new(live: @live) %>
 
   <div data-controller="today-chart">
+    <%= render Dashboard::PlugDeltasComponent.new(deltas: []) %>
+
     <h2 class="section-label">Gesamtenergie — Letzte 24 h</h2>
     <div class="chart-card">
       <div class="chart-frame">

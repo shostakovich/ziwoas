@@ -11,7 +11,7 @@ class SolakonControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_select "h1", text: "PV", count: 1
-    assert_select "[data-controller='solakon']", 1
+    assert_select "[data-controller~='solakon']", 1
     assert_select ".section-label", text: "Energiefluss"
     assert_select ".section-label", text: "Steuerung"
     assert_select ".section-label", text: "Panels"

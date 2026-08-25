@@ -1,9 +1,8 @@
 import { Controller } from "@hotwired/stimulus"
 import "chart.js"
-import liveFeed from "controllers/live_feed"
 
 export default class extends Controller {
-  static targets = ["powerCanvas", "energyCanvas"]
+  static targets = ["powerCanvas", "energyCanvas", "deltas"]
 
   static values = {
     gapThresholdMs: { type: Number, default: 120_000 },
@@ -17,19 +16,23 @@ export default class extends Controller {
 
     this.loadCharts()
 
-    this.unsubscribe = liveFeed.subscribe({
-      onDelta: (updates) => this.handleUpdates(updates),
-      onResync: () => this.loadCharts(),
-    })
+    this._onResync = () => this.loadCharts()
+    document.addEventListener("live-freshness:resync", this._onResync)
 
     this.refreshTimer = setInterval(() => this.loadCharts(), this.refreshIntervalValue)
   }
 
   disconnect() {
-    this.unsubscribe?.()
+    document.removeEventListener("live-freshness:resync", this._onResync)
     clearInterval(this.refreshTimer)
     this.powerChart?.destroy()
     this.energyChart?.destroy()
+  }
+
+  // Each live broadcast replaces the carrier div, re-connecting this target
+  // with a fresh per-plug delta payload.
+  deltasTargetConnected(element) {
+    this.handleUpdates(JSON.parse(element.dataset.payload))
   }
 
   handleUpdates(updates) {

@@ -1,6 +1,5 @@
 import { Controller } from "@hotwired/stimulus"
 import "chart.js"
-import liveFeed from "controllers/live_feed"
 
 export default class extends Controller {
   static targets = ["canvas"]
@@ -8,11 +7,12 @@ export default class extends Controller {
   connect() {
     this.chart = null
     this.loadChart()
-    this.unsubscribe = liveFeed.subscribe({ onResync: () => this.loadChart() })
+    this._onResync = () => this.loadChart()
+    document.addEventListener("live-freshness:resync", this._onResync)
   }
 
   disconnect() {
-    this.unsubscribe?.()
+    document.removeEventListener("live-freshness:resync", this._onResync)
     this.chart?.destroy()
   }
 

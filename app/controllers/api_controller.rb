@@ -30,8 +30,4 @@ class ApiController < ApplicationController
       { plug_id: plug.id, name: plug.name, role: plug.role, points: points }
     end
   end
-
-  def live
-    @live = LiveState.for(config: app_config)
-  end
 end

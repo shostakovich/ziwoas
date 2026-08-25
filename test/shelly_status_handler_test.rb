@@ -29,14 +29,13 @@ class ShellyStatusHandlerTest < ActiveSupport::TestCase
     JSON.generate(h)
   end
 
-  def capture_broadcasts
-    broadcasts = []
-    server = ActionCable.server
-    original = server.method(:broadcast)
-    server.define_singleton_method(:broadcast) { |stream, payload| broadcasts << [ stream, payload ] }
-    yield broadcasts
-  ensure
-    server.define_singleton_method(:broadcast, original)
+  # The handler's job ends at handing batched deltas to DashboardBroadcaster;
+  # what the broadcast renders is DashboardBroadcasterTest's concern.
+  def capture_live_broadcasts
+    calls = []
+    DashboardBroadcaster.stub(:broadcast_live, ->(deltas: []) { calls << deltas.map(&:to_h) }) do
+      yield calls
+    end
   end
 
   test "subscriptions targets the shelly status topic" do
@@ -84,67 +83,64 @@ class ShellyStatusHandlerTest < ActiveSupport::TestCase
   end
 
   test "handle_message broadcasts immediately on first message after startup" do
-    capture_broadcasts do |broadcasts|
+    capture_live_broadcasts do |calls|
       @handler.handle("shellies/bkw/status/switch:0",
                       status_payload(apower: 300.0, total: 1234.5))
-      assert_equal 1, broadcasts.length
-      stream, payload = broadcasts.first
-      assert_equal "dashboard", stream
-      plugs = payload[:plugs]
-      assert_equal 1, plugs.length
-      assert_instance_of Hash, plugs.first
-      assert_equal "bkw",    plugs.first[:id]
-      assert_equal "Solar",  plugs.first[:name]
-      assert_equal :producer, plugs.first[:role]
-      assert_in_delta 300.0, plugs.first[:apower_w]
-      assert_equal @now.to_i, plugs.first[:last_seen_ts]
-      assert_equal (@now.to_i / 60) * 60, plugs.first[:bucket_ts]
+      assert_equal 1, calls.length
+      deltas = calls.first
+      assert_equal 1, deltas.length
+      assert_equal "bkw",    deltas.first[:id]
+      assert_equal "Solar",  deltas.first[:name]
+      assert_equal :producer, deltas.first[:role]
+      assert_in_delta 300.0, deltas.first[:apower_w]
+      assert_equal @now.to_i, deltas.first[:last_seen_ts]
+      assert_equal (@now.to_i / 60) * 60, deltas.first[:bucket_ts]
     end
   end
 
   test "handle_message broadcasts producer avg_power_w as a positive magnitude" do
-    capture_broadcasts do |broadcasts|
+    capture_live_broadcasts do |calls|
       @handler.handle("shellies/bkw/status/switch:0",
                       status_payload(apower: -300.0, total: 1234.5))
-      producer = broadcasts.first.last[:plugs].first
+      producer = calls.first.first
       assert_in_delta(-300.0, producer[:apower_w])
       assert_in_delta 300.0,  producer[:avg_power_w]
     end
   end
 
   test "handle_message leaves consumer avg_power_w signed" do
-    capture_broadcasts do |broadcasts|
+    capture_live_broadcasts do |calls|
       @handler.handle("shellies/fridge/status/switch:0",
                       status_payload(apower: -80.0, total: 1234.5))
-      consumer = broadcasts.first.last[:plugs].first
+      consumer = calls.first.first
       assert_in_delta(-80.0, consumer[:avg_power_w])
     end
   end
 
   test "handle_message batches messages within the 5-second window" do
-    capture_broadcasts do |broadcasts|
+    capture_live_broadcasts do |calls|
       @handler.handle("shellies/bkw/status/switch:0",
                       status_payload(apower: 300.0, total: 1234.5))
       @now += 1
       @handler.handle("shellies/bkw/status/switch:0",
                       status_payload(apower: 350.0, total: 1234.6))
-      assert_equal 1, broadcasts.length
+      assert_equal 1, calls.length
     end
   end
 
   test "handle_message sends a new broadcast after the 5-second interval elapses" do
-    capture_broadcasts do |broadcasts|
+    capture_live_broadcasts do |calls|
       @handler.handle("shellies/bkw/status/switch:0",
                       status_payload(apower: 300.0, total: 1234.5))
       @now += 5
       @handler.handle("shellies/bkw/status/switch:0",
                       status_payload(apower: 350.0, total: 1234.6))
-      assert_equal 2, broadcasts.length
+      assert_equal 2, calls.length
     end
   end
 
   test "handle_message merges multiple plugs into one broadcast" do
-    capture_broadcasts do |broadcasts|
+    capture_live_broadcasts do |calls|
       # First message triggers immediate broadcast (cold start)
       @handler.handle("shellies/bkw/status/switch:0",
                       status_payload(apower: 300.0, total: 1234.5))
@@ -157,9 +153,8 @@ class ShellyStatusHandlerTest < ActiveSupport::TestCase
       @handler.handle("shellies/bkw/status/switch:0",
                       status_payload(apower: 310.0, total: 1234.6))
 
-      assert_equal 2, broadcasts.length
-      _, payload = broadcasts.last
-      plug_ids = payload[:plugs].map { |p| p[:id] }
+      assert_equal 2, calls.length
+      plug_ids = calls.last.map { |p| p[:id] }
       assert_includes plug_ids, "fridge"
       assert_includes plug_ids, "bkw"
     end
@@ -188,11 +183,10 @@ class ShellyStatusHandlerTest < ActiveSupport::TestCase
   end
 
   test "handle_message includes output in the broadcast payload" do
-    capture_broadcasts do |broadcasts|
+    capture_live_broadcasts do |calls|
       @handler.handle("shellies/fridge/status/switch:0",
                       status_payload(apower: 50.0, total: 1.0, output: true))
-      _, payload = broadcasts.first
-      assert_equal true, payload[:plugs].first[:output]
+      assert_equal true, calls.first.first[:output]
     end
   end
 
