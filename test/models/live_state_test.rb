@@ -196,6 +196,15 @@ class LiveStateTest < ActiveSupport::TestCase
     end
   end
 
+  test "with no now given, a reading older than the stale Frist is correctly excluded" do
+    SolakonReading.create!(taken_at: Time.current - (SolakonReading::STALE_AFTER_S + 10),
+                           active_power_w: 10, pv_power_w: 10, battery_power_w: 0, battery_soc_pct: 50)
+
+    flow = LiveState.for(config: config).energy_flow
+
+    assert_equal false, flow.solakon_online
+  end
+
   private
 
   def plug(id, role) = ConfigLoader::PlugCfg.new(id: id, name: id.upcase, role: role, driver: :shelly)

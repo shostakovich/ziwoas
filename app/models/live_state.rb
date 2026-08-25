@@ -22,7 +22,7 @@ class LiveState
         role:         plug.role,
         online:       !measurement.offline?,
         apower_w:     measurement.reported_watt,
-        last_seen_ts: measurement.last_seen_at&.to_i
+        last_seen_ts: measurement.last_seen_at
       )
     end
   end
