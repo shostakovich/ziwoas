@@ -3,15 +3,6 @@ module Dashboard
   # the PV half shows — inverter reading or producer-plug fallback — and which
   # battery face fits the state are decided here, on the server, once.
   class HeroComponent < ApplicationComponent
-    BATTERY_ASSETS = {
-      "charging" => "solakon_battery_charging.webp",
-      "low"      => "solakon_battery_low.webp",
-      "hot"      => "solakon_battery_hot.webp",
-      "cold"     => "solakon_battery_cold.webp",
-      "fault"    => "solakon_battery_fault.webp"
-    }.freeze
-    DEFAULT_BATTERY_ASSET = "solakon_battery_normal.webp"
-
     def initialize(live:, weather_asset:, weather_alt:)
       @live          = live
       @weather_asset = weather_asset
@@ -36,7 +27,7 @@ module Dashboard
     def soc = flow.battery_soc_pct || "—"
 
     def battery_asset
-      BATTERY_ASSETS.fetch(flow.battery_state, DEFAULT_BATTERY_ASSET)
+      ApplicationHelper::BATTERY_ASSETS.fetch(flow.battery_state, ApplicationHelper::DEFAULT_BATTERY_ASSET)
     end
   end
 end

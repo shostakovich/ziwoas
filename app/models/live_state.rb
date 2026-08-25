@@ -52,10 +52,6 @@ class LiveState
     @stale_after_s   = stale_after_s
   end
 
-  def now_ts = @now.to_i
-
-  attr_reader :offline_after_s, :stale_after_s
-
   def plugs
     @plugs ||= roster.all.map { |plug| Row.build(plug, measurements[plug.id]) }
   end

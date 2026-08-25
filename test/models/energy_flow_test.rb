@@ -66,17 +66,9 @@ class EnergyFlowTest < ActiveSupport::TestCase
     assert_in_delta 50.0, flow.battery_w
   end
 
-  test "the flow is dated by the reading it was built from" do
-    taken_at = Time.current - 5.seconds
-    flow = EnergyFlow.build(home_w: 200.0, reading: reading(taken_at: taken_at))
-
-    assert_equal taken_at.to_i, flow.reading_ts
-  end
-
   test "without a reading the inverter is offline and nothing is known" do
     flow = EnergyFlow.build(home_w: 200.0, reading: nil)
 
-    assert_nil flow.reading_ts
     assert_equal false, flow.solakon_online
     assert_nil flow.solakon_ac_w
     assert_nil flow.solar_w

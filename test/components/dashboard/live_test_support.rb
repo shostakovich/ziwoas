@@ -11,7 +11,7 @@ module Dashboard
 
     def energy_flow(**overrides)
       EnergyFlow.new({
-        reading_ts: nil, solakon_online: false, home_w: nil, solakon_ac_w: nil,
+        solakon_online: false, home_w: nil, solakon_ac_w: nil,
         solar_w: nil, battery_soc_pct: nil, battery_w: nil, battery_state: nil,
         grid_w: nil, flows: EnergyFlow::Flows.unknown
       }.merge(overrides))

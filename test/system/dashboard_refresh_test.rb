@@ -76,7 +76,7 @@ class DashboardRefreshTest < ApplicationSystemTestCase
 
   def flow_state(solar_to_home_w:)
     {
-      solakon_online: true, reading_ts: Time.now.to_i, home_w: solar_to_home_w,
+      solakon_online: true, home_w: solar_to_home_w,
       solakon_ac_w: solar_to_home_w, solar_w: solar_to_home_w,
       battery_soc_pct: 50, battery_w: 0, battery_state: "normal", grid_w: 0,
       flows: { solar_to_home_w: solar_to_home_w }

@@ -147,12 +147,11 @@ class LiveStateTest < ActiveSupport::TestCase
     assert_in_delta 120.0, state.energy_flow.home_w
   end
 
-  test "now_ts is the whole second both Fristen are measured from" do
+  test "a fractional now is truncated to the whole second both Fristen are measured from" do
     sample("desk", 2, 120.0)
 
     state = LiveState.for(config: config, now: Time.zone.at(NOW.to_i + 0.75))
 
-    assert_equal NOW.to_i, state.now_ts
     assert_equal NOW.to_i - 2, state.plugs.find { |row| row.id == "desk" }.last_seen_ts
   end
 
@@ -162,13 +161,6 @@ class LiveStateTest < ActiveSupport::TestCase
     state = LiveState.for(config: config, now: Time.zone.at(NOW.to_i + 0.9))
 
     assert_equal true, state.plugs.find { |row| row.id == "desk" }.online
-  end
-
-  test "both Fristen travel with the picture, so a reader can apply them again later" do
-    state = live(offline_after_s: 200, stale_after_s: 300)
-
-    assert_equal 200, state.offline_after_s
-    assert_equal 300, state.stale_after_s
   end
 
   test "an update names a plug the way a row does, and dates it the same way" do
@@ -196,9 +188,11 @@ class LiveStateTest < ActiveSupport::TestCase
 
   test "with no now given, live state measures from the actual current time" do
     travel_to NOW do
+      sample("desk", 2, 120.0)
+
       state = LiveState.for(config: config)
 
-      assert_equal NOW.to_i, state.now_ts
+      assert_equal NOW.to_i - 2, state.plugs.find { |row| row.id == "desk" }.last_seen_ts
     end
   end
 

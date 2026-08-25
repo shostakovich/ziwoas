@@ -27,7 +27,7 @@
     <%= render "shared/energy_flow",
                pv_asset: @weather_asset,
                pv_alt: @weather_alt,
-               battery_asset: "solakon_battery_normal.webp" %>
+               battery_asset: ApplicationHelper::DEFAULT_BATTERY_ASSET %>
   </div>
 
   <h2 class="section-label">Steckdosen</h2>
