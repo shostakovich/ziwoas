@@ -1,6 +1,8 @@
 require "test_helper"
 
 class SolakonControllerTest < ActionDispatch::IntegrationTest
+  cover "SolakonSnapshot#panels"
+
   setup do
     SolakonReading.delete_all
     SolakonSnapshot.delete_all if defined?(SolakonSnapshot)
@@ -63,15 +65,18 @@ class SolakonControllerTest < ActionDispatch::IntegrationTest
   test "page renders controls, panel, storage, balance, and status labels without protocol language" do
     SolakonSnapshot.create!(
       taken_at: Time.current,
-      pv1_power_w: 210,
-      pv1_voltage_v: 41.0,
+      pv1_power_w: 210.6,
+      pv1_voltage_v: 41.7,
       pv1_current_a: 5.12,
       pv2_power_w: 198,
       pv2_voltage_v: 40.5,
       pv2_current_a: 4.88,
-      pv3_power_w: 0,
-      pv3_voltage_v: 0,
-      pv3_current_a: 0,
+      pv3_power_w: 176,
+      pv3_voltage_v: 39.8,
+      pv3_current_a: 4.42,
+      pv4_power_w: 164,
+      pv4_voltage_v: 39.2,
+      pv4_current_a: 4.18,
       battery_health_pct: 97,
       battery_voltage_v: 51.3,
       battery_current_a: 4.2,
@@ -89,8 +94,10 @@ class SolakonControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_select ".solakon-control-card", 2
-    assert_select ".solakon-panel-card", 2
-    assert_select ".solakon-panel-card", text: /Panel 3/, count: 0
+    assert_select ".solakon-panel-card", 4
+    assert_select ".solakon-panel-card .tile-label", text: "Panel 3"
+    assert_select ".solakon-panel-card .tile-label", text: "Panel 4"
+    assert_select ".solakon-panel-card .muted-text", text: "41,7 V · 5,12 A"
     assert_select ".muted-text", text: /Speichertemperatur.*24,8 °C/
     assert_select ".muted-text", text: /Wechselrichtertemperatur.*34,1 °C/
 
@@ -103,6 +110,53 @@ class SolakonControllerTest < ActionDispatch::IntegrationTest
     assert_select ".solakon-storage-grid .tile-label", text: "Ladezyklen", count: 0
     assert_select ".solakon-balance-row", minimum: 6
     assert_no_match(/SOH|EPS|Modbus|Register|39067|46613|Fault\d|Alarm \d/, response.body)
+  end
+
+  test "a panel without yield keeps its card and shows zero watts" do
+    SolakonSnapshot.create!(
+      taken_at: Time.current,
+      pv1_power_w: 210, pv1_voltage_v: 41.0, pv1_current_a: 5.12,
+      pv2_power_w: 198, pv2_voltage_v: 40.5, pv2_current_a: 4.88,
+      pv3_power_w: 176, pv3_voltage_v: 39.8, pv3_current_a: 4.42,
+      pv4_power_w: 0, pv4_voltage_v: 0, pv4_current_a: 0
+    )
+
+    get "/solakon"
+
+    assert_response :success
+    assert_select ".solakon-panel-card", 4
+    assert_select ".solakon-panel-card", text: /Panel 4\s*0 W/
+  end
+
+  test "a snapshot predating panels three and four shows zero, not a blank dash" do
+    SolakonSnapshot.create!(
+      taken_at: Time.current,
+      pv1_power_w: 210, pv1_voltage_v: 41.0, pv1_current_a: 5.12,
+      pv2_power_w: 198, pv2_voltage_v: 40.5, pv2_current_a: 4.88
+    )
+
+    get "/solakon"
+
+    assert_response :success
+    assert_select ".solakon-panel-card", 4
+    assert_select ".solakon-panel-card", text: /Panel 3\s*0 W\s*0,0 V · 0,00 A/
+    assert_select ".solakon-panel-card", text: /Panel 4\s*0 W\s*0,0 V · 0,00 A/
+  end
+
+  test "panel power rounds to the nearest watt instead of truncating" do
+    SolakonSnapshot.create!(
+      taken_at: Time.current,
+      pv1_power_w: 210.6, pv1_voltage_v: 41.0, pv1_current_a: 5.12,
+      pv2_power_w: 198, pv2_voltage_v: 40.5, pv2_current_a: 4.88,
+      pv3_power_w: 176, pv3_voltage_v: 39.8, pv3_current_a: 4.42,
+      pv4_power_w: 164, pv4_voltage_v: 39.2, pv4_current_a: 4.18
+    )
+
+    get "/solakon"
+
+    assert_response :success
+    # 210.6 rounds to 211; a truncating cast would show 210.
+    assert_select ".solakon-panel-card", text: /Panel 1\s*211 W/
   end
 
   test "status renders one relevant battery character with short description" do

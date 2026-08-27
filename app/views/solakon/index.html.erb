@@ -98,7 +98,7 @@
 
   <h2 class="section-label">Panels</h2>
   <section class="tiles solakon-panel-grid">
-    <% (latest&.connected_panels || []).each do |panel| %>
+    <% (latest&.panels || []).each do |panel| %>
       <article class="tile solakon-panel-card">
         <div class="tile-label"><%= panel.fetch(:label) %></div>
         <div class="tile-value"><%= fmt.call(panel.fetch(:power_w)) %> W</div>

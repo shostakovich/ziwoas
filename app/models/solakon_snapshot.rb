@@ -1,7 +1,8 @@
 require "solakon_client"
 
 class SolakonSnapshot < ApplicationRecord
-  PANEL_FIELDS = (1..4).flat_map { |idx| [ :"pv#{idx}_power_w", :"pv#{idx}_voltage_v", :"pv#{idx}_current_a" ] }.freeze
+  PANELS = (1..4).freeze
+  PANEL_FIELDS = PANELS.flat_map { |idx| [ :"pv#{idx}_power_w", :"pv#{idx}_voltage_v", :"pv#{idx}_current_a" ] }.freeze
   NUMERIC_FIELDS = (PANEL_FIELDS + %i[
     active_power_w battery_voltage_v battery_current_a battery_power_w battery_temperature_c
     battery_min_temperature_c remaining_energy_wh full_charge_capacity_ah
@@ -20,15 +21,19 @@ class SolakonSnapshot < ApplicationRecord
 
   def self.latest = newest_first.first
 
-  def connected_panels
-    (1..2).filter_map do |idx|
-      power = public_send(:"pv#{idx}_power_w")
-      voltage = public_send(:"pv#{idx}_voltage_v")
-      current = public_send(:"pv#{idx}_current_a")
-      next if [ power, voltage, current ].all? { |value| value.to_f.zero? }
-
-      { index: idx, label: "Panel #{idx}", power_w: power.to_f, voltage_v: voltage.to_f, current_a: current.to_f }
+  def panels
+    PANELS.map do |idx|
+      {
+        label: "Panel #{idx}",
+        power_w: public_send(:"pv#{idx}_power_w").to_f,
+        voltage_v: public_send(:"pv#{idx}_voltage_v").to_f,
+        current_a: public_send(:"pv#{idx}_current_a").to_f
+      }
     end
+  end
+
+  def pv_power_w
+    PANELS.sum { |idx| public_send(:"pv#{idx}_power_w").to_f }
   end
 
   def status_messages
