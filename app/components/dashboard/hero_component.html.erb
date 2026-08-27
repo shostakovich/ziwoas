@@ -1,0 +1,10 @@
+<div class="hero" id="dashboard_hero">
+  <div class="hero-half">
+    <%= image_tag weather_asset, class: "hero-icon", alt: weather_alt %>
+    <div class="hero-value"><span class="hero-number"><%= pv_watt || "—" %></span> <span class="hero-unit">W</span></div>
+  </div>
+  <div class="hero-half" <%= "hidden" unless battery? %>>
+    <%= image_tag battery_asset, class: "hero-icon hero-icon-battery", alt: "Batterie" %>
+    <div class="hero-value"><span class="hero-number"><%= soc %></span> <span class="hero-unit">%</span></div>
+  </div>
+</div>

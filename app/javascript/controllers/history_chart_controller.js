@@ -1,18 +1,18 @@
 import { Controller } from "@hotwired/stimulus"
 import "chart.js"
 
-// Connects to data-controller="history-chart"
-// Loads the 14-day bar chart once on connect. No live updates needed —
-// data changes at most once per day (after the nightly aggregation job).
 export default class extends Controller {
   static targets = ["canvas"]
 
   connect() {
     this.chart = null
     this.loadChart()
+    this._onResync = () => this.loadChart()
+    document.addEventListener("live-freshness:resync", this._onResync)
   }
 
   disconnect() {
+    document.removeEventListener("live-freshness:resync", this._onResync)
     this.chart?.destroy()
   }
 

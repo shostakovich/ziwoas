@@ -1,36 +1,26 @@
 import { Controller } from "@hotwired/stimulus"
 import "chart.js"
-import consumer from "channels/consumer"
-import { EF_PATHS, EF_LENS, efSetDots, setBatteryImage } from "controllers/energy_flow"
 
 export default class extends Controller {
   static targets = [
     "historyCanvas", "historyPayload", "balanceRows",
     "epsToggle", "epsState", "epsPower", "epsVoltage", "epsError",
     "autoRegulationToggle", "autoRegulationState", "autoRegulationHelp", "autoRegulationError",
-    "efPvW", "efGridW", "efConsumerW", "efBatterySoc", "efBatteryW", "efBatteryImage",
-    "efDotsSolarHome", "efDotsSolarGrid", "efDotsSolarBattery",
-    "efDotsGridHome", "efDotsGridBattery", "efDotsBatteryHome",
-    "efConsumerRing",
   ]
 
   connect() {
     this.chart = null
-    this.efLastDur = {}
     this.currentRange = "24h"
     this._buildChart(this._readPayload())
-    this.subscription = consumer.subscriptions.create("DashboardChannel", {
-      received: (data) => {
-        if (data.energy_flow) this.updateEnergyFlow(data.energy_flow)
-        if (data.solakon) this.fetchLive()
-      },
-    })
-    this.fetchLive()
+
+    this._onResync = () => this.refreshHistory()
+    document.addEventListener("live-freshness:resync", this._onResync)
+
     this.historyInterval = setInterval(() => this.refreshHistory(), 60_000)
   }
 
   disconnect() {
-    this.subscription?.unsubscribe()
+    document.removeEventListener("live-freshness:resync", this._onResync)
     clearInterval(this.historyInterval)
     this.chart?.destroy()
   }
@@ -49,7 +39,6 @@ export default class extends Controller {
       console.error("solakon history load failed:", error)
     }
   }
-
 
   async refreshHistory() {
     const activeButton = this.element.querySelector(".preset-link.active")
@@ -102,47 +91,6 @@ export default class extends Controller {
       event.target.checked = !desired
       this._showError(this.autoRegulationErrorTarget, error.message)
     }
-  }
-
-  async fetchLive() {
-    try {
-      const response = await fetch("/api/live")
-      if (!response.ok) return
-      const data = await response.json()
-      if (data.energy_flow) this.updateEnergyFlow(data.energy_flow)
-    } catch (error) {
-      console.error("solakon fetchLive failed:", error)
-    }
-  }
-
-  updateEnergyFlow(flow) {
-    const pvW = flow.solakon_online ? Math.max(0, flow.solar_w || 0) : null
-    const homeW = flow.home_w
-    const gridW = flow.grid_w
-    const batteryW = flow.battery_w
-    const batterySoc = flow.battery_soc_pct
-
-    if (this.hasEfPvWTarget) this.efPvWTarget.textContent = pvW == null ? "— W" : `${pvW.toFixed(0)} W`
-    if (this.hasEfConsumerWTarget) this.efConsumerWTarget.textContent = homeW == null ? "— W" : `${homeW.toFixed(0)} W`
-    if (this.hasEfGridWTarget) this.efGridWTarget.textContent = gridW == null ? "— W" : gridW > 0 ? `+${gridW.toFixed(0)} W` : gridW < 0 ? `−${Math.abs(gridW).toFixed(0)} W` : "0 W"
-    if (this.hasEfBatterySocTarget) this.efBatterySocTarget.textContent = batterySoc == null ? "— %" : `${batterySoc.toFixed(0)}%`
-    if (this.hasEfBatteryWTarget) this.efBatteryWTarget.textContent = batteryW == null ? "— W" : batteryW > 0 ? `−${batteryW.toFixed(0)} W` : batteryW < 0 ? `${Math.abs(batteryW).toFixed(0)} W` : "0 W"
-    if (this.hasEfBatteryImageTarget) setBatteryImage(this.efBatteryImageTarget, flow?.battery_state)
-
-    const flows = flow?.flows || {}
-    const solarToHome = Number(flows.solar_to_home_w || 0)
-    const solarToGrid = Number(flows.solar_to_grid_w || 0)
-    const solarToBattery = Number(flows.solar_to_battery_w || 0)
-    const gridToHome = Number(flows.grid_to_home_w || 0)
-    const gridToBattery = Number(flows.grid_to_battery_w || 0)
-    const batteryToHome = Number(flows.battery_to_home_w || 0)
-
-    efSetDots(this, "efDotsSolarHomeTarget", EF_PATHS.solarHome, "#f59f00", solarToHome, EF_LENS.solarHome)
-    efSetDots(this, "efDotsSolarGridTarget", EF_PATHS.solarGrid, "#8b5cf6", solarToGrid, EF_LENS.solarGrid)
-    efSetDots(this, "efDotsSolarBatteryTarget", EF_PATHS.solarBattery, "#ec4899", solarToBattery, EF_LENS.solarBattery)
-    efSetDots(this, "efDotsGridHomeTarget", EF_PATHS.gridHome, "#3b82f6", gridToHome, EF_LENS.gridHome)
-    efSetDots(this, "efDotsGridBatteryTarget", EF_PATHS.gridBattery, "#94a3b8", gridToBattery, EF_LENS.gridBattery)
-    efSetDots(this, "efDotsBatteryHomeTarget", EF_PATHS.batteryHome, "#14b8a6", batteryToHome, EF_LENS.batteryHome)
   }
 
   _readPayload() {

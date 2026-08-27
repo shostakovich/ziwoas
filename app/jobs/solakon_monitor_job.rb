@@ -32,7 +32,7 @@ class SolakonMonitorJob < ApplicationJob
   private
 
   def broadcast_dashboard_refresh
-    ActionCable.server.broadcast("dashboard", { solakon: true })
+    DashboardBroadcaster.broadcast_live
   rescue StandardError => e
     Rails.logger.warn("solakon_monitor: dashboard broadcast failed: #{e.message}")
   end

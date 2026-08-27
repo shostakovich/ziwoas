@@ -1,6 +1,7 @@
 class SolakonController < ApplicationController
   def index
     config = app_config.solakon
+    @live = LiveState.for(config: app_config)
     @control_enabled = config&.control_enabled || false
     @runtime_state = SolakonControlState.current
     @latest_reading = SolakonReading.newest_first.first

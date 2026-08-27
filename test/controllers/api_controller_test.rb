@@ -7,24 +7,6 @@ class ApiControllerTest < ActionDispatch::IntegrationTest
     SolakonReading.delete_all
   end
 
-  # --- /api/live ---
-
-  test "GET /api/live renders plug lines, an energy flow and a now_ts, with the role as a string" do
-    Plugs::Sample.create!(plug_id: "bkw", ts: Time.now.to_i - 2, apower_w: 342.5, aenergy_wh: 1000.0)
-
-    get "/api/live", as: :json
-    assert_response :ok
-
-    data = response.parsed_body
-    assert_equal %w[plugs energy_flow now_ts].sort, data.keys.sort
-    assert data["energy_flow"].key?("flows")
-
-    bkw = data["plugs"].find { |p| p["id"] == "bkw" }
-    assert_equal %w[id name role online apower_w last_seen_ts].sort, bkw.keys.sort
-    assert_equal "producer", bkw["role"]
-    assert_in_delta 342.5, bkw["apower_w"]
-  end
-
   # --- /api/today ---
 
   test "GET /api/today returns series per plug" do

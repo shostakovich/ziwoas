@@ -26,8 +26,8 @@ class SolakonMonitorJobTest < ActiveSupport::TestCase
       @calls = []
     end
 
-    def broadcast(stream, payload)
-      @calls << [ stream, payload ]
+    def broadcast_live(**)
+      @calls << :live
       raise "broadcast down" if @fail
     end
   end
@@ -77,7 +77,7 @@ class SolakonMonitorJobTest < ActiveSupport::TestCase
   def run_job(client:, cfg: config, now: Time.zone.local(2026, 6, 18, 12, 0, 0),
               broadcaster: FakeBroadcaster.new, &block)
     ConfigLoader.stub(:app_config, cfg) do
-      ActionCable.stub(:server, broadcaster) do
+      DashboardBroadcaster.stub(:broadcast_live, broadcaster.method(:broadcast_live)) do
         if block
           ZeroExportTickJob.stub(:perform_now, block) do
             SolakonMonitorJob.new.perform(client: client, now: now)
@@ -100,7 +100,7 @@ class SolakonMonitorJobTest < ActiveSupport::TestCase
 
     reading = SolakonReading.last
     assert_equal [ :read_state ], client.calls
-    assert_equal [ [ "dashboard", { solakon: true } ] ], broadcaster.calls
+    assert_equal [ :live ], broadcaster.calls
     assert_equal now, reading.taken_at
     assert_equal 123, reading.active_power_w
     assert_equal 456, reading.pv_power_w
@@ -158,7 +158,7 @@ class SolakonMonitorJobTest < ActiveSupport::TestCase
     )
 
     assert_equal [ current_state ], control_calls
-    assert_equal [ [ "dashboard", { solakon: true } ] ], broadcaster.calls
+    assert_equal [ :live ], broadcaster.calls
   end
 
   test "invalid reading does not persist or trigger control" do
@@ -198,6 +198,6 @@ class SolakonMonitorJobTest < ActiveSupport::TestCase
     end
 
     assert_equal [ current_state ], control_calls
-    assert_equal [ [ "dashboard", { solakon: true } ] ], broadcaster.calls
+    assert_equal [ :live ], broadcaster.calls
   end
 end

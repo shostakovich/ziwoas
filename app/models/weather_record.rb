@@ -17,6 +17,13 @@ class WeatherRecord < ApplicationRecord
     current.order(updated_at: :desc).first
   end
 
+  # Asset and alt text for the dashboard hero, with the sunny default that
+  # stands in until the first weather sync.
+  def self.dashboard_icon
+    record = latest_current
+    [ record&.asset_name || "icon_sonne.webp", record&.icon.presence || "Sonne" ]
+  end
+
   def self.today_hourly(now: Time.current)
     where(kind: [ "forecast", "historic" ])
       .where(timestamp: now.beginning_of_hour..now.to_date.tomorrow.end_of_day)

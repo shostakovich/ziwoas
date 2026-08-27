@@ -2,7 +2,10 @@
 <% content_for :body_class, "page-switches" %>
 <h1>Schalten</h1>
 
-<div data-controller="switches">
+<%# Live watt/output updates arrive as sw_head replaces from DashboardBroadcaster. %>
+<%= turbo_stream_from DashboardBroadcaster::STREAM %>
+
+<div>
   <% if @rows.empty? %>
     <section class="sw-card empty-state">
       <h2>Keine schaltbaren Steckdosen</h2>

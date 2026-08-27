@@ -147,12 +147,11 @@ class LiveStateTest < ActiveSupport::TestCase
     assert_in_delta 120.0, state.energy_flow.home_w
   end
 
-  test "now_ts is the whole second both Fristen are measured from" do
+  test "a fractional now is truncated to the whole second both Fristen are measured from" do
     sample("desk", 2, 120.0)
 
     state = LiveState.for(config: config, now: Time.zone.at(NOW.to_i + 0.75))
 
-    assert_equal NOW.to_i, state.now_ts
     assert_equal NOW.to_i - 2, state.plugs.find { |row| row.id == "desk" }.last_seen_ts
   end
 
@@ -164,12 +163,46 @@ class LiveStateTest < ActiveSupport::TestCase
     assert_equal true, state.plugs.find { |row| row.id == "desk" }.online
   end
 
+  test "an update names a plug the way a row does, and dates it the same way" do
+    update = LiveState::Update.new(id: "desk", name: "DESK", role: :consumer, apower_w: 120.0,
+                                   last_seen_ts: NOW.to_i, bucket_ts: NOW.to_i - 20,
+                                   avg_power_w: -110.0, output: true)
+
+    assert_empty LiveState::Row.attribute_names - [ :online ] - LiveState::Update.attribute_names
+    assert_equal({ id: "desk", name: "DESK", role: :consumer, apower_w: 120.0,
+                   last_seen_ts: NOW.to_i, bucket_ts: NOW.to_i - 20,
+                   avg_power_w: -110.0, output: true }, update.to_h)
+  end
+
+  test "an update carries no online flag: it dates the report and leaves the Frist to the reader" do
+    refute_includes LiveState::Update.attribute_names, :online
+  end
+
+  test "an update tolerates a plug that reports no output and no bucket yet" do
+    update = LiveState::Update.new(id: "desk", name: "DESK", role: :consumer, apower_w: nil,
+                                   last_seen_ts: nil, bucket_ts: nil, avg_power_w: nil, output: nil)
+
+    assert_nil update.output
+    assert_nil update.last_seen_ts
+  end
+
   test "with no now given, live state measures from the actual current time" do
     travel_to NOW do
+      sample("desk", 2, 120.0)
+
       state = LiveState.for(config: config)
 
-      assert_equal NOW.to_i, state.now_ts
+      assert_equal NOW.to_i - 2, state.plugs.find { |row| row.id == "desk" }.last_seen_ts
     end
+  end
+
+  test "with no now given, a reading older than the stale Frist is correctly excluded" do
+    SolakonReading.create!(taken_at: Time.current - (SolakonReading::STALE_AFTER_S + 10),
+                           active_power_w: 10, pv_power_w: 10, battery_power_w: 0, battery_soc_pct: 50)
+
+    flow = LiveState.for(config: config).energy_flow
+
+    assert_equal false, flow.solakon_online
   end
 
   private

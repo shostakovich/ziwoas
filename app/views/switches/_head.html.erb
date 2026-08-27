@@ -11,9 +11,9 @@
                   form_class: "sw-inline-form sw-knob-form",
                   aria: { label: "#{row.plug.name} #{row.on? ? 'ausschalten' : 'einschalten'}" } %>
     <% on = row.on? && !row.offline? %>
-    <span class="sw-watt-chip<%= " hidden" unless on %>" data-switches-watt-chip="<%= row.plug.id %>">
+    <span class="sw-watt-chip<%= " hidden" unless on %>">
       <span class="sw-bolt" aria-hidden="true">⚡</span>
-      <span class="sw-watt" data-switches-watt="<%= row.plug.id %>"><%= "#{row.watt&.round || 0} W" %></span>
+      <span class="sw-watt"><%= "#{row.watt&.round || 0} W" %></span>
     </span>
   </div>
 </div>

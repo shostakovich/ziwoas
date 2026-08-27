@@ -143,6 +143,18 @@ h1 { font-size: 18px; margin: 0 0 16px; color: var(--muted); font-weight: 500; }
 }
 
 .plug-bar-wrap { margin-bottom: 16px; }
+
+.hero, .tiles, .plug-bar-wrap, .energy-flow-card {
+  transition: opacity 200ms ease-out;
+}
+
+.live-stale .hero,
+.live-stale .tiles,
+.live-stale .plug-bar-wrap,
+.live-stale .energy-flow-card {
+  opacity: 0.45;
+}
+
 .plug-bar {
   display: flex;
   height: 34px;
@@ -186,7 +198,7 @@ h1 { font-size: 18px; margin: 0 0 16px; color: var(--muted); font-weight: 500; }
 .plug-name { white-space: nowrap; }
 .plug-value { color: var(--muted); }
 
-svg text[data-dashboard-target] {
+svg text[data-ef] {
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum";
 }

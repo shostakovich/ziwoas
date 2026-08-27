@@ -7,14 +7,17 @@
 
 <h1>PV</h1>
 
-<div class="solakon-page" data-controller="solakon">
+<%= turbo_stream_from DashboardBroadcaster::STREAM %>
+
+<div class="solakon-page" data-controller="solakon live-freshness"
+     data-live-freshness-threshold-s-value="<%= Plugs::Measurement::OFFLINE_AFTER_S %>">
   <h2 class="section-label">Energiefluss</h2>
-  <div class="chart-card energy-flow-card">
+  <div class="chart-card energy-flow-card" data-controller="energy-flow">
+    <%= render Dashboard::EnergyFlowStateComponent.new(live: @live) %>
     <%= render "shared/energy_flow",
-               target_prefix: "solakon",
                pv_asset: "icon_sonne.webp",
                pv_alt: "PV",
-               battery_asset: "solakon_battery_normal.webp" %>
+               battery_asset: ApplicationHelper::DEFAULT_BATTERY_ASSET %>
   </div>
 
   <%
