@@ -90,6 +90,14 @@ unknown, not zero.
 _German UI_: Veraltet
 _Avoid_: Offline (that's the state of a plug), Stale (in German UI text)
 
+**Panel**:
+One of the inverter's four PV inputs, each carrying a single module. All four are read and
+stored on every reading — a panel without yield reports 0 W, it does not go absent. Total PV
+power is their sum, never a figure stored in its own right. `SolakonSnapshot#panels`.
+_German UI_: Panel
+_Avoid_: String, Strang, MPPT-Eingang. `PV_STRINGS` in `lib/solakon_client.rb` names the
+Modbus layer, not the domain, and stays.
+
 **Plug roster**:
 The configured plugs together with their roles. The one place that knows who produces and
 who consumes, and which sign a measurement carries — every reader asks the roster instead

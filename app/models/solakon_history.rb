@@ -55,7 +55,7 @@ class SolakonHistory
     {
       labels: rows.map { |row| label_for(row.taken_at) },
       datasets: [
-        { label: "PV", data: rows.map { |row| (row.pv1_power_w.to_f + row.pv2_power_w.to_f).round(1) } },
+        { label: "PV", data: rows.map { |row| row.pv_power_w.round(1) } },
         { label: "Akku", data: rows.map { |row| row.battery_power_w.to_f.round(1) } },
         { label: "Außensteckdose", data: rows.map { |row| outlet_power_w(row).round(1) } },
         { label: "0 W", data: rows.map { 0 } }
