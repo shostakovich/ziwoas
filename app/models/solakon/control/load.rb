@@ -1,8 +1,11 @@
 module Solakon
   module Control
-    # The household-load inputs the controller needs. current_w is the live measured
-    # sum (nil when no fresh sample); floor_w is the export-safe 24h minimum.
-    Load = Struct.new(:current_w, :floor_w, keyword_init: true) do
+    # What the household is drawing, as far as the plugs can tell: the live
+    # measured sum and the guaranteed floor to fall back on when there is none.
+    class Load < Dry::Struct
+      attribute :current_w, Types::Watt
+      attribute :floor_w, Types::Watt
+
       def effective_w
         current_w.nil? ? floor_w.to_f : current_w.to_f
       end
