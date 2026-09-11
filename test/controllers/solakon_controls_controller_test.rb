@@ -55,31 +55,31 @@ class SolakonControlsControllerTest < ActionDispatch::IntegrationTest
 
   test "auto regulation resumes and pauses when config permits control" do
     ConfigLoader.stub(:app_config, config(control_enabled: true)) do
-      patch "/solakon/auto_regulation", params: { active: "false" }, as: :json
+      patch "/solakon/control", params: { active: "false" }, as: :json
     end
 
     assert_response :success
     assert_equal false, response.parsed_body["active"]
-    assert_not Solakon::Control::State.current.auto_regulation_active?
+    assert_not Solakon::Control::State.current.active?
 
     ConfigLoader.stub(:app_config, config(control_enabled: true)) do
-      patch "/solakon/auto_regulation", params: { active: "true" }, as: :json
+      patch "/solakon/control", params: { active: "true" }, as: :json
     end
 
     assert_response :success
     assert_equal true, response.parsed_body["active"]
-    assert Solakon::Control::State.current.auto_regulation_active?
+    assert Solakon::Control::State.current.active?
   end
 
   test "auto regulation cannot enable when config disables control" do
-    Solakon::Control::State.current.pause_auto_regulation!
+    Solakon::Control::State.current.pause!
 
     ConfigLoader.stub(:app_config, config(control_enabled: false)) do
-      patch "/solakon/auto_regulation", params: { active: "true" }, as: :json
+      patch "/solakon/control", params: { active: "true" }, as: :json
     end
 
     assert_response :forbidden
     assert_equal "in Konfiguration deaktiviert", response.parsed_body["error"]
-    assert_not Solakon::Control::State.current.auto_regulation_active?
+    assert_not Solakon::Control::State.current.active?
   end
 end

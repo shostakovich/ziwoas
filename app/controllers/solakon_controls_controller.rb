@@ -13,15 +13,15 @@ class SolakonControlsController < ApplicationController
     render json: { error: "Schalten fehlgeschlagen" }, status: :service_unavailable
   end
 
-  def auto_regulation
+  def control
     solakon = app_config.solakon
     return render json: { error: "Solakon nicht konfiguriert" }, status: :service_unavailable if solakon.nil?
     return render json: { error: "in Konfiguration deaktiviert" }, status: :forbidden unless solakon.control_enabled
 
     active = ActiveModel::Type::Boolean.new.cast(params[:active])
     state = Solakon::Control::State.current
-    active ? state.resume_auto_regulation! : state.pause_auto_regulation!
+    active ? state.resume! : state.pause!
 
-    render json: { active: state.auto_regulation_active? }
+    render json: { active: state.active? }
   end
 end

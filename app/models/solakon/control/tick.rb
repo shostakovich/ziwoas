@@ -12,7 +12,7 @@ module Solakon
       MAX_CONSECUTIVE_FAILURES = 3
 
       def self.call(reading:, roster:, client:, control:, now:, cache: Rails.cache)
-        return Outcome.paused unless control.auto_regulation_active?
+        return Outcome.paused unless control.active?
 
         load = LoadReader.new(roster: roster, now: now, cache: cache).load_estimate
         decision = Policy.decide(reading: reading, load: load, previous: previous(control, now))

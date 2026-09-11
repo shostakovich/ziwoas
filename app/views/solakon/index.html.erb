@@ -78,21 +78,21 @@
       </label>
       <p class="solakon-control-error" data-solakon-target="epsError" hidden></p>
     </article>
-    <% auto_active = @control_enabled && @runtime_state.auto_regulation_active? %>
-    <article class="tile solakon-control-card" data-solakon-target="autoRegulationCard">
+    <% control_active = @control_enabled && @runtime_state.active? %>
+    <article class="tile solakon-control-card" data-solakon-target="controlCard">
       <div class="tile-label">Auto-Regelung</div>
-      <div class="tile-value" data-solakon-target="autoRegulationState"><%= auto_active ? "Aktiv" : (@control_enabled ? "Pausiert" : "Aus") %></div>
-      <p class="muted-text" data-solakon-target="autoRegulationHelp"><%= @control_enabled ? "hält Einspeisung nahe 0 W" : "in Konfiguration deaktiviert" %></p>
+      <div class="tile-value" data-solakon-target="controlState"><%= control_active ? "Aktiv" : (@control_enabled ? "Pausiert" : "Aus") %></div>
+      <p class="muted-text" data-solakon-target="controlHelp"><%= @control_enabled ? "folgt dem gemessenen Verbrauch" : "in Konfiguration deaktiviert" %></p>
       <label class="ios-toggle solakon-toggle <%= "is-disabled" unless @control_enabled %>">
         <input type="checkbox"
-               <%= "checked" if auto_active %>
+               <%= "checked" if control_active %>
                <%= "disabled" unless @control_enabled %>
-               data-solakon-target="autoRegulationToggle"
-               data-action="change->solakon#toggleAutoRegulation">
+               data-solakon-target="controlToggle"
+               data-action="change->solakon#toggleControl">
         <span class="ios-toggle-track"><span class="ios-toggle-thumb"></span></span>
         <span class="ios-toggle-label">Auto-Regelung</span>
       </label>
-      <p class="solakon-control-error" data-solakon-target="autoRegulationError" hidden></p>
+      <p class="solakon-control-error" data-solakon-target="controlError" hidden></p>
     </article>
   </section>
 

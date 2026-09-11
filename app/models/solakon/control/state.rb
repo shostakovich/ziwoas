@@ -12,15 +12,15 @@ module Solakon
         first_or_create!
       end
 
-      def auto_regulation_active?
+      def active?
         !paused?
       end
 
-      def pause_auto_regulation!
+      def pause!
         update!(paused: true)
       end
 
-      def resume_auto_regulation!
+      def resume!
         update!(paused: false, **CLEARED)
       end
 

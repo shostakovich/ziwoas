@@ -127,7 +127,7 @@ class ControlTickTest < ActiveSupport::TestCase
 
   test "a paused loop writes nothing" do
     measuring(250)
-    @control.pause_auto_regulation!
+    @control.pause!
     client = FakeClient.new
 
     outcome = tick(client: client)

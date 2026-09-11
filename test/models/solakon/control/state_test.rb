@@ -12,18 +12,18 @@ class ControlStateTest < ActiveSupport::TestCase
 
     assert_equal state, Solakon::Control::State.current
     assert_equal false, state.paused
-    assert state.auto_regulation_active?
+    assert state.active?
   end
 
   test "pause and resume change persistent runtime state and clear what was stored" do
     state = Solakon::Control::State.current
     state.store!(decision, at: Time.current)
 
-    state.pause_auto_regulation!
-    assert_not Solakon::Control::State.current.auto_regulation_active?
+    state.pause!
+    assert_not Solakon::Control::State.current.active?
 
-    state.resume_auto_regulation!
-    assert Solakon::Control::State.current.auto_regulation_active?
+    state.resume!
+    assert Solakon::Control::State.current.active?
     assert_nil Solakon::Control::State.current.stored
   end
 
@@ -70,7 +70,7 @@ class ControlStateStoredTest < ActiveSupport::TestCase
   cover "Solakon::Control::State#stored"
   cover "Solakon::Control::State#store!"
   cover "Solakon::Control::State#clear!"
-  cover "Solakon::Control::State#resume_auto_regulation!"
+  cover "Solakon::Control::State#resume!"
   cover "Solakon::Control::Stored*"
 
   def state_with(decision_state: "surplus", trim: false, target_w: 500, decided_at:)
@@ -126,7 +126,7 @@ class ControlStateStoredTest < ActiveSupport::TestCase
     state = Solakon::Control::State.new
     written = nil
 
-    state.stub(:update!, ->(**attributes) { written = attributes }) { state.resume_auto_regulation! }
+    state.stub(:update!, ->(**attributes) { written = attributes }) { state.resume! }
 
     assert_equal({ paused: false, decision_state: nil, trim: false,
                    last_target_w: nil, last_decision_at: nil }, written)
