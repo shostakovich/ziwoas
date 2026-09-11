@@ -1,10 +1,27 @@
 require "test_helper"
 
 class ZeroExportTickJobTest < ActiveSupport::TestCase
+  cover "ZeroExportTickJob#perform"
+  cover "ZeroExportTickJob#handle_failure"
+  cover "ZeroExportTickJob#log"
+
+  class RecordingLogger
+    attr_reader :infos, :warnings
+
+    def initialize
+      @infos = []
+      @warnings = []
+    end
+
+    def info(message = nil) = (@infos << message)
+    def warn(message = nil) = (@warnings << message)
+  end
+
   class FakeClient
     attr_reader :calls
-    def initialize(fail: false)
-      @fail  = fail
+    def initialize(fail: false, release_fail: false)
+      @fail = fail
+      @release_fail = release_fail
       @calls = []
     end
 
@@ -13,7 +30,11 @@ class ZeroExportTickJobTest < ActiveSupport::TestCase
       @calls << [ :apply_power, power_w, min_soc ]
     end
 
-    def release_control! = (@calls << :release)
+    def release_control!
+      raise SolakonClient::Error, "release down" if @release_fail
+
+      @calls << :release
+    end
   end
 
   Plug = Struct.new(:id, :role, :name, keyword_init: true)
@@ -62,8 +83,11 @@ class ZeroExportTickJobTest < ActiveSupport::TestCase
     now = Time.at(1_000_000)
     Plugs::Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 250, aenergy_wh: 1)
     client = FakeClient.new
-    run_job(client: client, state: healthy_state, now: now)
+    logger = RecordingLogger.new
+    Rails.stub(:logger, logger) { run_job(client: client, state: healthy_state, now: now) }
     assert_equal [ [ :apply_power, 250, 10 ] ], client.calls
+    assert_equal 1, logger.infos.length
+    assert_includes logger.infos.fetch(0), "battery=0.0W"
   end
 
   test "remembers the applied decision as the control loop state" do
@@ -72,24 +96,39 @@ class ZeroExportTickJobTest < ActiveSupport::TestCase
 
     run_job(client: FakeClient.new, state: healthy_state, now: now)
 
-    previous = SolakonControlState.current.last_decision
+    previous = SolakonControlState.current.last_decision(at: now)
     assert_equal :normal, previous.state
     assert_equal 250, previous.target_w
     refute previous.trim
+    assert_equal now, SolakonControlState.current.last_decision_at
   end
 
-  test "caps a fresh consumption spike at the recent median" do
+  test "limits a fresh consumption spike to 200 watts above the applied target" do
     now = Time.zone.local(2026, 6, 20, 12, 0, 0)
-    [ 240, 240, 240, 240, 800 ].each_with_index do |watts, i|
-      Plugs::Sample.create!(plug_id: "fridge", ts: (now - (25 - i * 5).minutes).to_i,
-                     apower_w: watts, aenergy_wh: 1)
-    end
+    Plugs::Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 800, aenergy_wh: 1)
+    SolakonControlState.current.remember_decision!(
+      ZeroExportController::Decision.new(state: :normal, target_w: 240, trim: false),
+      at: now - 30.seconds
+    )
 
     client = FakeClient.new
-
     run_job(client: client, state: healthy_state, now: now)
 
-    assert_equal [ [ :apply_power, 240, 10 ] ], client.calls
+    assert_equal [ [ :apply_power, 440, 10 ] ], client.calls
+  end
+
+  test "ignores a control decision after the inverter watchdog expired" do
+    now = Time.zone.local(2026, 6, 20, 12, 0, 0)
+    Plugs::Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 700, aenergy_wh: 1)
+    SolakonControlState.current.remember_decision!(
+      ZeroExportController::Decision.new(state: :normal, target_w: 100, trim: false),
+      at: now - SolakonClient::REMOTE_TIMEOUT_S.seconds
+    )
+
+    client = FakeClient.new
+    run_job(client: client, state: healthy_state, now: now)
+
+    assert_equal [ [ :apply_power, 700, 10 ] ], client.calls
   end
 
   test "fresh low consumption is not overridden by a stale cached floor" do
@@ -159,6 +198,23 @@ class ZeroExportTickJobTest < ActiveSupport::TestCase
     assert_equal [ [ :apply_power, 386, 10 ] ], second.calls
   end
 
+  test "persists a successful full-battery probe" do
+    now = Time.zone.local(2026, 6, 20, 12, 0, 0)
+    Plugs::Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 100, aenergy_wh: 1)
+    SolakonControlState.current.remember_decision!(
+      ZeroExportController::Decision.new(state: :normal, target_w: 100, trim: false),
+      at: now - 30.seconds
+    )
+
+    client = FakeClient.new
+    run_job(client: client, state: state_with(soc: 100, pv: 0, battery: -60), now: now)
+
+    assert_equal [ [ :apply_power, 150, 10 ] ], client.calls
+    decision = SolakonControlState.current.last_decision(at: now)
+    assert_equal :probe, decision.state
+    assert_equal 150, decision.target_w
+  end
+
   test "low soc trim applies small corrections on the very next tick" do
     now = Time.zone.local(2026, 6, 20, 12, 0, 0)
     Plugs::Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 386, aenergy_wh: 1)
@@ -196,14 +252,57 @@ class ZeroExportTickJobTest < ActiveSupport::TestCase
 
   test "no-op when control is disabled" do
     client = FakeClient.new
-    run_job(client: client, state: healthy_state, cfg: config(control_enabled: false))
+    logger = RecordingLogger.new
+    Rails.stub(:logger, logger) do
+      run_job(client: client, state: healthy_state, cfg: config(control_enabled: false))
+    end
     assert_empty client.calls
+    assert_equal [ "zero_export: control disabled" ], logger.infos
   end
 
   test "no-op when solakon not configured" do
     client = FakeClient.new
-    run_job(client: client, state: healthy_state, cfg: config(solakon: false))
+    logger = RecordingLogger.new
+    Rails.stub(:logger, logger) do
+      run_job(client: client, state: healthy_state, cfg: config(solakon: false))
+    end
     assert_empty client.calls
+    assert_equal [ "zero_export: not configured" ], logger.infos
+  end
+
+  test "reader timestamp defaults to current time" do
+    logger = RecordingLogger.new
+    now = Time.zone.local(2026, 9, 11, 12, 0, 0)
+
+    travel_to(now) do
+      Plugs::Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 250, aenergy_wh: 1)
+      Rails.stub(:cache, @cache) do
+        Rails.stub(:logger, logger) do
+          ConfigLoader.stub(:app_config, config) do
+            ZeroExportTickJob.new.perform(client: FakeClient.new, state: healthy_state)
+          end
+        end
+      end
+    end
+
+    assert_equal now, SolakonControlState.current.last_decision_at
+    assert_equal 1, logger.infos.length
+  end
+
+  test "maps the injected reader timestamp onto the Solakon reading" do
+    now = Time.zone.local(2026, 9, 11, 12, 0, 0)
+    Plugs::Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 250, aenergy_wh: 1)
+    observed = []
+    original = SolakonReading.method(:from_state)
+
+    SolakonReading.stub(:from_state, lambda { |input, taken_at:|
+      observed << taken_at
+      original.call(input, taken_at: taken_at)
+    }) do
+      run_job(client: FakeClient.new, state: healthy_state, now: now)
+    end
+
+    assert_equal [ now ], observed
   end
 
   test "a single failure does not raise, relinquish control, or advance the loop state" do
@@ -218,9 +317,14 @@ class ZeroExportTickJobTest < ActiveSupport::TestCase
   test "relinquishes remote control after repeated failures" do
     now = Time.zone.local(2026, 6, 20, 12, 0, 0)
     Plugs::Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 250, aenergy_wh: 1)
+    SolakonControlState.current.remember_decision!(
+      ZeroExportController::Decision.new(state: :surplus, target_w: 500, trim: false),
+      at: now - 30.seconds
+    )
     client = FakeClient.new(fail: true)
     3.times { run_job(client: client, state: healthy_state, now: now) }
     assert_equal 1, client.calls.count(:release)
+    assert_nil SolakonControlState.current.last_decision(at: now)
   end
 
   test "a success resets the failure counter" do
@@ -243,8 +347,93 @@ class ZeroExportTickJobTest < ActiveSupport::TestCase
     Plugs::Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 250, aenergy_wh: 1)
     client = FakeClient.new
 
-    run_job(client: client, state: healthy_state, now: now)
+    logger = RecordingLogger.new
+    Rails.stub(:logger, logger) { run_job(client: client, state: healthy_state, now: now) }
 
     assert_empty client.calls
+    assert_equal [ "zero_export: runtime paused" ], logger.infos
+  end
+
+  test "logs every control input including battery power" do
+    logger = RecordingLogger.new
+    decision = ZeroExportController::Decision.new(state: :surplus, target_w: 485, trim: false)
+    load = LoadEstimate.new(current_w: 123.6, floor_w: 84.6)
+    reading = SolakonReading.new(battery_soc_pct: 100, battery_temperature_c: 30.5,
+                                 pv_power_w: 0, battery_power_w: -15.5)
+
+    Rails.stub(:logger, logger) do
+      ZeroExportTickJob.new.send(:log, decision, load, reading)
+    end
+
+    assert_equal [ "zero_export: state=surplus target=485W load=124W floor=85W " \
+                   "soc=100% temp=30.5C pv=0.0W battery=-15.5W" ], logger.infos
+  end
+
+  test "logs stale live consumption explicitly" do
+    logger = RecordingLogger.new
+    decision = ZeroExportController::Decision.new(state: :normal, target_w: 85, trim: false)
+    load = LoadEstimate.new(current_w: nil, floor_w: 85)
+    reading = SolakonReading.new(battery_soc_pct: 55, battery_temperature_c: 30,
+                                 pv_power_w: 100, battery_power_w: 0)
+
+    Rails.stub(:logger, logger) do
+      ZeroExportTickJob.new.send(:log, decision, load, reading)
+    end
+
+    assert_includes logger.infos.fetch(0), "load=stale"
+  end
+
+  test "failure logging and threshold actions are exact" do
+    logger = RecordingLogger.new
+    control = Struct.new(:failure_count, :calls) do
+      def register_failure! = failure_count
+      def reset_decision! = calls << :reset_decision
+      def reset_failures! = calls << :reset_failures
+    end.new(3, [])
+    client = FakeClient.new
+
+    Rails.stub(:logger, logger) do
+      ZeroExportTickJob.new.send(:handle_failure, client, SolakonClient::Error.new("down"), control)
+    end
+
+    assert_equal [ :release ], client.calls
+    assert_equal [ :reset_decision, :reset_failures ], control.calls
+    assert_equal [ "zero_export: Modbus failure 3/3: down",
+                   "zero_export: relinquished remote control after 3 consecutive failures" ], logger.warnings
+  end
+
+  test "failure below threshold only increments and logs" do
+    logger = RecordingLogger.new
+    control = Struct.new(:failure_count) { def register_failure! = failure_count }.new(2)
+    client = FakeClient.new
+
+    Rails.stub(:logger, logger) do
+      ZeroExportTickJob.new.send(:handle_failure, client, SolakonClient::Error.new("down"), control)
+    end
+
+    assert_empty client.calls
+    assert_equal [ "zero_export: Modbus failure 2/3: down" ], logger.warnings
+  end
+
+  test "release failure is logged and does not reset state" do
+    logger = RecordingLogger.new
+    control = Struct.new(:failure_count, :calls) do
+      def register_failure! = failure_count
+      def reset_decision! = calls << :reset_decision
+      def reset_failures! = calls << :reset_failures
+    end.new(3, [])
+
+    Rails.stub(:logger, logger) do
+      ZeroExportTickJob.new.send(
+        :handle_failure,
+        FakeClient.new(release_fail: true),
+        SolakonClient::Error.new("apply down"),
+        control
+      )
+    end
+
+    assert_empty control.calls
+    assert_equal [ "zero_export: Modbus failure 3/3: apply down",
+                   "zero_export: failed to relinquish remote control: release down" ], logger.warnings
   end
 end
