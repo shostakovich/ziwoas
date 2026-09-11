@@ -120,3 +120,52 @@ is the one place they are applied together, which is why a plug the flow dropped
 same payload.
 _German UI_: Live-Bild
 _Avoid_: Live data, Snapshot, Live payload, Realtime state
+
+### Control
+
+**Control**:
+Setting the inverter's output so it follows the household instead of a fixed schedule. It
+works from what the plugs measure and from the battery's reaction — there is no
+whole-house meter, so the grid flow itself is never seen. Control is therefore named after
+what it follows, not after an export figure it cannot measure (ADR-0002).
+_German UI_: Regelung, Auto-Regelung
+_Avoid_: Nulleinspeisung, Zero export (both promise a measured quantity that does not
+exist here), Steuerung (that is the one-way write, not the loop)
+
+**Control tick**:
+One pass of the loop: read the household, decide a target, write it to the inverter.
+Everything the loop remembers between ticks is the target it actually wrote — an attempt
+that never reached the inverter is not remembered. Each successful write also re-arms the
+inverter's own remote-control watchdog, which is why a target is written every tick and
+not only when it changes.
+_German UI_: Regeltakt
+_Avoid_: Zyklus, Durchlauf, Heartbeat
+
+**Guaranteed floor**:
+The lowest total consumption the measured consumers reached over the last 24 hours. Stands
+in for the live sum whenever no fresh **measurement** is available: it is the amount that
+can be covered without guessing.
+_German UI_: Gesicherte Grundlast
+_Avoid_: Grundlast alone (that is the general term), Baseline, Minimum
+
+**Surplus control**:
+The mode entered once the battery is full and still charging: the target no longer follows
+consumption but the battery's reaction, rising while it charges and falling while it
+discharges. The load-following target stays the lower bound, so measured consumption keeps
+first claim. Power beyond that goes to unmeasured loads first and may leave the house.
+_German UI_: Überschussregelung
+_Avoid_: Einspeisung, Export mode, Overshoot
+
+**Probe**:
+A single small increase of the target, offered once when the battery is full and reported
+PV has already been curtailed to near zero. If the battery keeps discharging, the probe is
+rejected and not repeated until charging proves that surplus is back. The only way to ask
+a question of a system that has stopped reporting the answer.
+_German UI_: Tastversuch
+_Avoid_: Test, Versuch alone, Ping
+
+**Deadband**:
+The band around zero within which the battery's measured power does not move the target.
+Keeps noise from being read as a signal.
+_German UI_: Totband
+_Avoid_: Toleranz (that is the switching **grace**), Hysterese, Schwelle
