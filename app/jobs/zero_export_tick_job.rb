@@ -24,7 +24,11 @@ class ZeroExportTickJob < ApplicationJob
     load    = reader.load_estimate
     reading = SolakonReading.from_state(state, taken_at: reader_now)
 
-    decision = ZeroExportController.decide(reading: reading, load: load, previous: control.last_decision)
+    decision = ZeroExportController.decide(
+      reading: reading,
+      load: load,
+      previous: control.last_decision(at: reader_now)
+    )
 
     begin
       client.apply_control!(power_w: decision.target_w, min_soc: SolakonReading::MIN_SOC_PCT)
@@ -32,7 +36,7 @@ class ZeroExportTickJob < ApplicationJob
       return handle_failure(client, e, control)
     end
 
-    control.remember_decision!(decision)
+    control.remember_decision!(decision, at: reader_now)
     control.reset_failures!
     log(decision, load, reading)
   end
@@ -44,7 +48,8 @@ class ZeroExportTickJob < ApplicationJob
     Rails.logger.info(
       "zero_export: state=#{decision.state} target=#{decision.target_w}W load=#{current} " \
       "floor=#{load.floor_w.round}W " \
-      "soc=#{reading.battery_soc_pct}% temp=#{reading.battery_temperature_c}C pv=#{reading.pv_power_w}W"
+      "soc=#{reading.battery_soc_pct}% temp=#{reading.battery_temperature_c}C " \
+      "pv=#{reading.pv_power_w}W battery=#{reading.battery_power_w}W"
     )
   end
 
@@ -61,6 +66,7 @@ class ZeroExportTickJob < ApplicationJob
 
     begin
       client.release_control!
+      control.reset_decision!
       control.reset_failures!
       Rails.logger.warn("zero_export: relinquished remote control after #{failures} consecutive failures")
     rescue SolakonClient::Error => e
