@@ -7,7 +7,7 @@ class ControlStateTest < ActiveSupport::TestCase
     state = Solakon::Control::State.current
 
     assert_equal state, Solakon::Control::State.current
-    assert_equal false, state.auto_regulation_paused
+    assert_equal false, state.paused
     assert state.auto_regulation_active?
   end
 
@@ -78,9 +78,9 @@ class ControlStateDecisionTest < ActiveSupport::TestCase
   cover "Solakon::Control::State#reset_decision!"
   cover "Solakon::Control::State#resume_auto_regulation!"
 
-  def state_with(control_state: "surplus", trim: false, target_w: 500, decided_at:)
+  def state_with(decision_state: "surplus", trim: false, target_w: 500, decided_at:)
     Solakon::Control::State.new(
-      control_state: control_state,
+      decision_state: decision_state,
       trim: trim,
       last_target_w: target_w,
       last_decision_at: decided_at
@@ -90,13 +90,13 @@ class ControlStateDecisionTest < ActiveSupport::TestCase
   test "last_decision requires both state and timestamp" do
     now = Time.zone.local(2026, 9, 11, 12, 0, 0)
 
-    assert_nil state_with(control_state: nil, decided_at: now).last_decision(at: now)
+    assert_nil state_with(decision_state: nil, decided_at: now).last_decision(at: now)
     assert_nil state_with(decided_at: nil).last_decision(at: now)
   end
 
   test "last_decision round trips every decision field before timeout" do
     now = Time.zone.local(2026, 9, 11, 12, 0, 0)
-    state = state_with(control_state: "protected", trim: true, target_w: 85, decided_at: now)
+    state = state_with(decision_state: "protected", trim: true, target_w: 85, decided_at: now)
 
     assert_equal Solakon::Control::Decision.new(state: :protected, target_w: 85, trim: true),
                  state.last_decision(at: now + Solakon::Client::REMOTE_TIMEOUT_S.seconds - 1.second)
@@ -129,7 +129,7 @@ class ControlStateDecisionTest < ActiveSupport::TestCase
       state.remember_decision!(decision, at: now)
     end
 
-    assert_equal({ control_state: "probe", trim: true, last_target_w: 150, last_decision_at: now }, written)
+    assert_equal({ decision_state: "probe", trim: true, last_target_w: 150, last_decision_at: now }, written)
   end
 
   test "remember_decision defaults to the current time" do
@@ -154,7 +154,7 @@ class ControlStateDecisionTest < ActiveSupport::TestCase
 
     state.stub(:update!, ->(**attributes) { written = attributes }) { state.reset_decision! }
 
-    assert_equal({ control_state: nil, trim: false, last_target_w: nil, last_decision_at: nil }, written)
+    assert_equal({ decision_state: nil, trim: false, last_target_w: nil, last_decision_at: nil }, written)
   end
 
   test "resume enables automation and clears every controller field" do
@@ -163,7 +163,7 @@ class ControlStateDecisionTest < ActiveSupport::TestCase
 
     state.stub(:update!, ->(**attributes) { written = attributes }) { state.resume_auto_regulation! }
 
-    assert_equal({ auto_regulation_paused: false, control_state: nil, trim: false,
+    assert_equal({ paused: false, decision_state: nil, trim: false,
                    last_target_w: nil, last_decision_at: nil }, written)
   end
 end

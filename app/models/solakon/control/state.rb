@@ -12,15 +12,15 @@ module Solakon
       end
 
       def auto_regulation_active?
-        !auto_regulation_paused?
+        !paused?
       end
 
       def pause_auto_regulation!
-        update!(auto_regulation_paused: true)
+        update!(paused: true)
       end
 
       def resume_auto_regulation!
-        update!(auto_regulation_paused: false, control_state: nil, trim: false,
+        update!(paused: false, decision_state: nil, trim: false,
                 last_target_w: nil, last_decision_at: nil)
       end
 
@@ -28,19 +28,19 @@ module Solakon
       # target actually written to the inverter — the trim loop integrates against
       # what the device got, not against an intention.
       def last_decision(at: Time.current)
-        return nil if control_state.blank? || last_decision_at.blank?
+        return nil if decision_state.blank? || last_decision_at.blank?
         return nil if last_decision_at <= at - Solakon::Client::REMOTE_TIMEOUT_S.seconds
 
-        Solakon::Control::Decision.new(state: control_state.to_sym, target_w: last_target_w, trim: trim)
+        Solakon::Control::Decision.new(state: decision_state.to_sym, target_w: last_target_w, trim: trim)
       end
 
       def remember_decision!(decision, at: Time.current)
-        update!(control_state: decision.state.to_s, trim: !!decision.trim,
+        update!(decision_state: decision.state.to_s, trim: !!decision.trim,
                 last_target_w: decision.target_w, last_decision_at: at)
       end
 
       def reset_decision!
-        update!(control_state: nil, trim: false, last_target_w: nil, last_decision_at: nil)
+        update!(decision_state: nil, trim: false, last_target_w: nil, last_decision_at: nil)
       end
 
       def reset_failures!
