@@ -1,11 +1,11 @@
 require "test_helper"
 
 class SolakonControllerTest < ActionDispatch::IntegrationTest
-  cover "SolakonSnapshot#panels"
+  cover "Solakon::Snapshot#panels"
 
   setup do
-    SolakonReading.delete_all
-    SolakonSnapshot.delete_all if defined?(SolakonSnapshot)
+    Solakon::Reading.delete_all
+    Solakon::Snapshot.delete_all if defined?(Solakon::Snapshot)
   end
 
   test "page renders single continuous Solakon overview" do
@@ -30,7 +30,7 @@ class SolakonControllerTest < ActionDispatch::IntegrationTest
     assert_select "script[data-solakon-target='historyPayload']", 1
     assert_select "[data-solakon-target='balanceRows']", 1
     assert_select "input[data-solakon-target='epsToggle'][data-action='change->solakon#toggleEps']", 1
-    assert_select "input[data-solakon-target='autoRegulationToggle'][data-action='change->solakon#toggleAutoRegulation']", 1
+    assert_select "input[data-solakon-target='controlToggle'][data-action='change->solakon#toggleControl']", 1
   end
 
   test "page reuses four-node energy flow with Solakon targets" do
@@ -52,7 +52,7 @@ class SolakonControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "history endpoint returns selected range payload" do
-    SolakonSnapshot.create!(taken_at: 10.minutes.ago, pv1_power_w: 100, pv2_power_w: 50, battery_power_w: 20, active_power_w: 140, grid_power_w: 30)
+    Solakon::Snapshot.create!(taken_at: 10.minutes.ago, pv1_power_w: 100, pv2_power_w: 50, battery_power_w: 20, active_power_w: 140, grid_power_w: 30)
 
     get "/solakon/history.json", params: { range: "24h" }
 
@@ -63,7 +63,7 @@ class SolakonControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "page renders controls, panel, storage, balance, and status labels without protocol language" do
-    SolakonSnapshot.create!(
+    Solakon::Snapshot.create!(
       taken_at: Time.current,
       pv1_power_w: 210.6,
       pv1_voltage_v: 41.7,
@@ -113,7 +113,7 @@ class SolakonControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "a panel without yield keeps its card and shows zero watts" do
-    SolakonSnapshot.create!(
+    Solakon::Snapshot.create!(
       taken_at: Time.current,
       pv1_power_w: 210, pv1_voltage_v: 41.0, pv1_current_a: 5.12,
       pv2_power_w: 198, pv2_voltage_v: 40.5, pv2_current_a: 4.88,
@@ -129,7 +129,7 @@ class SolakonControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "a snapshot predating panels three and four shows zero, not a blank dash" do
-    SolakonSnapshot.create!(
+    Solakon::Snapshot.create!(
       taken_at: Time.current,
       pv1_power_w: 210, pv1_voltage_v: 41.0, pv1_current_a: 5.12,
       pv2_power_w: 198, pv2_voltage_v: 40.5, pv2_current_a: 4.88
@@ -144,7 +144,7 @@ class SolakonControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "panel power rounds to the nearest watt instead of truncating" do
-    SolakonSnapshot.create!(
+    Solakon::Snapshot.create!(
       taken_at: Time.current,
       pv1_power_w: 210.6, pv1_voltage_v: 41.0, pv1_current_a: 5.12,
       pv2_power_w: 198, pv2_voltage_v: 40.5, pv2_current_a: 4.88,
@@ -160,7 +160,7 @@ class SolakonControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "status renders one relevant battery character with short description" do
-    SolakonReading.create!(
+    Solakon::Reading.create!(
       taken_at: Time.current,
       active_power_w: 260,
       pv_power_w: 310,

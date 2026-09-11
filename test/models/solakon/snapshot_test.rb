@@ -2,7 +2,7 @@ require "test_helper"
 
 class SolakonSnapshotTest < ActiveSupport::TestCase
   test "requires taken_at and validates numeric fields" do
-    snapshot = SolakonSnapshot.new(pv1_power_w: "bright")
+    snapshot = Solakon::Snapshot.new(pv1_power_w: "bright")
 
     assert_not snapshot.valid?
     assert_includes snapshot.errors[:taken_at], "can't be blank"
@@ -10,7 +10,7 @@ class SolakonSnapshotTest < ActiveSupport::TestCase
   end
 
   test "status_messages delegates to user-facing decoder" do
-    snapshot = SolakonSnapshot.new(status1: 4, status3: 0, alarm1: 0, alarm2: 8, alarm3: 0, bms_faults: [ 0, 0, 0, 0, 0, 0 ])
+    snapshot = Solakon::Snapshot.new(status1: 4, status3: 0, alarm1: 0, alarm2: 8, alarm3: 0, bms_faults: [ 0, 0, 0, 0, 0, 0 ])
 
     assert_includes snapshot.status_messages, "Wechselrichter in Betrieb"
     assert_includes snapshot.status_messages, "Temperatur zu hoch"

@@ -19,7 +19,7 @@ class DashboardBroadcasterTest < ActiveSupport::TestCase
     Plugs::Sample.delete_all
     Plugs::State.delete_all
     Plugs::DailyTotal.delete_all
-    SolakonReading.delete_all
+    Solakon::Reading.delete_all
     WeatherRecord.delete_all
   end
 

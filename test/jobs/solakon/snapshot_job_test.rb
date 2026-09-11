@@ -12,7 +12,7 @@ class SolakonSnapshotJobTest < ActiveJob::TestCase
 
     def read_snapshot
       @calls << :read_snapshot
-      raise SolakonClient::Error, "down" if @fail
+      raise Solakon::Client::Error, "down" if @fail
       @snapshot
     end
   end
@@ -20,19 +20,19 @@ class SolakonSnapshotJobTest < ActiveJob::TestCase
   Sol = Struct.new(:host, :port, :unit_id, :monitoring_enabled, :control_enabled, keyword_init: true)
   Cfg = Struct.new(:solakon, keyword_init: true)
 
-  setup { SolakonSnapshot.delete_all }
+  setup { Solakon::Snapshot.delete_all }
 
   def config(monitoring_enabled: true, solakon: true)
     Cfg.new(solakon: (Sol.new(host: "h", port: 502, unit_id: 1, monitoring_enabled: monitoring_enabled, control_enabled: false) if solakon))
   end
 
   def snapshot_data
-    SolakonClient::SnapshotData.new(
+    Solakon::Client::SnapshotData.new(
       panels: [
-        SolakonClient::PanelData.new(index: 1, voltage_v: 41.0, current_a: 5.12, power_w: 210),
-        SolakonClient::PanelData.new(index: 2, voltage_v: 40.5, current_a: 4.88, power_w: 198),
-        SolakonClient::PanelData.new(index: 3, voltage_v: 0.0, current_a: 0.0, power_w: 0),
-        SolakonClient::PanelData.new(index: 4, voltage_v: 0.0, current_a: 0.0, power_w: 0)
+        Solakon::Client::PanelData.new(index: 1, voltage_v: 41.0, current_a: 5.12, power_w: 210),
+        Solakon::Client::PanelData.new(index: 2, voltage_v: 40.5, current_a: 4.88, power_w: 198),
+        Solakon::Client::PanelData.new(index: 3, voltage_v: 0.0, current_a: 0.0, power_w: 0),
+        Solakon::Client::PanelData.new(index: 4, voltage_v: 0.0, current_a: 0.0, power_w: 0)
       ],
       active_power_w: 320,
       battery_voltage_v: 51.3,
@@ -68,12 +68,12 @@ class SolakonSnapshotJobTest < ActiveJob::TestCase
     client = FakeClient.new(snapshot: snapshot_data)
 
     ConfigLoader.stub(:app_config, config) do
-      assert_difference -> { SolakonSnapshot.count }, 1 do
-        SolakonSnapshotJob.new.perform(client: client, now: now)
+      assert_difference -> { Solakon::Snapshot.count }, 1 do
+        Solakon::SnapshotJob.new.perform(client: client, now: now)
       end
     end
 
-    row = SolakonSnapshot.last
+    row = Solakon::Snapshot.last
     assert_equal [ :read_snapshot ], client.calls
     assert_equal now, row.taken_at
     assert_equal 210, row.pv1_power_w
@@ -84,7 +84,7 @@ class SolakonSnapshotJobTest < ActiveJob::TestCase
     assert_equal true, row.eps_enabled
     assert_in_delta 123.45, row.pv_total_kwh, 0.001
 
-    payload = SolakonHistory.new(range_key: "24h", now: now + 1.minute).payload
+    payload = Solakon::History.new(range_key: "24h", now: now + 1.minute).payload
     battery_dataset = payload.dig(:chart, :datasets).detect { |dataset| dataset.fetch(:label) == "Akku" }
     ac_dataset = payload.dig(:chart, :datasets).detect { |dataset| dataset.fetch(:label) == "Außensteckdose" }
     assert_equal [ -180.0 ], battery_dataset.fetch(:data)
@@ -95,8 +95,8 @@ class SolakonSnapshotJobTest < ActiveJob::TestCase
     client = FakeClient.new(snapshot: snapshot_data)
 
     ConfigLoader.stub(:app_config, config(monitoring_enabled: false)) do
-      assert_no_difference -> { SolakonSnapshot.count } do
-        SolakonSnapshotJob.new.perform(client: client)
+      assert_no_difference -> { Solakon::Snapshot.count } do
+        Solakon::SnapshotJob.new.perform(client: client)
       end
     end
 
@@ -107,8 +107,8 @@ class SolakonSnapshotJobTest < ActiveJob::TestCase
     client = FakeClient.new(fail: true)
 
     ConfigLoader.stub(:app_config, config) do
-      assert_no_difference -> { SolakonSnapshot.count } do
-        assert_nothing_raised { SolakonSnapshotJob.new.perform(client: client) }
+      assert_no_difference -> { Solakon::Snapshot.count } do
+        assert_nothing_raised { Solakon::SnapshotJob.new.perform(client: client) }
       end
     end
   end

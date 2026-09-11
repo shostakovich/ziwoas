@@ -13,7 +13,7 @@ ViewComponent · dry-rb.
 | --- | --- |
 | `app/models/` | Domain models; `lights/`, `plugs/`, `switching/`, `sensors/`, `energy_report/` are the functional seams |
 | `app/jobs/` | Solid Queue jobs; schedule in `config/recurring.yml` |
-| `lib/` | Device clients and calculation cores without Rails ties: `solakon_client.rb`, `govees/`, `power_series.rb`, `aggregator.rb` |
+| `lib/` | Device clients and calculation cores without Rails ties: `solakon/client.rb`, `govees/`, `power_series.rb`, `aggregator.rb` |
 | `bin/ziwoas_collector` | Long-running collector (MQTT, Modbus, Govee bridge) |
 | `config/ziwoas.yml` | **Not in the repo** — device config incl. the plug list. Template: `config/ziwoas.example.yml`, tests use `config/ziwoas.test.yml` |
 | `test/` | Minitest mirroring `app/` and `lib/`; VCR cassettes in `test/vcr_cassettes/` |

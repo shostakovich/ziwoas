@@ -1,5 +1,4 @@
 require "test_helper"
-require "solakon_client"
 
 class SolakonClientTest < Minitest::Test
   class FakeSlave
@@ -15,7 +14,7 @@ class SolakonClientTest < Minitest::Test
   end
 
   def client_for(slave)
-    SolakonClient.new(host: "h", open: ->(&blk) { blk.call(slave) })
+    Solakon::Client.new(host: "h", open: ->(&blk) { blk.call(slave) })
   end
 
   def test_read_state_decodes_signed_values_via_fc03
@@ -54,8 +53,8 @@ class SolakonClientTest < Minitest::Test
     slave = FakeSlave.new(holdings: { [ 46609, 1 ] => [ 10 ] })
     client_for(slave).apply_control!(power_w: -75, min_soc: 10)
     assert_equal [
-      [ :single, 46001, SolakonClient::REMOTE_CONTROL_ENABLE ],
-      [ :single, 46002, SolakonClient::REMOTE_TIMEOUT_S ],
+      [ :single, 46001, Solakon::Client::REMOTE_CONTROL_ENABLE ],
+      [ :single, 46002, Solakon::Client::REMOTE_TIMEOUT_S ],
       [ :multi, 46003, [ 0xFFFF, 0xFFB5 ] ]
     ], slave.writes
   end
@@ -64,14 +63,14 @@ class SolakonClientTest < Minitest::Test
     slave = FakeSlave.new(holdings: { [ 46609, 1 ] => [ 5 ] })
     client_for(slave).apply_control!(power_w: 300, min_soc: 10)
     assert_equal [ :single, 46609, 10 ], slave.writes.first
-    assert_equal [ :single, 46002, SolakonClient::REMOTE_TIMEOUT_S ], slave.writes[2]
+    assert_equal [ :single, 46002, Solakon::Client::REMOTE_TIMEOUT_S ], slave.writes[2]
     assert_includes slave.writes, [ :multi, 46003, [ 0x0000, 0x012C ] ]
   end
 
   def test_release_control_disables_remote_control
     slave = FakeSlave.new
     client_for(slave).release_control!
-    assert_equal [ [ :single, 46001, SolakonClient::REMOTE_CONTROL_DISABLE ] ], slave.writes
+    assert_equal [ [ :single, 46001, Solakon::Client::REMOTE_CONTROL_DISABLE ] ], slave.writes
   end
 
   def test_read_state_includes_fast_detail_and_eps_values
@@ -89,7 +88,7 @@ class SolakonClientTest < Minitest::Test
       [ 39067, 1 ] => [ 0 ],
       [ 39068, 1 ] => [ 0b1000 ],
       [ 39069, 1 ] => [ 0 ],
-      [ 46613, 1 ] => [ SolakonClient::EPS_OUTPUT_VALUES.fetch(:eps) ],
+      [ 46613, 1 ] => [ Solakon::Client::EPS_OUTPUT_VALUES.fetch(:eps) ],
       [ 39201, 1 ] => [ 2301 ],
       [ 39216, 2 ] => [ 0, 125 ]
     })
@@ -114,13 +113,13 @@ class SolakonClientTest < Minitest::Test
     client_for(slave).set_eps_output!(enabled: false)
 
     assert_equal [
-      [ :single, SolakonClient::WRITE_REGISTERS.fetch(:eps_output), SolakonClient::EPS_OUTPUT_VALUES.fetch(:eps) ],
-      [ :single, SolakonClient::WRITE_REGISTERS.fetch(:eps_output), SolakonClient::EPS_OUTPUT_VALUES.fetch(:off) ]
+      [ :single, Solakon::Client::WRITE_REGISTERS.fetch(:eps_output), Solakon::Client::EPS_OUTPUT_VALUES.fetch(:eps) ],
+      [ :single, Solakon::Client::WRITE_REGISTERS.fetch(:eps_output), Solakon::Client::EPS_OUTPUT_VALUES.fetch(:off) ]
     ], slave.writes
   end
 
   def test_status_messages_are_human_readable
-    messages = SolakonClient.decode_status_messages(
+    messages = Solakon::Client.decode_status_messages(
       status1: 0b0100,
       status3: 0,
       alarm1: 0,
@@ -182,7 +181,7 @@ class SolakonClientTest < Minitest::Test
   def test_errors_are_wrapped
     failing = Object.new
     def failing.read_holding_registers(*) = raise("boom")
-    client = SolakonClient.new(host: "h", open: ->(&blk) { blk.call(failing) })
-    assert_raises(SolakonClient::Error) { client.read_state }
+    client = Solakon::Client.new(host: "h", open: ->(&blk) { blk.call(failing) })
+    assert_raises(Solakon::Client::Error) { client.read_state }
   end
 end

@@ -40,7 +40,7 @@ class LiveState
 
   def self.for(config:, now: Time.current,
                offline_after_s: Plugs::Measurement::OFFLINE_AFTER_S,
-               stale_after_s: SolakonReading::STALE_AFTER_S)
+               stale_after_s: Solakon::Reading::STALE_AFTER_S)
     new(config: config, now: now,
         offline_after_s: offline_after_s, stale_after_s: stale_after_s)
   end
@@ -72,6 +72,6 @@ class LiveState
   end
 
   def reading
-    SolakonReading.latest_fresh(stale_after_s: @stale_after_s, now: @now) if monitored?
+    Solakon::Reading.latest_fresh(stale_after_s: @stale_after_s, now: @now) if monitored?
   end
 end

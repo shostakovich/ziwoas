@@ -7,7 +7,7 @@ class LiveStateTest < ActiveSupport::TestCase
 
   setup do
     Plugs::Sample.delete_all
-    SolakonReading.delete_all
+    Solakon::Reading.delete_all
   end
 
   test "a plug that never reported is offline and reports no watts" do
@@ -197,7 +197,7 @@ class LiveStateTest < ActiveSupport::TestCase
   end
 
   test "with no now given, a reading older than the stale Frist is correctly excluded" do
-    SolakonReading.create!(taken_at: Time.current - (SolakonReading::STALE_AFTER_S + 10),
+    Solakon::Reading.create!(taken_at: Time.current - (Solakon::Reading::STALE_AFTER_S + 10),
                            active_power_w: 10, pv_power_w: 10, battery_power_w: 0, battery_soc_pct: 50)
 
     flow = LiveState.for(config: config).energy_flow
@@ -236,7 +236,7 @@ class LiveStateTest < ActiveSupport::TestCase
   end
 
   def reading(age_s)
-    SolakonReading.create!(taken_at: NOW - age_s, active_power_w: 260, pv_power_w: 310,
+    Solakon::Reading.create!(taken_at: NOW - age_s, active_power_w: 260, pv_power_w: 310,
                            battery_power_w: 50, battery_soc_pct: 84)
   end
 end

@@ -1,10 +1,10 @@
 require "test_helper"
 
 class SolakonHistoryTest < ActiveSupport::TestCase
-  cover "SolakonHistory#chart_payload"
-  cover "SolakonSnapshot#pv_power_w"
+  cover "Solakon::History#chart_payload"
+  cover "Solakon::Snapshot#pv_power_w"
 
-  setup { SolakonSnapshot.delete_all }
+  setup { Solakon::Snapshot.delete_all }
 
   test "payload builds signed chart series and balance rows from snapshots" do
     travel_to Time.zone.local(2026, 6, 20, 12, 0, 0) do
@@ -15,32 +15,32 @@ class SolakonHistoryTest < ActiveSupport::TestCase
       #               triangles → +10 Wh delivered AND +10 Wh drawn
       #   -1200→-1200(120 s, both -): +40 Wh drawn
       # ⇒ delivered 0,05 kWh, drawn 0,05 kWh, time-weighted mean 0 W.
-      SolakonSnapshot.create!(
+      Solakon::Snapshot.create!(
         taken_at: 6.minutes.ago,
         pv1_power_w: 100, pv2_power_w: 50, pv3_power_w: 30, pv4_power_w: 20,
         battery_power_w: 20, active_power_w: 1200,
         pv_total_kwh: 10.0, battery_charge_total_kwh: 5.0, battery_discharge_total_kwh: 3.0
       )
-      SolakonSnapshot.create!(
+      Solakon::Snapshot.create!(
         taken_at: 4.minutes.ago,
         pv1_power_w: 150, pv2_power_w: 75, pv3_power_w: 45, pv4_power_w: 30,
         battery_power_w: -40, active_power_w: 1200,
         pv_total_kwh: 10.4, battery_charge_total_kwh: 5.1, battery_discharge_total_kwh: 3.1
       )
-      SolakonSnapshot.create!(
+      Solakon::Snapshot.create!(
         taken_at: 2.minutes.ago,
         pv1_power_w: 100, pv2_power_w: 50, pv3_power_w: 30, pv4_power_w: 20,
         battery_power_w: 30, active_power_w: -1200,
         pv_total_kwh: 10.8, battery_charge_total_kwh: 5.2, battery_discharge_total_kwh: 3.2
       )
-      SolakonSnapshot.create!(
+      Solakon::Snapshot.create!(
         taken_at: Time.current,
         pv1_power_w: 120, pv2_power_w: 80, pv3_power_w: 40, pv4_power_w: 10,
         battery_power_w: -10, active_power_w: -1200,
         pv_total_kwh: 11.2, battery_charge_total_kwh: 5.4, battery_discharge_total_kwh: 3.3
       )
 
-      payload = SolakonHistory.new(range_key: "24h", now: Time.current).payload
+      payload = Solakon::History.new(range_key: "24h", now: Time.current).payload
 
       assert_equal "24h", payload.fetch(:range)
       assert_equal [ "PV", "Akku", "Außensteckdose", "0 W" ], payload.dig(:chart, :datasets).map { |dataset| dataset.fetch(:label) }
@@ -62,10 +62,10 @@ class SolakonHistoryTest < ActiveSupport::TestCase
 
   test "snapshots predating the third and fourth panel keep their PV series" do
     travel_to Time.zone.local(2026, 6, 20, 12, 0, 0) do
-      SolakonSnapshot.create!(taken_at: 2.minutes.ago, pv1_power_w: 100, pv2_power_w: 50)
-      SolakonSnapshot.create!(taken_at: Time.current, pv1_power_w: 120, pv2_power_w: 80)
+      Solakon::Snapshot.create!(taken_at: 2.minutes.ago, pv1_power_w: 100, pv2_power_w: 50)
+      Solakon::Snapshot.create!(taken_at: Time.current, pv1_power_w: 120, pv2_power_w: 80)
 
-      payload = SolakonHistory.new(range_key: "24h", now: Time.current).payload
+      payload = Solakon::History.new(range_key: "24h", now: Time.current).payload
 
       assert_equal [ 150.0, 200.0 ], payload.dig(:chart, :datasets).first.fetch(:data)
     end
@@ -73,10 +73,10 @@ class SolakonHistoryTest < ActiveSupport::TestCase
 
   test "sign-straddling interval contributes to both directions, not zero" do
     travel_to Time.zone.local(2026, 6, 20, 12, 0, 0) do
-      SolakonSnapshot.create!(taken_at: 2.minutes.ago, active_power_w: 1200)
-      SolakonSnapshot.create!(taken_at: Time.current, active_power_w: -1200)
+      Solakon::Snapshot.create!(taken_at: 2.minutes.ago, active_power_w: 1200)
+      Solakon::Snapshot.create!(taken_at: Time.current, active_power_w: -1200)
 
-      rows = SolakonHistory.new(range_key: "24h", now: Time.current).payload.fetch(:balance_rows)
+      rows = Solakon::History.new(range_key: "24h", now: Time.current).payload.fetch(:balance_rows)
       delivered = rows.find { |row| row.fetch(:label) == "Ins Hausnetz geliefert" }
       drawn = rows.find { |row| row.fetch(:label) == "Aus Hausnetz gezogen" }
 
@@ -90,14 +90,14 @@ class SolakonHistoryTest < ActiveSupport::TestCase
 
   test "chart_payload rounds series precisely and formats labels" do
     travel_to Time.zone.local(2026, 6, 20, 12, 0, 0) do
-      SolakonSnapshot.create!(
+      Solakon::Snapshot.create!(
         taken_at: Time.current,
         pv1_power_w: 100.111, pv2_power_w: 20.222, pv3_power_w: 3.033, pv4_power_w: 0.09,
         battery_power_w: 45.67,
         active_power_w: 12.34
       )
 
-      payload = SolakonHistory.new(range_key: "24h", now: Time.current).payload
+      payload = Solakon::History.new(range_key: "24h", now: Time.current).payload
       datasets = payload.dig(:chart, :datasets)
 
       # Fractional inputs so truncation (to_i) and coarser/finer rounding
@@ -111,7 +111,7 @@ class SolakonHistoryTest < ActiveSupport::TestCase
   end
 
   test "empty payload is stable" do
-    payload = SolakonHistory.new(range_key: "7d", now: Time.zone.local(2026, 6, 20, 12, 0, 0)).payload
+    payload = Solakon::History.new(range_key: "7d", now: Time.zone.local(2026, 6, 20, 12, 0, 0)).payload
 
     assert_equal "7d", payload.fetch(:range)
     assert_equal [], payload.dig(:chart, :labels)

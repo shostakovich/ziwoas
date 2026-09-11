@@ -2,8 +2,8 @@ require_relative "application_system_test_case"
 
 class SolakonOverviewTest < ApplicationSystemTestCase
   setup do
-    SolakonReading.delete_all
-    SolakonSnapshot.delete_all
+    Solakon::Reading.delete_all
+    Solakon::Snapshot.delete_all
   end
 
   test "Solakon page is usable on mobile without fresh data" do

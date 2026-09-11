@@ -21,15 +21,15 @@ class SolakonControlsControllerTest < ActionDispatch::IntegrationTest
   Sol = Struct.new(:host, :port, :unit_id, :monitoring_enabled, :control_enabled, keyword_init: true)
   Cfg = Struct.new(:solakon, keyword_init: true)
 
-  setup { SolakonControlState.delete_all }
+  setup { Solakon::Control::State.delete_all }
 
   def config(control_enabled: true, solakon: true)
     Cfg.new(solakon: (Sol.new(host: "h", port: 502, unit_id: 1, monitoring_enabled: true, control_enabled: control_enabled) if solakon))
   end
 
-  test "eps endpoint writes directly through SolakonClient" do
+  test "eps endpoint writes directly through Solakon::Client" do
     ConfigLoader.stub(:app_config, config) do
-      SolakonClient.stub(:new, ->(host:, port:, unit_id:) { FakeClient.new(host: host, port: port, unit_id: unit_id) }) do
+      Solakon::Client.stub(:new, ->(host:, port:, unit_id:) { FakeClient.new(host: host, port: port, unit_id: unit_id) }) do
         patch "/solakon/eps", params: { enabled: "true" }, as: :json
       end
     end
@@ -41,10 +41,10 @@ class SolakonControlsControllerTest < ActionDispatch::IntegrationTest
 
   test "eps endpoint returns service unavailable on Modbus failure" do
     failing = Object.new
-    def failing.set_eps_output!(enabled:) = raise SolakonClient::Error, "down"
+    def failing.set_eps_output!(enabled:) = raise Solakon::Client::Error, "down"
 
     ConfigLoader.stub(:app_config, config) do
-      SolakonClient.stub(:new, ->(**) { failing }) do
+      Solakon::Client.stub(:new, ->(**) { failing }) do
         patch "/solakon/eps", params: { enabled: "true" }, as: :json
       end
     end
@@ -55,31 +55,31 @@ class SolakonControlsControllerTest < ActionDispatch::IntegrationTest
 
   test "auto regulation resumes and pauses when config permits control" do
     ConfigLoader.stub(:app_config, config(control_enabled: true)) do
-      patch "/solakon/auto_regulation", params: { active: "false" }, as: :json
+      patch "/solakon/control", params: { active: "false" }, as: :json
     end
 
     assert_response :success
     assert_equal false, response.parsed_body["active"]
-    assert_not SolakonControlState.current.auto_regulation_active?
+    assert_not Solakon::Control::State.current.active?
 
     ConfigLoader.stub(:app_config, config(control_enabled: true)) do
-      patch "/solakon/auto_regulation", params: { active: "true" }, as: :json
+      patch "/solakon/control", params: { active: "true" }, as: :json
     end
 
     assert_response :success
     assert_equal true, response.parsed_body["active"]
-    assert SolakonControlState.current.auto_regulation_active?
+    assert Solakon::Control::State.current.active?
   end
 
   test "auto regulation cannot enable when config disables control" do
-    SolakonControlState.current.pause_auto_regulation!
+    Solakon::Control::State.current.pause!
 
     ConfigLoader.stub(:app_config, config(control_enabled: false)) do
-      patch "/solakon/auto_regulation", params: { active: "true" }, as: :json
+      patch "/solakon/control", params: { active: "true" }, as: :json
     end
 
     assert_response :forbidden
     assert_equal "in Konfiguration deaktiviert", response.parsed_body["error"]
-    assert_not SolakonControlState.current.auto_regulation_active?
+    assert_not Solakon::Control::State.current.active?
   end
 end

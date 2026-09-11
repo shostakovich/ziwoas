@@ -5,7 +5,7 @@ export default class extends Controller {
   static targets = [
     "historyCanvas", "historyPayload", "balanceRows",
     "epsToggle", "epsState", "epsPower", "epsVoltage", "epsError",
-    "autoRegulationToggle", "autoRegulationState", "autoRegulationHelp", "autoRegulationError",
+    "controlToggle", "controlState", "controlHelp", "controlError",
   ]
 
   connect() {
@@ -73,11 +73,11 @@ export default class extends Controller {
     }
   }
 
-  async toggleAutoRegulation(event) {
+  async toggleControl(event) {
     const desired = event.target.checked
-    this._hideError(this.autoRegulationErrorTarget)
+    this._hideError(this.controlErrorTarget)
     try {
-      const response = await fetch("/solakon/auto_regulation", {
+      const response = await fetch("/solakon/control", {
         method: "PATCH",
         headers: this._jsonHeaders(),
         body: JSON.stringify({ active: desired }),
@@ -85,11 +85,11 @@ export default class extends Controller {
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || "Umschalten fehlgeschlagen")
       event.target.checked = data.active
-      this.autoRegulationStateTarget.textContent = data.active ? "Aktiv" : "Pausiert"
-      this.autoRegulationHelpTarget.textContent = data.active ? "hält Einspeisung nahe 0 W" : "pausiert"
+      this.controlStateTarget.textContent = data.active ? "Aktiv" : "Pausiert"
+      this.controlHelpTarget.textContent = data.active ? "folgt dem gemessenen Verbrauch" : "pausiert"
     } catch (error) {
       event.target.checked = !desired
-      this._showError(this.autoRegulationErrorTarget, error.message)
+      this._showError(this.controlErrorTarget, error.message)
     }
   }
 

@@ -3,7 +3,7 @@ require_relative "application_system_test_case"
 class DashboardRefreshTest < ApplicationSystemTestCase
   setup do
     Plugs::Sample.delete_all
-    SolakonReading.delete_all
+    Solakon::Reading.delete_all
     now = Time.now.to_i
     Plugs::Sample.create!(plug_id: "bkw", ts: now - 2, apower_w: -420.0, aenergy_wh: 1000.0)
     Plugs::Sample.create!(plug_id: "fridge", ts: now - 2, apower_w: 80.0, aenergy_wh: 500.0)

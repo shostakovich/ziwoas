@@ -1,23 +1,23 @@
 require "test_helper"
 
-class ZeroExportControllerTest < ActiveSupport::TestCase
-  cover "ZeroExportController*"
+class ControlPolicyTest < ActiveSupport::TestCase
+  cover "Solakon::Control::Policy*"
 
   def reading(soc:, pv:, temp: 30.0, battery: 0)
-    SolakonReading.new(taken_at: Time.current, active_power_w: 0, pv_power_w: pv,
+    Solakon::Reading.new(taken_at: Time.current, active_power_w: 0, pv_power_w: pv,
                        battery_power_w: battery, battery_soc_pct: soc, battery_temperature_c: temp)
   end
 
   def load(current:, floor: 85.0)
-    LoadEstimate.new(current_w: current, floor_w: floor)
+    Solakon::Control::Load.new(current_w: current, floor_w: floor)
   end
 
   def decide(reading:, load:, previous: nil)
-    ZeroExportController.decide(reading: reading, load: load, previous: previous)
+    Solakon::Control::Policy.decide(reading: reading, load: load, previous: previous)
   end
 
   def previous(state:, target_w: nil, trim: false)
-    ZeroExportController::Decision.new(state: state, target_w: target_w, trim: trim)
+    Solakon::Control::Decision.new(state: state, target_w: target_w, trim: trim)
   end
 
   test "low soc entry starts from the derated PV estimate" do
@@ -98,7 +98,7 @@ class ZeroExportControllerTest < ActiveSupport::TestCase
   end
 
   test "previous defaults to nil" do
-    decision = ZeroExportController.decide(
+    decision = Solakon::Control::Policy.decide(
       reading: reading(soc: 55, pv: 100),
       load: load(current: 386)
     )
@@ -363,7 +363,7 @@ class ZeroExportControllerTest < ActiveSupport::TestCase
   end
 
   test "controller helper boundaries are explicit" do
-    controller = ZeroExportController
+    controller = Solakon::Control::Policy
     baseline = 100
     prior = previous(state: :surplus, target_w: 400)
 
@@ -397,10 +397,16 @@ class ZeroExportControllerTest < ActiveSupport::TestCase
     assert_equal false, controller.probe_candidate?(reading(soc: 100, pv: 50), 100)
     assert_equal false, controller.probe_candidate?(reading(soc: 100, pv: 0), 800)
     assert_equal true, controller.probe_candidate?(reading(soc: 100, pv: 0), 799)
+    # Full is "at or above", not merely "exactly" 100 — the threshold is a floor.
+    assert_equal true, controller.probe_candidate?(reading(soc: 101, pv: 0), 100)
     assert_equal false, controller.protecting?(reading(soc: 11, pv: 0, temp: 44.9), :protected)
 
     assert_equal [ :normal, 100 ], controller.start_unprotected_mode(
       reading(soc: 100, pv: 50, battery: 0), 100, previous(state: :normal, target_w: 100)
+    )
+    # No headroom for a probe: still recognizes soc above 100 as full, not just == 100.
+    assert_equal [ :probe_blocked, 900 ], controller.start_unprotected_mode(
+      reading(soc: 101, pv: 0, battery: 0), 900, previous(state: :normal, target_w: 100)
     )
     assert_equal [ :normal, 100 ], controller.continue_probe_block(
       reading(soc: 98, pv: 0, battery: 0), 100, previous(state: :probe_blocked, target_w: 100)
@@ -469,7 +475,7 @@ class ZeroExportControllerTest < ActiveSupport::TestCase
   end
 
   test "decision conversion and clamps handle internal boundary values" do
-    controller = ZeroExportController
+    controller = Solakon::Control::Policy
     reading_value = reading(soc: 55, pv: 0)
 
     controller.stub(:protecting?, false) do
@@ -494,5 +500,58 @@ class ZeroExportControllerTest < ActiveSupport::TestCase
     assert low.trim
     refute hot.trim
     refute normal.trim
+  end
+
+  # battery_soc_pct is an integer column and MIN_SOC_PCT/RESUME_SOC_PCT are
+  # adjacent (10/11), so no real Reading ever has soc_at_resume?/soc_below_minimum?
+  # both false at once — a stand-in exercises protecting?'s own branches directly,
+  # the way `inconsistent_hot_reading` does below for thermal_ceiling_w.
+  FakeProtectionReading = Struct.new(:below_minimum, :hot, :at_resume, :cooled) do
+    def soc_below_minimum? = below_minimum
+    def battery_hot?       = hot
+    def soc_at_resume?     = at_resume
+    def battery_cooled?    = cooled
+  end
+
+  # Below resume SoC but never having entered protection: trim must stay
+  # false — it names the mode, not merely "soc hasn't resumed yet".
+  test "trim requires the state to actually be protected, not just an unresumed soc" do
+    reading_value = reading(soc: 5, pv: 0) # soc_at_resume? false; protecting? is stubbed below
+
+    decision = Solakon::Control::Policy.stub(:protecting?, false) do
+      Solakon::Control::Policy.stub(:unprotected_decision, [ :normal, 100 ]) do
+        Solakon::Control::Policy.decide(reading: reading_value, load: load(current: 386))
+      end
+    end
+
+    assert_equal :normal, decision.state
+    refute decision.trim
+  end
+
+  test "decide passes the previous decision's own state symbol into protecting?, not the whole decision or nil" do
+    previous_decision = previous(state: :surplus, target_w: 200)
+    received_previous_state = :not_called
+
+    Solakon::Control::Policy.stub(:protecting?, ->(_reading, previous_state) {
+      received_previous_state = previous_state
+      false
+    }) do
+      decide(reading: reading(soc: 55, pv: 0), load: load(current: 100), previous: previous_decision)
+    end
+
+    assert_equal :surplus, received_previous_state
+  end
+
+  # protecting? only continues once soc has genuinely resumed *and* the
+  # battery has cooled; short of either it must hold, regardless of who was
+  # previously in charge.
+  test "protecting? only continues protection when the previous tick was itself protected" do
+    not_yet_resumed = FakeProtectionReading.new(false, false, false, true)
+    not_yet_cooled   = FakeProtectionReading.new(false, false, true, false)
+
+    assert_equal false, Solakon::Control::Policy.protecting?(not_yet_resumed, nil)
+    assert_equal false, Solakon::Control::Policy.protecting?(not_yet_resumed, :normal)
+    assert_equal true, Solakon::Control::Policy.protecting?(not_yet_resumed, :protected)
+    assert_equal true, Solakon::Control::Policy.protecting?(not_yet_cooled, :protected)
   end
 end

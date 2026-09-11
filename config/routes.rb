@@ -12,7 +12,7 @@ Rails.application.routes.draw do
   get "/solakon", to: "solakon#index", as: :solakon
   get "/solakon/history", to: "solakon#history", as: :solakon_history
   patch "/solakon/eps", to: "solakon_controls#eps", as: :solakon_eps
-  patch "/solakon/auto_regulation", to: "solakon_controls#auto_regulation", as: :solakon_auto_regulation
+  patch "/solakon/control", to: "solakon_controls#control", as: :solakon_control
 
   scope "/plugs/:plug_id" do
     post "switch", to: "plug_switches#create", as: :plug_switch

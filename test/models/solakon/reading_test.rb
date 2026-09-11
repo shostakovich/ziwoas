@@ -2,7 +2,7 @@ require "test_helper"
 
 class SolakonReadingTest < ActiveSupport::TestCase
   def reading(soc:, temp: nil, pv: 0)
-    SolakonReading.new(taken_at: Time.current, active_power_w: 0,
+    Solakon::Reading.new(taken_at: Time.current, active_power_w: 0,
                        pv_power_w: pv, battery_power_w: 0,
                        battery_soc_pct: soc, battery_temperature_c: temp)
   end
@@ -23,7 +23,7 @@ class SolakonReadingTest < ActiveSupport::TestCase
   end
 
   test "battery_state ranks a low charge above the charging flow" do
-    charging = SolakonReading.new(taken_at: Time.current, active_power_w: 120,
+    charging = Solakon::Reading.new(taken_at: Time.current, active_power_w: 120,
                                   pv_power_w: 200, battery_power_w: 40, battery_soc_pct: 18)
     assert_equal "low", charging.battery_state
 
@@ -39,7 +39,7 @@ class SolakonReadingTest < ActiveSupport::TestCase
   end
 
   test "validates required fields" do
-    reading = SolakonReading.new
+    reading = Solakon::Reading.new
 
     assert_not reading.valid?
     assert_includes reading.errors[:taken_at], "can't be blank"
@@ -50,7 +50,7 @@ class SolakonReadingTest < ActiveSupport::TestCase
   end
 
 test "validates power fields are numeric" do
-  reading = SolakonReading.new(
+  reading = Solakon::Reading.new(
     taken_at: Time.current,
     active_power_w: "not-a-number",
     pv_power_w: "also-not-a-number",
@@ -65,14 +65,14 @@ test "validates power fields are numeric" do
 end
 
   test "latest_fresh returns newest reading inside stale threshold" do
-    old = SolakonReading.create!(
+    old = Solakon::Reading.create!(
       taken_at: 5.minutes.ago,
       active_power_w: 100,
       pv_power_w: 120,
       battery_power_w: 0,
       battery_soc_pct: 80
     )
-    fresh = SolakonReading.create!(
+    fresh = Solakon::Reading.create!(
       taken_at: 10.seconds.ago,
       active_power_w: 220,
       pv_power_w: 260,
@@ -80,14 +80,14 @@ end
       battery_soc_pct: 81
     )
 
-    assert_equal fresh, SolakonReading.latest_fresh(stale_after_s: 120, now: Time.current)
+    assert_equal fresh, Solakon::Reading.latest_fresh(stale_after_s: 120, now: Time.current)
     travel 3.minutes do
-      assert_nil SolakonReading.latest_fresh(stale_after_s: 120, now: Time.current)
+      assert_nil Solakon::Reading.latest_fresh(stale_after_s: 120, now: Time.current)
     end
   end
 
   test "battery_temperature_c is optional but must be numeric" do
-    reading = SolakonReading.new(
+    reading = Solakon::Reading.new(
       taken_at: Time.current, active_power_w: 1, pv_power_w: 2,
       battery_power_w: 3, battery_soc_pct: 55, battery_temperature_c: "hot"
     )
@@ -99,15 +99,15 @@ end
   # value (verified live: +14 W while charging, with PV > AC output). The display
   # value keeps the same sign convention shown to the user: charging +, discharging −.
   test "battery_display_power_w is positive while charging and negative while discharging" do
-    charging = SolakonReading.new(battery_power_w: 50)
-    discharging = SolakonReading.new(battery_power_w: -50)
+    charging = Solakon::Reading.new(battery_power_w: 50)
+    discharging = Solakon::Reading.new(battery_power_w: -50)
 
     assert_equal 50, charging.battery_display_power_w
     assert_equal(-50, discharging.battery_display_power_w)
   end
 
   test "fast live detail fields are optional but validated by type" do
-    reading = SolakonReading.new(
+    reading = Solakon::Reading.new(
       taken_at: Time.current,
       active_power_w: 1,
       pv_power_w: 2,
@@ -129,7 +129,7 @@ end
   end
 
   test "status_messages are user-facing" do
-    reading = SolakonReading.new(status1: 0b0100, status3: 0, alarm1: 0, alarm2: 0b1000, alarm3: 0)
+    reading = Solakon::Reading.new(status1: 0b0100, status3: 0, alarm1: 0, alarm2: 0b1000, alarm3: 0)
 
     assert_includes reading.status_messages, "Wechselrichter in Betrieb"
     assert_includes reading.status_messages, "Temperatur zu hoch"

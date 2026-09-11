@@ -51,12 +51,12 @@ aggregator_schedule: &aggregator_schedule
     schedule: every minute
 
   solakon_monitor:
-    class: SolakonMonitorJob
+    class: Solakon::MonitorJob
     queue: default
     schedule: every 30 seconds
 
   solakon_snapshot:
-    class: SolakonSnapshotJob
+    class: Solakon::SnapshotJob
     queue: default
     schedule: every 2 minutes
 
