@@ -404,7 +404,7 @@ class ControlPolicyTest < ActiveSupport::TestCase
     assert_equal [ :normal, 100 ], controller.start_unprotected_mode(
       reading(soc: 100, pv: 50, battery: 0), 100, previous(state: :normal, target_w: 100)
     )
-    # No headroom for a probe: still recognizes soc above 100 as full, not just == 100.
+    # soc: 101 — full is a floor, not an exact value.
     assert_equal [ :probe_blocked, 900 ], controller.start_unprotected_mode(
       reading(soc: 101, pv: 0, battery: 0), 900, previous(state: :normal, target_w: 100)
     )
@@ -513,8 +513,6 @@ class ControlPolicyTest < ActiveSupport::TestCase
     def battery_cooled?    = cooled
   end
 
-  # Below resume SoC but never having entered protection: trim must stay
-  # false — it names the mode, not merely "soc hasn't resumed yet".
   test "trim requires the state to actually be protected, not just an unresumed soc" do
     reading_value = reading(soc: 5, pv: 0) # soc_at_resume? false; protecting? is stubbed below
 
@@ -542,9 +540,6 @@ class ControlPolicyTest < ActiveSupport::TestCase
     assert_equal :surplus, received_previous_state
   end
 
-  # protecting? only continues once soc has genuinely resumed *and* the
-  # battery has cooled; short of either it must hold, regardless of who was
-  # previously in charge.
   test "protecting? only continues protection when the previous tick was itself protected" do
     not_yet_resumed = FakeProtectionReading.new(false, false, false, true)
     not_yet_cooled   = FakeProtectionReading.new(false, false, true, false)

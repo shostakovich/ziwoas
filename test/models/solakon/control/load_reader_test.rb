@@ -119,8 +119,6 @@ class ControlLoadReaderTest < ActiveSupport::TestCase
     assert_in_delta 120.0, reader.load_estimate.current_w
   end
 
-  # The floor is a household draw, not a whole-roster one — the producer's
-  # own output must never count towards it.
   test "guaranteed_floor_w only sums consumer plugs, never the roster's producer" do
     now = Time.at(1_000_000)
     Plugs::Sample.create!(plug_id: "fridge", ts: now.to_i - 100, apower_w: 100, aenergy_wh: 1)

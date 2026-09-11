@@ -1,8 +1,5 @@
 module Solakon
   module Control
-    # What one tick did, as one answer: whether a target reached the inverter,
-    # and everything the log line needs. Nothing here writes anything — the
-    # caller decides where the line goes.
     Outcome = Data.define(:status, :decision, :load, :reading, :failures, :error) do
       def self.applied(decision:, load:, reading:)
         new(status: :applied, decision: decision, load: load, reading: reading, failures: 0, error: nil)
@@ -42,8 +39,6 @@ module Solakon
         "pv=#{reading.pv_power_w}W battery=#{reading.battery_power_w}W"
       end
 
-      # A missing live measurement is named, not printed as a number — the floor
-      # that stood in for it is right next to it in the line.
       def measured_load = load.current_w.nil? ? "stale" : "#{load.current_w.round}W"
 
       def failure_line = "Modbus failure #{failures}/#{Tick::MAX_CONSECUTIVE_FAILURES}: #{error}"

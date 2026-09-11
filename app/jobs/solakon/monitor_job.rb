@@ -16,11 +16,8 @@ module Solakon
       run_control(reading, config, client, now) if solakon.control_enabled
       broadcast_dashboard_refresh
     rescue Client::Error => e
-      # A read failure aborts here, so control never runs and no setpoint is
-      # written. With no write to re-arm REG_REMOTE_TIMEOUT, the inverter's own
-      # 150s remote-control watchdog drops remote control autonomously — that
-      # hardware watchdog is the intended backstop for read outages. The tick's
-      # consecutive-failure release covers *write* failures.
+      # Nothing is released here on purpose: without a write to re-arm
+      # REG_REMOTE_TIMEOUT the inverter drops remote control by itself.
       Rails.logger.warn("solakon_monitor: Modbus failure: #{e.message}")
     rescue ActiveRecord::RecordInvalid => e
       Rails.logger.warn("solakon_monitor: invalid reading: #{e.record.errors.full_messages.join(", ")}")

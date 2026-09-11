@@ -11,8 +11,6 @@ class ControlDecisionTest < ActiveSupport::TestCase
     assert_equal false, decision.trim
   end
 
-  # A state read back from the row used to reach the policy unchecked and fall
-  # through its case into normal load following.
   test "an unknown mode is rejected" do
     assert_raises(Dry::Struct::Error) do
       Solakon::Control::Decision.new(state: :cruising, target_w: 100, trim: false)

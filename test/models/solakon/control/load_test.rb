@@ -15,14 +15,10 @@ class ControlLoadTest < ActiveSupport::TestCase
     assert_in_delta 85.0, estimate.effective_w, 0.001
   end
 
-  # No fresh measurement is nil, never 0 W — the distinction is the whole point
-  # of the guaranteed floor.
   test "an absent live measurement stays absent" do
     assert_nil Solakon::Control::Load.new(current_w: nil, floor_w: 85.0).current_w
   end
 
-  # The floor always has a number, even if it is 0.0 — a fallback that can be
-  # absent is not a fallback.
   test "a load without a floor is not a load" do
     assert_raises(Dry::Struct::Error) do
       Solakon::Control::Load.new(current_w: 800.0, floor_w: nil)

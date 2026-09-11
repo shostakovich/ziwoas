@@ -126,8 +126,6 @@ class ControlStateStoredTest < ActiveSupport::TestCase
     assert_equal({ decision_state: "probe", trim: true, last_target_w: 150, last_decision_at: now }, written)
   end
 
-  # A decision that isn't trimming must be written as trim: false, not merely
-  # as "some decision was passed" (any decision object is truthy).
   test "store! writes a non-trimming decision's trim as false" do
     now = Time.zone.local(2026, 9, 11, 12, 0, 0)
     decision = Solakon::Control::Decision.new(state: :normal, target_w: 150, trim: false)
