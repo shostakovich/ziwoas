@@ -1,11 +1,13 @@
 require "test_helper"
 
 class ControlLoadReaderTest < ActiveSupport::TestCase
-  cover "Solakon::Control::LoadReader#load_estimate"
+  cover "Solakon::Control::LoadReader*"
 
   Plug = Struct.new(:id, :role, keyword_init: true)
 
-  def plugs
+  def roster(plugs = all_plugs) = Plugs::Roster.new(plugs)
+
+  def all_plugs
     [ Plug.new(id: "bkw",    role: :producer),
       Plug.new(id: "fridge", role: :consumer),
       Plug.new(id: "tv",     role: :consumer) ]
@@ -25,7 +27,7 @@ class ControlLoadReaderTest < ActiveSupport::TestCase
     Plugs::Sample.create!(plug_id: "fridge", ts: now.to_i - 5,  apower_w: 120, aenergy_wh: 1) # latest wins
     Plugs::Sample.create!(plug_id: "tv",     ts: now.to_i - 5,  apower_w: 30,  aenergy_wh: 1)
     Plugs::Sample.create!(plug_id: "bkw",    ts: now.to_i - 5,  apower_w: 500, aenergy_wh: 1) # producer, ignored
-    reader = Solakon::Control::LoadReader.new(plugs: plugs, now: now, offline_after_s: 120)
+    reader = Solakon::Control::LoadReader.new(roster: roster, now: now, offline_after_s: 120)
     assert_in_delta 150.0, reader.current_consumption_w
   end
 
@@ -37,7 +39,7 @@ class ControlLoadReaderTest < ActiveSupport::TestCase
     # bucket B (high total = 300, 15 min later): -100s
     Plugs::Sample.create!(plug_id: "fridge", ts: now.to_i - 100,  apower_w: 200, aenergy_wh: 1)
     Plugs::Sample.create!(plug_id: "tv",     ts: now.to_i - 100,  apower_w: 100, aenergy_wh: 1)
-    reader = Solakon::Control::LoadReader.new(plugs: plugs, now: now)
+    reader = Solakon::Control::LoadReader.new(roster: roster, now: now)
     assert_in_delta 100.0, reader.guaranteed_floor_w
   end
 
@@ -45,7 +47,7 @@ class ControlLoadReaderTest < ActiveSupport::TestCase
     now = Time.at(1_000_000)
     Plugs::Sample.create!(plug_id: "fridge", ts: now.to_i - 100,    apower_w: 250, aenergy_wh: 1)
     Plugs::Sample.create!(plug_id: "fridge", ts: now.to_i - 90_000, apower_w: 10,  aenergy_wh: 1) # >24h
-    reader = Solakon::Control::LoadReader.new(plugs: plugs, now: now)
+    reader = Solakon::Control::LoadReader.new(roster: roster, now: now)
     assert_in_delta 250.0, reader.guaranteed_floor_w
   end
 
@@ -55,9 +57,8 @@ class ControlLoadReaderTest < ActiveSupport::TestCase
     cache = ActiveSupport::Cache::MemoryStore.new
     cache.write(Solakon::Control::LoadReader::FLOOR_CACHE_KEY, 85.0)
 
-    estimate = Rails.stub(:cache, cache) do
-      Solakon::Control::LoadReader.new(plugs: plugs, now: now, offline_after_s: 120).load_estimate
-    end
+    estimate = Solakon::Control::LoadReader.new(roster: roster, now: now, offline_after_s: 120,
+                                                cache: cache).load_estimate
 
     assert_in_delta 120.0, estimate.current_w
     assert_in_delta 85.0, estimate.floor_w
@@ -68,9 +69,8 @@ class ControlLoadReaderTest < ActiveSupport::TestCase
     Plugs::Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 120, aenergy_wh: 1)
     cache = ActiveSupport::Cache::MemoryStore.new
 
-    estimate = Rails.stub(:cache, cache) do
-      Solakon::Control::LoadReader.new(plugs: plugs, now: now, offline_after_s: 120).load_estimate
-    end
+    estimate = Solakon::Control::LoadReader.new(roster: roster, now: now, offline_after_s: 120,
+                                                cache: cache).load_estimate
 
     assert_in_delta 120.0, estimate.floor_w
     assert_in_delta 120.0, cache.read(Solakon::Control::LoadReader::FLOOR_CACHE_KEY)
@@ -80,25 +80,24 @@ class ControlLoadReaderTest < ActiveSupport::TestCase
     cache = ActiveSupport::Cache::MemoryStore.new
     start = Time.zone.local(2026, 6, 20, 12, 0, 0)
 
-    Rails.stub(:cache, cache) do
-      travel_to(start) do
-        reader = Solakon::Control::LoadReader.new(plugs: [], now: start)
-        reader.stub(:guaranteed_floor_w, 120.0) do
-          assert_equal 120.0, reader.load_estimate.floor_w
-        end
+    travel_to(start) do
+      reader = Solakon::Control::LoadReader.new(roster: roster([]), now: start, cache: cache)
+      reader.stub(:guaranteed_floor_w, 120.0) do
+        assert_equal 120.0, reader.load_estimate.floor_w
       end
+    end
 
-      travel_to(start + Solakon::Control::LoadReader::FLOOR_CACHE_TTL + 1.second) do
-        reader = Solakon::Control::LoadReader.new(plugs: [], now: start + Solakon::Control::LoadReader::FLOOR_CACHE_TTL + 1.second)
-        reader.stub(:guaranteed_floor_w, 50.0) do
-          assert_equal 50.0, reader.load_estimate.floor_w
-        end
+    later = start + Solakon::Control::LoadReader::FLOOR_CACHE_TTL + 1.second
+    travel_to(later) do
+      reader = Solakon::Control::LoadReader.new(roster: roster([]), now: later, cache: cache)
+      reader.stub(:guaranteed_floor_w, 50.0) do
+        assert_equal 50.0, reader.load_estimate.floor_w
       end
     end
   end
 
   test "no consumer plugs: consumption is nil, floor is zero" do
-    reader = Solakon::Control::LoadReader.new(plugs: [], now: Time.at(1_000_000))
+    reader = Solakon::Control::LoadReader.new(roster: roster([]), now: Time.at(1_000_000))
     assert_nil reader.current_consumption_w
     assert_equal 0.0, reader.guaranteed_floor_w
   end

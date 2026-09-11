@@ -1,27 +1,28 @@
 module Solakon
   module Control
-    # Reads current measured household consumption from Shelly/Fritz samples
-    # and computes the export-safe lower bound (guaranteed_floor_w). The window
-    # aggregation is expensive at the 30s control tick, so load_estimate memoizes
-    # it in Rails.cache; the live sum is always read fresh.
+    # Reads what the household is drawing from the plug measurements, and the
+    # guaranteed floor to fall back on when none is fresh. The window
+    # aggregation is expensive at the 30s control tick, so the floor is
+    # memoized; the live sum is always read fresh.
     class LoadReader
-      FLOOR_WINDOW_S         = 24 * 60 * 60
+      FLOOR_WINDOW_S = 24 * 60 * 60
 
-      FLOOR_CACHE_KEY  = "solakon_control.floor_w".freeze
-      FLOOR_CACHE_TTL  = 1.hour
+      FLOOR_CACHE_KEY = "solakon_control.floor_w".freeze
+      FLOOR_CACHE_TTL = 1.hour
 
-      def initialize(plugs:, now: Time.now, offline_after_s: Plugs::Measurement::OFFLINE_AFTER_S)
-        roster           = Plugs::Roster.wrap(plugs)
+      def initialize(roster:, now: Time.now, offline_after_s: Plugs::Measurement::OFFLINE_AFTER_S,
+                     cache: Rails.cache)
         @consumer_plugs  = roster.consumers
         @consumer_ids    = roster.consumer_ids
         @now             = now
         @offline_after_s = offline_after_s
+        @cache           = cache
       end
 
       def load_estimate
-        Solakon::Control::Load.new(
+        Load.new(
           current_w: current_consumption_w,
-          floor_w: Rails.cache.fetch(FLOOR_CACHE_KEY, expires_in: FLOOR_CACHE_TTL) { guaranteed_floor_w }
+          floor_w: @cache.fetch(FLOOR_CACHE_KEY, expires_in: FLOOR_CACHE_TTL) { guaranteed_floor_w }
         )
       end
 

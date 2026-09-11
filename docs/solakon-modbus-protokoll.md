@@ -41,17 +41,17 @@
 > **Hinweis Funktionscodes:** Das PDF nennt keine FC-Nummern, Unit-ID oder Baudrate (Modbus TCP).
 > Die Angaben oben stammen aus unserem live verifizierten Code, nicht aus dem PDF (vgl. [§3](#3-abweichungen--lücken-zwischen-code-und-pdf)).
 
-**Datenfluss** ([`app/jobs/solakon/monitor_job.rb`](../app/jobs/solakon/monitor_job.rb) → [`app/jobs/solakon/control/tick_job.rb`](../app/jobs/solakon/control/tick_job.rb)):
+**Datenfluss** ([`app/jobs/solakon/monitor_job.rb`](../app/jobs/solakon/monitor_job.rb) → [`app/models/solakon/control/tick.rb`](../app/models/solakon/control/tick.rb)):
 
 ```
 Modbus TCP (Solakon ONE)
   → Solakon::Client#read_state            (FC03)
-    → Solakon::Reading.create!            (Persistenz, app/models/solakon_reading.rb)
-    → Solakon::Control::TickJob (wenn control_enabled)
-        → Solakon::Control::LoadReader (Live-Last, 24h-Floor, Nacht-Basis P20)
-        → SunWindow (Tag/Nacht, Stunden bis Sonnenaufgang)
-        → Solakon::Control::Policy#decide    (reine State-Machine)
-        → Solakon::Client#apply_control!   (FC06/FC16, nur bei Bedarf — Sparse Write)
+    → Solakon::Reading#save!              (Persistenz, app/models/solakon/reading.rb)
+    → Solakon::Control::Tick.call (wenn control_enabled)
+        → Solakon::Control::LoadReader (Live-Last, 24h-Floor)
+        → Solakon::Control::Policy.decide   (reine State-Machine)
+        → Solakon::Client#apply_control!    (FC06/FC16, jeder Takt — armt den Watchdog)
+        → Solakon::Control::Outcome         (eine Antwort, die der Monitor loggt)
 ```
 
 Algorithmus-Details stehen in [`docs/superpowers/specs/2026-06-20-solakon-control-algorithm-design.md`](superpowers/specs/2026-06-20-solakon-control-algorithm-design.md)

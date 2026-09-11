@@ -18,6 +18,18 @@ class SolakonMonitorJobTest < ActiveSupport::TestCase
     end
   end
 
+  class RecordingLogger
+    attr_reader :infos, :warnings
+
+    def initialize
+      @infos = []
+      @warnings = []
+    end
+
+    def info(message = nil) = (@infos << message)
+    def warn(message = nil) = (@warnings << message)
+  end
+
   class FakeBroadcaster
     attr_reader :calls
 
@@ -33,7 +45,7 @@ class SolakonMonitorJobTest < ActiveSupport::TestCase
   end
 
   Sol = Struct.new(:host, :port, :unit_id, :monitoring_enabled, :control_enabled, keyword_init: true)
-  Cfg = Struct.new(:solakon, keyword_init: true)
+  Cfg = Struct.new(:solakon, :plug_roster, keyword_init: true)
 
   setup do
     Solakon::Reading.delete_all
@@ -41,6 +53,7 @@ class SolakonMonitorJobTest < ActiveSupport::TestCase
 
   def config(monitoring_enabled: true, control_enabled: false, solakon: true)
     Cfg.new(
+      plug_roster: Plugs::Roster.new([]),
       solakon: (
         Sol.new(
           host: "h",
@@ -74,12 +87,22 @@ class SolakonMonitorJobTest < ActiveSupport::TestCase
     )
   end
 
+  # A tick stub has to answer like the real one: with an outcome the monitor can log.
+  def recording(calls)
+    lambda do |reading:, roster:, client:, control:, now:|
+      calls << reading
+      Solakon::Control::Outcome.paused
+    end
+  end
+
+  def answering(outcome) = ->(reading:, roster:, client:, control:, now:) { outcome }
+
   def run_job(client:, cfg: config, now: Time.zone.local(2026, 6, 18, 12, 0, 0),
               broadcaster: FakeBroadcaster.new, &block)
     ConfigLoader.stub(:app_config, cfg) do
       DashboardBroadcaster.stub(:broadcast_live, broadcaster.method(:broadcast_live)) do
         if block
-          Solakon::Control::TickJob.stub(:perform_now, block) do
+          Solakon::Control::Tick.stub(:call, block) do
             Solakon::MonitorJob.new.perform(client: client, now: now)
           end
         else
@@ -136,7 +159,7 @@ class SolakonMonitorJobTest < ActiveSupport::TestCase
 
     assert_no_difference -> { Solakon::Reading.count } do
       assert_nothing_raised do
-        run_job(client: client, cfg: config(control_enabled: true), &->(client:, state:, reader_now:) { control_calls << state })
+        run_job(client: client, cfg: config(control_enabled: true), &recording(control_calls))
       end
     end
 
@@ -144,21 +167,67 @@ class SolakonMonitorJobTest < ActiveSupport::TestCase
     assert_empty control_calls
   end
 
-  test "successful read with control_enabled true triggers the control tick with state" do
-    current_state = state
-    client = FakeClient.new(state: current_state)
+  test "successful read with control_enabled true hands the control tick the reading it just took" do
+    now = Time.zone.local(2026, 6, 18, 12, 0, 0)
+    client = FakeClient.new(state: state)
     broadcaster = FakeBroadcaster.new
     control_calls = []
 
     run_job(
       client: client,
+      now: now,
       cfg: config(control_enabled: true),
       broadcaster: broadcaster,
-      &->(client:, state:, reader_now:) { control_calls << state }
+      &recording(control_calls)
     )
 
-    assert_equal [ current_state ], control_calls
+    handed = control_calls.sole
+    assert_equal now, handed.taken_at
+    assert_equal 456, handed.pv_power_w
+    assert_equal handed, Solakon::Reading.last # the reading was taken once, not twice
     assert_equal [ :live ], broadcaster.calls
+  end
+
+  # The configuration gates sit here, before anything is read or decided.
+  test "control_enabled false leaves the control tick alone" do
+    control_calls = []
+
+    run_job(
+      client: FakeClient.new(state: state),
+      cfg: config(control_enabled: false),
+      &recording(control_calls)
+    )
+
+    assert_empty control_calls
+  end
+
+  test "an unconfigured inverter is neither read nor controlled" do
+    client = FakeClient.new(state: state)
+    control_calls = []
+
+    run_job(
+      client: client,
+      cfg: config(solakon: false),
+      &recording(control_calls)
+    )
+
+    assert_empty client.calls
+    assert_empty control_calls
+  end
+
+  test "the tick outcome is logged under the control prefix" do
+    logger = RecordingLogger.new
+    outcome = Solakon::Control::Outcome.paused
+
+    Rails.stub(:logger, logger) do
+      run_job(
+        client: FakeClient.new(state: state),
+        cfg: config(control_enabled: true),
+        &answering(outcome)
+      )
+    end
+
+    assert_equal [ "solakon_control: runtime paused" ], logger.infos
   end
 
   test "invalid reading does not persist or trigger control" do
@@ -174,7 +243,7 @@ class SolakonMonitorJobTest < ActiveSupport::TestCase
 
     assert_no_difference -> { Solakon::Reading.count } do
       assert_nothing_raised do
-        run_job(client: client, cfg: config(control_enabled: true), &->(client:, state:, reader_now:) { control_calls << state })
+        run_job(client: client, cfg: config(control_enabled: true), &recording(control_calls))
       end
     end
 
@@ -183,8 +252,7 @@ class SolakonMonitorJobTest < ActiveSupport::TestCase
   end
 
   test "broadcast failure does not block the control tick" do
-    current_state = state
-    client = FakeClient.new(state: current_state)
+    client = FakeClient.new(state: state)
     broadcaster = FakeBroadcaster.new(fail: true)
     control_calls = []
 
@@ -193,11 +261,11 @@ class SolakonMonitorJobTest < ActiveSupport::TestCase
         client: client,
         cfg: config(control_enabled: true),
         broadcaster: broadcaster,
-        &->(client:, state:, reader_now:) { control_calls << state }
+        &recording(control_calls)
       )
     end
 
-    assert_equal [ current_state ], control_calls
+    assert_equal 1, control_calls.length
     assert_equal [ :live ], broadcaster.calls
   end
 end

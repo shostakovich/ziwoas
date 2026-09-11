@@ -1,9 +1,10 @@
 module Solakon
   module Control
-    # Singleton row holding the control loop's runtime state: the
-    # user-facing pause switch plus what the last tick decided and wrote. The loop
-    # state lives here (not in Rails.cache) because the controller regulates
-    # against it — losing it silently would change control behaviour.
+    # Singleton row holding the control loop's runtime state: the user-facing
+    # pause switch plus what the last tick wrote. It lives here and not in
+    # Rails.cache because the policy regulates against it — losing it silently
+    # would change how the loop behaves. The row stores and hands back; what the
+    # stored decision is still worth is decided by the tick.
     class State < ApplicationRecord
       self.table_name = "solakon_control_states"
 
@@ -20,38 +21,42 @@ module Solakon
       end
 
       def resume_auto_regulation!
-        update!(paused: false, decision_state: nil, trim: false,
-                last_target_w: nil, last_decision_at: nil)
+        update!(paused: false, **CLEARED)
       end
 
-      # The previous tick's decision, or nil before the first tick. target_w is the
-      # target actually written to the inverter — the trim loop integrates against
+      # What the last tick wrote, or nil before the first one. target_w is the
+      # target the inverter actually received — the trim loop integrates against
       # what the device got, not against an intention.
-      def last_decision(at: Time.current)
+      def stored
         return nil if decision_state.blank? || last_decision_at.blank?
-        return nil if last_decision_at <= at - Solakon::Client::REMOTE_TIMEOUT_S.seconds
 
-        Solakon::Control::Decision.new(state: decision_state.to_sym, target_w: last_target_w, trim: trim)
+        Stored.new(decision_state: decision_state.to_sym, target_w: last_target_w,
+                   trim: trim, at: last_decision_at)
       end
 
-      def remember_decision!(decision, at: Time.current)
+      def store!(decision, at:)
         update!(decision_state: decision.state.to_s, trim: !!decision.trim,
                 last_target_w: decision.target_w, last_decision_at: at)
       end
 
-      def reset_decision!
-        update!(decision_state: nil, trim: false, last_target_w: nil, last_decision_at: nil)
+      def clear!
+        update!(**CLEARED)
       end
+
+      def failures = consecutive_failures
 
       def reset_failures!
         update!(consecutive_failures: 0) unless consecutive_failures.zero?
       end
 
       # Increments and returns the new count.
-      def register_failure!
+      def count_failure!
         update!(consecutive_failures: consecutive_failures + 1)
         consecutive_failures
       end
+
+      CLEARED = { decision_state: nil, trim: false, last_target_w: nil, last_decision_at: nil }.freeze
+      private_constant :CLEARED
     end
   end
 end
