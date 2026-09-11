@@ -26,12 +26,12 @@ class ZeroExportTickJobTest < ActiveSupport::TestCase
     end
 
     def apply_control!(power_w:, min_soc:)
-      raise SolakonClient::Error, "down" if @fail
+      raise Solakon::Client::Error, "down" if @fail
       @calls << [ :apply_power, power_w, min_soc ]
     end
 
     def release_control!
-      raise SolakonClient::Error, "release down" if @release_fail
+      raise Solakon::Client::Error, "release down" if @release_fail
 
       @calls << :release
     end
@@ -70,12 +70,12 @@ class ZeroExportTickJobTest < ActiveSupport::TestCase
   end
 
   def healthy_state
-    SolakonClient::State.new(battery_soc: 55, active_power_w: 250, pv_power_w: 0, battery_power_w: 0,
+    Solakon::Client::State.new(battery_soc: 55, active_power_w: 250, pv_power_w: 0, battery_power_w: 0,
                               battery_temperature_c: 30)
   end
 
   def state_with(soc:, pv: 100, temp: 30, battery: 0)
-    SolakonClient::State.new(battery_soc: soc, active_power_w: 0, pv_power_w: pv, battery_power_w: battery,
+    Solakon::Client::State.new(battery_soc: soc, active_power_w: 0, pv_power_w: pv, battery_power_w: battery,
                               battery_temperature_c: temp)
   end
 
@@ -122,7 +122,7 @@ class ZeroExportTickJobTest < ActiveSupport::TestCase
     Plugs::Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 700, aenergy_wh: 1)
     SolakonControlState.current.remember_decision!(
       ZeroExportController::Decision.new(state: :normal, target_w: 100, trim: false),
-      at: now - SolakonClient::REMOTE_TIMEOUT_S.seconds
+      at: now - Solakon::Client::REMOTE_TIMEOUT_S.seconds
     )
 
     client = FakeClient.new
@@ -293,9 +293,9 @@ class ZeroExportTickJobTest < ActiveSupport::TestCase
     now = Time.zone.local(2026, 9, 11, 12, 0, 0)
     Plugs::Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 250, aenergy_wh: 1)
     observed = []
-    original = SolakonReading.method(:from_state)
+    original = Solakon::Reading.method(:from_state)
 
-    SolakonReading.stub(:from_state, lambda { |input, taken_at:|
+    Solakon::Reading.stub(:from_state, lambda { |input, taken_at:|
       observed << taken_at
       original.call(input, taken_at: taken_at)
     }) do
@@ -358,7 +358,7 @@ class ZeroExportTickJobTest < ActiveSupport::TestCase
     logger = RecordingLogger.new
     decision = ZeroExportController::Decision.new(state: :surplus, target_w: 485, trim: false)
     load = LoadEstimate.new(current_w: 123.6, floor_w: 84.6)
-    reading = SolakonReading.new(battery_soc_pct: 100, battery_temperature_c: 30.5,
+    reading = Solakon::Reading.new(battery_soc_pct: 100, battery_temperature_c: 30.5,
                                  pv_power_w: 0, battery_power_w: -15.5)
 
     Rails.stub(:logger, logger) do
@@ -373,7 +373,7 @@ class ZeroExportTickJobTest < ActiveSupport::TestCase
     logger = RecordingLogger.new
     decision = ZeroExportController::Decision.new(state: :normal, target_w: 85, trim: false)
     load = LoadEstimate.new(current_w: nil, floor_w: 85)
-    reading = SolakonReading.new(battery_soc_pct: 55, battery_temperature_c: 30,
+    reading = Solakon::Reading.new(battery_soc_pct: 55, battery_temperature_c: 30,
                                  pv_power_w: 100, battery_power_w: 0)
 
     Rails.stub(:logger, logger) do
@@ -393,7 +393,7 @@ class ZeroExportTickJobTest < ActiveSupport::TestCase
     client = FakeClient.new
 
     Rails.stub(:logger, logger) do
-      ZeroExportTickJob.new.send(:handle_failure, client, SolakonClient::Error.new("down"), control)
+      ZeroExportTickJob.new.send(:handle_failure, client, Solakon::Client::Error.new("down"), control)
     end
 
     assert_equal [ :release ], client.calls
@@ -408,7 +408,7 @@ class ZeroExportTickJobTest < ActiveSupport::TestCase
     client = FakeClient.new
 
     Rails.stub(:logger, logger) do
-      ZeroExportTickJob.new.send(:handle_failure, client, SolakonClient::Error.new("down"), control)
+      ZeroExportTickJob.new.send(:handle_failure, client, Solakon::Client::Error.new("down"), control)
     end
 
     assert_empty client.calls
@@ -427,7 +427,7 @@ class ZeroExportTickJobTest < ActiveSupport::TestCase
       ZeroExportTickJob.new.send(
         :handle_failure,
         FakeClient.new(release_fail: true),
-        SolakonClient::Error.new("apply down"),
+        Solakon::Client::Error.new("apply down"),
         control
       )
     end

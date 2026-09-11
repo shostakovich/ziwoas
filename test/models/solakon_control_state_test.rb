@@ -45,7 +45,7 @@ class SolakonControlStateTest < ActiveSupport::TestCase
     state = SolakonControlState.current
     state.remember_decision!(decision, at: now)
 
-    assert_nil state.last_decision(at: now + SolakonClient::REMOTE_TIMEOUT_S.seconds)
+    assert_nil state.last_decision(at: now + Solakon::Client::REMOTE_TIMEOUT_S.seconds)
   end
 
   test "reset_decision clears all controller memory" do
@@ -99,15 +99,15 @@ class SolakonControlStateDecisionTest < ActiveSupport::TestCase
     state = state_with(control_state: "protected", trim: true, target_w: 85, decided_at: now)
 
     assert_equal ZeroExportController::Decision.new(state: :protected, target_w: 85, trim: true),
-                 state.last_decision(at: now + SolakonClient::REMOTE_TIMEOUT_S.seconds - 1.second)
+                 state.last_decision(at: now + Solakon::Client::REMOTE_TIMEOUT_S.seconds - 1.second)
   end
 
   test "last_decision expires at the exact watchdog boundary" do
     now = Time.zone.local(2026, 9, 11, 12, 0, 0)
     state = state_with(decided_at: now)
 
-    assert_nil state.last_decision(at: now + SolakonClient::REMOTE_TIMEOUT_S.seconds)
-    assert_nil state.last_decision(at: now + SolakonClient::REMOTE_TIMEOUT_S.seconds + 1.second)
+    assert_nil state.last_decision(at: now + Solakon::Client::REMOTE_TIMEOUT_S.seconds)
+    assert_nil state.last_decision(at: now + Solakon::Client::REMOTE_TIMEOUT_S.seconds + 1.second)
   end
 
   test "last_decision defaults to the current time" do

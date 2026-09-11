@@ -12,7 +12,7 @@ class SolakonMonitorJobTest < ActiveSupport::TestCase
 
     def read_state
       @calls << :read_state
-      raise SolakonClient::Error, "down" if @fail
+      raise Solakon::Client::Error, "down" if @fail
 
       @state
     end
@@ -36,7 +36,7 @@ class SolakonMonitorJobTest < ActiveSupport::TestCase
   Cfg = Struct.new(:solakon, keyword_init: true)
 
   setup do
-    SolakonReading.delete_all
+    Solakon::Reading.delete_all
   end
 
   def config(monitoring_enabled: true, control_enabled: false, solakon: true)
@@ -54,7 +54,7 @@ class SolakonMonitorJobTest < ActiveSupport::TestCase
   end
 
   def state
-    SolakonClient::State.new(
+    Solakon::Client::State.new(
       battery_soc: 55,
       active_power_w: 123,
       pv_power_w: 456,
@@ -80,10 +80,10 @@ class SolakonMonitorJobTest < ActiveSupport::TestCase
       DashboardBroadcaster.stub(:broadcast_live, broadcaster.method(:broadcast_live)) do
         if block
           ZeroExportTickJob.stub(:perform_now, block) do
-            SolakonMonitorJob.new.perform(client: client, now: now)
+            Solakon::MonitorJob.new.perform(client: client, now: now)
           end
         else
-          SolakonMonitorJob.new.perform(client: client, now: now)
+          Solakon::MonitorJob.new.perform(client: client, now: now)
         end
       end
     end
@@ -94,11 +94,11 @@ class SolakonMonitorJobTest < ActiveSupport::TestCase
     client = FakeClient.new(state: state)
     broadcaster = FakeBroadcaster.new
 
-    assert_difference -> { SolakonReading.count }, 1 do
+    assert_difference -> { Solakon::Reading.count }, 1 do
       run_job(client: client, now: now, broadcaster: broadcaster)
     end
 
-    reading = SolakonReading.last
+    reading = Solakon::Reading.last
     assert_equal [ :read_state ], client.calls
     assert_equal [ :live ], broadcaster.calls
     assert_equal now, reading.taken_at
@@ -123,7 +123,7 @@ class SolakonMonitorJobTest < ActiveSupport::TestCase
   test "does not read or persist when monitoring_enabled false" do
     client = FakeClient.new(state: state)
 
-    assert_no_difference -> { SolakonReading.count } do
+    assert_no_difference -> { Solakon::Reading.count } do
       run_job(client: client, cfg: config(monitoring_enabled: false))
     end
 
@@ -134,7 +134,7 @@ class SolakonMonitorJobTest < ActiveSupport::TestCase
     client = FakeClient.new(fail: true)
     control_calls = []
 
-    assert_no_difference -> { SolakonReading.count } do
+    assert_no_difference -> { Solakon::Reading.count } do
       assert_nothing_raised do
         run_job(client: client, cfg: config(control_enabled: true), &->(client:, state:, reader_now:) { control_calls << state })
       end
@@ -162,7 +162,7 @@ class SolakonMonitorJobTest < ActiveSupport::TestCase
   end
 
   test "invalid reading does not persist or trigger control" do
-    invalid_state = SolakonClient::State.new(
+    invalid_state = Solakon::Client::State.new(
       battery_soc: 150,
       active_power_w: 123,
       pv_power_w: 456,
@@ -172,7 +172,7 @@ class SolakonMonitorJobTest < ActiveSupport::TestCase
     client = FakeClient.new(state: invalid_state)
     control_calls = []
 
-    assert_no_difference -> { SolakonReading.count } do
+    assert_no_difference -> { Solakon::Reading.count } do
       assert_nothing_raised do
         run_job(client: client, cfg: config(control_enabled: true), &->(client:, state:, reader_now:) { control_calls << state })
       end

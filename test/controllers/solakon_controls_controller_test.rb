@@ -27,9 +27,9 @@ class SolakonControlsControllerTest < ActionDispatch::IntegrationTest
     Cfg.new(solakon: (Sol.new(host: "h", port: 502, unit_id: 1, monitoring_enabled: true, control_enabled: control_enabled) if solakon))
   end
 
-  test "eps endpoint writes directly through SolakonClient" do
+  test "eps endpoint writes directly through Solakon::Client" do
     ConfigLoader.stub(:app_config, config) do
-      SolakonClient.stub(:new, ->(host:, port:, unit_id:) { FakeClient.new(host: host, port: port, unit_id: unit_id) }) do
+      Solakon::Client.stub(:new, ->(host:, port:, unit_id:) { FakeClient.new(host: host, port: port, unit_id: unit_id) }) do
         patch "/solakon/eps", params: { enabled: "true" }, as: :json
       end
     end
@@ -41,10 +41,10 @@ class SolakonControlsControllerTest < ActionDispatch::IntegrationTest
 
   test "eps endpoint returns service unavailable on Modbus failure" do
     failing = Object.new
-    def failing.set_eps_output!(enabled:) = raise SolakonClient::Error, "down"
+    def failing.set_eps_output!(enabled:) = raise Solakon::Client::Error, "down"
 
     ConfigLoader.stub(:app_config, config) do
-      SolakonClient.stub(:new, ->(**) { failing }) do
+      Solakon::Client.stub(:new, ->(**) { failing }) do
         patch "/solakon/eps", params: { enabled: "true" }, as: :json
       end
     end

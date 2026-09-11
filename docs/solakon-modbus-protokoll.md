@@ -24,13 +24,13 @@
 
 ## 1. Wie wir das Protokoll nutzen (Code-Sicht)
 
-**Transport / Verbindung** — implementiert in [`lib/solakon_client.rb`](../lib/solakon_client.rb):
+**Transport / Verbindung** — implementiert in [`lib/solakon/client.rb`](../lib/solakon/client.rb):
 
 | Eigenschaft | Wert | Quelle |
 |-------------|------|--------|
-| Transport | **Modbus TCP** | `ModBus::TCPClient.connect` ([solakon_client.rb:115](../lib/solakon_client.rb#L115)), Gem `rmodbus` |
-| Registertyp | **Holding Registers** (FC03 lesen / FC06 + FC16 schreiben) | [solakon_client.rb:5-8](../lib/solakon_client.rb#L5) |
-| Word-Order (32-Bit) | **Big-Endian, High Word First** | `to_i32` / `from_i32` ([solakon_client.rb:130-138](../lib/solakon_client.rb#L130)) |
+| Transport | **Modbus TCP** | `ModBus::TCPClient.connect` ([solakon/client.rb:115](../lib/solakon/client.rb#L115)), Gem `rmodbus` |
+| Registertyp | **Holding Registers** (FC03 lesen / FC06 + FC16 schreiben) | [solakon/client.rb:5-8](../lib/solakon/client.rb#L5) |
+| Word-Order (32-Bit) | **Big-Endian, High Word First** | `to_i32` / `from_i32` ([solakon/client.rb:130-138](../lib/solakon/client.rb#L130)) |
 | Host | `solakon.host` (z. B. `192.168.1.50`) | [`config/ziwoas.example.yml`](../config/ziwoas.example.yml) |
 | Port | `solakon.port`, Default **502** | `ConfigLoader::SolakonCfg` ([config_loader.rb](../lib/config_loader.rb)) |
 | Unit / Slave ID | `solakon.unit_id`, Default **1** | s. o. |
@@ -45,13 +45,13 @@
 
 ```
 Modbus TCP (Solakon ONE)
-  → SolakonClient#read_state            (FC03)
-    → SolakonReading.create!            (Persistenz, app/models/solakon_reading.rb)
+  → Solakon::Client#read_state            (FC03)
+    → Solakon::Reading.create!            (Persistenz, app/models/solakon_reading.rb)
     → ZeroExportTickJob (wenn control_enabled)
         → ConsumptionReader (Live-Last, 24h-Floor, Nacht-Basis P20)
         → SunWindow (Tag/Nacht, Stunden bis Sonnenaufgang)
         → ZeroExportController#decide    (reine State-Machine)
-        → SolakonClient#apply_control!   (FC06/FC16, nur bei Bedarf — Sparse Write)
+        → Solakon::Client#apply_control!   (FC06/FC16, nur bei Bedarf — Sparse Write)
 ```
 
 Algorithmus-Details stehen in [`docs/superpowers/specs/2026-06-20-solakon-control-algorithm-design.md`](superpowers/specs/2026-06-20-solakon-control-algorithm-design.md)
@@ -61,7 +61,7 @@ und im Plan [`docs/superpowers/plans/2026-06-20-solakon-control-algorithm.md`](s
 
 ## 2. Cross-Reference: unsere Register ↔ PDF
 
-Nur diese Register berührt unser Code aktuell. Konstanten in [`lib/solakon_client.rb`](../lib/solakon_client.rb).
+Nur diese Register berührt unser Code aktuell. Konstanten in [`lib/solakon/client.rb`](../lib/solakon/client.rb).
 
 ### Gelesen (FC03)
 
@@ -84,7 +84,7 @@ Nur diese Register berührt unser Code aktuell. Konstanten in [`lib/solakon_clie
 | 46609 | `REG_MINIMUM_SOC` | u16 | 1 | `10` | Index 298 „Minimum SoC" (%) | **Nur bei Abweichung** schreiben (persistentes Register → Flash schonen). |
 
 `46001`-Bitfeld wird im Code als `REMOTE_CONTROL_ENABLE = 0b0001` kodiert
-([solakon_client.rb:31-34](../lib/solakon_client.rb#L31)). Bedeutung der Bits → [§9](#9-ansteuerung-remote-control-46001).
+([solakon/client.rb:31-34](../lib/solakon/client.rb#L31)). Bedeutung der Bits → [§9](#9-ansteuerung-remote-control-46001).
 
 ---
 
@@ -593,7 +593,7 @@ Leistungs-Sollwert (46003). Unser Code setzt `46001 = 0b0001` (Enable + Generati
 
 ### Steuersequenz im Code
 
-`SolakonClient#write_control!` ([solakon_client.rb:101-109](../lib/solakon_client.rb#L101)) schreibt in dieser Reihenfolge:
+`Solakon::Client#write_control!` ([solakon/client.rb:101-109](../lib/solakon/client.rb#L101)) schreibt in dieser Reihenfolge:
 
 1. **46609** Minimum SoC — *nur falls abweichend* (Self-Healing, schont Flash).
 2. **46001** Remote Control = `0b0001` (Enable, Generation, AC).

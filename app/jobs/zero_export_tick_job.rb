@@ -1,8 +1,5 @@
-require "config_loader"
-require "solakon_client"
-
 # One control tick: decide a target from the state the monitor just read and
-# write it to the inverter. Runs synchronously from SolakonMonitorJob every
+# write it to the inverter. Runs synchronously from Solakon::MonitorJob every
 # 30s. The target is written every tick — the power register is volatile,
 # writes are cheap, and each write re-arms the inverter's 150s remote-control
 # watchdog, so no separate heartbeat or write-deadband logic is needed.
@@ -22,7 +19,7 @@ class ZeroExportTickJob < ApplicationJob
 
     reader  = ConsumptionReader.new(plugs: config.plugs, now: reader_now)
     load    = reader.load_estimate
-    reading = SolakonReading.from_state(state, taken_at: reader_now)
+    reading = Solakon::Reading.from_state(state, taken_at: reader_now)
 
     decision = ZeroExportController.decide(
       reading: reading,
@@ -31,8 +28,8 @@ class ZeroExportTickJob < ApplicationJob
     )
 
     begin
-      client.apply_control!(power_w: decision.target_w, min_soc: SolakonReading::MIN_SOC_PCT)
-    rescue SolakonClient::Error => e
+      client.apply_control!(power_w: decision.target_w, min_soc: Solakon::Reading::MIN_SOC_PCT)
+    rescue Solakon::Client::Error => e
       return handle_failure(client, e, control)
     end
 
@@ -54,7 +51,7 @@ class ZeroExportTickJob < ApplicationJob
   end
 
   # Reached for *write* failures (the live state is supplied by the monitor, so
-  # read failures abort upstream in SolakonMonitorJob, where the inverter's 150s
+  # read failures abort upstream in Solakon::MonitorJob, where the inverter's 150s
   # hardware watchdog is the backstop). After repeated write failures we release
   # remote control so the inverter reverts to its own default behavior. The
   # failed decision is NOT remembered — the trim loop must integrate against
@@ -69,7 +66,7 @@ class ZeroExportTickJob < ApplicationJob
       control.reset_decision!
       control.reset_failures!
       Rails.logger.warn("zero_export: relinquished remote control after #{failures} consecutive failures")
-    rescue SolakonClient::Error => e
+    rescue Solakon::Client::Error => e
       Rails.logger.warn("zero_export: failed to relinquish remote control: #{e.message}")
     end
   end

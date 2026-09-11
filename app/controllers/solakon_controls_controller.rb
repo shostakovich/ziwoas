@@ -1,16 +1,14 @@
-require "solakon_client"
-
 class SolakonControlsController < ApplicationController
   def eps
     solakon = app_config.solakon
     return render json: { error: "Solakon nicht konfiguriert" }, status: :service_unavailable if solakon.nil?
 
     enabled = ActiveModel::Type::Boolean.new.cast(params[:enabled])
-    client = SolakonClient.from_config(solakon)
+    client = Solakon::Client.from_config(solakon)
     client.set_eps_output!(enabled: enabled)
 
     render json: { enabled: enabled }
-  rescue SolakonClient::Error => e
+  rescue Solakon::Client::Error => e
     Rails.logger.warn("solakon_controls: EPS switch failed: #{e.message}")
     render json: { error: "Schalten fehlgeschlagen" }, status: :service_unavailable
   end

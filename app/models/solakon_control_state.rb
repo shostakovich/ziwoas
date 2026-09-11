@@ -1,5 +1,3 @@
-require "solakon_client"
-
 # Singleton row holding the zero-export control loop's runtime state: the
 # user-facing pause switch plus what the last tick decided and wrote. The loop
 # state lives here (not in Rails.cache) because the controller regulates
@@ -27,7 +25,7 @@ class SolakonControlState < ApplicationRecord
   # what the device got, not against an intention.
   def last_decision(at: Time.current)
     return nil if control_state.blank? || last_decision_at.blank?
-    return nil if last_decision_at <= at - SolakonClient::REMOTE_TIMEOUT_S.seconds
+    return nil if last_decision_at <= at - Solakon::Client::REMOTE_TIMEOUT_S.seconds
 
     ZeroExportController::Decision.new(state: control_state.to_sym, target_w: last_target_w, trim: trim)
   end

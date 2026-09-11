@@ -4,7 +4,7 @@ class ApiControllerTest < ActionDispatch::IntegrationTest
   setup do
     Plugs::Sample.delete_all
     Plugs::DailyTotal.delete_all
-    SolakonReading.delete_all
+    Solakon::Reading.delete_all
   end
 
   # --- /api/today ---

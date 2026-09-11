@@ -55,7 +55,7 @@ class DashboardControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "dashboard battery hero hides itself without a fresh reading and keeps the SVG asset map" do
-    SolakonReading.delete_all
+    Solakon::Reading.delete_all
 
     get "/"
     assert_response :ok

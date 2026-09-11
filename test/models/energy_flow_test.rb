@@ -9,7 +9,7 @@ class EnergyFlowTest < ActiveSupport::TestCase
   }.freeze
 
   def reading(**attrs)
-    SolakonReading.new({ taken_at: Time.current, active_power_w: 0, pv_power_w: 0,
+    Solakon::Reading.new({ taken_at: Time.current, active_power_w: 0, pv_power_w: 0,
                          battery_power_w: 0, battery_soc_pct: 50 }.merge(attrs))
   end
 

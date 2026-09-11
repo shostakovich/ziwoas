@@ -1,5 +1,5 @@
 module ApplicationHelper
-  # Every battery face the inverter can wear, keyed by SolakonReading#battery_state.
+  # Every battery face the inverter can wear, keyed by Solakon::Reading#battery_state.
   # A discharging battery and an unknown state both show the normal face.
   BATTERY_ASSETS = {
     "normal"      => "solakon_battery_normal.webp",

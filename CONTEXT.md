@@ -83,7 +83,7 @@ _Avoid_: Stale (that's the inverter's deadline), Stumm, Abgezogen
 
 **Stale**:
 A reading from the inverter that's too old to describe its current state. Its own
-deadline in `SolakonReading::STALE_AFTER_S` — a plug and an inverter report at different
+deadline in `Solakon::Reading::STALE_AFTER_S` — a plug and an inverter report at different
 intervals for different reasons, which is why there are two deadlines and not one. If the
 reading is stale, the inverter counts as offline and every value derived from it is
 unknown, not zero.
@@ -93,9 +93,9 @@ _Avoid_: Offline (that's the state of a plug), Stale (in German UI text)
 **Panel**:
 One of the inverter's four PV inputs, each carrying a single module. All four are read and
 stored on every reading — a panel without yield reports 0 W, it does not go absent. Total PV
-power is their sum, never a figure stored in its own right. `SolakonSnapshot#panels`.
+power is their sum, never a figure stored in its own right. `Solakon::Snapshot#panels`.
 _German UI_: Panel
-_Avoid_: String, Strang, MPPT-Eingang. `PV_STRINGS` in `lib/solakon_client.rb` names the
+_Avoid_: String, Strang, MPPT-Eingang. `PV_STRINGS` in `lib/solakon/client.rb` names the
 Modbus layer, not the domain, and stays.
 
 **Plug roster**:

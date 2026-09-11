@@ -4,7 +4,7 @@ class ZeroExportControllerTest < ActiveSupport::TestCase
   cover "ZeroExportController*"
 
   def reading(soc:, pv:, temp: 30.0, battery: 0)
-    SolakonReading.new(taken_at: Time.current, active_power_w: 0, pv_power_w: pv,
+    Solakon::Reading.new(taken_at: Time.current, active_power_w: 0, pv_power_w: pv,
                        battery_power_w: battery, battery_soc_pct: soc, battery_temperature_c: temp)
   end
 

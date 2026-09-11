@@ -181,8 +181,8 @@ class ZeroExportController
   def self.thermal_ceiling_w(reading)
     return MAX_OUTPUT_W if reading.battery_cooled?
 
-    span  = SolakonReading::CUTOFF_TEMP_C - SolakonReading::HOT_TEMP_C
-    ratio = (SolakonReading::CUTOFF_TEMP_C - reading.battery_temperature_c) / span
+    span  = Solakon::Reading::CUTOFF_TEMP_C - Solakon::Reading::HOT_TEMP_C
+    ratio = (Solakon::Reading::CUTOFF_TEMP_C - reading.battery_temperature_c) / span
     (HOT_OUTPUT_LIMIT_W * ratio).round.clamp(0, HOT_OUTPUT_LIMIT_W)
   end
 end
