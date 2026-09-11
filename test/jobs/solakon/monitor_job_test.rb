@@ -1,6 +1,8 @@
 require "test_helper"
 
 class SolakonMonitorJobTest < ActiveSupport::TestCase
+  cover "Solakon::MonitorJob*"
+
   class FakeClient
     attr_reader :calls
 
@@ -153,6 +155,58 @@ class SolakonMonitorJobTest < ActiveSupport::TestCase
     assert_empty client.calls
   end
 
+  test "an unconfigured inverter logs why nothing happened" do
+    logger = RecordingLogger.new
+
+    Rails.stub(:logger, logger) do
+      run_job(client: FakeClient.new(state: state), cfg: config(solakon: false))
+    end
+
+    assert_equal [ "solakon_monitor: not configured" ], logger.infos
+  end
+
+  test "a disabled monitor logs why nothing happened" do
+    logger = RecordingLogger.new
+
+    Rails.stub(:logger, logger) do
+      run_job(client: FakeClient.new(state: state), cfg: config(monitoring_enabled: false))
+    end
+
+    assert_equal [ "solakon_monitor: disabled" ], logger.infos
+  end
+
+  test "the client defaults to one built from config when none is supplied" do
+    now = Time.zone.local(2026, 6, 18, 12, 0, 0)
+    default_client = FakeClient.new(state: state)
+    cfg = config
+    handed_solakon = nil
+
+    Solakon::Client.stub(:from_config, ->(solakon) { handed_solakon = solakon; default_client }) do
+      ConfigLoader.stub(:app_config, cfg) do
+        DashboardBroadcaster.stub(:broadcast_live, ->(**) { }) do
+          Solakon::MonitorJob.new.perform(now: now)
+        end
+      end
+    end
+
+    assert_equal [ :read_state ], default_client.calls
+    assert_equal cfg.solakon, handed_solakon
+  end
+
+  test "now defaults to the current time when none is supplied" do
+    client = FakeClient.new(state: state)
+
+    assert_difference -> { Solakon::Reading.count }, 1 do
+      ConfigLoader.stub(:app_config, config) do
+        DashboardBroadcaster.stub(:broadcast_live, ->(**) { }) do
+          Solakon::MonitorJob.new.perform(client: client)
+        end
+      end
+    end
+
+    assert_in_delta Time.current.to_f, Solakon::Reading.last.taken_at.to_f, 5
+  end
+
   test "read failure does not persist and does not control" do
     client = FakeClient.new(fail: true)
     control_calls = []
@@ -165,6 +219,17 @@ class SolakonMonitorJobTest < ActiveSupport::TestCase
 
     assert_equal [ :read_state ], client.calls
     assert_empty control_calls
+  end
+
+  test "a Modbus read failure is logged with the underlying error message" do
+    client = FakeClient.new(fail: true)
+    logger = RecordingLogger.new
+
+    Rails.stub(:logger, logger) do
+      run_job(client: client, cfg: config(control_enabled: true))
+    end
+
+    assert_equal [ "solakon_monitor: Modbus failure: down" ], logger.warnings
   end
 
   test "successful read with control_enabled true hands the control tick the reading it just took" do
@@ -249,6 +314,67 @@ class SolakonMonitorJobTest < ActiveSupport::TestCase
 
     assert_equal [ :read_state ], client.calls
     assert_empty control_calls
+  end
+
+  # Two invalid attributes so the join separator between them is observable.
+  test "an invalid reading logs every validation error, comma separated" do
+    now = Time.zone.local(2026, 6, 18, 12, 0, 0)
+    invalid_state = Solakon::Client::State.new(
+      battery_soc: 150,
+      active_power_w: 123,
+      pv_power_w: nil,
+      battery_power_w: -78,
+      battery_temperature_c: 42.3
+    )
+    client = FakeClient.new(state: invalid_state)
+    logger = RecordingLogger.new
+    expected_reading = Solakon::Reading.from_state(invalid_state, taken_at: now)
+    expected_reading.valid?
+    expected_errors = expected_reading.errors.full_messages
+    expected_message = "solakon_monitor: invalid reading: #{expected_errors.join(", ")}"
+
+    Rails.stub(:logger, logger) do
+      run_job(client: client, cfg: config(control_enabled: true), now: now)
+    end
+
+    assert_operator expected_errors.length, :>=, 2
+    assert_equal [ expected_message ], logger.warnings
+  end
+
+  test "a broadcast failure is logged with the underlying error message" do
+    client = FakeClient.new(state: state)
+    broadcaster = FakeBroadcaster.new(fail: true)
+    logger = RecordingLogger.new
+
+    Rails.stub(:logger, logger) do
+      run_job(client: client, cfg: config(control_enabled: false), broadcaster: broadcaster)
+    end
+
+    assert_equal [ "solakon_monitor: dashboard broadcast failed: broadcast down" ], logger.warnings
+  end
+
+  test "the control tick receives the plug roster, the client, the control state and now, not stand-ins" do
+    now = Time.zone.local(2026, 6, 18, 12, 0, 0)
+    cfg = config(control_enabled: true)
+    client = FakeClient.new(state: state)
+    received_roster = nil
+    received_client = nil
+    received_control = nil
+    received_now = nil
+    block = lambda do |reading:, roster:, client:, control:, now:|
+      received_roster = roster
+      received_client = client
+      received_control = control
+      received_now = now
+      Solakon::Control::Outcome.paused
+    end
+
+    run_job(client: client, cfg: cfg, now: now, &block)
+
+    assert_same cfg.plug_roster, received_roster
+    assert_same client, received_client
+    assert_equal Solakon::Control::State.current, received_control
+    assert_equal now, received_now
   end
 
   test "broadcast failure does not block the control tick" do

@@ -3,9 +3,12 @@ module Solakon
     module Types
       include Dry.Types()
 
+      # Power in watts, however it was counted.
+      Watt = Dry::Types["coercible.float"]
+
       # nil is an answer here, not a missing value: "no fresh measurement".
       # Reading it as 0 W would tell the policy the household draws nothing.
-      Watt = Dry::Types["coercible.float"].optional
+      MeasuredWatt = Watt.optional
 
       # Watts the inverter is asked to put out. nil before the first tick has
       # written one.

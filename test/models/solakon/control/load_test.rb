@@ -21,6 +21,14 @@ class ControlLoadTest < ActiveSupport::TestCase
     assert_nil Solakon::Control::Load.new(current_w: nil, floor_w: 85.0).current_w
   end
 
+  # The floor always has a number, even if it is 0.0 — a fallback that can be
+  # absent is not a fallback.
+  test "a load without a floor is not a load" do
+    assert_raises(Dry::Struct::Error) do
+      Solakon::Control::Load.new(current_w: 800.0, floor_w: nil)
+    end
+  end
+
   test "watts arrive as watts however they were counted" do
     estimate = Solakon::Control::Load.new(current_w: 800, floor_w: "85")
 

@@ -59,12 +59,37 @@ class ControlTickTest < ActiveSupport::TestCase
   test "applies a target derived from measured consumption, with the min_soc guard" do
     measuring(250)
     client = FakeClient.new
+    reading_taken = reading
 
-    outcome = tick(client: client)
+    outcome = tick(client: client, reading: reading_taken)
 
     assert_equal [ [ :apply_power, 250, 10 ] ], client.calls
     assert_equal :applied, outcome.status
     assert_equal :normal, outcome.decision.state
+    # The outcome must report the very reading the caller took, not a stand-in.
+    assert_same reading_taken, outcome.reading
+  end
+
+  test "the cache defaults to Rails.cache when none is supplied" do
+    measuring(250)
+    client = FakeClient.new
+
+    outcome = Solakon::Control::Tick.call(reading: reading, roster: roster, client: client,
+                                          control: @control, now: NOW)
+
+    assert_equal :applied, outcome.status
+  end
+
+  # A cache the caller supplies has to be the one the load estimate actually
+  # reads from — not silently swapped for Rails.cache's own.
+  test "the tick's own cache reaches the load reader, not Rails.cache's" do
+    @cache.write(Solakon::Control::LoadReader::FLOOR_CACHE_KEY, 300.0)
+    client = FakeClient.new
+
+    outcome = tick(client: client)
+
+    assert_in_delta 300.0, outcome.load.floor_w
+    assert_equal 300, outcome.decision.target_w
   end
 
   test "stores the applied decision with the time it was written" do
@@ -96,6 +121,19 @@ class ControlTickTest < ActiveSupport::TestCase
     measuring(700)
     @control.store!(Solakon::Control::Decision.new(state: :normal, target_w: 100, trim: false),
                     at: NOW - Solakon::Client::REMOTE_TIMEOUT_S.seconds)
+    client = FakeClient.new
+
+    tick(client: client)
+
+    assert_equal [ [ :apply_power, 700, 10 ] ], client.calls
+  end
+
+  # Well past the watchdog, not just exactly at its edge — a boundary-only
+  # check can't tell "older than" from "equal to".
+  test "a decision well older than the inverter watchdog is not continued either" do
+    measuring(700)
+    @control.store!(Solakon::Control::Decision.new(state: :normal, target_w: 100, trim: false),
+                    at: NOW - Solakon::Client::REMOTE_TIMEOUT_S.seconds - 60.seconds)
     client = FakeClient.new
 
     tick(client: client)
@@ -145,6 +183,7 @@ class ControlTickTest < ActiveSupport::TestCase
     refute_includes client.calls, :release
     assert_equal :failed, outcome.status
     assert_equal 1, outcome.failures
+    assert_equal "down", outcome.error
     assert_nil @control.reload.stored
   end
 
@@ -157,8 +196,12 @@ class ControlTickTest < ActiveSupport::TestCase
     outcomes = 3.times.map { tick(client: client) }
 
     assert_equal [ :failed, :failed, :released ], outcomes.map(&:status)
+    assert_equal [ 1, 2, 3 ], outcomes.map(&:failures)
+    assert_equal [ "down" ] * 3, outcomes.map(&:error)
     assert_equal 1, client.calls.count(:release)
     assert_nil @control.reload.stored
+    # Releasing control also resets the counter it rode in on.
+    assert_equal 0, @control.reload.failures
   end
 
   test "a successful tick resets the failure count" do
@@ -183,6 +226,7 @@ class ControlTickTest < ActiveSupport::TestCase
     outcomes = 3.times.map { tick(client: client) }
 
     assert_equal :failed, outcomes.last.status
+    assert_equal 3, outcomes.last.failures
     assert_equal "down; could not relinquish remote control: release down", outcomes.last.error
     assert_not_nil @control.reload.stored
   end

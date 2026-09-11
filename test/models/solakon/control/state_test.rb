@@ -1,6 +1,8 @@
 require "test_helper"
 
 class ControlStateTest < ActiveSupport::TestCase
+  cover "Solakon::Control::State*"
+
   setup { Solakon::Control::State.delete_all }
 
   def decision(state: :surplus, target_w: 500, trim: false)
@@ -64,6 +66,17 @@ class ControlStateTest < ActiveSupport::TestCase
 
     assert_equal 0, Solakon::Control::State.current.failures
   end
+
+  test "reset_failures! is a no-op when the count is already zero" do
+    state = Solakon::Control::State.new
+    called = false
+
+    state.stub(:update!, ->(**) { called = true }) do
+      state.reset_failures!
+    end
+
+    refute called
+  end
 end
 
 class ControlStateStoredTest < ActiveSupport::TestCase
@@ -111,6 +124,21 @@ class ControlStateStoredTest < ActiveSupport::TestCase
     end
 
     assert_equal({ decision_state: "probe", trim: true, last_target_w: 150, last_decision_at: now }, written)
+  end
+
+  # A decision that isn't trimming must be written as trim: false, not merely
+  # as "some decision was passed" (any decision object is truthy).
+  test "store! writes a non-trimming decision's trim as false" do
+    now = Time.zone.local(2026, 9, 11, 12, 0, 0)
+    decision = Solakon::Control::Decision.new(state: :normal, target_w: 150, trim: false)
+    state = Solakon::Control::State.new
+    written = nil
+
+    state.stub(:update!, ->(**attributes) { written = attributes }) do
+      state.store!(decision, at: now)
+    end
+
+    assert_equal({ decision_state: "normal", trim: false, last_target_w: 150, last_decision_at: now }, written)
   end
 
   test "clear! clears every stored field" do

@@ -101,4 +101,69 @@ class ControlLoadReaderTest < ActiveSupport::TestCase
     assert_nil reader.current_consumption_w
     assert_equal 0.0, reader.guaranteed_floor_w
   end
+
+  test "now and offline_after_s default sensibly when omitted" do
+    Plugs::Sample.create!(plug_id: "fridge", ts: Time.now.to_i - 5, apower_w: 120, aenergy_wh: 1)
+
+    reader = Solakon::Control::LoadReader.new(roster: roster)
+
+    assert_in_delta 120.0, reader.current_consumption_w
+  end
+
+  test "cache defaults to Rails.cache when none is supplied" do
+    now = Time.at(1_000_000)
+    Plugs::Sample.create!(plug_id: "fridge", ts: now.to_i - 5, apower_w: 120, aenergy_wh: 1)
+
+    reader = Solakon::Control::LoadReader.new(roster: roster, now: now, offline_after_s: 120)
+
+    assert_in_delta 120.0, reader.load_estimate.current_w
+  end
+
+  # The floor is a household draw, not a whole-roster one — the producer's
+  # own output must never count towards it.
+  test "guaranteed_floor_w only sums consumer plugs, never the roster's producer" do
+    now = Time.at(1_000_000)
+    Plugs::Sample.create!(plug_id: "fridge", ts: now.to_i - 100, apower_w: 100, aenergy_wh: 1)
+    Plugs::Sample.create!(plug_id: "tv",     ts: now.to_i - 100, apower_w: 50,  aenergy_wh: 1)
+    Plugs::Sample.create!(plug_id: "bkw",    ts: now.to_i - 100, apower_w: 900, aenergy_wh: 1)
+    reader = Solakon::Control::LoadReader.new(roster: roster, now: now)
+
+    assert_in_delta 150.0, reader.guaranteed_floor_w
+  end
+
+  test "guaranteed_floor_w includes a sample taken at the exact current second" do
+    now = Time.at(1_000_000)
+    Plugs::Sample.create!(plug_id: "fridge", ts: now.to_i, apower_w: 300, aenergy_wh: 1)
+    reader = Solakon::Control::LoadReader.new(roster: roster, now: now)
+
+    assert_in_delta 300.0, reader.guaranteed_floor_w
+  end
+
+  test "guaranteed_floor_w excludes a sample from one second after the current time" do
+    now = Time.at(1_000_000)
+    Plugs::Sample.create!(plug_id: "fridge", ts: now.to_i - 100, apower_w: 300, aenergy_wh: 1)
+    Plugs::Sample.create!(plug_id: "fridge", ts: now.to_i + 1,   apower_w: 0,   aenergy_wh: 1)
+    reader = Solakon::Control::LoadReader.new(roster: roster, now: now)
+
+    assert_in_delta 300.0, reader.guaranteed_floor_w
+  end
+
+  test "guaranteed_floor_w takes the minimum bucket, not merely the first one" do
+    now = Time.at(1_000_000)
+    # earlier bucket (high total): -1000s
+    Plugs::Sample.create!(plug_id: "fridge", ts: now.to_i - 1000, apower_w: 300, aenergy_wh: 1)
+    # later bucket (low total): -100s
+    Plugs::Sample.create!(plug_id: "fridge", ts: now.to_i - 100, apower_w: 50, aenergy_wh: 1)
+    reader = Solakon::Control::LoadReader.new(roster: roster, now: now)
+
+    assert_in_delta 50.0, reader.guaranteed_floor_w
+  end
+
+  test "current_consumption_w honors a custom staleness window, not Measurement's own default" do
+    now = Time.at(1_000_000)
+    Plugs::Sample.create!(plug_id: "fridge", ts: now.to_i - 50, apower_w: 200, aenergy_wh: 1)
+    reader = Solakon::Control::LoadReader.new(roster: roster, now: now, offline_after_s: 10)
+
+    assert_nil reader.current_consumption_w
+  end
 end

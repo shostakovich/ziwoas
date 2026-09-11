@@ -35,7 +35,7 @@ module Solakon
       end
 
       def store!(decision, at:)
-        update!(decision_state: decision.state.to_s, trim: !!decision.trim,
+        update!(decision_state: decision.state.to_s, trim: decision.trim,
                 last_target_w: decision.target_w, last_decision_at: at)
       end
 
