@@ -1,7 +1,7 @@
 require "test_helper"
 
-class ZeroExportControllerTest < ActiveSupport::TestCase
-  cover "ZeroExportController*"
+class ControlPolicyTest < ActiveSupport::TestCase
+  cover "Solakon::Control::Policy*"
 
   def reading(soc:, pv:, temp: 30.0, battery: 0)
     Solakon::Reading.new(taken_at: Time.current, active_power_w: 0, pv_power_w: pv,
@@ -9,15 +9,15 @@ class ZeroExportControllerTest < ActiveSupport::TestCase
   end
 
   def load(current:, floor: 85.0)
-    LoadEstimate.new(current_w: current, floor_w: floor)
+    Solakon::Control::Load.new(current_w: current, floor_w: floor)
   end
 
   def decide(reading:, load:, previous: nil)
-    ZeroExportController.decide(reading: reading, load: load, previous: previous)
+    Solakon::Control::Policy.decide(reading: reading, load: load, previous: previous)
   end
 
   def previous(state:, target_w: nil, trim: false)
-    ZeroExportController::Decision.new(state: state, target_w: target_w, trim: trim)
+    Solakon::Control::Decision.new(state: state, target_w: target_w, trim: trim)
   end
 
   test "low soc entry starts from the derated PV estimate" do
@@ -98,7 +98,7 @@ class ZeroExportControllerTest < ActiveSupport::TestCase
   end
 
   test "previous defaults to nil" do
-    decision = ZeroExportController.decide(
+    decision = Solakon::Control::Policy.decide(
       reading: reading(soc: 55, pv: 100),
       load: load(current: 386)
     )
@@ -363,7 +363,7 @@ class ZeroExportControllerTest < ActiveSupport::TestCase
   end
 
   test "controller helper boundaries are explicit" do
-    controller = ZeroExportController
+    controller = Solakon::Control::Policy
     baseline = 100
     prior = previous(state: :surplus, target_w: 400)
 
@@ -469,7 +469,7 @@ class ZeroExportControllerTest < ActiveSupport::TestCase
   end
 
   test "decision conversion and clamps handle internal boundary values" do
-    controller = ZeroExportController
+    controller = Solakon::Control::Policy
     reading_value = reading(soc: 55, pv: 0)
 
     controller.stub(:protecting?, false) do

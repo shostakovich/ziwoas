@@ -14,7 +14,7 @@ module Solakon
 
       Solakon::Reading.from_state(state, taken_at: now).save!
 
-      ZeroExportTickJob.perform_now(client: client, state: state, reader_now: now) if solakon.control_enabled
+      Solakon::Control::TickJob.perform_now(client: client, state: state, reader_now: now) if solakon.control_enabled
       broadcast_dashboard_refresh
     rescue Solakon::Client::Error => e
       # A read failure aborts here, so control never runs and no setpoint is

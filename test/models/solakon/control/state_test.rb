@@ -1,39 +1,39 @@
 require "test_helper"
 
-class SolakonControlStateTest < ActiveSupport::TestCase
-  setup { SolakonControlState.delete_all if defined?(SolakonControlState) }
+class ControlStateTest < ActiveSupport::TestCase
+  setup { Solakon::Control::State.delete_all if defined?(Solakon::Control::State) }
 
   test "current returns a singleton defaulting to active auto regulation" do
-    state = SolakonControlState.current
+    state = Solakon::Control::State.current
 
-    assert_equal state, SolakonControlState.current
+    assert_equal state, Solakon::Control::State.current
     assert_equal false, state.auto_regulation_paused
     assert state.auto_regulation_active?
   end
 
   test "pause and resume change persistent runtime state and reset the decision" do
-    state = SolakonControlState.current
-    state.remember_decision!(ZeroExportController::Decision.new(state: :surplus, target_w: 500, trim: false))
+    state = Solakon::Control::State.current
+    state.remember_decision!(Solakon::Control::Decision.new(state: :surplus, target_w: 500, trim: false))
 
     state.pause_auto_regulation!
-    assert_not SolakonControlState.current.auto_regulation_active?
+    assert_not Solakon::Control::State.current.auto_regulation_active?
 
     state.resume_auto_regulation!
-    assert SolakonControlState.current.auto_regulation_active?
-    assert_nil SolakonControlState.current.last_decision
+    assert Solakon::Control::State.current.auto_regulation_active?
+    assert_nil Solakon::Control::State.current.last_decision
   end
 
   test "last_decision is nil before the first remembered decision" do
-    assert_nil SolakonControlState.current.last_decision
+    assert_nil Solakon::Control::State.current.last_decision
   end
 
   test "remember_decision! round-trips the decision through the database" do
-    decision = ZeroExportController::Decision.new(state: :protected, target_w: 85, trim: true)
+    decision = Solakon::Control::Decision.new(state: :protected, target_w: 85, trim: true)
     now = Time.zone.local(2026, 9, 11, 12, 0, 0)
 
-    SolakonControlState.current.remember_decision!(decision, at: now)
+    Solakon::Control::State.current.remember_decision!(decision, at: now)
 
-    previous = SolakonControlState.current.last_decision(at: now + 149.seconds)
+    previous = Solakon::Control::State.current.last_decision(at: now + 149.seconds)
     assert_equal :protected, previous.state
     assert_equal 85, previous.target_w
     assert previous.trim
@@ -41,16 +41,16 @@ class SolakonControlStateTest < ActiveSupport::TestCase
 
   test "last decision expires with the inverter watchdog" do
     now = Time.zone.local(2026, 9, 11, 12, 0, 0)
-    decision = ZeroExportController::Decision.new(state: :surplus, target_w: 500, trim: false)
-    state = SolakonControlState.current
+    decision = Solakon::Control::Decision.new(state: :surplus, target_w: 500, trim: false)
+    state = Solakon::Control::State.current
     state.remember_decision!(decision, at: now)
 
     assert_nil state.last_decision(at: now + Solakon::Client::REMOTE_TIMEOUT_S.seconds)
   end
 
   test "reset_decision clears all controller memory" do
-    state = SolakonControlState.current
-    state.remember_decision!(ZeroExportController::Decision.new(state: :probe, target_w: 150, trim: false))
+    state = Solakon::Control::State.current
+    state.remember_decision!(Solakon::Control::Decision.new(state: :probe, target_w: 150, trim: false))
 
     state.reset_decision!
 
@@ -61,25 +61,25 @@ class SolakonControlStateTest < ActiveSupport::TestCase
   end
 
   test "failure counter increments, returns the count, and resets" do
-    state = SolakonControlState.current
+    state = Solakon::Control::State.current
 
     assert_equal 1, state.register_failure!
     assert_equal 2, state.register_failure!
 
     state.reset_failures!
 
-    assert_equal 1, SolakonControlState.current.register_failure!
+    assert_equal 1, Solakon::Control::State.current.register_failure!
   end
 end
 
-class SolakonControlStateDecisionTest < ActiveSupport::TestCase
-  cover "SolakonControlState#last_decision"
-  cover "SolakonControlState#remember_decision!"
-  cover "SolakonControlState#reset_decision!"
-  cover "SolakonControlState#resume_auto_regulation!"
+class ControlStateDecisionTest < ActiveSupport::TestCase
+  cover "Solakon::Control::State#last_decision"
+  cover "Solakon::Control::State#remember_decision!"
+  cover "Solakon::Control::State#reset_decision!"
+  cover "Solakon::Control::State#resume_auto_regulation!"
 
   def state_with(control_state: "surplus", trim: false, target_w: 500, decided_at:)
-    SolakonControlState.new(
+    Solakon::Control::State.new(
       control_state: control_state,
       trim: trim,
       last_target_w: target_w,
@@ -98,7 +98,7 @@ class SolakonControlStateDecisionTest < ActiveSupport::TestCase
     now = Time.zone.local(2026, 9, 11, 12, 0, 0)
     state = state_with(control_state: "protected", trim: true, target_w: 85, decided_at: now)
 
-    assert_equal ZeroExportController::Decision.new(state: :protected, target_w: 85, trim: true),
+    assert_equal Solakon::Control::Decision.new(state: :protected, target_w: 85, trim: true),
                  state.last_decision(at: now + Solakon::Client::REMOTE_TIMEOUT_S.seconds - 1.second)
   end
 
@@ -121,8 +121,8 @@ class SolakonControlStateDecisionTest < ActiveSupport::TestCase
 
   test "remember_decision writes the complete snapshot and timestamp" do
     now = Time.zone.local(2026, 9, 11, 12, 0, 0)
-    decision = ZeroExportController::Decision.new(state: :probe, target_w: 150, trim: true)
-    state = SolakonControlState.new
+    decision = Solakon::Control::Decision.new(state: :probe, target_w: 150, trim: true)
+    state = Solakon::Control::State.new
     written = nil
 
     state.stub(:update!, ->(**attributes) { written = attributes }) do
@@ -134,8 +134,8 @@ class SolakonControlStateDecisionTest < ActiveSupport::TestCase
 
   test "remember_decision defaults to the current time" do
     now = Time.zone.local(2026, 9, 11, 12, 0, 0)
-    decision = ZeroExportController::Decision.new(state: :normal, target_w: 100, trim: false)
-    state = SolakonControlState.new
+    decision = Solakon::Control::Decision.new(state: :normal, target_w: 100, trim: false)
+    state = Solakon::Control::State.new
     written = nil
 
     travel_to(now) do
@@ -149,7 +149,7 @@ class SolakonControlStateDecisionTest < ActiveSupport::TestCase
   end
 
   test "reset_decision clears every controller field" do
-    state = SolakonControlState.new
+    state = Solakon::Control::State.new
     written = nil
 
     state.stub(:update!, ->(**attributes) { written = attributes }) { state.reset_decision! }
@@ -158,7 +158,7 @@ class SolakonControlStateDecisionTest < ActiveSupport::TestCase
   end
 
   test "resume enables automation and clears every controller field" do
-    state = SolakonControlState.new
+    state = Solakon::Control::State.new
     written = nil
 
     state.stub(:update!, ->(**attributes) { written = attributes }) { state.resume_auto_regulation! }

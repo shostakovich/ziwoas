@@ -21,7 +21,7 @@ class SolakonControlsControllerTest < ActionDispatch::IntegrationTest
   Sol = Struct.new(:host, :port, :unit_id, :monitoring_enabled, :control_enabled, keyword_init: true)
   Cfg = Struct.new(:solakon, keyword_init: true)
 
-  setup { SolakonControlState.delete_all }
+  setup { Solakon::Control::State.delete_all }
 
   def config(control_enabled: true, solakon: true)
     Cfg.new(solakon: (Sol.new(host: "h", port: 502, unit_id: 1, monitoring_enabled: true, control_enabled: control_enabled) if solakon))
@@ -60,7 +60,7 @@ class SolakonControlsControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_equal false, response.parsed_body["active"]
-    assert_not SolakonControlState.current.auto_regulation_active?
+    assert_not Solakon::Control::State.current.auto_regulation_active?
 
     ConfigLoader.stub(:app_config, config(control_enabled: true)) do
       patch "/solakon/auto_regulation", params: { active: "true" }, as: :json
@@ -68,11 +68,11 @@ class SolakonControlsControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_equal true, response.parsed_body["active"]
-    assert SolakonControlState.current.auto_regulation_active?
+    assert Solakon::Control::State.current.auto_regulation_active?
   end
 
   test "auto regulation cannot enable when config disables control" do
-    SolakonControlState.current.pause_auto_regulation!
+    Solakon::Control::State.current.pause_auto_regulation!
 
     ConfigLoader.stub(:app_config, config(control_enabled: false)) do
       patch "/solakon/auto_regulation", params: { active: "true" }, as: :json
@@ -80,6 +80,6 @@ class SolakonControlsControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :forbidden
     assert_equal "in Konfiguration deaktiviert", response.parsed_body["error"]
-    assert_not SolakonControlState.current.auto_regulation_active?
+    assert_not Solakon::Control::State.current.auto_regulation_active?
   end
 end

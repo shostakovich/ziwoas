@@ -79,7 +79,7 @@ class SolakonMonitorJobTest < ActiveSupport::TestCase
     ConfigLoader.stub(:app_config, cfg) do
       DashboardBroadcaster.stub(:broadcast_live, broadcaster.method(:broadcast_live)) do
         if block
-          ZeroExportTickJob.stub(:perform_now, block) do
+          Solakon::Control::TickJob.stub(:perform_now, block) do
             Solakon::MonitorJob.new.perform(client: client, now: now)
           end
         else
@@ -144,7 +144,7 @@ class SolakonMonitorJobTest < ActiveSupport::TestCase
     assert_empty control_calls
   end
 
-  test "successful read with control_enabled true triggers zero export tick with state" do
+  test "successful read with control_enabled true triggers the control tick with state" do
     current_state = state
     client = FakeClient.new(state: current_state)
     broadcaster = FakeBroadcaster.new
@@ -182,7 +182,7 @@ class SolakonMonitorJobTest < ActiveSupport::TestCase
     assert_empty control_calls
   end
 
-  test "broadcast failure does not block zero export tick" do
+  test "broadcast failure does not block the control tick" do
     current_state = state
     client = FakeClient.new(state: current_state)
     broadcaster = FakeBroadcaster.new(fail: true)

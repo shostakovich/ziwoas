@@ -36,21 +36,21 @@
 | Unit / Slave ID | `solakon.unit_id`, Default **1** | s. o. |
 | Stale-Schwelle | `solakon.stale_after_s`, Default **120 s** | s. o. |
 | Monitoring an? | `solakon.monitoring_enabled`, Default **true** | s. o. |
-| Steuerung (Nulleinspeisung) an? | `solakon.control_enabled`, Default **false** | s. o. |
+| Regelung an? | `solakon.control_enabled`, Default **false** | s. o. |
 
 > **Hinweis Funktionscodes:** Das PDF nennt keine FC-Nummern, Unit-ID oder Baudrate (Modbus TCP).
 > Die Angaben oben stammen aus unserem live verifizierten Code, nicht aus dem PDF (vgl. [§3](#3-abweichungen--lücken-zwischen-code-und-pdf)).
 
-**Datenfluss** ([`app/jobs/solakon_monitor_job.rb`](../app/jobs/solakon_monitor_job.rb) → [`app/jobs/zero_export_tick_job.rb`](../app/jobs/zero_export_tick_job.rb)):
+**Datenfluss** ([`app/jobs/solakon/monitor_job.rb`](../app/jobs/solakon/monitor_job.rb) → [`app/jobs/solakon/control/tick_job.rb`](../app/jobs/solakon/control/tick_job.rb)):
 
 ```
 Modbus TCP (Solakon ONE)
   → Solakon::Client#read_state            (FC03)
     → Solakon::Reading.create!            (Persistenz, app/models/solakon_reading.rb)
-    → ZeroExportTickJob (wenn control_enabled)
-        → ConsumptionReader (Live-Last, 24h-Floor, Nacht-Basis P20)
+    → Solakon::Control::TickJob (wenn control_enabled)
+        → Solakon::Control::LoadReader (Live-Last, 24h-Floor, Nacht-Basis P20)
         → SunWindow (Tag/Nacht, Stunden bis Sonnenaufgang)
-        → ZeroExportController#decide    (reine State-Machine)
+        → Solakon::Control::Policy#decide    (reine State-Machine)
         → Solakon::Client#apply_control!   (FC06/FC16, nur bei Bedarf — Sparse Write)
 ```
 
