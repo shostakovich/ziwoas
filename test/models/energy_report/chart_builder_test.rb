@@ -87,6 +87,176 @@ class EnergyReport::ChartBuilderTest < ActiveSupport::TestCase
     assert_equal [ "pv" ], detail.fetch(:series).map { |series| series.fetch(:plug_id) }
   end
 
+  test "sample detail chart excludes buckets from outside the requested day" do
+    write_5min(plug_id: "pv", date_s: "2026-04-10", offset_min: 0, avg_w: -240.0)
+    # Adjacent day noise — must not leak into a single-day detail window.
+    write_5min(plug_id: "pv", date_s: "2026-04-11", offset_min: 0, avg_w: -999.0)
+
+    detail = payload_for(
+      daily_points: [ daily_point("2026-04-10") ], rows: [],
+      start_date: Date.new(2026, 4, 10), end_date: Date.new(2026, 4, 10)
+    ).fetch(:detail)
+
+    assert_equal [ 240.0 ], series_data(detail, "pv")
+  end
+
+  # `local_midnight_utc` window boundaries must come from the ChartBuilder's
+  # own configured zone, not the suite's Europe/Berlin Time.zone default.
+  test "sample detail chart window boundaries use the configured timezone, not the global default" do
+    builder = EnergyReport::ChartBuilder.new(
+      plugs: @plugs, timezone: TZInfo::Timezone.get("America/New_York"), store: EnergyReport::Store.new
+    )
+    # America/New_York midnight on May 1st is 04:00 UTC. A bucket one hour
+    # earlier must stay outside that day's window, but would fall inside it
+    # under the suite's Europe/Berlin default (starts 22:00 UTC April 30th).
+    Plugs::Sample5min.create!(
+      plug_id: "pv", bucket_ts: Time.utc(2026, 5, 1, 3).to_i,
+      avg_power_w: -240.0, energy_delta_wh: 20.0, sample_count: 1
+    )
+
+    detail = builder.payload(
+      daily_points: [ daily_point("2026-05-01") ], rows: [],
+      range: { start_date: Date.new(2026, 5, 1), end_date: Date.new(2026, 5, 1) },
+      detail_range: { start_date: Date.new(2026, 5, 1), end_date: Date.new(2026, 5, 1) }
+    ).fetch(:detail)
+
+    assert_equal [], detail.fetch(:series)
+  end
+
+  # `detail_label` must format timestamps in the ChartBuilder's own
+  # configured zone (America/New_York here), not the suite's Europe/Berlin
+  # Time.zone default — the two would otherwise silently agree.
+  test "sample detail chart labels format time as HH:MM within a single day, in the configured timezone" do
+    builder = EnergyReport::ChartBuilder.new(
+      plugs: @plugs, timezone: TZInfo::Timezone.get("America/New_York"), store: EnergyReport::Store.new
+    )
+    # 16:00 / 16:05 UTC is 12:00 / 12:05 EDT.
+    Plugs::Sample5min.create!(
+      plug_id: "pv", bucket_ts: Time.utc(2026, 5, 1, 16, 0).to_i,
+      avg_power_w: -240.0, energy_delta_wh: 20.0, sample_count: 1
+    )
+    Plugs::Sample5min.create!(
+      plug_id: "pv", bucket_ts: Time.utc(2026, 5, 1, 16, 5).to_i,
+      avg_power_w: -240.0, energy_delta_wh: 20.0, sample_count: 1
+    )
+
+    detail = builder.payload(
+      daily_points: [ daily_point("2026-05-01") ], rows: [],
+      range: { start_date: Date.new(2026, 5, 1), end_date: Date.new(2026, 5, 1) },
+      detail_range: { start_date: Date.new(2026, 5, 1), end_date: Date.new(2026, 5, 1) }
+    ).fetch(:detail)
+
+    assert_equal [ "12:00", "12:05" ], detail.fetch(:labels)
+  end
+
+  test "sample detail chart labels format time as DD.MM. HH:MM across multiple days, in the configured timezone" do
+    builder = EnergyReport::ChartBuilder.new(
+      plugs: @plugs, timezone: TZInfo::Timezone.get("America/New_York"), store: EnergyReport::Store.new
+    )
+    # 16:00 UTC is 12:00 EDT on both days.
+    Plugs::Sample5min.create!(
+      plug_id: "pv", bucket_ts: Time.utc(2026, 5, 1, 16, 0).to_i,
+      avg_power_w: -240.0, energy_delta_wh: 20.0, sample_count: 1
+    )
+    Plugs::Sample5min.create!(
+      plug_id: "pv", bucket_ts: Time.utc(2026, 5, 2, 16, 0).to_i,
+      avg_power_w: -240.0, energy_delta_wh: 20.0, sample_count: 1
+    )
+
+    detail = builder.payload(
+      daily_points: [ daily_point("2026-05-01"), daily_point("2026-05-02") ], rows: [],
+      range: { start_date: Date.new(2026, 5, 1), end_date: Date.new(2026, 5, 2) },
+      detail_range: { start_date: Date.new(2026, 5, 1), end_date: Date.new(2026, 5, 2) }
+    ).fetch(:detail)
+
+    assert_equal [ "01.05. 12:00", "02.05. 12:00" ], detail.fetch(:labels)
+  end
+
+  # `detail_icons_one_per_day` picks the icon for exactly the bucket that
+  # lands on local noon, in the ChartBuilder's own configured zone — and
+  # only when a matching weather hour actually exists.
+  test "multi-day detail weather overlay places one icon only at local noon, only where weather exists" do
+    weather_loader = Struct.new(:hourly_points) do
+      def hourly(_start_date, _end_date) = hourly_points
+      def daily(_start_date, _end_date) = {}
+    end.new(
+      [
+        # 11:00 EDT — must be ignored: not noon, even though weather exists for it.
+        { ts: Time.utc(2026, 5, 1, 15).to_i, solar_w_per_m2: 100.0, asset_name: "eleven.webp", alt: "cloudy" },
+        # 12:00 EDT on day 1 — the one bucket that should get an icon.
+        { ts: Time.utc(2026, 5, 1, 16).to_i, solar_w_per_m2: 400.0, asset_name: "day1.webp",   alt: "clear-day" }
+        # Day 2's noon hour is deliberately missing weather data.
+      ]
+    )
+    builder = EnergyReport::ChartBuilder.new(
+      plugs: @plugs, timezone: TZInfo::Timezone.get("America/New_York"),
+      store: EnergyReport::Store.new, weather_loader: weather_loader
+    )
+    # index 0: 11:00 EDT, not noon.
+    Plugs::Sample5min.create!(
+      plug_id: "pv", bucket_ts: Time.utc(2026, 5, 1, 15, 0).to_i,
+      avg_power_w: -240.0, energy_delta_wh: 20.0, sample_count: 1
+    )
+    # index 1: 12:00 EDT, noon — the one that should carry an icon.
+    Plugs::Sample5min.create!(
+      plug_id: "pv", bucket_ts: Time.utc(2026, 5, 1, 16, 0).to_i,
+      avg_power_w: -240.0, energy_delta_wh: 20.0, sample_count: 1
+    )
+    # index 2: 12:05 EDT, noon hour but wrong minute.
+    Plugs::Sample5min.create!(
+      plug_id: "pv", bucket_ts: Time.utc(2026, 5, 1, 16, 5).to_i,
+      avg_power_w: -240.0, energy_delta_wh: 20.0, sample_count: 1
+    )
+    # index 3: day 2, 12:00 EDT, noon — but no weather data for this hour.
+    Plugs::Sample5min.create!(
+      plug_id: "pv", bucket_ts: Time.utc(2026, 5, 2, 16, 0).to_i,
+      avg_power_w: -240.0, energy_delta_wh: 20.0, sample_count: 1
+    )
+
+    detail = builder.payload(
+      daily_points: [ daily_point("2026-05-01"), daily_point("2026-05-02") ], rows: [],
+      range: { start_date: Date.new(2026, 5, 1), end_date: Date.new(2026, 5, 2) },
+      detail_range: { start_date: Date.new(2026, 5, 1), end_date: Date.new(2026, 5, 2) }
+    ).fetch(:detail)
+
+    assert_equal(
+      [ { label_index: 1, asset_name: "day1.webp", alt: "clear-day" } ],
+      detail.fetch(:weather).fetch(:icons)
+    )
+  end
+
+  # The weather point must be looked up by its containing hour bucket, not
+  # by the exact bucket timestamp — otherwise a half-hour-offset zone (whose
+  # local noon does not land on a UTC hour boundary) would never match.
+  test "multi-day detail weather overlay looks up the containing hour, not the exact timestamp" do
+    weather_loader = Struct.new(:hourly_points) do
+      def hourly(_start_date, _end_date) = hourly_points
+      def daily(_start_date, _end_date) = {}
+    end.new(
+      [ { ts: Time.utc(2026, 5, 1, 6).to_i, solar_w_per_m2: 300.0, asset_name: "india.webp", alt: "haze" } ]
+    )
+    builder = EnergyReport::ChartBuilder.new(
+      plugs: @plugs, timezone: TZInfo::Timezone.get("Asia/Kolkata"),
+      store: EnergyReport::Store.new, weather_loader: weather_loader
+    )
+    # 06:30 UTC is 12:00 IST (UTC+5:30) — noon, but not on a UTC hour boundary.
+    Plugs::Sample5min.create!(
+      plug_id: "pv", bucket_ts: Time.utc(2026, 5, 1, 6, 30).to_i,
+      avg_power_w: -240.0, energy_delta_wh: 20.0, sample_count: 1
+    )
+
+    detail = builder.payload(
+      daily_points: [ daily_point("2026-05-01"), daily_point("2026-05-02") ], rows: [],
+      range: { start_date: Date.new(2026, 5, 1), end_date: Date.new(2026, 5, 2) },
+      detail_range: { start_date: Date.new(2026, 5, 1), end_date: Date.new(2026, 5, 2) }
+    ).fetch(:detail)
+
+    assert_equal(
+      [ { label_index: 0, asset_name: "india.webp", alt: "haze" } ],
+      detail.fetch(:weather).fetch(:icons)
+    )
+  end
+
   # --- detail chart from daily totals (range longer than seven days) ---
 
   test "daily detail chart averages the metered day over 24 hours" do

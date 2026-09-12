@@ -2,6 +2,8 @@ require "test_helper"
 require "daily_energy_summary_builder"
 
 class DailyEnergySummaryBuilderTest < ActiveSupport::TestCase
+  cover "DailyEnergySummaryBuilder*"
+
   setup do
     Plugs::Sample5min.delete_all
     @plugs = [
@@ -85,6 +87,33 @@ class DailyEnergySummaryBuilderTest < ActiveSupport::TestCase
     assert_in_delta 200 * bucket_h, result.fetch(:produced_wh)
     assert_in_delta 100 * bucket_h, result.fetch(:consumed_wh)
     assert_in_delta 100 * bucket_h, result.fetch(:self_consumed_wh)
+  end
+
+  test "ignores buckets from before the requested local day" do
+    # Just before local midnight — must not leak into the day's window.
+    write_5min(plug_id: "desk", offset_min: -10, avg_w: 999)
+    write_5min(plug_id: "desk", offset_min: 0,   avg_w: 120)
+
+    result = DailyEnergySummaryBuilder.new(plugs: @plugs, timezone: @tz).build(@date)
+
+    assert_in_delta 120.0 * 5 / 60.0, result.fetch(:consumed_wh)
+  end
+
+  # The day window must come from the builder's own configured zone, not the
+  # suite's Europe/Berlin Time.zone default.
+  test "initialize computes the day window in the configured timezone, not the global default" do
+    builder = DailyEnergySummaryBuilder.new(plugs: @plugs, timezone: TZInfo::Timezone.get("America/New_York"))
+    # America/New_York midnight May 1st is 04:00 UTC. A bucket one hour
+    # earlier must stay outside the day, but would fall inside it under the
+    # suite's Europe/Berlin default (starts 22:00 UTC April 30th).
+    Plugs::Sample5min.create!(
+      plug_id: "desk", bucket_ts: Time.utc(2026, 5, 1, 3).to_i,
+      avg_power_w: 120.0, energy_delta_wh: 120.0 * 5 / 60.0, sample_count: 1
+    )
+
+    result = builder.build("2026-05-01")
+
+    assert_in_delta 0.0, result.fetch(:consumed_wh)
   end
 
   test "self-consumption uses avg_power_w even when energy_delta_wh is clipped" do
