@@ -5,7 +5,7 @@ class EnergySummary
 
   def initialize(config:)
     @config     = config
-    @tz         = TZInfo::Timezone.get(config.timezone)
+    @zone       = ActiveSupport::TimeZone[config.timezone]
     @calculator = SavingsCalculator.new(price_eur_per_kwh: config.electricity_price_eur_per_kwh)
   end
 
@@ -29,11 +29,8 @@ class EnergySummary
   private
 
   def today_bounds_utc
-    now_utc     = Time.now.utc
-    local_today = @tz.utc_to_local(now_utc).to_date
-    midnight    = Time.new(local_today.year, local_today.month, local_today.day, 0, 0, 0)
-    start_utc   = @tz.local_to_utc(midnight).to_i
-    [ start_utc, start_utc + 86_400, local_today ]
+    midnight = @zone.now.beginning_of_day
+    [ midnight.to_i, (midnight + 1.day).to_i, midnight.to_date ]
   end
 
   def producer_ids = @config.plug_roster.producer_ids

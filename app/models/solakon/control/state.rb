@@ -1,10 +1,7 @@
 module Solakon
   module Control
-    # Singleton row holding the control loop's runtime state: the user-facing
-    # pause switch plus what the last tick wrote. It lives here and not in
-    # Rails.cache because the policy regulates against it — losing it silently
-    # would change how the loop behaves. The row stores and hands back; what the
-    # stored decision is still worth is decided by the tick.
+    # A row and not Rails.cache: the policy regulates against what is stored here,
+    # so losing it silently would change how the loop behaves.
     class State < ApplicationRecord
       self.table_name = "solakon_control_states"
 
@@ -24,9 +21,6 @@ module Solakon
         update!(paused: false, **CLEARED)
       end
 
-      # What the last tick wrote, or nil before the first one. target_w is the
-      # target the inverter actually received — the trim loop integrates against
-      # what the device got, not against an intention.
       def stored
         return nil if decision_state.blank? || last_decision_at.blank?
 
@@ -49,7 +43,6 @@ module Solakon
         update!(consecutive_failures: 0) unless consecutive_failures.zero?
       end
 
-      # Increments and returns the new count.
       def count_failure!
         update!(consecutive_failures: consecutive_failures + 1)
         consecutive_failures

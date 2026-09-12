@@ -96,4 +96,33 @@ class EnergySummaryTest < ActiveSupport::TestCase
     assert_equal 0.0, summary.autarky_ratio
     assert_equal 0.0, summary.self_consumption_ratio
   end
+
+  test "compute_today excludes samples from beyond today's window" do
+    tz       = TZInfo::Timezone.get("Europe/Berlin")
+    midnight = tz.local_to_utc(Time.parse("#{Date.today} 00:00:00")).to_i
+
+    Plugs::Sample.create!(plug_id: "bkw", ts: midnight + 60,   apower_w: 0, aenergy_wh: 0.0)
+    Plugs::Sample.create!(plug_id: "bkw", ts: midnight + 3600, apower_w: 0, aenergy_wh: 100.0)
+    # Tomorrow, well past the end of today's 24h window — must not feed the delta.
+    Plugs::Sample.create!(plug_id: "bkw", ts: midnight + 90_000, apower_w: 0, aenergy_wh: 99_999.0)
+
+    summary = EnergySummary.new(config: @config).compute_today
+
+    assert_in_delta 100.0, summary.produced.wh
+  end
+
+  # Europe/Berlin 2026-10-25 is 25 hours long: a fixed 86_400-second window
+  # drops the last hour of the day from today's balance.
+  test "compute_today covers all 25 hours of a long DST day" do
+    midnight = 1_792_879_200 # 2026-10-25 00:00 Berlin
+    Plugs::Sample.create!(plug_id: "bkw", ts: midnight + 24 * 3600,        apower_w: 0, aenergy_wh: 1000.0)
+    Plugs::Sample.create!(plug_id: "bkw", ts: midnight + 24 * 3600 + 1800, apower_w: 0, aenergy_wh: 1250.0)
+
+    summary = travel_to(Time.at(midnight + 24 * 3600 + 3000)) do
+      EnergySummary.new(config: @config).compute_today
+    end
+
+    assert_equal "2026-10-25", summary.date
+    assert_in_delta 250.0, summary.produced.wh
+  end
 end

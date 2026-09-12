@@ -1,13 +1,5 @@
 module Solakon
   module Control
-    # One control tick: decide a target from the reading the monitor just took
-    # and write it to the inverter. The target is written every tick — the power
-    # register is volatile, writes are cheap, and each write re-arms the
-    # inverter's 150s remote-control watchdog, so no separate heartbeat or
-    # write-deadband logic is needed.
-    #
-    # Configuration gates stay with the caller; what stays here is everything
-    # that depends on the loop's own runtime state.
     module Tick
       MAX_CONSECUTIVE_FAILURES = 3
 
@@ -28,9 +20,6 @@ module Solakon
         Outcome.applied(decision: decision, load: load, reading: reading)
       end
 
-      # A stored decision only describes the inverter while the inverter is still
-      # holding it. Past the remote-control watchdog the device has fallen back
-      # on its own, so the next tick starts from nothing.
       def self.previous(control, now)
         stored = control.stored
         return nil if stored.nil? || stored.at <= now - Client::REMOTE_TIMEOUT_S.seconds
@@ -38,12 +27,8 @@ module Solakon
         stored.decision
       end
 
-      # Reached for *write* failures; the reading is supplied by the caller, so
-      # read failures abort upstream where the inverter's own watchdog is the
-      # backstop. After repeated write failures we release remote control so the
-      # inverter reverts to its default behaviour. The failed decision is NOT
-      # stored — the trim loop must integrate against targets the inverter
-      # actually received.
+      # Write failures only. The reading is supplied by the caller, so a read failure
+      # never reaches this module.
       def self.after_write_failure(client, control, error)
         failures = control.count_failure!
         return Outcome.failed(failures: failures, error: error.message) if failures < MAX_CONSECUTIVE_FAILURES

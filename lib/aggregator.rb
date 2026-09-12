@@ -11,14 +11,15 @@ class Aggregator
   MAX_PLAUSIBLE_W = EnergyDeltas::MAX_PLAUSIBLE_W
 
   def initialize(timezone:, raw_retention_days: DEFAULT_RAW_RETENTION_DAYS, plugs: nil)
-    @tz = timezone
+    @zone = ActiveSupport::TimeZone[timezone]
     @raw_retention_days = raw_retention_days
     @plugs = plugs
   end
 
   def aggregate_day(date_s)
-    start_ts = @tz.local_to_utc(Time.parse("#{date_s} 00:00:00")).to_i
-    end_ts   = start_ts + 86_400
+    midnight = Date.parse(date_s).in_time_zone(@zone)
+    start_ts = midnight.to_i
+    end_ts   = (midnight + 1.day).to_i
 
     ActiveRecord::Base.transaction do
       Plugs::Sample5min.where(bucket_ts: start_ts..(end_ts - 1)).delete_all
@@ -51,7 +52,7 @@ class Aggregator
 
       if @plugs
         DailyEnergySummary.where(date: date_s).delete_all
-        summary = DailyEnergySummaryBuilder.new(plugs: @plugs, timezone: @tz).build(date_s)
+        summary = DailyEnergySummaryBuilder.new(plugs: @plugs, timezone: @zone).build(date_s)
         DailyEnergySummary.create!(
           date: date_s,
           produced_wh: summary.fetch(:produced_wh),

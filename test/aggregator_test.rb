@@ -5,6 +5,8 @@ require "fileutils"
 require "tmpdir"
 
 class AggregatorTest < ActiveSupport::TestCase
+  cover "Aggregator*"
+
   self.use_transactional_tests = false
 
   setup do
@@ -118,6 +120,61 @@ class AggregatorTest < ActiveSupport::TestCase
     Plugs::Sample.create!(plug_id: "bkw", ts: fresh_ts, apower_w: 2, aenergy_wh: 2)
     @aggregator.purge_old_raw!
     assert_equal [ fresh_ts ], Plugs::Sample.pluck(:ts)
+  end
+
+  test "initialize defaults raw_retention_days to seven days" do
+    aggregator = Aggregator.new(timezone: @tz)
+    kept_ts    = Time.now.to_i - 6 * 86_400
+    purged_ts  = Time.now.to_i - 8 * 86_400
+    Plugs::Sample.create!(plug_id: "bkw", ts: kept_ts,   apower_w: 1, aenergy_wh: 1)
+    Plugs::Sample.create!(plug_id: "bkw", ts: purged_ts, apower_w: 1, aenergy_wh: 1)
+
+    aggregator.purge_old_raw!
+
+    assert_equal [ kept_ts ], Plugs::Sample.pluck(:ts)
+  end
+
+  # The day window must come from the Aggregator's own configured zone, not
+  # the suite's Europe/Berlin Time.zone default.
+  test "aggregate_day computes the day window in the configured timezone, not the global default" do
+    aggregator = Aggregator.new(timezone: TZInfo::Timezone.get("America/New_York"), raw_retention_days: 7)
+    # America/New_York midnight May 1st is 04:00 UTC. Two samples an hour
+    # before that must stay outside the day, but would fall inside it under
+    # the suite's Europe/Berlin default (starts 22:00 UTC April 30th).
+    Plugs::Sample.create!(plug_id: "bkw", ts: Time.utc(2026, 5, 1, 2).to_i, apower_w: 0, aenergy_wh: 100.0)
+    Plugs::Sample.create!(plug_id: "bkw", ts: Time.utc(2026, 5, 1, 3).to_i, apower_w: 0, aenergy_wh: 200.0)
+
+    aggregator.aggregate_day("2026-05-01")
+
+    assert_equal 0, Plugs::Sample5min.count
+    assert_nil Plugs::DailyTotal.find_by(plug_id: "bkw", date: "2026-05-01")
+  end
+
+  test "aggregate_day clears exactly the requested day's 5-minute samples, not more or less" do
+    start_ts = berlin_midnight_utc("2026-04-10")
+    end_ts   = berlin_midnight_utc("2026-04-11")
+
+    Plugs::Sample5min.create!(plug_id: "bkw", bucket_ts: start_ts - 300, avg_power_w: 1, energy_delta_wh: 1, sample_count: 1)
+    Plugs::Sample5min.create!(plug_id: "bkw", bucket_ts: end_ts - 1,     avg_power_w: 1, energy_delta_wh: 1, sample_count: 1)
+    Plugs::Sample5min.create!(plug_id: "bkw", bucket_ts: end_ts,         avg_power_w: 1, energy_delta_wh: 1, sample_count: 1)
+
+    @aggregator.aggregate_day("2026-04-10")
+
+    remaining = Plugs::Sample5min.where(plug_id: "bkw").pluck(:bucket_ts)
+    assert_includes remaining, start_ts - 300, "a bucket from the previous day must survive"
+    assert_includes remaining, end_ts,         "a bucket from the next day must survive"
+    refute_includes remaining, end_ts - 1,     "the last bucket of the requested day must be cleared"
+  end
+
+  test "aggregate_day only clears the requested day's daily_energy_summary row" do
+    plugs = [ ConfigLoader::PlugCfg.new(id: "bkw", name: "BKW", role: :producer, driver: :shelly, ain: nil) ]
+    aggregator = Aggregator.new(timezone: @tz, raw_retention_days: 7, plugs: plugs)
+    DailyEnergySummary.create!(date: "2026-01-01", produced_wh: 1.0, consumed_wh: 1.0, self_consumed_wh: 1.0)
+    seed_day(plug_id: "bkw", date: "2026-04-10", start_energy: 0.0, end_energy: 100.0)
+
+    aggregator.aggregate_day("2026-04-10")
+
+    assert DailyEnergySummary.find_by(date: "2026-01-01"), "an unrelated day's summary must survive"
   end
 
   test "aggregate_day with no samples does not raise" do
@@ -237,5 +294,28 @@ class AggregatorTest < ActiveSupport::TestCase
 
     aggregator.aggregate_day("2026-04-10")
     assert_equal 0, DailyEnergySummary.count
+  end
+
+  # Europe/Berlin 2026-10-25 is 25 hours long, 2026-03-29 only 23.
+  # A fixed 86_400-second window clips the one and overruns the other.
+  test "long DST day aggregates all 25 hours" do
+    start_ts = 1_792_879_200 # 2026-10-25 00:00 Berlin
+    Plugs::Sample.create!(plug_id: "bkw", ts: start_ts + 24 * 3600,        apower_w: 10, aenergy_wh: 100)
+    Plugs::Sample.create!(plug_id: "bkw", ts: start_ts + 24 * 3600 + 1800, apower_w: 10, aenergy_wh: 150)
+
+    @aggregator.aggregate_day("2026-10-25")
+
+    row = Plugs::DailyTotal.find_by!(plug_id: "bkw", date: "2026-10-25")
+    assert_in_delta 50.0, row.energy_wh
+  end
+
+  test "short DST day stops after 23 hours" do
+    start_ts = 1_774_738_800 # 2026-03-29 00:00 Berlin
+    Plugs::Sample.create!(plug_id: "bkw", ts: start_ts + 23 * 3600,        apower_w: 10, aenergy_wh: 100)
+    Plugs::Sample.create!(plug_id: "bkw", ts: start_ts + 23 * 3600 + 1800, apower_w: 10, aenergy_wh: 150)
+
+    @aggregator.aggregate_day("2026-03-29")
+
+    assert_nil Plugs::DailyTotal.find_by(plug_id: "bkw", date: "2026-03-29")
   end
 end

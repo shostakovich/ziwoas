@@ -1,9 +1,5 @@
 module Solakon
   module Control
-    # Reads what the household is drawing from the plug measurements, and the
-    # guaranteed floor to fall back on when none is fresh. The window
-    # aggregation is expensive at the 30s control tick, so the floor is
-    # memoized; the live sum is always read fresh.
     class LoadReader
       FLOOR_WINDOW_S = 24 * 60 * 60
 
@@ -19,6 +15,8 @@ module Solakon
         @cache           = cache
       end
 
+      # The window aggregation is too expensive for a 30s tick, so the floor is
+      # memoized; the live sum is always read fresh.
       def load_estimate
         Load.new(
           current_w: current_consumption_w,
@@ -30,8 +28,7 @@ module Solakon
         Plugs::Measurement.for(@consumer_ids, now: @now, offline_after_s: @offline_after_s).total_w
       end
 
-      # Minimum total 5-min consumption over the last 24h. Computed from raw
-      # samples because samples_5min is only built daily by the Aggregator.
+      # From raw samples, because samples_5min is only built daily by the Aggregator.
       def guaranteed_floor_w
         totals = consumption_per_bucket_w(FLOOR_WINDOW_S)
         totals.empty? ? 0.0 : totals.min

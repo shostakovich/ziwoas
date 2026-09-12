@@ -18,7 +18,7 @@ class WeatherReportLoader
   def initialize(lat:, lon:, timezone: "UTC")
     @lat = lat
     @lon = lon
-    @tz = TZInfo::Timezone.get(timezone)
+    @zone = ActiveSupport::TimeZone[timezone]
   end
 
   # Returns a Hash keyed by ISO date string with per-day weather summary.
@@ -57,8 +57,8 @@ class WeatherReportLoader
   private
 
   def historic_records_in_range(start_date, end_date)
-    start_ts = local_midnight_utc(start_date)
-    end_ts   = local_midnight_utc(end_date + 1)
+    start_ts = local_midnight(start_date)
+    end_ts   = local_midnight(end_date + 1)
     WeatherRecord.historic
                  .for_location(@lat, @lon)
                  .where(timestamp: start_ts...end_ts)
@@ -89,11 +89,10 @@ class WeatherReportLoader
   end
 
   def local_date(timestamp)
-    @tz.utc_to_local(timestamp.utc).to_date
+    timestamp.in_time_zone(@zone).to_date
   end
 
-  def local_midnight_utc(date)
-    local_midnight = Time.new(date.year, date.month, date.day, 0, 0, 0)
-    @tz.local_to_utc(local_midnight)
+  def local_midnight(date)
+    date.in_time_zone(@zone)
   end
 end

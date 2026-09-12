@@ -66,7 +66,6 @@ class ControlTickTest < ActiveSupport::TestCase
     assert_equal [ [ :apply_power, 250, 10 ] ], client.calls
     assert_equal :applied, outcome.status
     assert_equal :normal, outcome.decision.state
-    # The outcome must report the very reading the caller took, not a stand-in.
     assert_same reading_taken, outcome.reading
   end
 
@@ -80,8 +79,6 @@ class ControlTickTest < ActiveSupport::TestCase
     assert_equal :applied, outcome.status
   end
 
-  # A cache the caller supplies has to be the one the load estimate actually
-  # reads from — not silently swapped for Rails.cache's own.
   test "the tick's own cache reaches the load reader, not Rails.cache's" do
     @cache.write(Solakon::Control::LoadReader::FLOOR_CACHE_KEY, 300.0)
     client = FakeClient.new
@@ -115,8 +112,6 @@ class ControlTickTest < ActiveSupport::TestCase
     assert_equal [ [ :apply_power, 440, 10 ] ], client.calls # 240 + the 200 W rise limit
   end
 
-  # Past the inverter's remote-control watchdog the device has dropped back to
-  # its own behaviour, so there is nothing left to continue from.
   test "a decision older than the inverter watchdog is not continued" do
     measuring(700)
     @control.store!(Solakon::Control::Decision.new(state: :normal, target_w: 100, trim: false),
@@ -200,7 +195,6 @@ class ControlTickTest < ActiveSupport::TestCase
     assert_equal [ "down" ] * 3, outcomes.map(&:error)
     assert_equal 1, client.calls.count(:release)
     assert_nil @control.reload.stored
-    # Releasing control also resets the counter it rode in on.
     assert_equal 0, @control.reload.failures
   end
 

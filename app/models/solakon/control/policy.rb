@@ -1,7 +1,5 @@
 module Solakon
   module Control
-    # Pure control policy for the Solakon One. The public interface is one decision
-    # per tick; all ramping and state transitions stay inside this module.
     class Policy
       MAX_OUTPUT_W       = 800
       HOT_OUTPUT_LIMIT_W = 800
@@ -20,7 +18,6 @@ module Solakon
       TRIM_GAIN     = 0.5
       ENTRY_DERATE  = 0.85
 
-      # `previous` is the Decision applied on the last tick (nil on the first).
       def self.decide(reading:, load:, previous: nil)
         state, raw = if protecting?(reading, previous&.state)
           [ :protected, protected_target(reading, load, previous: previous) ]
@@ -33,8 +30,6 @@ module Solakon
                      trim: state == :protected && !reading.soc_at_resume?)
       end
 
-      # Enter protection on a hard limit. Exit when both SoC has resumed and the
-      # battery has cooled below HOT_TEMP_C.
       def self.protecting?(reading, previous_state)
         return true if reading.soc_below_minimum? || reading.battery_hot?
         return false unless previous_state == :protected
@@ -59,8 +54,6 @@ module Solakon
         end
       end
 
-      # Fresh starts use the measured load immediately. Once a target has actually
-      # been written, rises are limited while falls follow the load immediately.
       def self.normal_target(load, previous:)
         demand = load.effective_w.to_f
         return demand unless previous&.target_w
@@ -74,8 +67,6 @@ module Solakon
         if probe_candidate?(reading, baseline)
           [ :probe, baseline + PROBE_STEP_W ]
         elsif reading.battery_soc_pct >= FULL_SOC_PCT && !reading.pv_present?
-          # No headroom for a meaningful probe. Keep normal behavior, but do not
-          # retry until this full-charge episode ends or charging becomes visible.
           [ :probe_blocked, baseline ]
         else
           [ :normal, baseline ]
@@ -121,9 +112,6 @@ module Solakon
         [ state, target ]
       end
 
-      # At a full battery, positive battery power is solar energy that still has to
-      # be redirected. Negative power means the target exceeds available PV. The
-      # normal target remains the floor so measured demand keeps first priority.
       def self.surplus_target(reading, baseline, previous)
         return baseline unless previous&.target_w
 
@@ -157,9 +145,6 @@ module Solakon
         reading.battery_soc_pct >= FULL_SOC_PCT && !reading.pv_present? && baseline < MAX_OUTPUT_W
       end
 
-      # Below resume SoC: closed-loop trim towards slight battery charging. At or
-      # above resume: follow the measured load. Thermal protection always caps the
-      # complete AC output.
       def self.protected_target(reading, load, previous:)
         if reading.soc_at_resume?
           load.effective_w
@@ -176,8 +161,6 @@ module Solakon
         (previous.target_w + TRIM_GAIN * error).clamp(0.0, ceiling)
       end
 
-      # Linear thermal de-rating from full output at HOT_TEMP_C to zero at
-      # CUTOFF_TEMP_C.
       def self.thermal_ceiling_w(reading)
         return MAX_OUTPUT_W if reading.battery_cooled?
 
