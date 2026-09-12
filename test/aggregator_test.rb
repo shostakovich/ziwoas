@@ -238,4 +238,27 @@ class AggregatorTest < ActiveSupport::TestCase
     aggregator.aggregate_day("2026-04-10")
     assert_equal 0, DailyEnergySummary.count
   end
+
+  # Europe/Berlin 2026-10-25 is 25 hours long, 2026-03-29 only 23.
+  # A fixed 86_400-second window clips the one and overruns the other.
+  test "long DST day aggregates all 25 hours" do
+    start_ts = 1_792_879_200 # 2026-10-25 00:00 Berlin
+    Plugs::Sample.create!(plug_id: "bkw", ts: start_ts + 24 * 3600,        apower_w: 10, aenergy_wh: 100)
+    Plugs::Sample.create!(plug_id: "bkw", ts: start_ts + 24 * 3600 + 1800, apower_w: 10, aenergy_wh: 150)
+
+    @aggregator.aggregate_day("2026-10-25")
+
+    row = Plugs::DailyTotal.find_by!(plug_id: "bkw", date: "2026-10-25")
+    assert_in_delta 50.0, row.energy_wh
+  end
+
+  test "short DST day stops after 23 hours" do
+    start_ts = 1_774_738_800 # 2026-03-29 00:00 Berlin
+    Plugs::Sample.create!(plug_id: "bkw", ts: start_ts + 23 * 3600,        apower_w: 10, aenergy_wh: 100)
+    Plugs::Sample.create!(plug_id: "bkw", ts: start_ts + 23 * 3600 + 1800, apower_w: 10, aenergy_wh: 150)
+
+    @aggregator.aggregate_day("2026-03-29")
+
+    assert_nil Plugs::DailyTotal.find_by(plug_id: "bkw", date: "2026-03-29")
+  end
 end

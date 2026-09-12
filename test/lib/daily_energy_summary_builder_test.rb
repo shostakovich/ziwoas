@@ -154,4 +154,24 @@ class DailyEnergySummaryBuilderTest < ActiveSupport::TestCase
     assert_in_delta 0.0,           result.fetch(:consumed_wh)
     assert_in_delta 0.0,           result.fetch(:self_consumed_wh)
   end
+
+  # Europe/Berlin 2026-10-25 is 25 hours long, 2026-03-29 only 23.
+  # A fixed 86_400-second window clips the one and overruns the other.
+  test "long DST day covers all 25 hours" do
+    @midnight = 1_792_879_200 # 2026-10-25 00:00 Berlin
+    write_5min(plug_id: "desk", offset_min: 24 * 60 + 10, avg_w: 120)
+
+    result = DailyEnergySummaryBuilder.new(plugs: @plugs, timezone: @tz).build("2026-10-25")
+
+    assert_in_delta 120.0 * 5 / 60.0, result.fetch(:consumed_wh)
+  end
+
+  test "short DST day stops after 23 hours" do
+    @midnight = 1_774_738_800 # 2026-03-29 00:00 Berlin
+    write_5min(plug_id: "desk", offset_min: 23 * 60 + 10, avg_w: 120)
+
+    result = DailyEnergySummaryBuilder.new(plugs: @plugs, timezone: @tz).build("2026-03-29")
+
+    assert_in_delta 0.0, result.fetch(:consumed_wh)
+  end
 end

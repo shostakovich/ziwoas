@@ -96,4 +96,19 @@ class EnergySummaryTest < ActiveSupport::TestCase
     assert_equal 0.0, summary.autarky_ratio
     assert_equal 0.0, summary.self_consumption_ratio
   end
+
+  # Europe/Berlin 2026-10-25 is 25 hours long: a fixed 86_400-second window
+  # drops the last hour of the day from today's balance.
+  test "compute_today covers all 25 hours of a long DST day" do
+    midnight = 1_792_879_200 # 2026-10-25 00:00 Berlin
+    Plugs::Sample.create!(plug_id: "bkw", ts: midnight + 24 * 3600,        apower_w: 0, aenergy_wh: 1000.0)
+    Plugs::Sample.create!(plug_id: "bkw", ts: midnight + 24 * 3600 + 1800, apower_w: 0, aenergy_wh: 1250.0)
+
+    summary = travel_to(Time.at(midnight + 24 * 3600 + 3000)) do
+      EnergySummary.new(config: @config).compute_today
+    end
+
+    assert_equal "2026-10-25", summary.date
+    assert_in_delta 250.0, summary.produced.wh
+  end
 end

@@ -1,15 +1,14 @@
 require "date"
-require "tzinfo"
 
 class DailyEnergySummaryBuilder
   def initialize(plugs:, timezone:)
     @roster    = Plugs::Roster.wrap(plugs)
-    @timezone  = timezone.is_a?(TZInfo::Timezone) ? timezone : TZInfo::Timezone.get(timezone)
+    @zone      = ActiveSupport::TimeZone[timezone]
   end
 
   def build(date_s)
-    start_ts = @timezone.local_to_utc(Time.parse("#{date_s} 00:00:00")).to_i
-    rows     = Plugs::Sample5min.where(bucket_ts: start_ts...(start_ts + 86_400)).to_a
+    midnight = Date.parse(date_s).in_time_zone(@zone)
+    rows     = Plugs::Sample5min.where(bucket_ts: midnight.to_i...(midnight + 1.day).to_i).to_a
 
     produced_wh, consumed_wh = metered_energy_wh(rows)
 

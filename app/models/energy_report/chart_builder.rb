@@ -3,7 +3,7 @@ class EnergyReport
   class ChartBuilder
     def initialize(plugs:, timezone:, store:, weather_loader: nil)
       @roster = Plugs::Roster.wrap(plugs)
-      @timezone = timezone
+      @zone = ActiveSupport::TimeZone[timezone]
       @store = store
       @weather_loader = weather_loader
     end
@@ -117,12 +117,11 @@ class EnergyReport
     end
 
     def local_midnight_utc(date)
-      local_midnight = Time.new(date.year, date.month, date.day, 0, 0, 0)
-      @timezone.local_to_utc(local_midnight).to_i
+      date.in_time_zone(@zone).to_i
     end
 
     def detail_label(ts, multi_day)
-      local_time = @timezone.utc_to_local(Time.at(ts).utc)
+      local_time = Time.at(ts).in_time_zone(@zone)
       local_time.strftime(multi_day ? "%d.%m. %H:%M" : "%H:%M")
     end
 
@@ -190,7 +189,7 @@ class EnergyReport
 
     def detail_icons_one_per_day(timestamps, by_hour)
       timestamps.map.with_index do |ts, idx|
-        local = @timezone.utc_to_local(Time.at(ts).utc)
+        local = Time.at(ts).in_time_zone(@zone)
         next nil unless local.hour == 12 && local.min == 0
         point = by_hour[hour_bucket_for(ts)]
         next nil unless point
