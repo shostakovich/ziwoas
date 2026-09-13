@@ -25,8 +25,7 @@ module Solakon
     MONTH_LINE_RISE = 4
     MONTH_LABEL_OFFSET = 2
     MONTH_LABEL_LIFT = 6
-    HOUR_LABEL_GAP = 5
-    KWH_LABEL_GAP = 5
+    AXIS_LABEL_GAP = 5
     LABEL_DROP = 3.5
     MONTH_LABEL_DROP = 18
     WEEKDAYS = %w[So Mo Di Mi Do Fr Sa].freeze
@@ -79,7 +78,7 @@ module Solakon
     # phone's media query enlarges them.
     def bar_grid_labels
       bar_grid.map do |tick|
-        Label.new(x: bars_plot.left - KWH_LABEL_GAP, y: number(tick.at + LABEL_DROP), text: tick.value.to_s)
+        Label.new(x: bars_plot.left - AXIS_LABEL_GAP, y: number(tick.at + LABEL_DROP), text: tick.value.to_s)
       end
     end
 
@@ -103,7 +102,7 @@ module Solakon
       step = density == :sparse ? SPARSE_HOUR_STEP : DENSE_HOUR_STEP
 
       hours.step(step).map do |hour|
-        Label.new(x: strip_plot.left - HOUR_LABEL_GAP, y: number(strip_plot.y(hour) + LABEL_DROP), text: hour.to_s)
+        Label.new(x: strip_plot.left - AXIS_LABEL_GAP, y: number(strip_plot.y(hour) + LABEL_DROP), text: hour.to_s)
       end
     end
 
