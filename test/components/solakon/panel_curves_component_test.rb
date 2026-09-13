@@ -102,7 +102,7 @@ class Solakon::PanelCurvesComponentTest < ViewComponent::TestCase
     axis = rendered.css("line.axis").sole
     assert_equal %w[36 696 198 198], %w[x1 x2 y1 y2].map { |name| axis[name] }
 
-    assert_equal [ [ "100", "31", "155.0" ], [ "200", "31", "108.5" ], [ "300", "31", "62.0" ] ],
+    assert_equal [ [ "100", "31", "155" ], [ "200", "31", "108.5" ], [ "300", "31", "62" ] ],
                  rendered.css(".value-labels text").map { |node| [ node.text, node["x"], node["y"] ] }
 
     assert_equal "36,58.5 366,12 696,35.3", rendered.css("polyline.pv1").sole["points"]

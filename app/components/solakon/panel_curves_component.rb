@@ -5,12 +5,14 @@ module Solakon
   class PanelCurvesComponent < ApplicationComponent
     WIDTH = 720
     HEIGHT = 220
-    LEFT = 36
-    # Room at the right edge for the last hour's label, which is centred on
-    # the tick sitting on the plot's edge.
-    RIGHT = 24
-    TOP = 12
-    BOTTOM = 22
+    MARGINS = {
+      top: 12,
+      # Room at the right edge for the last hour's label, which is centred on
+      # the tick sitting on the plot's edge.
+      right: 24,
+      bottom: 22,
+      left: 36
+    }.freeze
     GRID_STEP_W = 100
     MAX_GRID_LINES = 4
     DENSE_HOUR_STEP = 2
@@ -24,9 +26,14 @@ module Solakon
     LABEL_OFFSET = 6
     # How far the lowest name stays clear of the axis.
     LABEL_MARGIN = 4
+    # How far a watt label stays clear of the axis, and how far its baseline
+    # sits under the line it names.
+    VALUE_LABEL_GAP = 5
+    VALUE_LABEL_DROP = 3.5
+    HOUR_LABEL_Y = HEIGHT - 6
 
     Series = Data.define(:key, :label, :segments)
-    Hit = Data.define(:x, :width, :title)
+    Hit = Data.define(:rect, :title)
     Label = Data.define(:x, :y, :text, :key)
 
     def initialize(panels:)
@@ -35,20 +42,12 @@ module Solakon
 
     def empty? = @panels.empty?
 
-    def view_box = "0 0 #{WIDTH} #{HEIGHT}"
-
-    def plot_top = TOP
-
-    def plot_height = HEIGHT - TOP - BOTTOM
-
-    def plot_left = LEFT
-
-    def plot_right = WIDTH - RIGHT
-
-    def baseline_y = number(y(0))
+    def plot
+      @plot ||= Plot.new(width: WIDTH, height: HEIGHT, margins: MARGINS, x: hours, y: 0..max_w)
+    end
 
     def series
-      curves.map { |curve| Series.new(key: curve.key, label: name(curve.key), segments: segments(curve)) }
+      curves.map { |curve| Series.new(key: curve.key, label: name(curve.key), segments: plot.polylines(curve.points)) }
     end
 
     # The names sit at the same hour, pushed apart where two lines run close
@@ -56,33 +55,33 @@ module Solakon
     # off the plot.
     def labels
       placed = spread(curves.filter_map { |curve| starting_label(curve) }.sort_by(&:y))
-      overflow = placed.map(&:y).max.to_f - (y(0) - LABEL_MARGIN)
+      overflow = placed.map(&:y).max.to_f - (plot.bottom - LABEL_MARGIN)
       return placed if placed.empty? || overflow <= 0
 
       placed.map { |label| label.with(y: number(label.y - overflow)) }
     end
 
-    def grid
-      grid_step.step(max_w - 1, grid_step).map do |watts|
-        Label.new(x: LEFT - 5, y: number(y(watts)), text: watts.to_s, key: nil)
+    def grid_lines = grid.map(&:at)
+
+    def value_labels
+      grid.map do |tick|
+        Label.new(x: plot.left - VALUE_LABEL_GAP, y: number(tick.at + VALUE_LABEL_DROP), text: tick.value.to_s, key: nil)
       end
     end
 
     def hour_labels(density)
       step = density == :sparse ? SPARSE_HOUR_STEP : DENSE_HOUR_STEP
 
-      hours.first.step(hours.last, step).map do |hour|
-        Label.new(x: number(x(hour)), y: HEIGHT - 6, text: density == :sparse ? hour.to_s : "#{hour} Uhr", key: nil)
+      plot.x_ticks(hours.step(step)).map do |tick|
+        text = density == :sparse ? tick.value.to_s : "#{tick.value} Uhr"
+        Label.new(x: tick.at, y: HOUR_LABEL_Y, text: text, key: nil)
       end
     end
 
     def hits
       values = curves.to_h { |curve| [ curve.key, curve.points.to_h ] }
 
-      hours.map do |hour|
-        width = [ x(hour + 1), plot_right ].min - x(hour)
-        Hit.new(x: number(x(hour)), width: number(width), title: title_for(hour, values))
-      end
+      hours.zip(plot.columns(hours)).map { |hour, column| Hit.new(rect: column, title: title_for(hour, values)) }
     end
 
     def period
@@ -98,9 +97,14 @@ module Solakon
 
     private
 
+    delegate :y, :number, to: :plot, private: true
+
     def curves = @panels.curves
 
     def name(key) = "Panel #{key.to_s.delete_prefix('pv')}"
+
+    # Under the highest curve, and never on the axis itself.
+    def grid = plot.y_ticks(grid_step.step(max_w - 1, grid_step))
 
     def spread(labels)
       labels.each_with_object([]) do |label, placed|
@@ -115,19 +119,13 @@ module Solakon
 
       hour = label_hour(curve)
       watts = curve.points.to_h.fetch(hour)
-      Label.new(x: number(x(hour) + LABEL_OFFSET), y: number(y(watts)), text: name(curve.key), key: curve.key)
+      Label.new(x: number(plot.x(hour) + LABEL_OFFSET), y: number(y(watts)), text: name(curve.key), key: curve.key)
     end
 
     # The middle of the day where it was measured, otherwise the hour closest
     # to it.
     def label_hour(curve)
       curve.points.map(&:first).min_by { |hour| (hour - LABEL_HOUR).abs }
-    end
-
-    def segments(curve)
-      curve.points
-           .slice_when { |(previous, _), (hour, _)| hour - previous > 1 }
-           .map { |run| run.map { |hour, watts| "#{number(x(hour))},#{number(y(watts))}" }.join(" ") }
     end
 
     def title_for(hour, values)
@@ -147,17 +145,9 @@ module Solakon
     end
 
     def max_w
-      @max_w ||= [ (@panels.max.to_f / GRID_STEP_W).ceil * GRID_STEP_W, GRID_STEP_W ].max
+      @max_w ||= [ Plot.round_up(@panels.max.to_f, to: GRID_STEP_W), GRID_STEP_W ].max
     end
 
-    def grid_step = (max_w / MAX_GRID_LINES.to_f / GRID_STEP_W).ceil * GRID_STEP_W
-
-    def span = [ hours.last - hours.first, 1 ].max
-
-    def x(hour) = LEFT + (hour - hours.first) / span.to_f * (WIDTH - LEFT - RIGHT)
-
-    # to_f: the grid's watts are whole numbers, and integer division
-    # would put every line on the axis.
-    def y(watts) = TOP + (1 - watts.to_f / max_w) * (HEIGHT - TOP - BOTTOM)
+    def grid_step = Plot.round_up(max_w / MAX_GRID_LINES.to_f, to: GRID_STEP_W)
   end
 end
