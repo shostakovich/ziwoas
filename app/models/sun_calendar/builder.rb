@@ -3,30 +3,39 @@ module SunCalendar
   # lays it out as the sun calendar's three strips and its daily bars. Every
   # source is flattened to [local time, value] pairs first, so the layout knows
   # nothing about where a number came from.
+  #
+  # Before the inverter existed the producer plug measured the same array from
+  # the other side, so days ahead of its first hour take their power from the
+  # plug. An hour of the plug's energy in Wh is that hour's mean power in W,
+  # which is why the two quantities share one strip; the seam says where the
+  # handover sits.
   class Builder
     WATTS_PER_KILOWATT = 1000.0
     # Strip maxima snap to this step so the legend reads as a round number.
     MAX_STEP = 50
 
-    def initialize(timezone:, lat: nil, lon: nil)
+    def initialize(timezone:, lat: nil, lon: nil, producer_ids: [])
       @zone = ActiveSupport::TimeZone[timezone]
       @lat = lat
       @lon = lon
+      @producer_ids = producer_ids.to_a
     end
 
     def build(year)
       range = year_range(year)
       pv = pv_points(range)
+      seam = seam_date(pv)
+      plug = plug_points(range, seam)
       weather = weather_records(range)
       irradiance = weather_points(weather, &:solar_w_per_m2)
       cloud = weather_points(weather, &:cloud_cover)
 
       strips = {
-        pv: strip(:pv, "PV-Leistung", "W", :amber, pv),
+        pv: strip(:pv, "PV-Leistung", "W", :amber, plug + pv),
         irradiance: strip(:irradiance, "Einstrahlung", "W/m²", :blue, irradiance),
         cloud: Strip.new(key: :cloud, title: "Bewölkung", unit: "%", ramp: :grey, max: 100.0, values: cells(cloud))
       }
-      days = days(year, pv, weather_points(weather, &:solar), cloud)
+      days = days(year, plug + pv, weather_points(weather, &:solar), cloud)
       lines = SunLines.new(zone: @zone.name, lat: @lat, lon: @lon).build(year)
 
       Year.new(
@@ -35,7 +44,8 @@ module SunCalendar
         hours: hour_range(strips.values, lines),
         strips: strips,
         max_kwh: days.filter_map(&:pv_kwh).max,
-        lines: lines
+        lines: lines,
+        seam: plug.any? ? seam : nil
       )
     end
 
@@ -50,6 +60,30 @@ module SunCalendar
                      .order(:started_at)
                      .pluck(:started_at, :pv_power_w)
                      .map { |time, watts| [ time.in_time_zone(@zone), watts ] }
+    end
+
+    # The local date the inverter first reported; everything before it belongs
+    # to the plug.
+    def seam_date(pv) = pv.first&.first&.to_date
+
+    # The producer plug's energy, totalled per local clock hour. Wh over one
+    # hour is that hour's mean power in W, so the value lands on the same
+    # scale as the inverter's reading.
+    def plug_points(range, seam)
+      return [] if @producer_ids.empty?
+
+      buckets = Plugs::Sample5min
+                .where(plug_id: @producer_ids, bucket_ts: range.begin.to_i...range.end.to_i)
+                .pluck(:bucket_ts, :energy_delta_wh)
+
+      totals = buckets.each_with_object(Hash.new(0.0)) do |(bucket_ts, energy_wh), out|
+        time = Time.at(bucket_ts).in_time_zone(@zone)
+        next if seam && time.to_date >= seam
+
+        out[time.beginning_of_hour] += energy_wh
+      end
+
+      totals.sort_by(&:first)
     end
 
     def weather_records(range)

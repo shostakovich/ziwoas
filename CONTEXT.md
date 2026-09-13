@@ -177,6 +177,12 @@ The DC power the inverter reads from its panels at a point in time: the sum of t
 **panels**, before battery and conversion. What the sun delivers to the array, not what the
 house receives. Exists only since the inverter reports; the **energy** the producer plug
 measures is a different quantity (AC, and since the battery also its discharge).
+
+Before the inverter there is a **stand-in**: the producer plug's **energy** over one hour,
+whose number in Wh is that hour's mean power in W. The sun calendar shows it in the same
+strip and marks the day of the handover, because the shape of the year matters more there
+than the difference between the two sides of the array. Nothing else substitutes the two —
+the **yield ratio** and the panel comparison start at the inverter.
 _German UI_: PV-Leistung
 _Avoid_: Ertrag, Erzeugung (both are the plug's quantity), Production, Solar
 

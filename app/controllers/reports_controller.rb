@@ -11,7 +11,8 @@ class ReportsController < ApplicationController
     @sun_calendar = SunCalendar::Builder.new(
       timezone: app_config.timezone,
       lat: app_config.weather&.lat,
-      lon: app_config.weather&.lon
+      lon: app_config.weather&.lon,
+      producer_ids: Plugs::Roster.wrap(app_config.plugs).producer_ids
     ).build(@report.end_date.year)
   end
 

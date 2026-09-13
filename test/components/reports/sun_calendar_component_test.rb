@@ -7,7 +7,7 @@ class Reports::SunCalendarComponentTest < ViewComponent::TestCase
     SunCalendar::Strip.new(key: key, title: title, unit: unit, ramp: ramp, max: max, values: values)
   end
 
-  def calendar(pv: { [ 100, 12 ] => 600.0 }, irradiance: {}, cloud: {}, days: nil, lines: nil, hours: (3..22))
+  def calendar(pv: { [ 100, 12 ] => 600.0 }, irradiance: {}, cloud: {}, days: nil, lines: nil, hours: (3..22), seam: nil)
     days ||= (Date.new(2026, 1, 1)..Date.new(2026, 12, 31)).map do |date|
       SunCalendar::Day.new(doy: date.yday, date: date, pv_kwh: nil, irradiance_kwh_per_m2: nil, cloud_avg: nil)
     end
@@ -21,7 +21,8 @@ class Reports::SunCalendarComponentTest < ViewComponent::TestCase
         cloud: strip(:cloud, "Bewölkung", "%", :grey, 100.0, cloud)
       },
       max_kwh: days.filter_map(&:pv_kwh).max,
-      lines: lines || SunCalendar::Lines.new(rise: [], set: [], noon: [])
+      lines: lines || SunCalendar::Lines.new(rise: [], set: [], noon: []),
+      seam: seam
     )
   end
 
@@ -119,6 +120,16 @@ class Reports::SunCalendarComponentTest < ViewComponent::TestCase
     assert_equal 6, rendered.css("[data-strip='pv'] polyline.sun").length
   end
 
+  test "breaks the sun lines even when only a single day is missing" do
+    doys = (1..100).to_a + (102..365).to_a
+
+    rise = render_calendar(lines: year_lines(doys)).css("[data-strip='pv'] polyline.rise")
+
+    assert_equal 2, rise.length, "a single missing day must still start a new segment"
+    assert_equal 100, rise.first["points"].split.length
+    assert_equal 264, rise.last["points"].split.length
+  end
+
   test "keeps the daylight saving seam inside one segment" do
     doys = (1..90).to_a + [ 90 ] + (91..365).to_a
 
@@ -126,6 +137,42 @@ class Reports::SunCalendarComponentTest < ViewComponent::TestCase
 
     assert_equal 1, rise.length
     assert_equal 366, rise.first["points"].split.length
+  end
+
+  test "marks the day the inverter took over from the plug" do
+    rendered = render_calendar(seam: Date.new(2026, 6, 20))
+
+    seam = rendered.css("[data-strip='pv'] line.seam")
+
+    assert_equal 1, seam.length
+    assert_equal "347.4", seam.first["x1"]
+    assert_equal seam.first["x1"], seam.first["x2"]
+    assert_includes rendered.css("[data-strip='pv'] .legend").text, "Wechsel der Quelle"
+  end
+
+  test "puts the seam only on the PV strip, where the source changes" do
+    rendered = render_calendar(seam: Date.new(2026, 6, 20))
+
+    assert_equal 0, rendered.css("[data-strip='irradiance'] line.seam").length
+    assert_equal 0, rendered.css("[data-strip='cloud'] line.seam").length
+    assert_equal 0, rendered.css("[data-strip='energy'] line.seam").length
+  end
+
+  test "names both sources and their dates under the calendar" do
+    note = render_calendar(seam: Date.new(2026, 6, 20)).css(".sun-calendar .note").text
+
+    assert_includes note, "Bis 19.06."
+    assert_includes note, "ab 20.06."
+    assert_includes note, "AC"
+    assert_includes note, "DC"
+  end
+
+  test "says nothing about a seam on a year that had only one source" do
+    rendered = render_calendar
+
+    assert_equal 0, rendered.css("line.seam").length
+    assert_equal 0, rendered.css(".sun-calendar .note").length
+    assert_not_includes rendered.css("[data-strip='pv'] .legend").text, "Wechsel"
   end
 
   test "leaves the sun lines out without a location" do

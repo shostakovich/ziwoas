@@ -19,11 +19,17 @@
           <% if lines? %>
             <% %i[rise set noon].each do |event| %><% sun_segments(event).each do |points| %><polyline class="sun <%= event %>" points="<%= points %>"/><% end %><% end %>
           <% end %>
+          <% if seam? && strip.key == :pv %>
+            <line class="seam" x1="<%= seam_x %>" x2="<%= seam_x %>" y1="<%= plot_top %>" y2="<%= plot_top + strip_height %>"/>
+          <% end %>
           <g class="hits"><% hits.each do |hit| %><rect x="<%= hit.x %>" y="<%= plot_top %>" width="<%= hit.width %>" height="<%= strip_height %>"><title><%= hit.title %></title></rect><% end %></g>
         </svg>
         <ul class="legend">
           <li class="legend-item">0<span class="legend-ramp" style="background: <%= legend_gradient(strip) %>"></span><%= legend_max(strip) %> <%= strip.unit %></li>
           <li class="legend-item"><span class="legend-box nodata"></span>keine Daten</li>
+          <% if seam? && strip.key == :pv %>
+            <li class="legend-item"><span class="legend-line seam"></span>Wechsel der Quelle</li>
+          <% end %>
           <% if lines? %>
             <li class="legend-item"><span class="legend-line"></span>Sonnenaufgang und Sonnenuntergang</li>
             <li class="legend-item"><span class="legend-line noon"></span>Sonnenhöchststand</li>
@@ -50,5 +56,9 @@
         <li class="legend-item">Tage ohne Stundenwerte bleiben leer</li>
       </ul>
     </section>
+
+    <% if seam? %>
+      <p class="note"><%= seam_note %></p>
+    <% end %>
   </div>
 <% end %>

@@ -18,7 +18,9 @@ module SunCalendar
     def empty? = rise.empty?
   end
 
-  Year = Data.define(:year, :days, :hours, :strips, :max_kwh, :lines) do
+  # `seam` is the first day the inverter reported, on a year where the
+  # producer plug stood in before it; nil when nothing changed hands.
+  Year = Data.define(:year, :days, :hours, :strips, :max_kwh, :lines, :seam) do
     # The section stands or falls with the PV hours; the weather strips only
     # give them context.
     def empty? = strips.fetch(:pv).empty?

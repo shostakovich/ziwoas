@@ -7,12 +7,28 @@ class SunCalendar::BuilderTest < ActiveSupport::TestCase
   LON = 13.405
   DOY = Date.new(2026, 4, 10).yday
 
+  MAY = Date.new(2026, 5, 10)
+  MAY_DOY = MAY.yday
+
   setup do
     Solakon::PvHour.delete_all
     WeatherRecord.delete_all
+    Plugs::Sample5min.delete_all
   end
 
-  def builder(lat: LAT, lon: LON) = SunCalendar::Builder.new(timezone: "Europe/Berlin", lat: lat, lon: lon)
+  def plug_bucket(local_hour, energy_wh, minute: 0, date: MAY, plug_id: "bkw")
+    Plugs::Sample5min.create!(
+      plug_id: plug_id,
+      bucket_ts: Time.zone.local(date.year, date.month, date.day, local_hour, minute).to_i,
+      avg_power_w: energy_wh * 12,
+      energy_delta_wh: energy_wh,
+      sample_count: 10
+    )
+  end
+
+  def builder(lat: LAT, lon: LON, producer_ids: [])
+    SunCalendar::Builder.new(timezone: "Europe/Berlin", lat: lat, lon: lon, producer_ids: producer_ids)
+  end
 
   def pv_hour(local_hour, watts, date: Date.new(2026, 4, 10))
     Solakon::PvHour.create!(
@@ -157,6 +173,66 @@ class SunCalendar::BuilderTest < ActiveSupport::TestCase
     pv_hour(23, 7.0)
 
     assert_equal (1..23), builder.build(2026).hours
+  end
+
+  test "fills the time before the inverter from the producer plug" do
+    plug_bucket(12, 50.0)
+    plug_bucket(12, 30.0, minute: 5)
+    pv_hour(12, 640.0, date: Date.new(2026, 6, 20))
+
+    year = builder(producer_ids: [ "bkw" ]).build(2026)
+
+    assert_in_delta 80.0, year.strips.fetch(:pv).values.fetch([ MAY_DOY, 12 ])
+    assert_in_delta 640.0, year.strips.fetch(:pv).values.fetch([ Date.new(2026, 6, 20).yday, 12 ])
+  end
+
+  test "counts the plug's hours into the day's PV energy" do
+    plug_bucket(11, 200.0)
+    plug_bucket(12, 300.0)
+    pv_hour(12, 640.0, date: Date.new(2026, 6, 20))
+
+    day = builder(producer_ids: [ "bkw" ]).build(2026).days.find { |candidate| candidate.doy == MAY_DOY }
+
+    assert_in_delta 0.5, day.pv_kwh
+  end
+
+  test "leaves the plug out from the day the inverter took over" do
+    plug_bucket(12, 50.0, date: Date.new(2026, 6, 20))
+    plug_bucket(13, 90.0, date: Date.new(2026, 7, 1))
+    pv_hour(12, 640.0, date: Date.new(2026, 6, 20))
+
+    values = builder(producer_ids: [ "bkw" ]).build(2026).strips.fetch(:pv).values
+
+    assert_equal [ [ Date.new(2026, 6, 20).yday, 12 ] ], values.keys
+  end
+
+  test "ignores plugs that do not produce" do
+    plug_bucket(12, 50.0)
+
+    assert_empty builder(producer_ids: [ "fridge" ]).build(2026).strips.fetch(:pv).values
+    assert_empty builder.build(2026).strips.fetch(:pv).values
+  end
+
+  test "takes the whole plug history when no inverter ever reported" do
+    plug_bucket(12, 50.0)
+
+    year = builder(producer_ids: [ "bkw" ]).build(2026)
+
+    assert_in_delta 50.0, year.strips.fetch(:pv).values.fetch([ MAY_DOY, 12 ])
+    assert_nil year.seam
+  end
+
+  test "marks the seam at the inverter's first day" do
+    plug_bucket(12, 50.0)
+    pv_hour(12, 640.0, date: Date.new(2026, 6, 20))
+
+    assert_equal Date.new(2026, 6, 20), builder(producer_ids: [ "bkw" ]).build(2026).seam
+  end
+
+  test "has no seam when the plug never stood in" do
+    pv_hour(12, 640.0, date: Date.new(2026, 6, 20))
+
+    assert_nil builder(producer_ids: [ "bkw" ]).build(2026).seam
   end
 
   test "widens the hours so the sun lines stay inside the strip" do

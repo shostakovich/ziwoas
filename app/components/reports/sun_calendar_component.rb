@@ -96,6 +96,20 @@ module Reports
 
     def lines? = !@calendar.lines.empty?
 
+    def seam? = !@calendar.seam.nil?
+
+    def seam_x = number(x(@calendar.seam.yday))
+
+    # Says which side of the dashed line was measured how, in the page's own
+    # words rather than in the glossary's.
+    def seam_note
+      return nil unless seam?
+
+      "Bis #{day_month(@calendar.seam - 1)} aus der Energie der Erzeuger-Steckdose (AC), " \
+        "ab #{day_month(@calendar.seam)} aus der PV-Leistung des Wechselrichters (DC). " \
+        "Die gestrichelte Linie markiert den Wechsel."
+    end
+
     # One polyline per unbroken stretch of days. A polar period leaves a gap in
     # the events, and a single polyline would bridge it with a straight line
     # that no sun ever took. The daylight saving seam repeats a day of year
@@ -141,6 +155,8 @@ module Reports
     def y(hour) = TOP + (hour - hours.first) * ROW_HEIGHT
 
     def first_doy(month) = Date.new(year, month, 1).yday
+
+    def day_month(date) = date.strftime("%d.%m.")
 
     def row_runs(strip, ramp, hour)
       runs = []
