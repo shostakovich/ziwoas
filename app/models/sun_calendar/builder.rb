@@ -21,6 +21,13 @@ module SunCalendar
       @producer_ids = producer_ids.to_a
     end
 
+    # The year the calendar opens on: the one the newest hour falls into, so it
+    # keeps showing a full year over the turn of the year, until the first hour
+    # of the new one arrives.
+    def latest_year
+      Solakon::PvHour.maximum(:started_at)&.in_time_zone(@zone)&.year || Time.current.in_time_zone(@zone).year
+    end
+
     def build(year)
       range = year_range(year)
       pv = pv_points(range)

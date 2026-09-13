@@ -78,8 +78,7 @@
     <h2 class="section-label">Steckdosen</h2>
     <%= render "ranking", rows: @report.producer_ranking + @report.consumer_ranking %>
 
-    <h2 class="section-label">Energie — Ertrag / Verbrauch</h2>
-    <div class="chart-card">
+    <%= render CardComponent.new(title: "Energie", subtitle: "Ertrag / Verbrauch") do %>
       <% if daily_has_weather %>
         <div class="chart-card-toolbar">
           <label class="ios-toggle">
@@ -94,17 +93,13 @@
       <div class="chart-frame">
         <canvas data-energy-report-target="dailyCanvas"></canvas>
       </div>
-    </div>
+    <% end %>
 
     <% power_resolution = (@report.detail_end_date - @report.detail_start_date).to_i > 6 ? "Tagesmittel" : "5-Minuten-Verlauf" %>
-    <h2 class="section-label">Leistung — <%= power_resolution %> —
-      <% if @report.detail_start_date == @report.detail_end_date %>
-        <%= @report.detail_start_date %>
-      <% else %>
-        <%= @report.detail_start_date %> bis <%= @report.detail_end_date %>
-      <% end %>
-    </h2>
-    <section class="chart-card">
+    <% detail_from = @report.detail_start_date.strftime("%d.%m.%Y") %>
+    <% detail_to = @report.detail_end_date.strftime("%d.%m.%Y") %>
+    <% detail_range = detail_from == detail_to ? detail_from : "#{detail_from} bis #{detail_to}" %>
+    <%= render CardComponent.new(title: "Leistung", subtitle: "#{power_resolution} · #{detail_range}") do %>
       <% if detail_has_weather %>
         <div class="chart-card-toolbar">
           <label class="ios-toggle">
@@ -119,18 +114,14 @@
       <div class="chart-frame">
         <canvas data-energy-report-target="detailCanvas"></canvas>
       </div>
-    </section>
+    <% end %>
 
-    <h2 class="section-label">Autarkie & Eigenverbrauchsquote</h2>
-    <div class="chart-card">
+    <%= render CardComponent.new(title: "Autarkie & Eigenverbrauchsquote") do %>
       <div class="chart-frame">
         <canvas data-energy-report-target="ratiosCanvas"></canvas>
       </div>
-    </div>
+    <% end %>
   <% end %>
-
-  <h2 class="section-label">Sonnenkalender <%= @sun_calendar.year %></h2>
-  <%= render Reports::SunCalendarComponent.new(calendar: @sun_calendar) %>
 
   <script type="application/json" data-energy-report-target="payload"><%= raw json_escape(@report.chart_payload.to_json) %></script>
 

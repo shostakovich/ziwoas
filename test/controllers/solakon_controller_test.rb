@@ -6,6 +6,19 @@ class SolakonControllerTest < ActionDispatch::IntegrationTest
   setup do
     Solakon::Reading.delete_all
     Solakon::Snapshot.delete_all if defined?(Solakon::Snapshot)
+    Solakon::PvHour.delete_all
+    WeatherRecord.delete_all
+    # AggregatorJobTest runs without a transaction, so its buckets outlive it;
+    # the sun calendar reads them as the time before the inverter.
+    Plugs::Sample5min.delete_all
+  end
+
+  def pv_hour(date, hour, watts, panels: [ 100.0, 100.0, 100.0, 100.0 ])
+    Solakon::PvHour.create!(
+      started_at: Time.zone.local(date.year, date.month, date.day, hour),
+      pv_power_w: watts, reading_count: 120,
+      pv1_power_w: panels[0], pv2_power_w: panels[1], pv3_power_w: panels[2], pv4_power_w: panels[3]
+    )
   end
 
   test "page renders single continuous Solakon overview" do
@@ -14,12 +27,13 @@ class SolakonControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select "h1", text: "PV", count: 1
     assert_select "[data-controller~='solakon']", 1
-    assert_select ".section-label", text: "Energiefluss"
+    assert_select ".card-title", text: "Energiefluss"
+    assert_select ".card-title", text: "Status"
+    assert_select ".card-title", text: "Solakon-Verlauf"
+    # Sections made of several tiles keep their label above the group.
     assert_select ".section-label", text: "Steuerung"
     assert_select ".section-label", text: "Panels"
     assert_select ".section-label", text: "Speicher"
-    assert_select ".section-label", text: "Solakon-Verlauf"
-    assert_select ".section-label", text: "Status"
     assert_operator response.body.index("Status"), :<, response.body.index("Steuerung")
     assert_select "[role='tablist']", count: 0
     assert_no_match(/SOH|EPS|46613|39067|Modbus/, response.body)
@@ -176,5 +190,52 @@ class SolakonControllerTest < ActionDispatch::IntegrationTest
     assert_select ".solakon-status-figure img[data-solakon-battery-state=charging][src*=solakon_battery_charging]", 1
     assert_select ".solakon-status-summary", text: /Akku lädt gerade/
     assert_select ".solakon-battery-states", count: 0
+  end
+
+  test "page shows the shading section under the history" do
+    3.times do |index|
+      date = Date.new(2026, 7, 1) + index
+      pv_hour(date, 12, 400.0)
+      WeatherRecord.create!(kind: "historic", daytime: "day", lat: 52.52, lon: 13.405,
+                            timestamp: Time.zone.local(date.year, date.month, date.day, 12), solar: 0.5)
+    end
+
+    get "/solakon"
+
+    assert_response :success
+    assert_select ".card-title", text: "Ausbeute nach Sonnenstand"
+    assert_select ".card-title", text: "Tagesgang je Monat"
+    assert_select ".card-title", text: /\ADie vier Panels im Tagesverlauf seit /
+    assert_select ".shading [data-chart='yield-map'] .fields rect", minimum: 1
+    assert_select ".shading [data-chart='daily-profiles'] .multiple", 1
+    assert_select ".shading [data-chart='panels'] polyline", 4
+  end
+
+  test "page keeps an empty state for the shading section while no PV hour exists" do
+    get "/solakon"
+
+    assert_response :success
+    assert_select ".shading", 0
+    assert_select ".empty-state h2", text: "Noch keine Ausbeute"
+  end
+
+  test "page shows the sun calendar of the year the newest hour falls into" do
+    pv_hour(Date.new(2026, 4, 10), 12, 640.0)
+
+    get "/solakon"
+
+    assert_response :success
+    assert_select ".section-label", text: "Sonnenkalender 2026"
+    assert_select ".sun-calendar [data-strip]", 4
+    assert_select ".sun-calendar [data-strip='pv'] .cells rect", minimum: 1
+    assert_select ".sun-calendar [data-strip='pv'] polyline.sun", 3
+  end
+
+  test "sun calendar keeps its own empty state while no PV hour exists" do
+    get "/solakon"
+
+    assert_response :success
+    assert_select ".sun-calendar", 0
+    assert_select ".empty-state h2", text: "Noch kein Sonnenkalender"
   end
 end

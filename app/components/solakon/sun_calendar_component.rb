@@ -1,4 +1,4 @@
-module Reports
+module Solakon
   # The sun calendar: three heat strips and the daily energy bars, one column
   # per day of the year, drawn server-side as SVG. Geometry is computed here so
   # the template only writes attributes.
@@ -19,7 +19,6 @@ module Reports
     DENSE_HOUR_STEP = 3
     MAX_BAR_GRID_LINES = 4
     SPARSE_HOUR_STEP = 6
-    MONTHS = %w[Jan Feb Mär Apr Mai Jun Jul Aug Sep Okt Nov Dez].freeze
     WEEKDAYS = %w[So Mo Di Mi Do Fr Sa].freeze
 
     Cells = Data.define(:fill, :rects)
@@ -57,7 +56,7 @@ module Reports
     # One rectangle per run of neighbouring days that share a colour, grouped
     # by colour so the fill is written once instead of on every rectangle.
     def cells(strip)
-      ramp = SunCalendar::Ramp.fetch(strip.ramp)
+      ramp = Ramp.fetch(strip.ramp)
       hours.flat_map { |hour| row_runs(strip, ramp, hour) }
            .group_by { |run| run.fetch(:fill) }
            .map { |fill, runs| Cells.new(fill: fill, rects: runs.map { |run| rect(run) }) }
@@ -136,7 +135,7 @@ module Reports
       end
     end
 
-    def legend_gradient(strip) = SunCalendar::Ramp.fetch(strip.ramp).css_gradient
+    def legend_gradient(strip) = Ramp.fetch(strip.ramp).css_gradient
 
     def legend_max(strip) = format("%d", strip.max)
 
@@ -206,12 +205,5 @@ module Reports
     end
 
     def decimal(value, precision) = format("%.#{precision}f", value).tr(".", ",")
-
-    # One decimal is finer than the strip's day column; whole numbers stay
-    # whole so the markup does not carry a trailing zero per rectangle.
-    def number(value)
-      rounded = value.round(1)
-      rounded == rounded.to_i ? rounded.to_i : rounded
-    end
   end
 end

@@ -67,6 +67,23 @@ h1 { font-size: 18px; margin: 0 0 16px; color: var(--muted); font-weight: 500; }
 .section-label { font-size: 11px; font-weight: 400; color: var(--muted); text-transform: uppercase;
                  letter-spacing: 0.6px; margin: 20px 0 8px; }
 
+/* A panel names itself: the heading sits inside the box it belongs to. Only a
+   section made of several boxes still carries a .section-label above them. */
+.card-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+  margin: 0 0 10px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+/* A box inside a labelled group (the sun calendar's strips) stays one step
+   quieter than a box that is a section of the page in its own right. */
+h3.card-title { font-size: 13px; }
+.card-subtitle { font-weight: 400; color: var(--muted); }
+
 .hero {
   background: var(--accent-bg);
   border: 1px solid var(--accent);
@@ -135,12 +152,7 @@ h1 { font-size: 18px; margin: 0 0 16px; color: var(--muted); font-weight: 500; }
 }
 .chart-card canvas { width: 100% !important; }
 
-.energy-flow-card {
-  padding: 12px 8px;
-  max-width: 720px;
-  margin-left: auto;
-  margin-right: auto;
-}
+.energy-flow-card { padding: 12px 8px; }
 
 .plug-bar-wrap { margin-bottom: 16px; }
 
@@ -1416,47 +1428,42 @@ body.page-light-detail { max-width: 760px; }
 .ld-btn-ghost { background: var(--card); border-color: var(--border); color: var(--muted); }
 .ld-btn-ghost:hover { background: var(--surface-hover); color: var(--text); }
 
-/* Sun calendar (reports): four SVG boxes on one time axis, day columns over
-   local clock hours. Labels ship in two densities; the media query picks. */
-.sun-calendar .sun-strip { padding: 12px 10px 10px; }
-.sun-strip-title {
-  font-size: 13px;
-  font-weight: 600;
-  margin: 0 0 8px;
-}
-.sun-calendar svg {
+/* Server-drawn SVG charts (sun calendar on Berichte, sky map on PV). Shared:
+   type, grid, legend, and the two label densities the media query picks. */
+.sun-charts .sun-strip { padding: 12px 10px 10px; }
+.sun-charts svg {
   display: block;
   width: 100%;
   height: auto;
   font-family: inherit;
 }
-.sun-calendar svg text {
+.sun-charts svg text {
   fill: var(--muted);
   font-size: 10px;
 }
-.sun-calendar svg .grid line { stroke: var(--surface-sunk); stroke-width: 1; }
-.sun-calendar svg .axis { stroke: var(--border); stroke-width: 1; }
-.sun-calendar svg .nodata { fill: var(--surface-sunk); }
-.sun-calendar svg .bars rect { fill: var(--accent); }
-.sun-calendar svg .hits rect { fill: transparent; }
-.sun-calendar svg polyline.sun {
+.sun-charts svg .grid line { stroke: var(--surface-sunk); stroke-width: 1; }
+.sun-charts svg .axis { stroke: var(--border); stroke-width: 1; }
+.sun-charts svg .nodata { fill: var(--surface-sunk); }
+.sun-charts svg .bars rect { fill: var(--accent); }
+.sun-charts svg .hits rect { fill: transparent; }
+.sun-charts svg polyline.sun {
   fill: none;
   stroke: var(--accent-ink);
   stroke-width: 1.6;
   stroke-linejoin: round;
   stroke-linecap: round;
 }
-.sun-calendar svg polyline.noon {
+.sun-charts svg polyline.noon {
   stroke-width: 1.2;
   stroke-dasharray: 2 4;
 }
-.sun-calendar svg .seam {
+.sun-charts svg .seam {
   stroke: var(--muted);
   stroke-width: 1.2;
   stroke-dasharray: 3 3;
 }
-.sun-calendar .label-sparse { display: none; }
-.sun-calendar .legend {
+.sun-charts .label-sparse { display: none; }
+.sun-charts .legend {
   display: flex;
   flex-wrap: wrap;
   gap: 4px 14px;
@@ -1467,55 +1474,130 @@ body.page-light-detail { max-width: 760px; }
   font-size: 12px;
   color: var(--muted);
 }
-.sun-calendar .legend-item {
+.sun-charts .legend-item {
   display: inline-flex;
   align-items: center;
   gap: 6px;
 }
-.sun-calendar .legend-ramp {
+.sun-charts .legend-ramp {
   display: inline-block;
   width: 96px;
   height: 10px;
   border-radius: 2px;
   border: 1px solid var(--border);
 }
-.sun-calendar .legend-box {
+.sun-charts .legend-box {
   display: inline-block;
   width: 14px;
   height: 10px;
   border-radius: 2px;
   border: 1px solid var(--border);
 }
-.sun-calendar .legend-box.nodata { background: var(--surface-sunk); }
-.sun-calendar .legend-box.bar { background: var(--accent); border-color: var(--accent); }
-.sun-calendar .legend-line {
+.sun-charts .legend-box.nodata { background: var(--surface-sunk); }
+.sun-charts .legend-box.bar { background: var(--accent); border-color: var(--accent); }
+.sun-charts .legend-line {
   display: inline-block;
   width: 18px;
   height: 0;
   border-top: 2px solid var(--accent-ink);
 }
-.sun-calendar .legend-line.noon { border-top-style: dotted; }
-.sun-calendar .legend-line.seam {
+.sun-charts .legend-line.noon { border-top-style: dotted; }
+.sun-charts .legend-line.seam {
   border-top-style: dashed;
   border-top-color: var(--muted);
 }
-.sun-calendar .note {
-  margin: 8px 0 0;
+/* The note reads as a footnote to the box, not as another line of its legend:
+   it keeps its distance and runs the full width. */
+.sun-charts .note {
+  margin: 18px 0 0;
   font-size: 12px;
   line-height: 1.45;
   color: var(--muted);
-  max-width: 78ch;
+}
+
+/* Sky map, monthly profiles and the four panels (PV): the same type and legend
+   as the calendar, plus fields of sky, curves and the panels' own colours. */
+.shading {
+  --panel-1: #2a78d6;
+  --panel-2: #eb6834;
+  --panel-3: #1baf7a;
+  --panel-4: #b26bd6;
+}
+.shading svg .fields rect { stroke: none; }
+.shading svg .dot { fill: var(--muted); stroke: var(--card); stroke-width: 2; }
+/* The dates and hours lie over the fields, so they carry a halo in the card's
+   own colour to stay readable on top of a dark one. */
+.shading svg .path-label,
+.shading svg .dot-label {
+  fill: var(--muted);
+  paint-order: stroke;
+  stroke: var(--card);
+  stroke-width: 3;
+  stroke-linejoin: round;
+}
+.shading svg .path-label { font-weight: 600; }
+.shading svg .curve {
+  fill: none;
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.shading svg .measured { stroke: var(--accent); }
+.shading svg .expected { stroke: #3987e5; stroke-dasharray: 5 4; }
+.shading svg .theory { stroke: var(--muted); stroke-width: 1.5; stroke-dasharray: 1.5 3; }
+.shading svg .measured-area { fill: var(--accent); fill-opacity: 0.18; }
+.shading svg .pv1 { stroke: var(--panel-1); }
+.shading svg .pv2 { stroke: var(--panel-2); }
+.shading svg .pv3 { stroke: var(--panel-3); }
+.shading svg .pv4 { stroke: var(--panel-4); }
+.shading svg .direct-labels text {
+  font-weight: 600;
+  paint-order: stroke;
+  stroke: var(--card);
+  stroke-width: 3;
+  stroke-linejoin: round;
+}
+.shading svg .direct-labels .pv1 { fill: var(--panel-1); }
+.shading svg .direct-labels .pv2 { fill: var(--panel-2); }
+.shading svg .direct-labels .pv3 { fill: var(--panel-3); }
+.shading svg .direct-labels .pv4 { fill: var(--panel-4); }
+.shading .legend-line.measured { border-top-color: var(--accent); }
+.shading .legend-line.expected { border-top-color: #3987e5; border-top-style: dashed; }
+.shading .legend-line.theory { border-top-color: var(--muted); border-top-style: dotted; }
+.shading .legend-line.pv1 { border-top-color: var(--panel-1); }
+.shading .legend-line.pv2 { border-top-color: var(--panel-2); }
+.shading .legend-line.pv3 { border-top-color: var(--panel-3); }
+.shading .legend-line.pv4 { border-top-color: var(--panel-4); }
+.shading .multiples {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 8px 12px;
+}
+.shading .multiple { margin: 0; }
+.shading .multiple figcaption {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+.shading .multiple figcaption span {
+  font-weight: 400;
+  color: var(--muted);
 }
 
 /* The SVG scales down with the viewport, so its own units have to grow for
    text and lines to stay legible on a phone. */
 @media (max-width: 600px) {
-  .sun-calendar .label-dense { display: none; }
-  .sun-calendar .label-sparse { display: block; }
-  .sun-calendar .legend-ramp { width: 64px; }
-  .sun-calendar svg text { font-size: 18px; }
-  .sun-calendar svg .grid line { stroke-width: 2; }
-  .sun-calendar svg polyline.sun { stroke-width: 3; }
-  .sun-calendar svg polyline.noon { stroke-width: 2.4; stroke-dasharray: 4 7; }
-  .sun-calendar svg .seam { stroke-width: 2.4; stroke-dasharray: 5 5; }
+  .sun-charts .label-dense { display: none; }
+  .sun-charts .label-sparse { display: block; }
+  .sun-charts .legend-ramp { width: 64px; }
+  .sun-charts svg text { font-size: 18px; }
+  .sun-charts svg .grid line { stroke-width: 2; }
+  .sun-charts svg polyline.sun { stroke-width: 3; }
+  .sun-charts svg polyline.noon { stroke-width: 2.4; stroke-dasharray: 4 7; }
+  .sun-charts svg .seam { stroke-width: 2.4; stroke-dasharray: 5 5; }
+  .shading svg .curve { stroke-width: 3; }
+  .shading svg .theory { stroke-width: 2.4; stroke-dasharray: 3 5; }
+  .shading svg .expected { stroke-dasharray: 8 6; }
+  .shading svg .dot { stroke-width: 3; }
+  .shading .multiples { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
 }

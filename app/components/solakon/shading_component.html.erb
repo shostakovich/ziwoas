@@ -1,0 +1,12 @@
+<% if empty? %>
+  <section class="chart-card empty-state">
+    <h2>Noch keine Ausbeute</h2>
+    <p>Die Karte erscheint, sobald die ersten Stundenwerte der PV-Leistung vorliegen.</p>
+  </section>
+<% else %>
+  <div class="sun-charts shading">
+    <%= render Solakon::YieldMapComponent.new(map: map) %>
+    <%= render Solakon::DailyProfilesComponent.new(profiles: profiles) %>
+    <%= render Solakon::PanelCurvesComponent.new(panels: panels) %>
+  </div>
+<% end %>

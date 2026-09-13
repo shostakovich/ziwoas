@@ -11,14 +11,14 @@
 
 <div class="solakon-page" data-controller="solakon live-freshness"
      data-live-freshness-threshold-s-value="<%= Plugs::Measurement::OFFLINE_AFTER_S %>">
-  <h2 class="section-label">Energiefluss</h2>
-  <div class="chart-card energy-flow-card" data-controller="energy-flow">
+  <%= render CardComponent.new(title: "Energiefluss", classes: "energy-flow-card",
+                               data: { controller: "energy-flow" }) do %>
     <%= render Dashboard::EnergyFlowStateComponent.new(live: @live) %>
     <%= render "shared/energy_flow",
                pv_asset: "icon_sonne.webp",
                pv_alt: "PV",
                battery_asset: ApplicationHelper::DEFAULT_BATTERY_ASSET %>
-  </div>
+  <% end %>
 
   <%
     status_messages = latest&.status_messages || reading&.status_messages || [ "Alles ruhig" ]
@@ -45,8 +45,7 @@
         [ "normal", "solakon_battery_normal.webp", "Alles ruhig am Speicher" ]
       end
   %>
-  <h2 class="section-label">Status</h2>
-  <section class="chart-card solakon-status-card">
+  <%= render CardComponent.new(title: "Status", classes: "solakon-status-card") do %>
     <div class="solakon-status-figure">
       <%= image_tag battery_asset, class: "solakon-battery-character", data: { solakon_battery_state: battery_state }, alt: "" %>
       <p class="solakon-status-summary"><%= battery_summary %></p>
@@ -60,7 +59,7 @@
       <p class="muted-text">Wechselrichtertemperatur <%= fmt.call(reading&.inverter_temperature_c || latest&.inverter_temperature_c, 1) %> °C</p>
       <p class="muted-text">Außensteckdose <%= reading&.eps_enabled ? "bereit" : "aus" %></p>
     </details>
-  </section>
+  <% end %>
 
   <h2 class="section-label">Steuerung</h2>
   <section class="solakon-control-grid">
@@ -118,8 +117,7 @@
     <article class="tile"><div class="tile-label">Volle Kapazität</div><div class="tile-value"><%= fmt.call(latest&.full_charge_capacity_ah, 1) %> Ah</div></article>
   </section>
 
-  <h2 class="section-label">Solakon-Verlauf</h2>
-  <section class="chart-card">
+  <%= render CardComponent.new(title: "Solakon-Verlauf") do %>
     <div class="preset-actions" role="group" aria-label="Zeitraum">
       <button type="button" class="preset-link active" data-solakon-range-param="24h" data-action="solakon#selectRange">Letzte 24 h</button>
       <button type="button" class="preset-link" data-solakon-range-param="7d" data-action="solakon#selectRange">Letzte 7 Tage</button>
@@ -138,7 +136,12 @@
         </div>
       <% end %>
     </div>
-  </section>
+  <% end %>
+
+  <h2 class="section-label">Sonnenkalender <%= @sun_calendar.year %></h2>
+  <%= render Solakon::SunCalendarComponent.new(calendar: @sun_calendar) %>
+
+  <%= render Solakon::ShadingComponent.new(report: @shading) %>
 
   <script type="application/json" data-solakon-target="historyPayload"><%= raw json_escape(@history_payload.to_json) %></script>
 </div>
