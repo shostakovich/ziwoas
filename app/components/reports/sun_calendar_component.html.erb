@@ -1,0 +1,54 @@
+<% if empty? %>
+  <section class="chart-card empty-state">
+    <h2>Noch kein Sonnenkalender</h2>
+    <p>Der Kalender erscheint, sobald die ersten Stundenwerte der PV-Leistung vorliegen.</p>
+  </section>
+<% else %>
+  <div class="sun-calendar">
+    <% strips.each do |strip| %>
+      <section class="chart-card sun-strip" data-strip="<%= strip.key %>">
+        <h3 class="sun-strip-title"><%= strip.title %></h3>
+        <svg viewBox="<%= strip_view_box %>" role="img" aria-label="<%= strip.title %> je Stunde über das Jahr <%= year %>">
+          <g class="grid"><% month_lines.each do |mx| %><line x1="<%= mx %>" x2="<%= mx %>" y1="<%= plot_top - 4 %>" y2="<%= plot_top + strip_height %>"/><% end %></g>
+          <% %i[dense sparse].each do |density| %>
+            <g class="month-labels label-<%= density %>"><% month_labels(density).each do |label| %><text x="<%= label.x %>" y="<%= label.y %>"><%= label.text %></text><% end %></g>
+            <g class="hour-labels label-<%= density %>"><% hour_labels(density).each do |label| %><text x="<%= label.x %>" y="<%= label.y %>" text-anchor="end"><%= label.text %></text><% end %></g>
+          <% end %>
+          <rect class="nodata" x="<%= plot_left %>" y="<%= plot_top %>" width="<%= ground_width %>" height="<%= strip_height %>"/>
+          <g class="cells"><% cells(strip).each do |group| %><g fill="<%= group.fill %>"><% group.rects.each do |cell| %><rect x="<%= cell.x %>" y="<%= cell.y %>" width="<%= cell.width %>" height="<%= row_height %>"/><% end %></g><% end %></g>
+          <% if lines? %>
+            <% %i[rise set noon].each do |event| %><polyline class="sun <%= event %>" points="<%= sun_points(event) %>"/><% end %>
+          <% end %>
+          <g class="hits"><% hits.each do |hit| %><rect x="<%= hit.x %>" y="<%= plot_top %>" width="<%= hit.width %>" height="<%= strip_height %>"><title><%= hit.title %></title></rect><% end %></g>
+        </svg>
+        <ul class="legend">
+          <li class="legend-item">0<span class="legend-ramp" style="background: <%= legend_gradient(strip) %>"></span><%= legend_max(strip) %> <%= strip.unit %></li>
+          <li class="legend-item"><span class="legend-box nodata"></span>keine Daten</li>
+          <% if lines? %>
+            <li class="legend-item"><span class="legend-line"></span>Sonnenaufgang und Sonnenuntergang</li>
+            <li class="legend-item"><span class="legend-line noon"></span>Sonnenhöchststand</li>
+          <% end %>
+        </ul>
+      </section>
+    <% end %>
+
+    <section class="chart-card sun-strip" data-strip="energy">
+      <h3 class="sun-strip-title">PV-Energie je Tag</h3>
+      <svg viewBox="<%= bars_view_box %>" role="img" aria-label="PV-Energie je Tag über das Jahr <%= year %>">
+        <g class="grid"><% month_lines.each do |mx| %><line x1="<%= mx %>" x2="<%= mx %>" y1="<%= plot_top %>" y2="<%= baseline_y %>"/><% end %></g>
+        <g class="grid"><% bar_grid.each do |label| %><line x1="<%= plot_left %>" x2="<%= plot_right %>" y1="<%= label.y %>" y2="<%= label.y %>"/><% end %></g>
+        <g class="hour-labels"><% bar_grid.each do |label| %><text x="<%= label.x - 5 %>" y="<%= label.y + 3.5 %>" text-anchor="end"><%= label.text %></text><% end %></g>
+        <% %i[dense sparse].each do |density| %>
+          <g class="month-labels label-<%= density %>"><% month_labels(density).each do |label| %><text x="<%= label.x %>" y="<%= baseline_y + 18 %>"><%= label.text %></text><% end %></g>
+        <% end %>
+        <line class="axis" x1="<%= plot_left %>" x2="<%= plot_right %>" y1="<%= baseline_y %>" y2="<%= baseline_y %>"/>
+        <g class="bars"><% bars.each do |bar| %><rect x="<%= bar.x %>" y="<%= bar.y %>" width="<%= bar.width %>" height="<%= bar.height %>"/><% end %></g>
+        <g class="hits"><% hits.each do |hit| %><rect x="<%= hit.x %>" y="<%= plot_top %>" width="<%= hit.width %>" height="<%= bars_height %>"><title><%= hit.title %></title></rect><% end %></g>
+      </svg>
+      <ul class="legend">
+        <li class="legend-item"><span class="legend-box bar"></span>PV-Energie je Tag in kWh</li>
+        <li class="legend-item">Tage ohne Stundenwerte bleiben leer</li>
+      </ul>
+    </section>
+  </div>
+<% end %>

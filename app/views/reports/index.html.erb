@@ -129,6 +129,9 @@
     </div>
   <% end %>
 
+  <h2 class="section-label">Sonnenkalender <%= @sun_calendar.year %></h2>
+  <%= render Reports::SunCalendarComponent.new(calendar: @sun_calendar) %>
+
   <script type="application/json" data-energy-report-target="payload"><%= raw json_escape(@report.chart_payload.to_json) %></script>
 
   <%

@@ -1415,3 +1415,90 @@ body.page-light-detail { max-width: 760px; }
 .ld-btn-primary:hover { filter: brightness(1.05); }
 .ld-btn-ghost { background: var(--card); border-color: var(--border); color: var(--muted); }
 .ld-btn-ghost:hover { background: var(--surface-hover); color: var(--text); }
+
+/* Sun calendar (reports): four SVG boxes on one time axis, day columns over
+   local clock hours. Labels ship in two densities; the media query picks. */
+.sun-calendar .sun-strip { padding: 12px 10px 10px; }
+.sun-strip-title {
+  font-size: 13px;
+  font-weight: 600;
+  margin: 0 0 8px;
+}
+.sun-calendar svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  font-family: inherit;
+}
+.sun-calendar svg text {
+  fill: var(--muted);
+  font-size: 10px;
+}
+.sun-calendar svg .grid line { stroke: var(--surface-sunk); stroke-width: 1; }
+.sun-calendar svg .axis { stroke: var(--border); stroke-width: 1; }
+.sun-calendar svg .nodata { fill: var(--surface-sunk); }
+.sun-calendar svg .bars rect { fill: var(--accent); }
+.sun-calendar svg .hits rect { fill: transparent; }
+.sun-calendar svg polyline.sun {
+  fill: none;
+  stroke: var(--accent-ink);
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.sun-calendar svg polyline.noon {
+  stroke-width: 1.2;
+  stroke-dasharray: 2 4;
+}
+.sun-calendar .label-sparse { display: none; }
+.sun-calendar .legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  align-items: center;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  color: var(--muted);
+}
+.sun-calendar .legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.sun-calendar .legend-ramp {
+  display: inline-block;
+  width: 96px;
+  height: 10px;
+  border-radius: 2px;
+  border: 1px solid var(--border);
+}
+.sun-calendar .legend-box {
+  display: inline-block;
+  width: 14px;
+  height: 10px;
+  border-radius: 2px;
+  border: 1px solid var(--border);
+}
+.sun-calendar .legend-box.nodata { background: var(--surface-sunk); }
+.sun-calendar .legend-box.bar { background: var(--accent); border-color: var(--accent); }
+.sun-calendar .legend-line {
+  display: inline-block;
+  width: 18px;
+  height: 0;
+  border-top: 2px solid var(--accent-ink);
+}
+.sun-calendar .legend-line.noon { border-top-style: dotted; }
+
+/* The SVG scales down with the viewport, so its own units have to grow for
+   text and lines to stay legible on a phone. */
+@media (max-width: 600px) {
+  .sun-calendar .label-dense { display: none; }
+  .sun-calendar .label-sparse { display: block; }
+  .sun-calendar .legend-ramp { width: 64px; }
+  .sun-calendar svg text { font-size: 18px; }
+  .sun-calendar svg .grid line { stroke-width: 2; }
+  .sun-calendar svg polyline.sun { stroke-width: 3; }
+  .sun-calendar svg polyline.noon { stroke-width: 2.4; stroke-dasharray: 4 7; }
+}
