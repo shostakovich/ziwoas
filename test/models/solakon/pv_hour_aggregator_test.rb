@@ -1,0 +1,99 @@
+require "test_helper"
+
+class SolakonPvHourAggregatorTest < ActiveSupport::TestCase
+  cover "Solakon::PvHourAggregator*"
+
+  setup do
+    Solakon::Reading.delete_all
+    Solakon::Snapshot.delete_all
+    Solakon::PvHour.delete_all
+  end
+
+  test "averages the readings of each clock hour and drops thin hours" do
+    readings(local(2026, 6, 21, 10), 20) { |i| i.even? ? 100 : 200 }
+    readings(local(2026, 6, 21, 11), 19) { 500 }
+
+    aggregate(Date.new(2026, 6, 21))
+
+    assert_equal [ local(2026, 6, 21, 10) ], Solakon::PvHour.pluck(:started_at)
+    hour = Solakon::PvHour.sole
+    assert_in_delta 150.0, hour.pv_power_w
+    assert_equal 20, hour.reading_count
+  end
+
+  test "adds the panel means from the snapshots of the same hour" do
+    readings(local(2026, 6, 21, 10), 20) { 100 }
+    readings(local(2026, 6, 21, 11), 20) { 100 }
+    Solakon::Snapshot.create!(taken_at: local(2026, 6, 21, 10, 1), pv1_power_w: 10, pv2_power_w: 30, pv3_power_w: nil, pv4_power_w: 0)
+    Solakon::Snapshot.create!(taken_at: local(2026, 6, 21, 10, 3), pv1_power_w: 20, pv2_power_w: 50, pv3_power_w: nil, pv4_power_w: 0)
+
+    aggregate(Date.new(2026, 6, 21))
+
+    with_snapshots = Solakon::PvHour.find_by!(started_at: local(2026, 6, 21, 10))
+    assert_in_delta 15.0, with_snapshots.pv1_power_w
+    assert_in_delta 40.0, with_snapshots.pv2_power_w
+    assert_nil with_snapshots.pv3_power_w
+    assert_in_delta 0.0, with_snapshots.pv4_power_w
+
+    without = Solakon::PvHour.find_by!(started_at: local(2026, 6, 21, 11))
+    assert_nil without.pv1_power_w
+    assert_nil without.pv4_power_w
+  end
+
+  test "rebuilds the day it aggregates and leaves other days alone" do
+    Solakon::PvHour.create!(started_at: local(2026, 6, 21, 10), pv_power_w: 999, reading_count: 20)
+    Solakon::PvHour.create!(started_at: local(2026, 6, 21, 12), pv_power_w: 999, reading_count: 20)
+    other_day = Solakon::PvHour.create!(started_at: local(2026, 6, 22, 10), pv_power_w: 777, reading_count: 20)
+    readings(local(2026, 6, 21, 10), 20) { 100 }
+
+    aggregate(Date.new(2026, 6, 21))
+
+    assert_equal [ local(2026, 6, 21, 10), local(2026, 6, 22, 10) ], Solakon::PvHour.order(:started_at).pluck(:started_at)
+    assert_in_delta 100.0, Solakon::PvHour.find_by!(started_at: local(2026, 6, 21, 10)).pv_power_w
+    assert_in_delta 777.0, other_day.reload.pv_power_w
+  end
+
+  test "follows the 25-hour day of the autumn clock change" do
+    # 2026-10-25: 02:00 CEST repeats as 02:00 CET, the day ends at 23:00 UTC.
+    readings(Time.utc(2026, 10, 24, 22), 20) { 1 }   # 00:00 CEST, first hour
+    readings(Time.utc(2026, 10, 25, 0), 20) { 2 }    # 02:00 CEST
+    readings(Time.utc(2026, 10, 25, 1), 20) { 3 }    # 02:00 CET
+    readings(Time.utc(2026, 10, 25, 22), 20) { 4 }   # 23:00 CET, last hour
+    readings(Time.utc(2026, 10, 25, 23), 20) { 5 }   # 00:00 CET on the 26th
+
+    aggregate(Date.new(2026, 10, 25))
+
+    assert_equal [ 1.0, 2.0, 3.0, 4.0 ], Solakon::PvHour.order(:started_at).pluck(:pv_power_w)
+  end
+
+  test "run_once fills every finished day since the first reading and keeps the ones it has" do
+    readings(local(2026, 6, 21, 10), 20) { 100 }
+    readings(local(2026, 6, 22, 10), 20) { 200 }
+    readings(local(2026, 6, 23, 10), 20) { 300 }
+    Solakon::PvHour.create!(started_at: local(2026, 6, 22, 15), pv_power_w: 999, reading_count: 20)
+
+    Solakon::PvHourAggregator.new.run_once(today: Date.new(2026, 6, 23))
+
+    rows = Solakon::PvHour.order(:started_at).pluck(:started_at, :pv_power_w)
+    assert_equal [ [ local(2026, 6, 21, 10), 100.0 ], [ local(2026, 6, 22, 15), 999.0 ] ], rows
+  end
+
+  test "run_once does nothing before the first reading" do
+    Solakon::PvHourAggregator.new.run_once(today: Date.new(2026, 6, 23))
+
+    assert_equal 0, Solakon::PvHour.count
+  end
+
+  private
+
+  def aggregate(date) = Solakon::PvHourAggregator.new.aggregate_day(date)
+
+  def local(*parts) = Time.zone.local(*parts)
+
+  def readings(from, count)
+    count.times do |i|
+      Solakon::Reading.create!(taken_at: from + i * 30, pv_power_w: yield(i),
+                               active_power_w: 0, battery_power_w: 0, battery_soc_pct: 50)
+    end
+  end
+end

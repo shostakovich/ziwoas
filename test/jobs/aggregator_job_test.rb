@@ -8,6 +8,8 @@ class AggregatorJobTest < ActiveJob::TestCase
     Plugs::Sample.delete_all
     Plugs::Sample5min.delete_all
     Plugs::DailyTotal.delete_all
+    Solakon::Reading.delete_all
+    Solakon::PvHour.delete_all
   end
 
   test "aggregates finished days and writes a backup" do
@@ -24,6 +26,22 @@ class AggregatorJobTest < ActiveJob::TestCase
       assert_in_delta 50.0, total.energy_wh
       assert_equal 1, Dir.glob("#{backup_dir}/ziwoas-*.db").length
     end
+  end
+
+  test "condenses the inverter readings of finished days into PV hours" do
+    from = Time.zone.local(2026, 4, 10, 12)
+    20.times do |i|
+      Solakon::Reading.create!(taken_at: from + i * 30, pv_power_w: 300,
+                               active_power_w: 0, battery_power_w: 0, battery_soc_pct: 50)
+    end
+
+    Dir.mktmpdir do |backup_dir|
+      AggregatorJob.perform_now(today: Date.new(2026, 4, 11), backup_dir: backup_dir)
+    end
+
+    hour = Solakon::PvHour.sole
+    assert_equal from, hour.started_at
+    assert_in_delta 300.0, hour.pv_power_w
   end
 
   test "loads the test config in the test environment" do

@@ -12,6 +12,7 @@ class AggregatorJob < ApplicationJob
 
     Rails.logger.info("aggregator: starting scheduled run")
     aggregator.run_once(today: today)
+    Solakon::PvHourAggregator.new.run_once(today: today)
     aggregator.backup!(backup_dir)
     Rails.logger.info("aggregator: done")
   end
