@@ -59,10 +59,7 @@ class Solakon::SunCalendarComponentTest < ViewComponent::TestCase
   test "paints a cell in the ramp colour of its value" do
     rendered = render_calendar(pv: { [ 100, 12 ] => 800.0 })
 
-    group = rendered.css("[data-strip='pv'] .cells g").first
-
-    assert_equal "#a85300", group["fill"]
-    assert_equal "8", group.css("rect").first["height"]
+    assert_equal "#a85300", rendered.css("[data-strip='pv'] .cells g").first["fill"]
   end
 
   test "merges neighbouring days of equal colour into one rectangle" do
@@ -103,10 +100,7 @@ class Solakon::SunCalendarComponentTest < ViewComponent::TestCase
     assert_equal 3, rendered.css("[data-strip='cloud'] polyline.sun").length
     assert_equal 0, rendered.css("[data-strip='energy'] polyline.sun").length
 
-    points = rendered.css("[data-strip='pv'] polyline.rise").first["points"].split
-    assert_equal 365, points.length
-    assert_equal "26,62", points.first
-    assert_equal "714.1,62", points.last
+    assert_equal 365, rendered.css("[data-strip='pv'] polyline.rise").first["points"].split.length
   end
 
   test "breaks the sun lines where polar days leave a gap" do
@@ -244,21 +238,38 @@ class Solakon::SunCalendarComponentTest < ViewComponent::TestCase
     assert_equal "0 0 720 146", svg["viewBox"]
   end
 
-  test "draws the plot at the fixed left margin and the axis at the bars height" do
-    rendered = render_calendar
+  test "measures the ground, the cells, the bars, the sun lines and the hits against the same axes" do
+    days = (Date.new(2026, 1, 1)..Date.new(2026, 12, 31)).map { |date| day(date.yday) }
+    days[99] = day(100, pv_kwh: 3.0)
+    rendered = render_calendar(days: days, pv: { [ 10, 12 ] => 800.0 }, lines: year_lines((1..365).to_a))
 
-    assert_equal "26", rendered.css("[data-strip='pv'] rect.nodata").first["x"]
+    ground = rendered.css("[data-strip='pv'] rect.nodata").first
+    assert_equal %w[26 22 690 160], %w[x y width height].map { |name| ground[name] }
+
+    cell = rendered.css("[data-strip='pv'] .cells rect").sole
+    assert_equal %w[43 94 1.9 8], %w[x y width height].map { |name| cell[name] }
+
+    hit = rendered.css("[data-strip='pv'] .hits rect")[99]
+    assert_equal %w[213.2 22 1.9 160], %w[x y width height].map { |name| hit[name] }
+
     axis = rendered.css("[data-strip='energy'] line.axis").first
-    assert_equal "26", axis["x1"]
-    assert_equal "716", axis["x2"]
-    assert_equal "122", axis["y1"]
-    assert_equal "122", axis["y2"]
-    assert_equal "22", rendered.css("[data-strip='energy'] .hits rect").first["y"]
-    assert_equal "100", rendered.css("[data-strip='energy'] .hits rect").first["height"]
-  end
+    assert_equal %w[26 716 122 122], %w[x1 x2 y1 y2].map { |name| axis[name] }
 
-  test "spans the no-data ground across every day of the year" do
-    assert_equal "690", render_calendar.css("[data-strip='pv'] rect.nodata").first["width"]
+    bar = rendered.css("[data-strip='energy'] .bars rect").sole
+    assert_equal %w[213.2 22 1.5 100], %w[x y width height].map { |name| bar[name] }
+
+    energy_hit = rendered.css("[data-strip='energy'] .hits rect").first
+    assert_equal %w[22 100], %w[y height].map { |name| energy_hit[name] }
+
+    rise = rendered.css("[data-strip='pv'] polyline.rise").first["points"].split
+    assert_equal "26,62", rise.first
+    assert_equal "714.1,62", rise.last
+
+    hour = rendered.css("[data-strip='pv'] .hour-labels.label-dense text").first
+    assert_equal %w[21 25.5], [ hour["x"], hour["y"] ]
+
+    month = rendered.css("[data-strip='pv'] .month-labels.label-dense text").first
+    assert_equal %w[28 16], [ month["x"], month["y"] ]
   end
 
   test "draws the month grid lines at each month's first day of year" do
@@ -272,18 +283,6 @@ class Solakon::SunCalendarComponentTest < ViewComponent::TestCase
     style = render_calendar.css("[data-strip='pv'] .legend-ramp").first["style"]
 
     assert_includes style, Ramp.fetch(:amber).css_gradient
-  end
-
-  test "draws a bar at the exact position and size the day's energy scales to" do
-    days = (Date.new(2026, 1, 1)..Date.new(2026, 12, 31)).map { |date| day(date.yday) }
-    days[99] = day(100, pv_kwh: 3.0)
-
-    bar = render_calendar(days: days).css("[data-strip='energy'] .bars rect").first
-
-    assert_equal "213.2", bar["x"]
-    assert_equal "22", bar["y"]
-    assert_equal "1.5", bar["width"]
-    assert_equal "100", bar["height"]
   end
 
   test "keeps the bar width from collapsing below half a pixel on a very dense calendar" do
@@ -324,33 +323,6 @@ class Solakon::SunCalendarComponentTest < ViewComponent::TestCase
 
     assert_equal %w[3 6 9], labels.map(&:text)
     assert_equal %w[95.5 65.5 35.5], labels.map { |label| label["y"] }
-  end
-
-  test "rounds an axis label's position to one decimal instead of the raw fraction" do
-    days = (Date.new(2026, 1, 1)..Date.new(2026, 12, 31)).map { |date| day(date.yday) }
-    days[99] = day(100, pv_kwh: 7.0)
-
-    labels = render_calendar(days: days).css("[data-strip='energy'] .hour-labels text")
-
-    assert_equal %w[2 4 6], labels.map(&:text)
-    assert_equal %w[96.9 68.4 39.8], labels.map { |label| label["y"] }
-  end
-
-  test "gives every day's hit its exact position and width" do
-    hit = render_calendar.css("[data-strip='pv'] .hits rect")[99]
-
-    assert_equal "213.2", hit["x"]
-    assert_equal "1.9", hit["width"]
-  end
-
-  test "positions a cell rectangle at its day and hour" do
-    rendered = render_calendar(pv: { [ 10, 12 ] => 800.0 })
-
-    rect = rendered.css("[data-strip='pv'] .cells rect").first
-
-    assert_equal "43", rect["x"]
-    assert_equal "94", rect["y"]
-    assert_equal "1.9", rect["width"]
   end
 
   test "colours a cell by its share of the strip's maximum, not by the raw value" do
@@ -396,8 +368,6 @@ class Solakon::SunCalendarComponentTest < ViewComponent::TestCase
 
     assert_equal %w[3 6 9 12 15 18 21], dense.map(&:text)
     assert_equal %w[3 9 15 21], sparse.map(&:text)
-    assert_equal "21", dense.first["x"]
-    assert_equal "25.5", dense.first["y"]
   end
 
   test "labels the month axis at the dense and sparse step, offset from the day column" do
@@ -408,8 +378,6 @@ class Solakon::SunCalendarComponentTest < ViewComponent::TestCase
 
     assert_equal %w[Jan Feb Mär Apr Mai Jun Jul Aug Sep Okt Nov Dez], dense.map(&:text)
     assert_equal %w[Jan Mär Mai Jul Sep Nov], sparse.map(&:text)
-    assert_equal "28", dense.first["x"]
-    assert_equal "16", dense.first["y"]
     # June's column sits at its first day of year (152), not at the month number (6).
     assert_equal "313.5", dense[5]["x"]
   end

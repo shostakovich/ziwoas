@@ -8,21 +8,21 @@
     <% strips.each do |strip| %>
       <%= render CardComponent.new(title: strip.title, level: 3, classes: "sun-strip",
                                    data: { strip: strip.key }) do %>
-        <svg viewBox="<%= strip_view_box %>" role="img" aria-label="<%= strip.title %> je Stunde über das Jahr <%= year %>">
-          <g class="grid"><% month_lines.each do |mx| %><line x1="<%= mx %>" x2="<%= mx %>" y1="<%= plot_top - 4 %>" y2="<%= plot_top + strip_height %>"/><% end %></g>
+        <svg viewBox="<%= strip_plot.view_box %>" role="img" aria-label="<%= strip.title %> je Stunde über das Jahr <%= year %>">
+          <g class="grid"><% month_lines.each do |at| %><line x1="<%= at %>" x2="<%= at %>" y1="<%= month_line_top %>" y2="<%= strip_plot.bottom %>"/><% end %></g>
           <% %i[dense sparse].each do |density| %>
             <g class="month-labels label-<%= density %>"><% month_labels(density).each do |label| %><text x="<%= label.x %>" y="<%= label.y %>"><%= label.text %></text><% end %></g>
             <g class="hour-labels label-<%= density %>"><% hour_labels(density).each do |label| %><text x="<%= label.x %>" y="<%= label.y %>" text-anchor="end"><%= label.text %></text><% end %></g>
           <% end %>
-          <rect class="nodata" x="<%= plot_left %>" y="<%= plot_top %>" width="<%= ground_width %>" height="<%= strip_height %>"/>
-          <g class="cells"><% cells(strip).each do |group| %><g fill="<%= group.fill %>"><% group.rects.each do |cell| %><rect x="<%= cell.x %>" y="<%= cell.y %>" width="<%= cell.width %>" height="<%= row_height %>"/><% end %></g><% end %></g>
+          <rect class="nodata" x="<%= strip_plot.box.x %>" y="<%= strip_plot.box.y %>" width="<%= strip_plot.box.width %>" height="<%= strip_plot.box.height %>"/>
+          <g class="cells"><% cells(strip).each do |group| %><g fill="<%= group.fill %>"><% group.rects.each do |cell| %><rect x="<%= cell.x %>" y="<%= cell.y %>" width="<%= cell.width %>" height="<%= cell.height %>"/><% end %></g><% end %></g>
           <% if lines? %>
             <% %i[rise set noon].each do |event| %><% sun_segments(event).each do |points| %><polyline class="sun <%= event %>" points="<%= points %>"/><% end %><% end %>
           <% end %>
           <% if seam? && strip.key == :pv %>
-            <line class="seam" x1="<%= seam_x %>" x2="<%= seam_x %>" y1="<%= plot_top %>" y2="<%= plot_top + strip_height %>"/>
+            <line class="seam" x1="<%= seam_x %>" x2="<%= seam_x %>" y1="<%= strip_plot.top %>" y2="<%= strip_plot.bottom %>"/>
           <% end %>
-          <g class="hits"><% hits.each do |hit| %><rect x="<%= hit.x %>" y="<%= plot_top %>" width="<%= hit.width %>" height="<%= strip_height %>"><title><%= hit.title %></title></rect><% end %></g>
+          <g class="hits"><% hits(strip_plot).each do |hit| %><rect x="<%= hit.rect.x %>" y="<%= hit.rect.y %>" width="<%= hit.rect.width %>" height="<%= hit.rect.height %>"><title><%= hit.title %></title></rect><% end %></g>
         </svg>
         <ul class="legend">
           <li class="legend-item">0<span class="legend-ramp" style="background: <%= legend_gradient(strip) %>"></span><%= legend_max(strip) %> <%= strip.unit %></li>
@@ -43,16 +43,16 @@
 
     <%= render CardComponent.new(title: "PV-Energie je Tag", level: 3, classes: "sun-strip",
                                  data: { strip: "energy" }) do %>
-      <svg viewBox="<%= bars_view_box %>" role="img" aria-label="PV-Energie je Tag über das Jahr <%= year %>">
-        <g class="grid"><% month_lines.each do |mx| %><line x1="<%= mx %>" x2="<%= mx %>" y1="<%= plot_top %>" y2="<%= baseline_y %>"/><% end %></g>
-        <g class="grid"><% bar_grid.each do |label| %><line x1="<%= plot_left %>" x2="<%= plot_right %>" y1="<%= label.y %>" y2="<%= label.y %>"/><% end %></g>
-        <g class="hour-labels"><% bar_grid.each do |label| %><text x="<%= label.x - 5 %>" y="<%= label.y + 3.5 %>" text-anchor="end"><%= label.text %></text><% end %></g>
+      <svg viewBox="<%= bars_plot.view_box %>" role="img" aria-label="PV-Energie je Tag über das Jahr <%= year %>">
+        <g class="grid"><% month_lines.each do |at| %><line x1="<%= at %>" x2="<%= at %>" y1="<%= bars_plot.top %>" y2="<%= bars_plot.bottom %>"/><% end %></g>
+        <g class="grid"><% bar_grid_lines.each do |at| %><line x1="<%= bars_plot.left %>" x2="<%= bars_plot.right %>" y1="<%= at %>" y2="<%= at %>"/><% end %></g>
+        <g class="hour-labels"><% bar_grid_labels.each do |label| %><text x="<%= label.x %>" y="<%= label.y %>" text-anchor="end"><%= label.text %></text><% end %></g>
         <% %i[dense sparse].each do |density| %>
-          <g class="month-labels label-<%= density %>"><% month_labels(density).each do |label| %><text x="<%= label.x %>" y="<%= baseline_y + 18 %>"><%= label.text %></text><% end %></g>
+          <g class="month-labels label-<%= density %>"><% month_labels(density).each do |label| %><text x="<%= label.x %>" y="<%= month_label_baseline %>"><%= label.text %></text><% end %></g>
         <% end %>
-        <line class="axis" x1="<%= plot_left %>" x2="<%= plot_right %>" y1="<%= baseline_y %>" y2="<%= baseline_y %>"/>
+        <line class="axis" x1="<%= bars_plot.left %>" x2="<%= bars_plot.right %>" y1="<%= bars_plot.bottom %>" y2="<%= bars_plot.bottom %>"/>
         <g class="bars"><% bars.each do |bar| %><rect x="<%= bar.x %>" y="<%= bar.y %>" width="<%= bar.width %>" height="<%= bar.height %>"/><% end %></g>
-        <g class="hits"><% hits.each do |hit| %><rect x="<%= hit.x %>" y="<%= plot_top %>" width="<%= hit.width %>" height="<%= bars_height %>"><title><%= hit.title %></title></rect><% end %></g>
+        <g class="hits"><% hits(bars_plot).each do |hit| %><rect x="<%= hit.rect.x %>" y="<%= hit.rect.y %>" width="<%= hit.rect.width %>" height="<%= hit.rect.height %>"><title><%= hit.title %></title></rect><% end %></g>
       </svg>
       <ul class="legend">
         <li class="legend-item"><span class="legend-box bar"></span>PV-Energie je Tag in kWh</li>

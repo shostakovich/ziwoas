@@ -13,18 +13,31 @@ module Solakon
     ROW_HEIGHT = 8
     BARS_HEIGHT = 100
     BARS_BOTTOM = 24
+    STRIP_MARGINS = { top: TOP, right: RIGHT, bottom: BOTTOM_PAD, left: LEFT }.freeze
+    BARS_MARGINS = { top: TOP, right: RIGHT, bottom: BARS_BOTTOM, left: LEFT }.freeze
     # Cells snap to this many colour levels, so a run of near-equal days
     # collapses into one rectangle instead of hundreds.
     COLOUR_LEVELS = 64
     DENSE_HOUR_STEP = 3
     MAX_BAR_GRID_LINES = 4
     SPARSE_HOUR_STEP = 6
+    # A bar keeps a hair of space to its neighbour, and half a pixel of body
+    # even where a dense calendar leaves it less than that.
+    BAR_GAP = 0.4
+    MIN_BAR_WIDTH = 0.5
+    # The month lines reach a little above the plot, up to the labels they
+    # belong to.
+    MONTH_LINE_RISE = 4
+    MONTH_LABEL_OFFSET = 2
+    MONTH_LABEL_LIFT = 6
+    HOUR_LABEL_GAP = 5
+    KWH_LABEL_GAP = 5
+    LABEL_DROP = 3.5
+    MONTH_LABEL_DROP = 18
     WEEKDAYS = %w[So Mo Di Mi Do Fr Sa].freeze
 
     Cells = Data.define(:fill, :rects)
-    Rect = Data.define(:x, :y, :width)
-    Bar = Data.define(:x, :y, :width, :height)
-    Hit = Data.define(:x, :width, :title)
+    Hit = Data.define(:rect, :title)
     Label = Data.define(:x, :y, :text)
 
     def initialize(calendar:)
@@ -37,21 +50,17 @@ module Solakon
 
     def strips = @calendar.strips.values
 
-    def row_height = ROW_HEIGHT
+    # The hours run downwards, so the strip's y domain is read back to front:
+    # the hour after the last one sits at the foot of the plot.
+    def strip_plot
+      @strip_plot ||= Plot.new(width: WIDTH, height: TOP + strip_height + BOTTOM_PAD, margins: STRIP_MARGINS,
+                               x: day_axis, y: (hours.last + 1)..hours.first)
+    end
 
-    def strip_view_box = "0 0 #{WIDTH} #{TOP + strip_height + BOTTOM_PAD}"
-
-    def bars_view_box = "0 0 #{WIDTH} #{TOP + BARS_HEIGHT + BARS_BOTTOM}"
-
-    def strip_height = hours.count * ROW_HEIGHT
-
-    def bars_height = BARS_HEIGHT
-
-    def plot_top = TOP
-
-    def plot_left = LEFT
-
-    def ground_width = number(days.length * day_width)
+    def bars_plot
+      @bars_plot ||= Plot.new(width: WIDTH, height: TOP + BARS_HEIGHT + BARS_BOTTOM, margins: BARS_MARGINS,
+                              x: day_axis, y: 0..bars_max)
+    end
 
     # One rectangle per run of neighbouring days that share a colour, grouped
     # by colour so the fill is written once instead of on every rectangle.
@@ -66,38 +75,56 @@ module Solakon
       @calendar.days.filter_map do |day|
         next if day.pv_kwh.nil?
 
-        height = day.pv_kwh / bars_max * BARS_HEIGHT
-        Bar.new(x: number(x(day.doy)), y: number(TOP + BARS_HEIGHT - height), width: bar_width, height: number(height))
+        bars_plot.rect(day.doy..day.doy + 1, 0..day.pv_kwh).with(width: bar_width)
       end
     end
 
     def bars_max = [ @calendar.max_kwh.to_f.ceil, 1 ].max
 
+    def bar_grid_lines = bar_grid.map(&:at)
+
     # At most MAX_BAR_GRID_LINES lines, so the labels stay apart once the
     # phone's media query enlarges them.
-    def bar_grid
-      step = (bars_max / MAX_BAR_GRID_LINES.to_f).ceil
-      step.step(bars_max, step).map do |kwh|
-        Label.new(x: LEFT, y: number(TOP + BARS_HEIGHT - kwh.to_f / bars_max * BARS_HEIGHT), text: kwh.to_s)
+    def bar_grid_labels
+      bar_grid.map do |tick|
+        Label.new(x: bars_plot.left - KWH_LABEL_GAP, y: number(tick.at + LABEL_DROP), text: tick.value.to_s)
       end
     end
 
-    def baseline_y = TOP + BARS_HEIGHT
+    # The two frames share their x axis, so one set of month lines serves both.
+    def month_lines = strip_plot.x_ticks(month_doys).map(&:at)
 
-    def plot_right = number(x(days.length) + day_width)
+    def month_line_top = strip_plot.top - MONTH_LINE_RISE
 
-    # The same tooltips sit on all four boxes, so they are built once.
-    def hits
-      @hits ||= @calendar.days.map do |day|
-        Hit.new(x: number(x(day.doy)), width: number(day_width), title: title_for(day))
+    def month_labels(density)
+      months = density == :sparse ? (1..12).step(2) : (1..12)
+
+      months.map do |month|
+        Label.new(x: number(strip_plot.x(first_doy(month)) + MONTH_LABEL_OFFSET),
+                  y: strip_plot.top - MONTH_LABEL_LIFT, text: MONTHS[month - 1])
       end
+    end
+
+    def month_label_baseline = bars_plot.bottom + MONTH_LABEL_DROP
+
+    def hour_labels(density)
+      step = density == :sparse ? SPARSE_HOUR_STEP : DENSE_HOUR_STEP
+
+      hours.step(step).map do |hour|
+        Label.new(x: strip_plot.left - HOUR_LABEL_GAP, y: number(strip_plot.y(hour) + LABEL_DROP), text: hour.to_s)
+      end
+    end
+
+    # The same tooltips sit on all four boxes; only the box they cover changes.
+    def hits(plot)
+      plot.columns(doys).zip(titles).map { |rect, title| Hit.new(rect: rect, title: title) }
     end
 
     def lines? = !@calendar.lines.empty?
 
     def seam? = !@calendar.seam.nil?
 
-    def seam_x = number(x(@calendar.seam.yday))
+    def seam_x = number(strip_plot.x(@calendar.seam.yday))
 
     # Says which side of the dashed line was measured how, in the page's own
     # words rather than in the glossary's.
@@ -113,27 +140,7 @@ module Solakon
     # the events, and a single polyline would bridge it with a straight line
     # that no sun ever took. The daylight saving seam repeats a day of year
     # rather than skipping one, so it stays inside its segment.
-    def sun_segments(key)
-      @calendar.lines.public_send(key)
-               .slice_when { |(previous, _), (doy, _)| doy - previous > 1 }
-               .map { |segment| segment.map { |doy, hour| "#{number(x(doy))},#{number(y(hour))}" }.join(" ") }
-    end
-
-    def month_lines = (1..12).map { |month| number(x(first_doy(month))) }
-
-    def month_labels(density)
-      months = density == :sparse ? (1..12).step(2) : (1..12)
-      months.map do |month|
-        Label.new(x: number(x(first_doy(month)) + 2), y: TOP - 6, text: MONTHS[month - 1])
-      end
-    end
-
-    def hour_labels(density)
-      step = density == :sparse ? SPARSE_HOUR_STEP : DENSE_HOUR_STEP
-      hours.first.step(hours.last, step).map do |hour|
-        Label.new(x: LEFT - 5, y: number(y(hour) + 3.5), text: hour.to_s)
-      end
-    end
+    def sun_segments(key) = strip_plot.polylines(@calendar.lines.public_send(key))
 
     def legend_gradient(strip) = Ramp.fetch(strip.ramp).css_gradient
 
@@ -141,17 +148,31 @@ module Solakon
 
     private
 
-    def days = @calendar.days
+    delegate :number, to: :strip_plot, private: true
+
+    def doys = @doys ||= @calendar.days.map(&:doy)
+
+    # A day column reaches to the next day, so the axis runs one day past the
+    # last one.
+    def day_axis = doys.first..(doys.last + 1)
 
     def hours = @calendar.hours
 
-    def day_width = (WIDTH - LEFT - RIGHT) / days.length.to_f
+    def strip_height = hours.count * ROW_HEIGHT
 
-    def bar_width = number([ day_width - 0.4, 0.5 ].max)
+    def day_width = strip_plot.x(2) - strip_plot.x(1)
 
-    def x(doy) = LEFT + (doy - 1) * day_width
+    def bar_width = number([ day_width - BAR_GAP, MIN_BAR_WIDTH ].max)
 
-    def y(hour) = TOP + (hour - hours.first) * ROW_HEIGHT
+    def bar_grid
+      step = (bars_max / MAX_BAR_GRID_LINES.to_f).ceil
+
+      bars_plot.y_ticks(step.step(bars_max, step))
+    end
+
+    def month_doys = (1..12).map { |month| first_doy(month) }
+
+    def titles = @titles ||= @calendar.days.map { |day| title_for(day) }
 
     def first_doy(month) = Date.new(year, month, 1).yday
 
@@ -160,7 +181,7 @@ module Solakon
     def row_runs(strip, ramp, hour)
       runs = []
 
-      (1..days.length).each do |doy|
+      doys.each do |doy|
         value = strip.values[[ doy, hour ]]
         next if value.nil?
 
@@ -177,11 +198,7 @@ module Solakon
     end
 
     def rect(run)
-      Rect.new(
-        x: number(x(run.fetch(:first))),
-        y: number(y(run.fetch(:hour))),
-        width: number((run.fetch(:last) - run.fetch(:first) + 1) * day_width)
-      )
+      strip_plot.rect(run.fetch(:first)..(run.fetch(:last) + 1), run.fetch(:hour)..(run.fetch(:hour) + 1))
     end
 
     def level(value, max) = (value / max * COLOUR_LEVELS).round / COLOUR_LEVELS.to_f
