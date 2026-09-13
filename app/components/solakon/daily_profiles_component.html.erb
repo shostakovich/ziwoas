@@ -14,7 +14,7 @@
               <g class="hour-labels label-<%= density %>"><% hour_labels(density).each do |label| %><text x="<%= label.x %>" y="<%= label.y %>" text-anchor="middle"><%= label.text %></text><% end %></g>
             <% end %>
             <line class="axis" x1="<%= plot_left %>" x2="<%= plot_right %>" y1="<%= baseline_y %>" y2="<%= baseline_y %>"/>
-            <% if multiple.area %><polygon class="measured-area" points="<%= multiple.area %>"/><% end %>
+            <% multiple.areas.each do |area| %><polygon class="measured-area" points="<%= area %>"/><% end %>
             <% multiple.series.each do |series| %><% series.segments.each do |points| %><polyline class="curve <%= series.key %>" points="<%= points %>"/><% end %><% end %>
             <g class="hits"><% multiple.hits.each do |hit| %><rect x="<%= hit.x %>" y="<%= plot_top %>" width="<%= hit.width %>" height="<%= plot_height %>"><title><%= hit.title %></title></rect><% end %></g>
           </svg>

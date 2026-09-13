@@ -13,11 +13,21 @@ module Shading
 
     def build(hours)
       hours.group_by { |hour| hour.time.month }.sort.map do |month, group|
-        Profile.new(month: month, days: group.map(&:date).uniq.length, curves: Shading.trim(curves(group)))
+        basis = comparable(group)
+        Profile.new(month: month, days: basis.map(&:date).uniq.length, curves: Shading.trim(curves(basis)))
       end
     end
 
     private
+
+    # The distance between the measured and the expected line is only the share
+    # that shading cost if both averages cover the same hours, so an hour the
+    # station left out counts for neither. A month the station never covered
+    # keeps its measured curve — there is no comparison to mislead then.
+    def comparable(hours)
+      measured = hours.reject { |hour| hour.irradiance_w_per_m2.nil? }
+      measured.empty? ? hours : measured
+    end
 
     def curves(hours)
       by_hour = hours.group_by { |hour| hour.time.hour }.sort

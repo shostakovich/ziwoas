@@ -167,4 +167,19 @@ class Shading::BuilderTest < ActiveSupport::TestCase
   test "is empty while no PV hour has been aggregated" do
     assert build.empty?
   end
+
+  test "has no best hour while the array produced nothing under a bright sky" do
+    3.times do |index|
+      pv_hour(12, 0.0, date: JULY + index)
+      weather(12, solar: 0.5, date: JULY + index)
+    end
+
+    report = build
+
+    # Nothing is scaled against a zero: no field of the sky gets a share, and
+    # the expected line has nothing to convert the irradiance with.
+    assert_empty report.map.bins
+    assert_empty report.profiles.sole.curve(:expected).points
+    assert_empty report.profiles.sole.curve(:theory).points
+  end
 end

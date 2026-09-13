@@ -122,4 +122,24 @@ class Shading::DailyProfilesTest < ActiveSupport::TestCase
 
     assert_equal [ 10, 11, 12 ], profile.curve(:measured).points.map(&:first)
   end
+
+  test "counts an hour the station left out for neither of the two lines" do
+    measured_only = hour(12, pv_w: 900.0, irradiance: nil, date: Date.new(2026, 7, 2))
+    paired = hour(12, pv_w: 300.0, irradiance: 400.0)
+
+    profile = build([ paired, measured_only ]).sole
+
+    # 900 W would lift the measured line over a day the expected line never saw.
+    assert_equal [ [ 12, 300.0 ] ], profile.curve(:measured).points
+    assert_equal [ [ 12, 400.0 ] ], profile.curve(:expected).points
+    assert_equal 1, profile.days
+  end
+
+  test "keeps the measured line of a month the station never covered" do
+    profile = build([ hour(11, irradiance: nil), hour(12, pv_w: 800.0, irradiance: nil) ]).sole
+
+    assert_equal [ [ 11, 400.0 ], [ 12, 800.0 ] ], profile.curve(:measured).points
+    assert_empty profile.curve(:expected).points
+    assert_equal 1, profile.days
+  end
 end

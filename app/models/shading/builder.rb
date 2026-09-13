@@ -78,7 +78,10 @@ module Shading
       end
       return nil if ratios.empty?
 
-      ratios.sort[(ratios.length * BEST_HOUR_PERCENTILE).floor]
+      # An array that produced nothing under a bright sky has no best hour:
+      # zero is not a scale, and everything measured against it is undefined.
+      best = ratios.sort[(ratios.length * BEST_HOUR_PERCENTILE).floor]
+      best if best.positive?
     end
 
     # The sun takes the same way every year, so the current one stands in for

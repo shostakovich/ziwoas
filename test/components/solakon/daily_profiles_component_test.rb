@@ -41,6 +41,18 @@ class Solakon::DailyProfilesComponentTest < ViewComponent::TestCase
     assert_equal points.first.split(",").last, points.last.split(",").last
   end
 
+  test "breaks the fill where the curve breaks, instead of closing over the gap" do
+    rendered = render_profiles([ profile(measured: [ [ 8, 100.0 ], [ 9, 200.0 ], [ 14, 300.0 ] ]) ])
+
+    areas = rendered.css("polygon.measured-area")
+    assert_equal 2, areas.length
+
+    hours = areas.map { |area| area["points"].split.map { |point| point.split(",").first.to_f } }
+    assert_equal hours.map(&:min), hours.map(&:max).zip(hours.map(&:min)).map(&:last)
+    # The first shape ends where hour nine sits, the second starts at hour 14.
+    assert_operator hours.first.max, :<, hours.last.min
+  end
+
   test "puts every month on the same scale" do
     rendered = render_profiles([ profile(month: 6), profile(month: 12, measured: [ [ 12, 50.0 ] ], expected: [], theory: [ [ 12, 90.0 ] ]) ])
 

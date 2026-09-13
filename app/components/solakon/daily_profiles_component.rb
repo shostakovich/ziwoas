@@ -22,7 +22,7 @@ module Solakon
     Series = Data.define(:key, :segments)
     Hit = Data.define(:x, :width, :title)
     Label = Data.define(:x, :y, :text)
-    Multiple = Data.define(:month, :label, :days, :series, :area, :hits)
+    Multiple = Data.define(:month, :label, :days, :series, :areas, :hits)
 
     def initialize(profiles:)
       @profiles = profiles
@@ -43,7 +43,7 @@ module Solakon
           label: MONTHS[profile.month - 1],
           days: profile.days,
           series: drawing_order.map { |key| Series.new(key: key, segments: segments(profile.curve(key))) },
-          area: area(profile.curve(:measured)),
+          areas: areas(profile.curve(:measured)),
           hits: hits(profile)
         )
       end
@@ -86,19 +86,20 @@ module Solakon
     # One polyline per unbroken run of hours: an hour the station left out must
     # not be bridged by a line nobody measured.
     def segments(curve)
-      curve.points
-           .slice_when { |(previous, _), (hour, _)| hour - previous > 1 }
-           .map { |run| run.map { |hour, watts| "#{number(x(hour))},#{number(y(watts))}" }.join(" ") }
+      runs(curve).map { |run| run.map { |hour, watts| "#{number(x(hour))},#{number(y(watts))}" }.join(" ") }
     end
 
-    def area(curve)
-      return nil if curve.empty?
+    def runs(curve)
+      curve.points.slice_when { |(previous, _), (hour, _)| hour - previous > 1 }.to_a
+    end
 
-      first = curve.points.first.first
-      last = curve.points.last.first
-      "#{number(x(first))},#{baseline_y} " +
-        curve.points.map { |hour, watts| "#{number(x(hour))},#{number(y(watts))}" }.join(" ") +
-        " #{number(x(last))},#{baseline_y}"
+    # One filled shape per unbroken run, for the same reason the line is split:
+    # a fill across a gap would show unmeasured hours as measured.
+    def areas(curve)
+      runs(curve).map do |run|
+        corners = [ [ run.first.first, 0 ], *run, [ run.last.first, 0 ] ]
+        corners.map { |hour, watts| "#{number(x(hour))},#{number(y(watts))}" }.join(" ")
+      end
     end
 
     def hits(profile)
