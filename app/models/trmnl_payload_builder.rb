@@ -4,7 +4,7 @@ class TrmnlPayloadBuilder
 
   def initialize(config:)
     @config = config
-    @tz     = TZInfo::Timezone.get(config.timezone)
+    @tz     = config.location.timezone
   end
 
   def build

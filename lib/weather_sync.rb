@@ -6,12 +6,9 @@ class WeatherSync
 
   def self.from_app_config
     config = ConfigLoader.load(Rails.root.join("config", Rails.env.test? ? "ziwoas.test.yml" : "ziwoas.yml").to_s)
-    return nil if config.weather.nil?
+    return nil unless config.location.located?
 
-    new(
-      config: config,
-      client: BrightskyClient.new(lat: config.weather.lat, lon: config.weather.lon, timezone: config.timezone)
-    )
+    new(config: config, client: BrightskyClient.new(location: config.location))
   end
 
   def initialize(config:, client:)
@@ -58,8 +55,8 @@ class WeatherSync
 
   private
 
-  def lat = @config.weather.lat
-  def lon = @config.weather.lon
+  def lat = @config.location.lat
+  def lon = @config.location.lon
 
   def create_record!(kind, row)
     WeatherRecord.create!(record_attrs(kind, row))

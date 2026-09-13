@@ -5,7 +5,7 @@ class WeatherSyncTest < ActiveSupport::TestCase
   setup do
     WeatherRecord.delete_all
     Plugs::DailyTotal.delete_all
-    @config = ConfigLoader::Config.new(timezone: "Europe/Berlin", weather: ConfigLoader::WeatherCfg.new(lat: 52.52, lon: 13.405))
+    @config = ConfigLoader::Config.new(location: Location.new(timezone: "Europe/Berlin", lat: 52.52, lon: 13.405))
     @client = Minitest::Mock.new
     @sync = WeatherSync.new(config: @config, client: @client)
   end

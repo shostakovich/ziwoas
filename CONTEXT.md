@@ -172,6 +172,15 @@ _Avoid_: Toleranz (that is the switching **grace**), Hysterese, Schwelle
 
 ### Sun
 
+**Location**:
+Where the house stands: its time zone and, once configured, its coordinates. The one thing the
+sun, the weather station and every local clock hour are read against. A location without
+coordinates is complete — the clock still runs — but then no **sun position** exists and no
+weather is fetched; nothing else stands in for the missing coordinates.
+_German UI_: Standort
+_Avoid_: Ort, Position (that is the sun's), Koordinaten alone, Wetterstandort, Zeitzone alone
+(that is one part of it)
+
 **PV power**:
 The DC power the inverter reads from its panels at a point in time: the sum of the four
 **panels**, before battery and conversion. What the sun delivers to the array, not what the
@@ -213,7 +222,9 @@ _German UI_: Sonnenstand
 _Avoid_: Sonnenbahn (that is the whole day's curve), Sonnenhöhe alone
 
 **Sun path**:
-The sun positions over one day, drawn as a curve. Sunrise and sunset are its ends.
+The **sun positions** over one day at the **location**, each with its clock hour, from sunrise to
+sunset. A property of the sun on that date, not of the chart that draws it: which days are worth
+drawing and where the hours get marked is the chart's choice.
 _German UI_: Sonnenbahn
 _Avoid_: Tagbogen, Sonnenverlauf
 

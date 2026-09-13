@@ -3,6 +3,8 @@ require "test_helper"
 class EnergyReportTest < ActiveSupport::TestCase
   cover "EnergyReport*"
 
+  LOCATION = Location.new(timezone: "UTC")
+
   setup do
     Plugs::DailyTotal.delete_all
     Plugs::Sample5min.delete_all
@@ -25,7 +27,7 @@ class EnergyReportTest < ActiveSupport::TestCase
     seed_daily("2026-04-07", pv: 1600, desk: 200, washer: 300)
     seed_daily("2026-04-08", pv: 1700, desk: 210, washer: 310)
 
-    report = EnergyReport.new(params: {}, plugs: @plugs).build
+    report = EnergyReport.new(params: {}, plugs: @plugs, location: LOCATION).build
 
     assert_equal Date.new(2026, 4, 2), report.start_date
     assert_equal Date.new(2026, 4, 8), report.end_date
@@ -45,7 +47,7 @@ class EnergyReportTest < ActiveSupport::TestCase
       seed_daily(date.to_s, pv: 1000, desk: 100, washer: 200)
     end
 
-    report = EnergyReport.new(params: { preset: "last_30" }, plugs: @plugs).build
+    report = EnergyReport.new(params: { preset: "last_30" }, plugs: @plugs, location: LOCATION).build
 
     assert_equal Date.new(2026, 3, 6), report.start_date
     assert_equal Date.new(2026, 4, 4), report.end_date
@@ -59,7 +61,8 @@ class EnergyReportTest < ActiveSupport::TestCase
 
     report = EnergyReport.new(
       params: { start_date: "2026-04-11", end_date: "2026-04-30" },
-      plugs: @plugs
+      plugs: @plugs,
+      location: LOCATION
     ).build
 
     assert_equal Date.new(2026, 4, 11), report.start_date
@@ -73,7 +76,8 @@ class EnergyReportTest < ActiveSupport::TestCase
 
     report = EnergyReport.new(
       params: { start_date: "2026-04-20", end_date: "2026-04-10" },
-      plugs: @plugs
+      plugs: @plugs,
+      location: LOCATION
     ).build
 
     assert_equal "last_7", report.preset
@@ -84,7 +88,7 @@ class EnergyReportTest < ActiveSupport::TestCase
     seed_daily("2026-04-10", pv: 2000, desk: 700, washer: 300)
     seed_daily("2026-04-11", pv: 3000, desk: 500, washer: 1000)
 
-    report = EnergyReport.new(params: {}, plugs: @plugs).build
+    report = EnergyReport.new(params: {}, plugs: @plugs, location: LOCATION).build
 
     assert_equal [ "Balkonkraftwerk" ], report.producer_ranking.map { |row| row.fetch(:name) }
     assert_equal [ "Waschmaschine", "Schreibtisch" ], report.consumer_ranking.map { |row| row.fetch(:name) }
@@ -95,7 +99,7 @@ class EnergyReportTest < ActiveSupport::TestCase
   test "ranking rows carry the plug id, the role label and a precisely rounded kwh total" do
     Plugs::DailyTotal.create!(plug_id: "pv", date: "2026-04-10", energy_wh: 1234.5678)
 
-    report = EnergyReport.new(params: {}, plugs: @plugs).build
+    report = EnergyReport.new(params: {}, plugs: @plugs, location: LOCATION).build
 
     row = report.producer_ranking.first
     assert_equal "pv", row.fetch(:plug_id)
@@ -111,7 +115,8 @@ class EnergyReportTest < ActiveSupport::TestCase
 
     report = EnergyReport.new(
       params: { start_date: "2026-04-10", end_date: "2026-04-10", selected_date: "2026-04-10" },
-      plugs: @plugs
+      plugs: @plugs,
+      location: LOCATION
     ).build
 
     assert_equal [ "10.04." ], report.chart_payload.fetch(:daily).fetch(:labels)
@@ -133,7 +138,8 @@ class EnergyReportTest < ActiveSupport::TestCase
 
     report = EnergyReport.new(
       params: { start_date: "2026-04-10", end_date: "2026-04-11" },
-      plugs: @plugs
+      plugs: @plugs,
+      location: LOCATION
     ).build
 
     detail = report.chart_payload.fetch(:detail)
@@ -151,7 +157,8 @@ class EnergyReportTest < ActiveSupport::TestCase
 
     report = EnergyReport.new(
       params: { start_date: "2026-04-10", end_date: "2026-04-17", selected_date: "2026-04-17" },
-      plugs: @plugs
+      plugs: @plugs,
+      location: LOCATION
     ).build
 
     detail = report.chart_payload.fetch(:detail)
@@ -163,7 +170,7 @@ class EnergyReportTest < ActiveSupport::TestCase
   end
 
   test "empty data returns empty state without raising" do
-    report = EnergyReport.new(params: {}, plugs: @plugs).build
+    report = EnergyReport.new(params: {}, plugs: @plugs, location: LOCATION).build
 
     assert report.empty?
     assert_equal [], report.daily_points
@@ -197,7 +204,8 @@ class EnergyReportTest < ActiveSupport::TestCase
 
     report = EnergyReport.new(
       params: { start_date: "2026-04-10", end_date: "2026-04-10" },
-      plugs: @plugs
+      plugs: @plugs,
+      location: LOCATION
     ).build
 
     assert_in_delta 2.0, report.summary.fetch(:produced_kwh)
@@ -218,7 +226,8 @@ class EnergyReportTest < ActiveSupport::TestCase
 
     report = EnergyReport.new(
       params: { start_date: "2026-04-10", end_date: "2026-04-10" },
-      plugs: @plugs
+      plugs: @plugs,
+      location: LOCATION
     ).build
 
     assert_equal 0.0, report.summary.fetch(:autarky_ratio)
@@ -233,7 +242,8 @@ class EnergyReportTest < ActiveSupport::TestCase
 
     report = EnergyReport.new(
       params: { start_date: "2026-04-10", end_date: "2026-04-11" },
-      plugs: @plugs
+      plugs: @plugs,
+      location: LOCATION
     ).build
 
     ratios = report.chart_payload.fetch(:daily).fetch(:ratios)
@@ -252,7 +262,8 @@ class EnergyReportTest < ActiveSupport::TestCase
 
     report = EnergyReport.new(
       params: { start_date: "2026-04-10", end_date: "2026-04-11" },
-      plugs: @plugs
+      plugs: @plugs,
+      location: LOCATION
     ).build
 
     assert_in_delta 2.0, report.summary.fetch(:produced_kwh)
@@ -267,7 +278,8 @@ class EnergyReportTest < ActiveSupport::TestCase
 
     report = EnergyReport.new(
       params: { start_date: "2026-04-10", end_date: "2026-04-10" },
-      plugs: @plugs
+      plugs: @plugs,
+      location: LOCATION
     ).build
 
     assert_equal 0.0, report.summary.fetch(:avg_produced_kwh)
@@ -285,7 +297,8 @@ class EnergyReportTest < ActiveSupport::TestCase
 
     report = EnergyReport.new(
       params: { start_date: "2026-04-10", end_date: "2026-04-10" },
-      plugs: @plugs
+      plugs: @plugs,
+      location: LOCATION
     ).build
 
     summary = report.summary
@@ -303,7 +316,7 @@ class EnergyReportTest < ActiveSupport::TestCase
     # lose 3.5 Wh and drop the savings a whole cent.
     7.times { |i| seed_daily((Date.new(2026, 4, 1) + i).to_s, pv: 100.4999, desk: 0.0, washer: 0.0) }
 
-    report = EnergyReport.new(params: {}, plugs: @plugs).build
+    report = EnergyReport.new(params: {}, plugs: @plugs, location: LOCATION).build
 
     assert_in_delta 0.703, report.summary.fetch(:produced_kwh), 1e-9
     assert_in_delta 0.23,  report.summary.fetch(:savings_eur),  1e-9

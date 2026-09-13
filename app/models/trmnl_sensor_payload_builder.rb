@@ -5,7 +5,7 @@ class TrmnlSensorPayloadBuilder
   def initialize(config:, now: Time.current)
     @config = config
     @now    = now
-    @tz     = TZInfo::Timezone.get(config.timezone)
+    @tz     = config.location.timezone
   end
 
   def build

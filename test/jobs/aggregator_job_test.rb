@@ -68,7 +68,7 @@ class AggregatorJobTest < ActiveJob::TestCase
 
   test "loads the test config in the test environment" do
     expected_path = Rails.root.join("config", "ziwoas.test.yml").to_s
-    config = ConfigLoader::Config.new(timezone: "Europe/Berlin")
+    config = ConfigLoader::Config.new(location: Location.new(timezone: "Europe/Berlin"))
     original_load = ConfigLoader.method(:load)
     loaded_path = nil
     ConfigLoader.define_singleton_method(:load) do |path|
@@ -105,7 +105,7 @@ class AggregatorJobTest < ActiveJob::TestCase
 
   test "builds the aggregator from the configured timezone and plugs" do
     fake_plugs = [ ConfigLoader::PlugCfg.new(id: "bkw", role: :producer) ]
-    fake_config = ConfigLoader::Config.new(timezone: "America/New_York", plugs: fake_plugs)
+    fake_config = ConfigLoader::Config.new(location: Location.new(timezone: "America/New_York"), plugs: fake_plugs)
     aggregator = RecordingAggregator.new
     captured = nil
 

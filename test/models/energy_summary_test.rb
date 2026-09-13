@@ -12,7 +12,7 @@ class EnergySummaryTest < ActiveSupport::TestCase
     mqtt = ConfigLoader::MqttCfg.new(host: "localhost", port: 1883, topic_prefix: "shellies")
     @config = ConfigLoader::Config.new(
       electricity_price_eur_per_kwh: 0.32,
-      timezone: "Europe/Berlin",
+      location: Location.new(timezone: "Europe/Berlin"),
       mqtt: mqtt,
       fritz_poll: nil,
       plugs: [ plug_bkw, plug_fridge ],

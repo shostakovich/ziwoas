@@ -5,7 +5,7 @@ class EnergySummary
 
   def initialize(config:)
     @config     = config
-    @zone       = ActiveSupport::TimeZone[config.timezone]
+    @zone       = config.location.timezone
     @calculator = SavingsCalculator.new(price_eur_per_kwh: config.electricity_price_eur_per_kwh)
   end
 

@@ -27,7 +27,10 @@ class SunCalendar::BuilderTest < ActiveSupport::TestCase
   end
 
   def builder(lat: LAT, lon: LON, producer_ids: [])
-    SunCalendar::Builder.new(timezone: "Europe/Berlin", lat: lat, lon: lon, producer_ids: producer_ids)
+    SunCalendar::Builder.new(
+      location: Location.new(timezone: "Europe/Berlin", lat: lat, lon: lon),
+      producer_ids: producer_ids
+    )
   end
 
   def pv_hour(local_hour, watts, date: Date.new(2026, 4, 10))
@@ -94,6 +97,15 @@ class SunCalendar::BuilderTest < ActiveSupport::TestCase
     day = builder.build(2026).days.find { |candidate| candidate.doy == DOY }
 
     assert_in_delta 20.5, day.cloud_avg
+  end
+
+  test "weather_records materializes an Array, not a lazy relation" do
+    weather(11, solar: 0.4, cloud: 20)
+    range = Time.zone.local(2026, 4, 10)...Time.zone.local(2026, 4, 11)
+
+    records = builder.send(:weather_records, range)
+
+    assert_kind_of Array, records
   end
 
   test "leaves a day without data empty rather than at zero" do
@@ -236,7 +248,7 @@ class SunCalendar::BuilderTest < ActiveSupport::TestCase
   end
 
   test "widens the hours so the sun lines stay inside the strip" do
-    year = SunCalendar::Builder.new(timezone: "Europe/Madrid", lat: 43.4, lon: -8.4).build(2026)
+    year = SunCalendar::Builder.new(location: Location.new(timezone: "Europe/Madrid", lat: 43.4, lon: -8.4)).build(2026)
 
     assert_operator year.hours.first, :<=, year.lines.rise.map(&:last).min
     assert_operator year.hours.last + 1, :>=, year.lines.set.map(&:last).max
@@ -244,16 +256,16 @@ class SunCalendar::BuilderTest < ActiveSupport::TestCase
 
   test "widens using whichever of sunrise or sunset reaches furthest, not just one" do
     # West of its zone's meridian: the extreme hour comes from sunset.
-    west = SunCalendar::Builder.new(timezone: "Europe/Oslo", lat: 69.6, lon: 18.9).build(2026)
+    west = SunCalendar::Builder.new(location: Location.new(timezone: "Europe/Oslo", lat: 69.6, lon: 18.9)).build(2026)
     # East of its zone's meridian: the extreme hour comes from sunrise instead.
-    east = SunCalendar::Builder.new(timezone: "Europe/Oslo", lat: 69.6, lon: 40.0).build(2026)
+    east = SunCalendar::Builder.new(location: Location.new(timezone: "Europe/Oslo", lat: 69.6, lon: 40.0)).build(2026)
 
     assert_equal (0..24), west.hours
     assert_equal (0..24), east.hours
   end
 
   test "keeps the base hours when the sun stays safely inside them" do
-    year = SunCalendar::Builder.new(timezone: "UTC", lat: 0.0, lon: 0.0).build(2026)
+    year = SunCalendar::Builder.new(location: Location.new(timezone: "UTC", lat: 0.0, lon: 0.0)).build(2026)
 
     assert_equal (3..22), year.hours
   end
@@ -330,7 +342,7 @@ class SunCalendar::BuilderTest < ActiveSupport::TestCase
     # but 2026-04-10 13:00 in the builder's own zone (Pacific/Honolulu, UTC-10, no DST).
     Solakon::PvHour.create!(started_at: Time.utc(2026, 4, 10, 23, 0, 0), pv_power_w: 500.0, reading_count: 120)
 
-    strip = SunCalendar::Builder.new(timezone: "Pacific/Honolulu").build(2026).strips.fetch(:pv)
+    strip = SunCalendar::Builder.new(location: Location.new(timezone: "Pacific/Honolulu")).build(2026).strips.fetch(:pv)
 
     assert_equal({ [ Date.new(2026, 4, 10).yday, 13 ] => 500.0 }, strip.values)
   end
@@ -356,7 +368,7 @@ class SunCalendar::BuilderTest < ActiveSupport::TestCase
       timestamp: Time.utc(2026, 4, 10, 23, 0, 0), solar: 0.5, cloud_cover: 40
     )
 
-    strip = SunCalendar::Builder.new(timezone: "Pacific/Honolulu", lat: 21.3, lon: -157.8)
+    strip = SunCalendar::Builder.new(location: Location.new(timezone: "Pacific/Honolulu", lat: 21.3, lon: -157.8))
                                  .build(2026).strips.fetch(:irradiance)
 
     assert_equal [ [ Date.new(2026, 4, 10).yday, 13 ] ], strip.values.keys
@@ -385,7 +397,7 @@ class SunCalendar::BuilderTest < ActiveSupport::TestCase
     Solakon::PvHour.create!(started_at: just_before_start, pv_power_w: 111.0, reading_count: 120)
     Solakon::PvHour.create!(started_at: at_start, pv_power_w: 222.0, reading_count: 120)
 
-    strip = SunCalendar::Builder.new(timezone: "Pacific/Honolulu").build(2026).strips.fetch(:pv)
+    strip = SunCalendar::Builder.new(location: Location.new(timezone: "Pacific/Honolulu")).build(2026).strips.fetch(:pv)
 
     assert_equal({ [ 1, 0 ] => 222.0 }, strip.values)
   end
@@ -399,14 +411,23 @@ class SunCalendar::BuilderTest < ActiveSupport::TestCase
     Solakon::PvHour.create!(started_at: last_included, pv_power_w: 333.0, reading_count: 120)
     Solakon::PvHour.create!(started_at: first_excluded, pv_power_w: 444.0, reading_count: 120)
 
-    strip = SunCalendar::Builder.new(timezone: "Pacific/Honolulu").build(2026).strips.fetch(:pv)
+    strip = SunCalendar::Builder.new(location: Location.new(timezone: "Pacific/Honolulu")).build(2026).strips.fetch(:pv)
 
     assert_equal({ [ 365, 23 ] => 333.0 }, strip.values)
   end
 
-  test "defaults to no location when lat and lon are omitted" do
-    year = SunCalendar::Builder.new(timezone: "Europe/Berlin").build(2026)
+  test "draws no sun over a location without coordinates" do
+    year = SunCalendar::Builder.new(location: Location.new(timezone: "Europe/Berlin")).build(2026)
 
     assert_predicate year.lines, :empty?
+  end
+
+  test "coerces producer_ids to an array" do
+    instance = SunCalendar::Builder.new(
+      location: Location.new(timezone: "Europe/Berlin", lat: LAT, lon: LON),
+      producer_ids: Set["bkw"]
+    )
+
+    assert_equal [ "bkw" ], instance.instance_variable_get(:@producer_ids)
   end
 end

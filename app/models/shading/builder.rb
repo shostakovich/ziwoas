@@ -1,5 +1,3 @@
-require "sun_calc"
-
 module Shading
   # Reads every PV hour ever aggregated, joins the station's irradiance onto it
   # and places it where the sun stood. The scale everything else hangs on is the
@@ -16,10 +14,8 @@ module Shading
     # The sun position of the hour's middle stands for the whole hour.
     MIDDLE_OF_HOUR = 30.minutes
 
-    def initialize(timezone:, lat: nil, lon: nil)
-      @zone = ActiveSupport::TimeZone[timezone]
-      @lat = lat
-      @lon = lon
+    def initialize(location:)
+      @location = location
     end
 
     def build
@@ -40,9 +36,9 @@ module Shading
       irradiance = irradiance_by_time(rows.first&.started_at, rows.last&.started_at)
 
       rows.map do |row|
-        position = position(row.started_at)
+        position = @location.sun.position(row.started_at + MIDDLE_OF_HOUR)
         Hour.new(
-          time: row.started_at.in_time_zone(@zone),
+          time: row.started_at.in_time_zone(zone),
           pv_w: row.pv_power_w,
           irradiance_w_per_m2: irradiance[row.started_at.to_i],
           panels: [ row.pv1_power_w, row.pv2_power_w, row.pv3_power_w, row.pv4_power_w ],
@@ -55,21 +51,15 @@ module Shading
     # Only the hours the inverter also reported can ever meet a PV hour, so the
     # station's whole history never has to be read.
     def irradiance_by_time(from, to)
-      return {} if @lat.nil? || @lon.nil? || from.nil?
+      return {} if from.nil?
 
       WeatherRecord.historic
-                   .for_location(@lat, @lon)
+                   .for_location(@location)
                    .where(timestamp: from..to)
                    .each_with_object({}) do |record, out|
         value = record.solar_w_per_m2
         out[record.timestamp.to_i] = value unless value.nil?
       end
-    end
-
-    def position(time)
-      return nil if @lat.nil? || @lon.nil?
-
-      SunCalc.position(time: time + MIDDLE_OF_HOUR, lat: @lat, lon: @lon)
     end
 
     def best_ratio(hours)
@@ -86,8 +76,8 @@ module Shading
 
     # The sun takes the same way every year, so the current one stands in for
     # however many years of hours the map holds.
-    def paths
-      SunPaths.new(zone: @zone.name, lat: @lat, lon: @lon).build(Time.current.in_time_zone(@zone).year)
-    end
+    def paths = SunPaths.new(location: @location).build(Time.current.in_time_zone(zone).year)
+
+    def zone = @location.timezone
   end
 end

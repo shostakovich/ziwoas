@@ -221,7 +221,7 @@ class LiveStateTest < ActiveSupport::TestCase
   end
 
   def config(plugs: default_plugs, solakon: solakon_cfg)
-    ConfigLoader::Config.new(electricity_price_eur_per_kwh: 0.32, timezone: "Europe/Berlin",
+    ConfigLoader::Config.new(electricity_price_eur_per_kwh: 0.32, location: Location.new(timezone: "Europe/Berlin"),
                              plugs: plugs, sensors: [], solakon: solakon)
   end
 

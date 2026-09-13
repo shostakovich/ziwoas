@@ -29,13 +29,16 @@ class EnergyReport
     "last_30" => 30
   }.freeze
 
-  def initialize(params:, plugs:, timezone: "UTC", electricity_price_eur_per_kwh: 0.32, weather_loader: nil)
+  def initialize(params:, plugs:, location:, electricity_price_eur_per_kwh: 0.32)
     @params = params.to_h.with_indifferent_access
     @roster = Plugs::Roster.wrap(plugs)
-    @timezone = TZInfo::Timezone.get(timezone)
+    @timezone = location.timezone
     @savings_calculator = SavingsCalculator.new(price_eur_per_kwh: electricity_price_eur_per_kwh)
     @store = Store.new
-    @chart_builder = ChartBuilder.new(plugs: @roster, timezone: @timezone, store: @store, weather_loader: weather_loader)
+    @chart_builder = ChartBuilder.new(
+      plugs: @roster, timezone: @timezone, store: @store,
+      weather_loader: WeatherReportLoader.new(location: location)
+    )
     @messages = []
   end
 

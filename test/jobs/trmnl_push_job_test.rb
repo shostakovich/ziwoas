@@ -8,12 +8,11 @@ class TrmnlPushJobTest < ActiveJob::TestCase
     mqtt = ConfigLoader::MqttCfg.new(host: "localhost", port: 1883, topic_prefix: "shellies")
     ConfigLoader::Config.new(
       electricity_price_eur_per_kwh: 0.32,
-      timezone: "Europe/Berlin",
+      location: Location.new(timezone: "Europe/Berlin"),
       mqtt: mqtt,
       fritz_poll: nil,
       plugs: [ plug_bkw, plug_fridge ],
       fritz_box: nil,
-      weather: nil,
       trmnl: ConfigLoader::TrmnlCfg.new(energy_webhook_url: energy_webhook_url, sensors_webhook_url: nil),
     )
   end

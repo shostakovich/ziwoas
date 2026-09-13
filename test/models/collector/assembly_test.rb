@@ -31,7 +31,7 @@ class CollectorAssemblyTest < ActiveSupport::TestCase
   end
 
   def components(plugs: [ plug("fridge") ], govee: nil, fritz_box: FRITZ_BOX)
-    config = ConfigLoader::Config.new(timezone: "Europe/Berlin", mqtt: MQTT, plugs: plugs,
+    config = ConfigLoader::Config.new(location: Location.new(timezone: "Europe/Berlin"), mqtt: MQTT, plugs: plugs,
       fritz_poll: FRITZ_POLL, fritz_box: fritz_box, govee: govee)
     Collector::Assembly.new(config: config, logger: @logger).components
   end

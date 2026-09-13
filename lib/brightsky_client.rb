@@ -11,10 +11,10 @@ class BrightskyClient
 
   class Error < StandardError; end
 
-  def initialize(lat:, lon:, timezone:, http_timeout: 5, retry_delay: RETRY_BASE_DELAY)
-    @lat = lat
-    @lon = lon
-    @timezone = timezone
+  def initialize(location:, http_timeout: 5, retry_delay: RETRY_BASE_DELAY)
+    @location = location
+    @lat = location.lat
+    @lon = location.lon
     @http_timeout = http_timeout
     @retry_delay = retry_delay
   end
@@ -81,7 +81,7 @@ class BrightskyClient
       precipitation_probability_6h: nil,
       solar: row["solar_10"],
       icon: row["icon"],
-      daytime: WeatherIcon.daytime_for(icon: row["icon"], timestamp: timestamp, lat: @lat, lon: @lon, timezone: @timezone)
+      daytime: WeatherIcon.daytime_for(icon: row["icon"], timestamp: timestamp, location: @location)
     }
   end
 
@@ -107,7 +107,7 @@ class BrightskyClient
       precipitation_probability_6h: row["precipitation_probability_6h"],
       solar: row["solar"],
       icon: row["icon"],
-      daytime: WeatherIcon.daytime_for(icon: row["icon"], timestamp: timestamp, lat: @lat, lon: @lon, timezone: @timezone)
+      daytime: WeatherIcon.daytime_for(icon: row["icon"], timestamp: timestamp, location: @location)
     }
   end
 end

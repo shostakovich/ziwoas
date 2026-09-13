@@ -6,21 +6,25 @@ module Solakon
     PANEL_COLUMNS = Snapshot::PANELS.map { |idx| :"pv#{idx}_power_w" }.freeze
     NO_PANELS = PANEL_COLUMNS.index_with(nil).freeze
 
+    def initialize(timezone:)
+      @zone = timezone
+    end
+
     def aggregate_day(date)
-      day = date.in_time_zone.beginning_of_day
+      day = date.in_time_zone(@zone)
       range = day...(day + 1.day)
       panels = panel_means(range, day.utc_offset)
 
       rows = reading_means(range, day.utc_offset).filter_map do |epoch, pv_power_w, reading_count|
         next if reading_count < PvHour::MIN_READINGS
 
-        { started_at: Time.zone.at(epoch), pv_power_w: pv_power_w, reading_count: reading_count }
+        { started_at: @zone.at(epoch), pv_power_w: pv_power_w, reading_count: reading_count }
           .merge(panels.fetch(epoch, NO_PANELS))
       end
 
       PvHour.transaction do
         PvHour.where(started_at: range).delete_all
-        PvHour.insert_all(rows) if rows.any?
+        PvHour.insert_all(rows)
       end
     end
 
@@ -29,8 +33,8 @@ module Solakon
       first_reading_at = Reading.minimum(:taken_at)
       return if first_reading_at.nil?
 
-      filled = PvHour.pluck(:started_at).to_set { |started_at| started_at.in_time_zone.to_date }
-      (first_reading_at.in_time_zone.to_date..(today - 1)).each do |date|
+      filled = PvHour.pluck(:started_at).to_set { |started_at| started_at.in_time_zone(@zone).to_date }
+      (first_reading_at.in_time_zone(@zone).to_date..(today - 1)).each do |date|
         aggregate_day(date) unless filled.include?(date)
       end
     end
