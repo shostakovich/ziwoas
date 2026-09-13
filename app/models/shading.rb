@@ -48,7 +48,10 @@ module Shading
 
   Map = Data.define(:bins, :paths, :bin_size)
 
-  module_function
+  # extend self, not module_function: the two read the same from outside, but
+  # module_function copies the body to the singleton, and a mutation of the
+  # instance method never reaches the copy the callers use.
+  extend self
 
   # The hours worth drawing: from the first hour something was produced or
   # offered to the last. The inverter reports through the night as well, and a

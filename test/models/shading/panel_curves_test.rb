@@ -55,6 +55,28 @@ class Shading::PanelCurvesTest < ActiveSupport::TestCase
     assert build([ hour(12, [ 100.0, 100.0, 100.0, nil ]) ]).empty?
   end
 
+  test "skips the hours the inverter reported too few panels for" do
+    assert build([ hour(12, [ 100.0, 200.0 ]) ]).empty?
+  end
+
+  test "counts a day on which a panel only just delivered" do
+    assert_equal 1, build([ hour(12, [ 0.5, 400.0, 400.0, 400.0 ]) ]).days
+  end
+
+  test "names the earliest of the counted days" do
+    late = hour(12, [ 400.0, 400.0, 400.0, 400.0 ], date: Date.new(2026, 9, 2))
+    early = hour(12, [ 200.0, 200.0, 200.0, 200.0 ], date: Date.new(2026, 9, 1))
+
+    assert_equal Date.new(2026, 9, 1), build([ late, early ]).since
+  end
+
+  test "puts the clock hours of the panels' day in the order of the day" do
+    late = hour(12, [ 400.0, 400.0, 400.0, 400.0 ])
+    early = hour(10, [ 200.0, 200.0, 200.0, 200.0 ])
+
+    assert_equal [ [ 10, 200.0 ], [ 12, 400.0 ] ], build([ late, early ]).curve(:pv1).points
+  end
+
   test "is empty without hours" do
     panels = build([])
 

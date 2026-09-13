@@ -104,6 +104,66 @@ class Shading::BuilderTest < ActiveSupport::TestCase
     assert_equal [ [ 12, 50.0 ] ], panels.curve(:pv3).points
   end
 
+  test "places nothing in the sky with only half a location" do
+    pv_hour(12, 400.0)
+    weather(12, solar: 0.5)
+
+    [ build(lon: nil), build(lat: nil) ].each do |report|
+      assert_empty report.map.bins
+      assert_empty report.map.paths
+      assert_empty report.profiles.sole.curve(:theory).points
+    end
+  end
+
+  test "reads the station's history, not its forecast of the same hour" do
+    2.times { |index| pv_hour(12, 400.0, date: JULY + index) }
+    2.times { |index| weather(12, solar: 0.5, date: JULY + index) }
+    WeatherRecord.create!(
+      kind: "forecast", daytime: "day", lat: LAT, lon: LON,
+      timestamp: Time.zone.local(2026, 7, 2, 12), solar: 2.0
+    )
+
+    assert_equal [ [ 12, 400.0 ] ], build.profiles.sole.curve(:expected).points
+  end
+
+  test "calibrates only on the hours the sky was bright enough" do
+    pv_hour(12, 400.0)
+    weather(12, solar: 0.5)
+    pv_hour(12, 900.0, date: JULY + 1)
+    weather(12, solar: 0.2, date: JULY + 1)
+
+    # The dim hour's ratio of 4.5 never calibrates; 350 W/m² average at 0.8 W per W/m².
+    assert_equal [ [ 12, 280.0 ] ], build.profiles.sole.curve(:expected).points
+  end
+
+  test "still calibrates on an hour exactly at the brightness it asks for" do
+    pv_hour(12, 400.0)
+    weather(12, solar: 0.5)
+    pv_hour(12, 600.0, date: JULY + 1)
+    weather(12, solar: 0.3, date: JULY + 1)
+
+    # 300 W/m² counts, so the best ratio is that hour's 2.0 over 400 W/m² average.
+    assert_equal [ [ 12, 800.0 ] ], build.profiles.sole.curve(:expected).points
+  end
+
+  test "takes the best hour from the top of the sorted ratios" do
+    21.times do |index|
+      pv_hour(12, 2100.0 - (index * 100), date: JULY + index)
+      weather(12, solar: 0.5, date: JULY + index)
+    end
+
+    # Ratios 0.2 to 4.2; the 95th percentile sits on 4.0, over 500 W/m² average.
+    assert_equal [ [ 12, 2000.0 ] ], build.profiles.sole.curve(:expected).points
+  end
+
+  test "reads the clock in the timezone it was given" do
+    pv_hour(12, 640.0)
+
+    profile = Shading::Builder.new(timezone: "UTC").build.profiles.sole
+
+    assert_equal [ [ 10, 640.0 ] ], profile.curve(:measured).points
+  end
+
   test "is empty while no PV hour has been aggregated" do
     assert build.empty?
   end

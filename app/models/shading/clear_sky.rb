@@ -6,7 +6,7 @@ module Shading
     PEAK_W_PER_M2 = 1098.0
     EXTINCTION = 0.059
 
-    module_function
+    extend self
 
     def w_per_m2(elevation_deg)
       cos_zenith = Math.sin(elevation_deg * Math::PI / 180.0)

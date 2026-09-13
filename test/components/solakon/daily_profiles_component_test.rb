@@ -78,6 +78,62 @@ class Solakon::DailyProfilesComponentTest < ViewComponent::TestCase
     assert_operator hit["x"].to_f + hit["width"].to_f, :<=, right
   end
 
+  test "measures the curves, the grid and the hits against the same axes" do
+    rendered = render_profiles
+
+    assert_equal "0 0 300 150", rendered.css("svg").sole["viewBox"]
+
+    axis = rendered.css("line.axis").sole
+    assert_equal %w[40 286 128 128], %w[x1 x2 y1 y2].map { |name| axis[name] }
+
+    assert_equal [ [ "300", "36", "80.9" ], [ "600", "36", "30.4" ] ],
+                 rendered.css(".value-labels text").map { |node| [ node.text, node["x"], node["y"] ] }
+
+    assert_equal "40,128 40,77.4 163,60.6 286,43.7 286,128", rendered.css("polygon.measured-area").sole["points"]
+    assert_equal "40,77.4 163,60.6 286,43.7", rendered.css("polyline.measured").sole["points"]
+    assert_equal "40,43.7 163,26.9 286,10", rendered.css("polyline.theory").sole["points"]
+
+    hit = rendered.css(".hits rect").first
+    assert_equal %w[40 10 123 118], %w[x y width height].map { |name| hit[name] }
+    assert_equal %w[286 0], %w[x width].map { |name| rendered.css(".hits rect").last[name] }
+  end
+
+  test "names every third hour on the wide axis and every sixth on the narrow one" do
+    wide = [ profile(measured: (6..18).map { |hour| [ hour, 100.0 * hour ] }, expected: [], theory: []) ]
+    rendered = render_profiles(wide)
+
+    dense = rendered.css(".hour-labels.label-dense text")
+    assert_equal %w[6 9 12 15 18], dense.map(&:text)
+    assert_equal %w[40 101.5 163 224.5 286], dense.map { |node| node["x"] }
+    assert_equal %w[144 144 144 144 144], dense.map { |node| node["y"] }
+    assert_equal %w[6 12 18], rendered.css(".hour-labels.label-sparse text").map(&:text)
+  end
+
+  test "explains what the distance between the lines means" do
+    assert_equal "Einstrahlung und wolkenloser Himmel sind mit dem Wirkungsgrad der besten Stunde auf " \
+                 "Anlagenleistung umgerechnet. Der Abstand zwischen der gemessenen und der erwarteten Linie " \
+                 "ist der Anteil, den Abschattung, Ausrichtung oder Drosselung kosten.",
+                 render_profiles.css(".note").sole.text
+  end
+
+  test "spans the shared axis from the earliest to the latest hour of any month" do
+    early = profile(month: 3, measured: [ [ 6, 100.0 ], [ 7, 200.0 ] ], expected: [], theory: [])
+    rendered = render_profiles([ profile, early ])
+
+    dense = rendered.css(".multiple[data-month='6'] .hour-labels.label-dense text")
+
+    assert_equal %w[6 9 12], dense.map(&:text)
+    assert_equal %w[40 163 286], dense.map { |node| node["x"] }
+  end
+
+  test "keeps an axis for a month whose curves are all empty" do
+    rendered = render_profiles([ profile(measured: [], expected: [], theory: []) ])
+
+    assert_equal %w[0], rendered.css(".hour-labels.label-dense text").map(&:text)
+    assert_empty rendered.css("polyline")
+    assert_empty rendered.css(".hits rect")
+  end
+
   test "waits for the first month with a word" do
     rendered = render_profiles([])
 

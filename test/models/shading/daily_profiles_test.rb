@@ -51,6 +51,36 @@ class Shading::DailyProfilesTest < ActiveSupport::TestCase
     assert_equal [ [ 12, 400.0 ] ], profile.curve(:measured).points
   end
 
+  test "leaves the cloudless sky out where the sun position is unknown" do
+    profile = build([ hour(12, elevation: nil) ]).sole
+
+    assert_empty profile.curve(:theory).points
+    assert_equal [ [ 12, 400.0 ] ], profile.curve(:measured).points
+  end
+
+  test "averages a clock hour over the days the station measured, ignoring the rest" do
+    hours = [ hour(12, irradiance: nil), hour(12, irradiance: 500.0, date: Date.new(2026, 7, 2)) ]
+
+    profile = build(hours).sole
+
+    assert_equal [ [ 12, 500.0 ] ], profile.curve(:expected).points
+  end
+
+  test "leaves the scaled curves empty until a best hour is known" do
+    profile = build([ hour(12) ], best_ratio: nil).sole
+
+    assert_empty profile.curve(:expected).points
+    assert_empty profile.curve(:theory).points
+    assert_equal [ [ 12, 400.0 ] ], profile.curve(:measured).points
+  end
+
+  test "puts the clock hours of a profile in the order of the day" do
+    profile = build([ hour(12), hour(10), hour(11) ]).sole
+
+    assert_equal [ 10, 11, 12 ], profile.curve(:measured).points.map(&:first)
+    assert_equal [ 10, 11, 12 ], profile.curve(:expected).points.map(&:first)
+  end
+
   test "has no profile without hours" do
     assert_empty build([])
   end
@@ -62,6 +92,29 @@ class Shading::DailyProfilesTest < ActiveSupport::TestCase
 
     assert_equal [ 12 ], profile.curve(:measured).points.map(&:first)
     assert_equal [ 12 ], profile.curve(:theory).points.map(&:first)
+  end
+
+  test "keeps nothing of a day on which nothing was ever produced" do
+    dark = [ 8, 12 ].map { |clock| hour(clock, pv_w: 0.0, irradiance: 0.0, elevation: nil) }
+
+    profile = build(dark).sole
+
+    assert_empty profile.curve(:measured).points
+    assert_empty profile.curve(:expected).points
+    assert_empty profile.curve(:theory).points
+  end
+
+  test "opens the day at the earliest and closes it at the latest hour that carried something" do
+    hours = [
+      hour(8, pv_w: 0.0, irradiance: 500.0, elevation: nil),
+      hour(10, pv_w: 400.0, irradiance: 0.0, elevation: nil),
+      hour(12, pv_w: 0.0, irradiance: 500.0, elevation: nil),
+      hour(14, pv_w: 400.0, irradiance: 0.0, elevation: nil)
+    ]
+
+    profile = build(hours).sole
+
+    assert_equal [ 8, 10, 12, 14 ], profile.curve(:measured).points.map(&:first)
   end
 
   test "keeps an hour of zero inside the day" do

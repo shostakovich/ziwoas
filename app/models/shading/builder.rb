@@ -78,7 +78,7 @@ module Shading
       end
       return nil if ratios.empty?
 
-      ratios.sort[(ratios.length * BEST_HOUR_PERCENTILE).floor.clamp(0, ratios.length - 1)]
+      ratios.sort[(ratios.length * BEST_HOUR_PERCENTILE).floor]
     end
 
     # The sun takes the same way every year, so the current one stands in for

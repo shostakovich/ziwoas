@@ -27,9 +27,9 @@ class Shading::YieldMapTest < ActiveSupport::TestCase
 
   test "takes the median of the hours in a field, as a share of the best hour" do
     hours = [
-      hour(azimuth: 141.0, elevation: 46.0, pv_w: 100.0),
-      hour(azimuth: 142.0, elevation: 47.0, pv_w: 400.0),
-      hour(azimuth: 143.0, elevation: 48.0, pv_w: 700.0)
+      hour(azimuth: 141.0, elevation: 46.0, pv_w: 700.0),
+      hour(azimuth: 142.0, elevation: 47.0, pv_w: 100.0),
+      hour(azimuth: 143.0, elevation: 48.0, pv_w: 400.0)
     ]
 
     bin = build(hours, best_ratio: 1.0).bins.sole
@@ -39,9 +39,28 @@ class Shading::YieldMapTest < ActiveSupport::TestCase
   end
 
   test "averages the two middle hours of an even field" do
-    hours = [ 100.0, 200.0, 300.0, 600.0 ].map { |watts| hour(azimuth: 141.0, elevation: 46.0, pv_w: watts) }
+    hours = [ 600.0, 100.0, 200.0, 300.0 ].map { |watts| hour(azimuth: 141.0, elevation: 46.0, pv_w: watts) }
 
     assert_in_delta 0.5, build(hours, best_ratio: 1.0).bins.sole.share, 0.001
+  end
+
+  test "finds the middle of a larger even field" do
+    watts = [ 600.0, 500.0, 100.0, 200.0, 300.0, 400.0 ]
+    hours = watts.map { |pv_w| hour(azimuth: 141.0, elevation: 46.0, pv_w: pv_w) }
+
+    assert_in_delta 0.7, build(hours, best_ratio: 1.0).bins.sole.share, 0.001
+  end
+
+  test "reads the median against the best hour ever seen" do
+    hours = [ hour(azimuth: 100.0, elevation: 20.0) ] * 3
+
+    assert_in_delta 0.4, build(hours, best_ratio: 2.0).bins.sole.share, 0.001
+  end
+
+  test "draws no field before a best hour is known" do
+    hours = [ hour(azimuth: 100.0, elevation: 20.0) ] * 3
+
+    assert_equal [], build(hours, best_ratio: nil).bins
   end
 
   test "leaves a field with fewer than three hours empty" do
@@ -59,14 +78,29 @@ class Shading::YieldMapTest < ActiveSupport::TestCase
     assert_empty build([ hour(azimuth: 100.0, elevation: 20.0, irradiance: nil) ] * 3).bins
   end
 
+  test "keeps hours the station measured at exactly the threshold" do
+    hours = [ hour(azimuth: 100.0, elevation: 20.0, irradiance: 100.0) ] * 3
+
+    assert_equal 3, build(hours).bins.sole.hours
+  end
+
+  test "keeps hours with the sun just above the horizon" do
+    hours = [ hour(azimuth: 100.0, elevation: 0.5) ] * 3
+
+    assert_equal [ [ 100, 0 ] ], build(hours).bins.map { |bin| [ bin.azimuth, bin.elevation ] }
+  end
+
+  test "skips hours whose sun position was never known" do
+    assert_empty build([ hour(azimuth: nil, elevation: nil) ] * 3).bins
+  end
+
   test "names the hours of the day a field was measured in" do
-    hours = [ hour(azimuth: 100.0, elevation: 20.0, clock: 9), hour(azimuth: 100.0, elevation: 20.0, clock: 7),
-              hour(azimuth: 100.0, elevation: 20.0, clock: 8) ]
+    hours = [ 9, 7, 10, 8 ].map { |clock| hour(azimuth: 100.0, elevation: 20.0, clock: clock) }
 
     bin = build(hours).bins.sole
 
     assert_equal 7, bin.first_hour
-    assert_equal 9, bin.last_hour
+    assert_equal 10, bin.last_hour
   end
 
   test "carries the sun paths it is drawn under" do

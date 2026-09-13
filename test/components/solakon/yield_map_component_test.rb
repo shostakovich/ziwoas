@@ -96,6 +96,54 @@ class Solakon::YieldMapComponentTest < ViewComponent::TestCase
     assert_operator rendered.css(".fields rect").sole["x"].to_f, :>, axis
   end
 
+  test "measures the fields, the grid and the paths against the same axes" do
+    dots = [ Shading::Dot.new(hour: 12, azimuth: 180.0, elevation: 60.0) ]
+    rendered = render_map(paths: [ path(dots: dots) ])
+
+    assert_equal "0 0 720 289.6", rendered.css("svg").sole["viewBox"]
+
+    rect = rendered.css(".fields rect").sole
+    assert_equal %w[262 56.6 13.4 19.7], %w[x y width height].map { |name| rect[name] }
+
+    horizon = rendered.css("g.grid").first.css("line").first
+    assert_equal %w[38 710 259.6 259.6], %w[x1 x2 y1 y2].map { |name| horizon[name] }
+
+    label = rendered.css(".hour-labels text").first
+    assert_equal [ "0°", "33", "263.1" ], [ label.text, label["x"], label["y"] ]
+
+    east = rendered.css(".label-dense text").find { |node| node.text == "Ost 90°" }
+    assert_equal %w[122 273.6], [ east["x"], east["y"] ]
+
+    assert_equal "38,239.3 374,16 710,243.4", rendered.css("polyline.sun").sole["points"]
+
+    dot = rendered.css("circle.dot").sole
+    assert_equal %w[374 16], [ dot["cx"], dot["cy"] ]
+    assert_equal %w[374 29], [ rendered.css("text.dot-label").sole["x"], rendered.css("text.dot-label").sole["y"] ]
+    assert_equal %w[374 7], [ rendered.css("text.path-label").sole["x"], rendered.css("text.path-label").sole["y"] ]
+  end
+
+  test "rounds the axes outwards to whole tens of degrees" do
+    rough = path(points: [ [ 63.7, 5.0 ], [ 180.0, 57.3 ], [ 291.4, 4.0 ] ])
+    rendered = render_map(paths: [ rough ])
+
+    # 63.7° snaps down to 60°, 291.4° up to 300°, and 57.3° of height up to 60°.
+    assert_equal "0 0 720 289.6", rendered.css("svg").sole["viewBox"]
+    assert_equal %w[0° 60°], [ rendered.css(".hour-labels text").first.text, rendered.css(".hour-labels text").last.text ]
+    assert_equal %w[60° Ost\ 90°], rendered.css(".label-dense text").map(&:text).first(2)
+    assert_equal %w[38 122], rendered.css(".label-dense text").map { |node| node["x"] }.first(2)
+    assert_equal "48.4,239.3 374,27 685.9,243.4", rendered.css("polyline.sun").sole["points"]
+  end
+
+  test "explains the map and shows the ramp its fields are coloured from" do
+    rendered = render_map
+
+    assert_equal "background: #{Ramp.fetch(:diverging).css_gradient}", rendered.css(".legend-ramp").sole["style"]
+    assert_equal "Ausbeute ist die PV-Leistung geteilt durch die Einstrahlung derselben Stunde, " \
+                 "bezogen auf die beste je gemessene Stunde. Gezählt werden nur Stunden mit mindestens " \
+                 "100 W/m²; ein Feld von 5° × 5° zeigt den Median seiner Stunden und bleibt unter " \
+                 "3 Stunden leer.", rendered.css(".note").sole.text
+  end
+
   test "waits for the first fields with a word instead of an empty sky" do
     rendered = render_map(bins: [])
 

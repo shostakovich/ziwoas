@@ -23,10 +23,6 @@ module Solakon
     # the two never meet at noon where both belong to the same place.
     DOT_LABEL_OFFSET = 13
     PATH_LABEL_OFFSET = 9
-    # Without a single field or path — no location configured — the map still
-    # needs an axis to be drawn on.
-    FALLBACK_AZIMUTHS = (90..270)
-    FALLBACK_ELEVATION = 60
     COMPASS = { 90 => "Ost", 180 => "Süd", 270 => "West" }.freeze
 
     Field = Data.define(:x, :y, :width, :height, :fill, :title)
@@ -118,20 +114,20 @@ module Solakon
     def y(elevation) = TOP + (top_elevation - elevation) * scale_y
 
     # Wide enough for every field and every path, snapped outwards so the axis
-    # labels land on round degrees.
+    # labels land on round degrees. There is always a field — the map is not
+    # drawn without one — so there is always something to measure.
     def azimuths
       @azimuths ||= begin
         values = degrees { |azimuth, _elevation| azimuth } +
                  @map.bins.flat_map { |bin| [ bin.azimuth, bin.azimuth + bin_size ] }
-        values.empty? ? FALLBACK_AZIMUTHS : snap_down(values.min)..snap_up(values.max)
+        snap_down(values.min)..snap_up(values.max)
       end
     end
 
     def top_elevation
-      @top_elevation ||= begin
-        values = degrees { |_azimuth, elevation| elevation } + @map.bins.map { |bin| bin.elevation + bin_size }
-        values.empty? ? FALLBACK_ELEVATION : snap_up(values.max)
-      end
+      @top_elevation ||= snap_up(
+        (degrees { |_azimuth, elevation| elevation } + @map.bins.map { |bin| bin.elevation + bin_size }).max
+      )
     end
 
     def degrees(&) = @map.paths.flat_map { |path| path.points.map(&) }
