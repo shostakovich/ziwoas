@@ -4,21 +4,13 @@ require "tzinfo"
 # WeatherRecords for a given lat/lon and exposes per-day and per-hour
 # aggregates suited for chart overlays.
 #
-#   loader = WeatherReportLoader.new(lat: 48.15, lon: 11.26, timezone: "Europe/Berlin")
+#   loader = WeatherReportLoader.new(location: config.location)
 #   loader.daily(start_date, end_date)   # => { "2026-05-01" => { solar_kwh_per_m2:, asset_name:, alt: }, ... }
 #   loader.hourly(start_date, end_date)  # => [{ ts:, solar_w_per_m2:, asset_name:, alt: }, ...]
 class WeatherReportLoader
-  def self.from_app_config(app_config)
-    weather = app_config.weather
-    return nil if weather.nil? || weather.lat.nil? || weather.lon.nil?
-
-    new(lat: weather.lat, lon: weather.lon, timezone: app_config.timezone || "UTC")
-  end
-
-  def initialize(lat:, lon:, timezone: "UTC")
-    @lat = lat
-    @lon = lon
-    @zone = ActiveSupport::TimeZone[timezone]
+  def initialize(location:)
+    @location = location
+    @zone = location.timezone
   end
 
   # Returns a Hash keyed by ISO date string with per-day weather summary.
@@ -60,7 +52,7 @@ class WeatherReportLoader
     start_ts = local_midnight(start_date)
     end_ts   = local_midnight(end_date + 1)
     WeatherRecord.historic
-                 .for_location(@lat, @lon)
+                 .for_location(@location)
                  .where(timestamp: start_ts...end_ts)
                  .order(:timestamp)
                  .to_a

@@ -1,5 +1,4 @@
 require "time"
-require "sun_calc"
 
 module WeatherIcon
   ICONS = %w[
@@ -14,11 +13,12 @@ module WeatherIcon
     "weather_#{base.tr("-", "_")}_#{suffix}.webp"
   end
 
-  def daytime_for(icon:, timestamp:, lat:, lon:, timezone:)
+  # The icon says it outright, or the sun over the house decides.
+  def daytime_for(icon:, timestamp:, location:)
     return "day" if icon.to_s.end_with?("-day")
     return "night" if icon.to_s.end_with?("-night")
 
-    SunCalc.daytime?(timestamp: timestamp, lat: lat, lon: lon, timezone: timezone) ? "day" : "night"
+    location.sun.daytime?(timestamp) ? "day" : "night"
   end
 
   def normalized_icon(icon)

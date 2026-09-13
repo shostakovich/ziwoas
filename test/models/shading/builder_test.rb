@@ -27,7 +27,9 @@ class Shading::BuilderTest < ActiveSupport::TestCase
     )
   end
 
-  def build(lat: LAT, lon: LON) = Shading::Builder.new(timezone: "Europe/Berlin", lat: lat, lon: lon).build
+  def build(lat: LAT, lon: LON)
+    Shading::Builder.new(location: Location.new(timezone: "Europe/Berlin", lat: lat, lon: lon)).build
+  end
 
   test "reads the day's shape from the PV hours alone" do
     pv_hour(12, 640.0)
@@ -104,17 +106,6 @@ class Shading::BuilderTest < ActiveSupport::TestCase
     assert_equal [ [ 12, 50.0 ] ], panels.curve(:pv3).points
   end
 
-  test "places nothing in the sky with only half a location" do
-    pv_hour(12, 400.0)
-    weather(12, solar: 0.5)
-
-    [ build(lon: nil), build(lat: nil) ].each do |report|
-      assert_empty report.map.bins
-      assert_empty report.map.paths
-      assert_empty report.profiles.sole.curve(:theory).points
-    end
-  end
-
   test "reads the station's history, not its forecast of the same hour" do
     2.times { |index| pv_hour(12, 400.0, date: JULY + index) }
     2.times { |index| weather(12, solar: 0.5, date: JULY + index) }
@@ -159,7 +150,7 @@ class Shading::BuilderTest < ActiveSupport::TestCase
   test "reads the clock in the timezone it was given" do
     pv_hour(12, 640.0)
 
-    profile = Shading::Builder.new(timezone: "UTC").build.profiles.sole
+    profile = Shading::Builder.new(location: Location.new(timezone: "UTC", lat: LAT, lon: LON)).build.profiles.sole
 
     assert_equal [ [ 10, 640.0 ] ], profile.curve(:measured).points
   end

@@ -7,7 +7,7 @@ class Shading::SunPathsTest < ActiveSupport::TestCase
   LON = 13.405
 
   def paths(lat: LAT, lon: LON, year: 2026, zone: "Europe/Berlin")
-    Shading::SunPaths.new(zone: zone, lat: lat, lon: lon).build(year)
+    Shading::SunPaths.new(location: Location.new(timezone: zone, lat: lat, lon: lon)).build(year)
   end
 
   test "draws the solstices and the equinox" do
@@ -69,12 +69,11 @@ class Shading::SunPathsTest < ActiveSupport::TestCase
     assert_equal [ 12 ], paths(lat: 66.0).last.dots.map(&:hour)
   end
 
-  test "drops the dot once the sun stays below the horizon" do
-    assert_equal [], paths(lat: 67.0).last.dots.map(&:hour)
+  test "drops the whole date once the sun stays below the horizon" do
+    assert_equal [ "21.6.", "21.3. / 23.9." ], paths(lat: 67.0).map(&:label)
   end
 
-  test "draws nothing without a location" do
-    assert_empty paths(lat: nil)
-    assert_empty paths(lon: nil)
+  test "draws nothing for a location without coordinates" do
+    assert_empty paths(lat: nil, lon: nil)
   end
 end

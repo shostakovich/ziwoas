@@ -1,6 +1,5 @@
 require "config_loader"
 require "daily_energy_summary_builder"
-require "tzinfo"
 
 namespace :daily_energy_summary do
   desc "Rebuild daily_energy_summary rows from samples_5min for every day in daily_totals"
@@ -9,7 +8,7 @@ namespace :daily_energy_summary do
     abort "config/ziwoas.yml missing" unless File.exist?(config_path)
 
     config   = ConfigLoader.load(config_path.to_s)
-    timezone = TZInfo::Timezone.get(config.timezone)
+    timezone = config.location.timezone
     builder  = DailyEnergySummaryBuilder.new(plugs: config.plugs, timezone: timezone)
 
     dates = Plugs::DailyTotal.distinct.pluck(:date).sort

@@ -1,12 +1,11 @@
 require "test_helper"
-require "ostruct"
 
 class WeatherReportLoaderTest < ActiveSupport::TestCase
   cover "WeatherReportLoader*"
 
   setup do
     WeatherRecord.delete_all
-    @loader = WeatherReportLoader.new(lat: 48.15, lon: 11.26, timezone: "Europe/Berlin")
+    @loader = WeatherReportLoader.new(location: location)
   end
 
   test "daily aggregates solar and resolves dominant icon per local day" do
@@ -44,9 +43,12 @@ class WeatherReportLoaderTest < ActiveSupport::TestCase
     assert_equal "weather_clear_day.webp", hourly.first[:asset_name]
   end
 
-  test "from_app_config returns nil without weather lat/lon" do
-    cfg = OpenStruct.new(weather: OpenStruct.new(lat: nil, lon: nil), timezone: "UTC")
-    assert_nil WeatherReportLoader.from_app_config(cfg)
+  test "a location without coordinates has no weather to report" do
+    create_historic(Time.utc(2026, 5, 1, 12), solar: 0.4, icon: "clear-day", daytime: "day")
+    loader = WeatherReportLoader.new(location: Location.new(timezone: "Europe/Berlin"))
+
+    assert_empty loader.daily(Date.new(2026, 5, 1), Date.new(2026, 5, 1))
+    assert_empty loader.hourly(Date.new(2026, 5, 1), Date.new(2026, 5, 1))
   end
 
   # `hourly` has no per-record date re-check (unlike `daily`), so it is the
@@ -54,8 +56,8 @@ class WeatherReportLoaderTest < ActiveSupport::TestCase
   # `local_midnight` from the per-record `local_date` grouping. The suite's
   # Time.zone (Europe/Berlin, config/ziwoas.test.yml) must never substitute
   # for the zone actually configured on the loader.
-  test "initialize defaults to UTC when timezone is not given" do
-    loader = WeatherReportLoader.new(lat: 48.15, lon: 11.26)
+  test "reads the day off the location's own clock, not the suite's" do
+    loader = WeatherReportLoader.new(location: location(timezone: "UTC"))
     # 23:00 UTC on April 30th is before UTC midnight May 1st, but would
     # already be inside the requested day if the zone silently fell back
     # to the suite's Europe/Berlin default (starts 22:00 UTC April 30th).
@@ -67,7 +69,7 @@ class WeatherReportLoaderTest < ActiveSupport::TestCase
   end
 
   test "daily groups by the configured timezone, not the global default" do
-    loader = WeatherReportLoader.new(lat: 48.15, lon: 11.26, timezone: "America/New_York")
+    loader = WeatherReportLoader.new(location: location(timezone: "America/New_York"))
     # 02:00 UTC on May 1st is still April 30th in America/New_York (-4 in summer)
     # but already May 1st in the suite's Europe/Berlin default.
     create_historic(Time.utc(2026, 5, 1, 2), solar: 0.2, icon: "clear-day", daytime: "day")
@@ -78,7 +80,7 @@ class WeatherReportLoaderTest < ActiveSupport::TestCase
   end
 
   test "historic range boundaries use the configured timezone, not the global default" do
-    loader = WeatherReportLoader.new(lat: 48.15, lon: 11.26, timezone: "America/New_York")
+    loader = WeatherReportLoader.new(location: location(timezone: "America/New_York"))
     # America/New_York midnight on May 1st is 04:00 UTC. A record one hour
     # before that falls outside the requested day in that zone, but would
     # fall inside it under the suite's Europe/Berlin default (starts 22:00
@@ -91,6 +93,8 @@ class WeatherReportLoaderTest < ActiveSupport::TestCase
   end
 
   private
+
+  def location(timezone: "Europe/Berlin") = Location.new(timezone: timezone, lat: 48.15, lon: 11.26)
 
   def create_historic(ts, solar:, icon:, daytime:)
     WeatherRecord.create!(

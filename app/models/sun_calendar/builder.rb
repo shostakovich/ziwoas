@@ -14,10 +14,9 @@ module SunCalendar
     # Strip maxima snap to this step so the legend reads as a round number.
     MAX_STEP = 50
 
-    def initialize(timezone:, lat: nil, lon: nil, producer_ids: [])
-      @zone = ActiveSupport::TimeZone[timezone]
-      @lat = lat
-      @lon = lon
+    def initialize(location:, producer_ids: [])
+      @location = location
+      @zone = location.timezone
       @producer_ids = producer_ids.to_a
     end
 
@@ -43,7 +42,7 @@ module SunCalendar
         cloud: Strip.new(key: :cloud, title: "Bewölkung", unit: "%", ramp: :grey, max: 100.0, values: cells(cloud))
       }
       days = days(year, plug + pv, weather_points(weather, &:solar), cloud)
-      lines = SunLines.new(zone: @zone.name, lat: @lat, lon: @lon).build(year)
+      lines = SunLines.new(location: @location).build(year)
 
       Year.new(
         year: year,
@@ -94,10 +93,8 @@ module SunCalendar
     end
 
     def weather_records(range)
-      return [] if @lat.nil? || @lon.nil?
-
       WeatherRecord.historic
-                   .for_location(@lat, @lon)
+                   .for_location(@location)
                    .where(timestamp: range)
                    .order(:timestamp)
                    .to_a

@@ -1,22 +1,19 @@
-require "sun_calc"
-
 module SunCalendar
   # Sunrise, sunset and solar noon over a whole year, in local clock hours.
   # On a daylight saving change the previous offset's value comes first, so the
   # line steps by one hour where the clock does instead of ramping across it.
+  #
+  # A location without coordinates has a sun that rises nowhere, so the lines
+  # come out empty without a guard of their own.
   class SunLines
     SECONDS_PER_HOUR = 3600
     SECONDS_PER_DAY = 86_400
 
-    def initialize(zone:, lat:, lon:)
-      @zone = ActiveSupport::TimeZone[zone]
-      @lat = lat
-      @lon = lon
+    def initialize(location:)
+      @location = location
     end
 
     def build(year)
-      return Lines.new(rise: [], set: [], noon: []) if @lat.nil? || @lon.nil?
-
       rise = []
       set = []
       noon = []
@@ -43,10 +40,11 @@ module SunCalendar
 
     private
 
-    # Both events as UTC times, or nil on a polar day without either.
+    # Both events, or nil on a polar day without either — and on every day of a
+    # location whose coordinates nobody configured.
     def events(date)
-      sunrise = SunCalc.sunrise(date: date, lat: @lat, lon: @lon, timezone: @zone.name)
-      sunset = SunCalc.sunset(date: date, lat: @lat, lon: @lon, timezone: @zone.name)
+      sunrise = @location.sun.sunrise(date)
+      sunset = @location.sun.sunset(date)
       return nil if sunrise.nil? || sunset.nil?
 
       [ sunrise, sunset ]
@@ -58,6 +56,6 @@ module SunCalendar
 
     # Read at local noon: a change happens at night, so both events of the day
     # already sit on the new offset.
-    def utc_offset(date) = @zone.parse("#{date} 12:00").utc_offset
+    def utc_offset(date) = @location.timezone.parse("#{date} 12:00").utc_offset
   end
 end

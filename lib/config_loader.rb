@@ -9,7 +9,6 @@ class ConfigLoader
   FritzPollCfg = Struct.new(:active_interval_seconds, :idle_interval_seconds,
                              :idle_threshold_w, :timeout_seconds, keyword_init: true)
   FritzBoxCfg = Struct.new(:host, :user, :password, keyword_init: true)
-  WeatherCfg   = Struct.new(:lat, :lon, keyword_init: true)
   SwitchbotCfg = Struct.new(:token, :secret, keyword_init: true)
   SensorCfg    = Struct.new(:id, :name, :type, :room, keyword_init: true)
   TrmnlCfg     = Struct.new(:energy_webhook_url, :sensors_webhook_url, keyword_init: true)
@@ -17,8 +16,8 @@ class ConfigLoader
                               keyword_init: true)
   GoveeCfg     = Struct.new(:api_key, :lan_poll_seconds, :api_poll_seconds,
                             :pending_window_seconds, :names, keyword_init: true)
-  Config       = Struct.new(:electricity_price_eur_per_kwh, :timezone,
-                            :mqtt, :fritz_poll, :plugs, :fritz_box, :weather,
+  Config       = Struct.new(:electricity_price_eur_per_kwh, :location,
+                            :mqtt, :fritz_poll, :plugs, :fritz_box,
                             :switchbot, :sensors, :trmnl, :solakon, :govee,
                             keyword_init: true) do
     def plug_roster
@@ -119,19 +118,14 @@ class ConfigLoader
   end
 
   def build
-    price = require_number(@raw["electricity_price_eur_per_kwh"], "electricity_price_eur_per_kwh", allow_zero: false)
-    tz    = require_string(@raw["timezone"], "timezone")
-    begin
-      TZInfo::Timezone.get(tz)
-    rescue TZInfo::InvalidTimezoneIdentifier
-      raise Error, "timezone '#{tz}' is not a valid IANA timezone"
-    end
+    reject_retired_keys!
+    price    = require_number(@raw["electricity_price_eur_per_kwh"], "electricity_price_eur_per_kwh", allow_zero: false)
+    location = build_location(@raw["location"])
 
     mqtt       = build_mqtt(@raw["mqtt"])
     fritz_poll = build_fritz_poll(@raw["fritz_poll"])
     fritz_box  = build_fritz_box(@raw["fritz_box"])
     plugs      = build_plugs(@raw["plugs"])
-    weather    = build_weather(@raw["weather"])
     switchbot  = build_switchbot(@raw["switchbot"])
     sensors    = build_sensors(@raw["sensors"])
     trmnl      = build_trmnl(@raw["trmnl"])
@@ -148,12 +142,11 @@ class ConfigLoader
 
     Config.new(
       electricity_price_eur_per_kwh: price,
-      timezone:   tz,
+      location:   location,
       mqtt:       mqtt,
       fritz_poll: fritz_poll,
       plugs:      plugs,
       fritz_box:  fritz_box,
-      weather:    weather,
       switchbot:  switchbot,
       sensors:    sensors,
       trmnl:      trmnl,
@@ -192,15 +185,40 @@ class ConfigLoader
     FritzBoxCfg.new(host: host, user: user, password: password)
   end
 
-  def build_weather(h)
-    return nil if h.nil?
-    h = require_hash(h, "weather")
-    lat = require_coordinate(h["lat"], "weather.lat")
-    lon = require_coordinate(h["lon"], "weather.lon")
-    raise Error, "weather.lat must be between -90 and 90" unless (-90..90).cover?(lat)
-    raise Error, "weather.lon must be between -180 and 180" unless (-180..180).cover?(lon)
+  # The zone is required — without it no local clock hour exists. The
+  # coordinates are optional, but only as a pair: half a position places
+  # nothing.
+  def build_location(h)
+    h  = require_hash(h, "location")
+    tz = require_string(h["timezone"], "location.timezone")
+    begin
+      TZInfo::Timezone.get(tz)
+    rescue TZInfo::InvalidTimezoneIdentifier
+      raise Error, "location.timezone '#{tz}' is not a valid IANA timezone"
+    end
 
-    WeatherCfg.new(lat: lat, lon: lon)
+    Location.new(timezone: tz, **coordinates(h))
+  end
+
+  def coordinates(h)
+    return {} if h["lat"].nil? && h["lon"].nil?
+
+    lat = require_coordinate(h["lat"], "location.lat")
+    lon = require_coordinate(h["lon"], "location.lon")
+    raise Error, "location.lat must be between -90 and 90" unless Location::LAT_RANGE.cover?(lat)
+    raise Error, "location.lon must be between -180 and 180" unless Location::LON_RANGE.cover?(lon)
+
+    { lat: lat, lon: lon }
+  end
+
+  # The zone and the coordinates used to live apart, under `timezone` and
+  # `weather`. Refusing the old keys by name beats reading a config that means
+  # something else than it says.
+  def reject_retired_keys!
+    retired = { "timezone" => "location.timezone", "weather" => "location.lat / location.lon" }
+    retired.each do |old, new|
+      raise Error, "'#{old}' has moved to #{new}" if @raw.key?(old)
+    end
   end
 
   def build_switchbot(h)

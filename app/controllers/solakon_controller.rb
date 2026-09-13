@@ -8,17 +8,11 @@ class SolakonController < ApplicationController
     @latest_snapshot = Solakon::Snapshot.latest
     @history_payload = Solakon::History.new(range_key: "24h").payload
     calendar = SunCalendar::Builder.new(
-      timezone: app_config.timezone,
-      lat: app_config.weather&.lat,
-      lon: app_config.weather&.lon,
+      location: app_config.location,
       producer_ids: Plugs::Roster.wrap(app_config.plugs).producer_ids
     )
     @sun_calendar = calendar.build(calendar.latest_year)
-    @shading = Shading::Builder.new(
-      timezone: app_config.timezone,
-      lat: app_config.weather&.lat,
-      lon: app_config.weather&.lon
-    ).build
+    @shading = Shading::Builder.new(location: app_config.location).build
   end
 
   def history

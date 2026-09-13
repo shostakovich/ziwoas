@@ -1,7 +1,6 @@
 electricity_price_eur_per_kwh: 0.2902
-timezone: Europe/Berlin
-
-weather:
+location:
+  timezone: Europe/Berlin
   lat: 52.52
   lon: 13.405
 

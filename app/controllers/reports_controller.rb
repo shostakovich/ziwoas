@@ -3,9 +3,8 @@ class ReportsController < ApplicationController
     @report = EnergyReport.new(
       params: report_params,
       plugs: app_config.plugs,
-      timezone: app_config.timezone,
-      electricity_price_eur_per_kwh: app_config.electricity_price_eur_per_kwh,
-      weather_loader: WeatherReportLoader.from_app_config(app_config)
+      location: app_config.location,
+      electricity_price_eur_per_kwh: app_config.electricity_price_eur_per_kwh
     ).build
   end
 

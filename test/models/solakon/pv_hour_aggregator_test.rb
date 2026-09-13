@@ -84,7 +84,7 @@ class SolakonPvHourAggregatorTest < ActiveSupport::TestCase
       readings(local(2026, 6, 21, 23, 45), 20) { 1 }
       readings(local(2026, 6, 22, 0, 0), 20) { 2 }
 
-      Solakon::PvHourAggregator.new.run_once(today: Date.new(2026, 6, 23))
+      aggregator.run_once(today: Date.new(2026, 6, 23))
 
       assert_equal [ [ local(2026, 6, 21, 23), 1.0 ], [ local(2026, 6, 22, 0), 2.0 ] ],
                    Solakon::PvHour.order(:started_at).pluck(:started_at, :pv_power_w)
@@ -97,14 +97,14 @@ class SolakonPvHourAggregatorTest < ActiveSupport::TestCase
     readings(local(2026, 6, 23, 10), 20) { 300 }
     Solakon::PvHour.create!(started_at: local(2026, 6, 22, 15), pv_power_w: 999, reading_count: 20)
 
-    Solakon::PvHourAggregator.new.run_once(today: Date.new(2026, 6, 23))
+    aggregator.run_once(today: Date.new(2026, 6, 23))
 
     rows = Solakon::PvHour.order(:started_at).pluck(:started_at, :pv_power_w)
     assert_equal [ [ local(2026, 6, 21, 10), 100.0 ], [ local(2026, 6, 22, 15), 999.0 ] ], rows
   end
 
   test "run_once does nothing before the first reading" do
-    Solakon::PvHourAggregator.new.run_once(today: Date.new(2026, 6, 23))
+    aggregator.run_once(today: Date.new(2026, 6, 23))
 
     assert_equal 0, Solakon::PvHour.count
   end
@@ -113,7 +113,7 @@ class SolakonPvHourAggregatorTest < ActiveSupport::TestCase
     travel_to Time.zone.local(2026, 6, 23, 12) do
       readings(local(2026, 6, 21, 10), 20) { 100 }
 
-      Solakon::PvHourAggregator.new.run_once
+      aggregator.run_once
 
       assert_equal [ local(2026, 6, 21, 10) ], Solakon::PvHour.pluck(:started_at)
     end
@@ -122,7 +122,7 @@ class SolakonPvHourAggregatorTest < ActiveSupport::TestCase
   test "run_once aggregates through the day immediately before today" do
     readings(local(2026, 6, 22, 10), 20) { 100 }
 
-    Solakon::PvHourAggregator.new.run_once(today: Date.new(2026, 6, 23))
+    aggregator.run_once(today: Date.new(2026, 6, 23))
 
     assert_equal [ local(2026, 6, 22, 10) ], Solakon::PvHour.pluck(:started_at)
   end
@@ -163,6 +163,15 @@ class SolakonPvHourAggregatorTest < ActiveSupport::TestCase
   end
 
 
+  test "buckets on the zone it was given, not on the app's default" do
+    # 22:00 UTC is already the 22nd in Berlin, but still the 21st in Honolulu.
+    readings(Time.utc(2026, 6, 21, 22), 20) { 100 }
+
+    aggregator(timezone: ActiveSupport::TimeZone["Pacific/Honolulu"]).aggregate_day(Date.new(2026, 6, 21))
+
+    assert_equal [ Time.utc(2026, 6, 21, 22) ], Solakon::PvHour.pluck(:started_at)
+  end
+
   test "wraps the delete and insert in a transaction so a failed insert leaves the old row intact" do
     existing = Solakon::PvHour.create!(started_at: local(2026, 6, 21, 10), pv_power_w: 111, reading_count: 20)
     readings(local(2026, 6, 21, 10), 20) { 100 }
@@ -176,7 +185,9 @@ class SolakonPvHourAggregatorTest < ActiveSupport::TestCase
 
   private
 
-  def aggregate(date) = Solakon::PvHourAggregator.new.aggregate_day(date)
+  def aggregate(date) = aggregator.aggregate_day(date)
+
+  def aggregator(timezone: Time.zone) = Solakon::PvHourAggregator.new(timezone: timezone)
 
   def local(*parts) = Time.zone.local(*parts)
 

@@ -8,7 +8,9 @@ class WeatherRecord < ApplicationRecord
   validates :daytime, inclusion: { in: DAYTIMES }
   validates :timestamp, :lat, :lon, presence: true
 
-  scope :for_location, ->(lat, lon) { where(lat: lat, lon: lon) }
+  # Records the station measured at the house's location. A location without
+  # coordinates has no station, and so no records.
+  scope :for_location, ->(location) { location.located? ? where(lat: location.lat, lon: location.lon) : none }
   scope :current, -> { where(kind: "current") }
   scope :forecast, -> { where(kind: "forecast") }
   scope :historic, -> { where(kind: "historic") }

@@ -19,7 +19,8 @@ class ConfigLoaderTest < Minitest::Test
   def valid_yaml
     <<~YAML
       electricity_price_eur_per_kwh: 0.32
-      timezone: Europe/Berlin
+      location:
+        timezone: Europe/Berlin
       mqtt:
         host: 192.168.1.103
         port: 1883
@@ -32,6 +33,13 @@ class ConfigLoaderTest < Minitest::Test
           name: Kühlschrank
           role: consumer
     YAML
+  end
+
+  def with_coordinates(**pairs)
+    valid_yaml.sub(
+      "location:\n  timezone: Europe/Berlin\n",
+      "location:\n  timezone: Europe/Berlin\n" + pairs.map { |key, value| "  #{key}: #{value}\n" }.join
+    )
   end
 
   def valid_yaml_with_fritz
@@ -51,7 +59,7 @@ class ConfigLoaderTest < Minitest::Test
   def test_loads_valid_config
     cfg = load_yaml(valid_yaml)
     assert_in_delta 0.32, cfg.electricity_price_eur_per_kwh
-    assert_equal "Europe/Berlin", cfg.timezone
+    assert_equal "Europe/Berlin", cfg.location.timezone_name
     assert_equal 2, cfg.plugs.length
     assert_equal "bkw", cfg.plugs.first.id
     assert_equal :producer, cfg.plugs.first.role
@@ -130,7 +138,24 @@ class ConfigLoaderTest < Minitest::Test
   def test_rejects_invalid_timezone
     yaml = valid_yaml.sub("Europe/Berlin", "Not/ATimezone")
     err = assert_raises(ConfigLoader::Error) { load_yaml(yaml) }
-    assert_match(/timezone/i, err.message)
+    assert_match(/location\.timezone/i, err.message)
+  end
+
+  def test_requires_a_location
+    yaml = valid_yaml.sub("location:\n  timezone: Europe/Berlin\n", "")
+    err = assert_raises(ConfigLoader::Error) { load_yaml(yaml) }
+    assert_match(/location/i, err.message)
+  end
+
+  def test_rejects_the_retired_top_level_timezone
+    err = assert_raises(ConfigLoader::Error) { load_yaml("timezone: Europe/Berlin\n" + valid_yaml) }
+    assert_match(/location\.timezone/i, err.message)
+  end
+
+  def test_rejects_the_retired_weather_block
+    yaml = valid_yaml + "weather:\n  lat: 52.52\n  lon: 13.405\n"
+    err = assert_raises(ConfigLoader::Error) { load_yaml(yaml) }
+    assert_match(/location\.lat/i, err.message)
   end
 
   def test_rejects_fritz_dect_plug_without_ain
@@ -148,68 +173,46 @@ class ConfigLoaderTest < Minitest::Test
     assert_match(/ain.*required/i, err.message)
   end
 
-  def test_loads_optional_weather_config
-    cfg = load_yaml(valid_yaml + <<~YAML)
-      weather:
-        lat: 52.52
-        lon: 13.405
-    YAML
+  def test_loads_optional_coordinates
+    cfg = load_yaml(with_coordinates(lat: 52.52, lon: 13.405))
 
-    assert_in_delta 52.52, cfg.weather.lat
-    assert_in_delta 13.405, cfg.weather.lon
+    assert_in_delta 52.52, cfg.location.lat
+    assert_in_delta 13.405, cfg.location.lon
+    assert cfg.location.located?
   end
 
-  def test_weather_config_is_optional
+  def test_coordinates_are_optional
     cfg = load_yaml(valid_yaml)
 
-    assert_nil cfg.weather
+    assert_nil cfg.location.lat
+    assert_nil cfg.location.lon
+    refute cfg.location.located?
   end
 
-  def test_rejects_invalid_weather_latitude
-    err = assert_raises(ConfigLoader::Error) do
-      load_yaml(valid_yaml + <<~YAML)
-        weather:
-          lat: 100
-          lon: 13.405
-      YAML
-    end
+  def test_rejects_a_latitude_off_the_globe
+    err = assert_raises(ConfigLoader::Error) { load_yaml(with_coordinates(lat: 100, lon: 13.405)) }
 
-    assert_match(/weather\.lat/i, err.message)
+    assert_match(/location\.lat/i, err.message)
   end
 
-  def test_rejects_invalid_weather_longitude
-    err = assert_raises(ConfigLoader::Error) do
-      load_yaml(valid_yaml + <<~YAML)
-        weather:
-          lat: 52.52
-          lon: 200
-      YAML
-    end
+  def test_rejects_a_longitude_off_the_globe
+    err = assert_raises(ConfigLoader::Error) { load_yaml(with_coordinates(lat: 52.52, lon: 200)) }
 
-    assert_match(/weather\.lon/i, err.message)
+    assert_match(/location\.lon/i, err.message)
   end
 
-  def test_rejects_missing_weather_latitude
-    err = assert_raises(ConfigLoader::Error) do
-      load_yaml(valid_yaml + <<~YAML)
-        weather:
-          lon: 13.405
-      YAML
-    end
+  def test_rejects_half_a_position
+    without_lat = assert_raises(ConfigLoader::Error) { load_yaml(with_coordinates(lon: 13.405)) }
+    without_lon = assert_raises(ConfigLoader::Error) { load_yaml(with_coordinates(lat: 52.52)) }
 
-    assert_match(/weather\.lat/i, err.message)
+    assert_match(/location\.lat/i, without_lat.message)
+    assert_match(/location\.lon/i, without_lon.message)
   end
 
-  def test_rejects_non_numeric_weather_longitude
-    err = assert_raises(ConfigLoader::Error) do
-      load_yaml(valid_yaml + <<~YAML)
-        weather:
-          lat: 52.52
-          lon: east
-      YAML
-    end
+  def test_rejects_a_longitude_that_is_not_a_number
+    err = assert_raises(ConfigLoader::Error) { load_yaml(with_coordinates(lat: 52.52, lon: "east")) }
 
-    assert_match(/weather\.lon/i, err.message)
+    assert_match(/location\.lon/i, err.message)
   end
 
   def test_loads_optional_plug_room
@@ -525,7 +528,7 @@ class ConfigLoaderTest < Minitest::Test
   def test_govee_block_parses_intervals_device_map_and_api_key_from_yml
     yaml = <<~YML
       electricity_price_eur_per_kwh: 0.3
-      timezone: Europe/Berlin
+      location: { timezone: Europe/Berlin }
       mqtt: { host: h, port: 1883, topic_prefix: shellies }
       plugs: []
       govee:
@@ -547,7 +550,7 @@ class ConfigLoaderTest < Minitest::Test
   end
 
   def test_absent_govee_block_yields_nil_bridge_off
-    yaml = "electricity_price_eur_per_kwh: 0.3\ntimezone: Europe/Berlin\nmqtt: { host: h, port: 1883, topic_prefix: shellies }\nplugs: []\n"
+    yaml = "electricity_price_eur_per_kwh: 0.3\nlocation: { timezone: Europe/Berlin }\nmqtt: { host: h, port: 1883, topic_prefix: shellies }\nplugs: []\n"
     file = Tempfile.new([ "z", ".yml" ]); file.write(yaml); file.flush
     assert_nil ConfigLoader.load(file.path).govee
   ensure

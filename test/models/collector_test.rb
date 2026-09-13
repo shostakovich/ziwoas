@@ -131,7 +131,7 @@ class CollectorTest < ActiveSupport::TestCase
 
   test "without injected components the collector assembles them from the config" do
     mqtt   = ConfigLoader::MqttCfg.new(host: "localhost", port: 1883, topic_prefix: "shellies")
-    config = ConfigLoader::Config.new(timezone: "Europe/Berlin", mqtt: mqtt, plugs: [], govee: nil)
+    config = ConfigLoader::Config.new(location: Location.new(timezone: "Europe/Berlin"), mqtt: mqtt, plugs: [], govee: nil)
 
     collector = Collector.new(config: config, logger: @logger)
 
@@ -144,7 +144,7 @@ class CollectorTest < ActiveSupport::TestCase
     mqtt   = ConfigLoader::MqttCfg.new(host: "localhost", port: 1883, topic_prefix: "shellies")
     govee  = ConfigLoader::GoveeCfg.new(api_key: "", lan_poll_seconds: 8, api_poll_seconds: 180,
       pending_window_seconds: 5, names: {})
-    config = ConfigLoader::Config.new(timezone: "Europe/Berlin", mqtt: mqtt, plugs: [], govee: govee)
+    config = ConfigLoader::Config.new(location: Location.new(timezone: "Europe/Berlin"), mqtt: mqtt, plugs: [], govee: govee)
 
     # A nil logger would raise NoMethodError before reaching the assertion.
     Collector.new(config: config, logger: @logger)
