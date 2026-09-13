@@ -58,11 +58,52 @@ class Solakon::DailyProfilesComponentTest < ViewComponent::TestCase
     assert_operator labels.last["y"].to_f, :<, labels.first["y"].to_f
   end
 
+  test "keeps the top grid line off the axis when the maximum lands exactly on a step" do
+    rendered = render_profiles([ profile(measured: [ [ 10, 300.0 ] ], expected: [ [ 10, 100.0 ] ], theory: [ [ 10, 50.0 ] ]) ])
+
+    assert_equal %w[100 200], rendered.css(".value-labels text").map(&:text)
+  end
+
+  test "draws a grid line at each labeled height, spanning the full width" do
+    lines = render_profiles.css(".grid line")
+
+    assert_equal %w[77.4 26.9], lines.map { |line| line["y1"] }
+    assert_equal lines.map { |line| line["y1"] }, lines.map { |line| line["y2"] }
+    assert_equal %w[40 40], lines.map { |line| line["x1"] }
+    assert_equal %w[286 286], lines.map { |line| line["x2"] }
+  end
+
   test "tells every hour's three numbers" do
     title = render_profiles.css(".hits rect title").first.text
 
     assert_equal "Jun · 10–11 Uhr · PV gemessen Ø 300 W · Erwartet aus Einstrahlung Ø 350 W · " \
                  "Wolkenloser Himmel Ø 500 W", title
+  end
+
+  test "tells every distinct hour once, in ascending order, even when a curve's hours run out of step" do
+    rendered = render_profiles([ profile(
+      measured: [ [ 10, 300.0 ], [ 11, 400.0 ] ],
+      expected: [ [ 10, 350.0 ], [ 11, 450.0 ] ],
+      theory: [ [ 8, 200.0 ], [ 9, 250.0 ], [ 10, 500.0 ], [ 11, 600.0 ] ]
+    ) ])
+
+    titles = rendered.css(".hits rect title").map(&:text)
+
+    assert_equal 4, titles.length
+    assert_equal [ 8, 9, 10, 11 ], titles.map { |title| title[/(\d+)–\d+ Uhr/, 1].to_i }
+  end
+
+  test "takes the largest of every month's maximum, not the first or the last, and never truncates picking it" do
+    low   = profile(month: 1, measured: [ [ 6, 350.7 ] ], expected: [], theory: [])
+    empty = profile(month: 2, measured: [], expected: [], theory: [])
+    high  = profile(month: 3, measured: [ [ 6, 700.5 ] ], expected: [], theory: [])
+    mid   = profile(month: 4, measured: [ [ 6, 210.5 ] ], expected: [], theory: [])
+
+    rendered = render_profiles([ low, empty, high, mid ])
+
+    labels = rendered.css(".multiple").first.css(".value-labels text")
+    assert_equal %w[300 600], labels.map(&:text)
+    assert_equal %w[87.3 43], labels.map { |label| label["y"] }
   end
 
   test "says so where the station measured nothing" do

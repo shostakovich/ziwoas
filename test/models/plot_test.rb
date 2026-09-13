@@ -14,6 +14,10 @@ class PlotTest < ActiveSupport::TestCase
     assert_equal "0 0 720 289.6", plot(width: 720, height: 289.64).view_box
   end
 
+  test "rounds the viewBox width too, not only its height" do
+    assert_equal "0 0 720.1 100", plot(width: 720.14, height: 100).view_box
+  end
+
   test "puts its edges where the margins leave off" do
     frame = plot
 
@@ -23,8 +27,23 @@ class PlotTest < ActiveSupport::TestCase
     assert_equal 80, frame.bottom
   end
 
+  test "rounds every edge to one decimal, even where subtracting margins leaves more" do
+    frame = plot(width: 301.23, height: 151.67, margins: { top: 11.17, right: 23.29, bottom: 21.53, left: 35.42 })
+
+    assert_equal 35.4, frame.left
+    assert_equal 277.9, frame.right
+    assert_equal 11.2, frame.top
+    assert_equal 130.1, frame.bottom
+  end
+
   test "hands out the drawing area as one box" do
     assert_equal Plot::Rect.new(x: 20, y: 10, width: 70, height: 70), plot.box
+  end
+
+  test "rounds the drawing area's width and height too, not just its corner" do
+    frame = plot(width: 301.23, height: 151.67, margins: { top: 11.17, right: 23.29, bottom: 21.53, left: 35.42 })
+
+    assert_equal Plot::Rect.new(x: 35.4, y: 11.2, width: 242.5, height: 119), frame.box
   end
 
   test "spreads the x domain between the left and the right edge" do
@@ -58,6 +77,12 @@ class PlotTest < ActiveSupport::TestCase
     assert_equal 80, frame.y(300)
   end
 
+  test "extends past a single-value domain as if its span were one full unit" do
+    frame = plot(x: 7..7, y: 300..300)
+
+    assert_equal 160, frame.x(9)
+  end
+
   test "rounds a coordinate to one decimal and keeps a whole number whole" do
     assert_equal 3, Plot.number(3.0)
     assert_kind_of Integer, Plot.number(3.0)
@@ -77,6 +102,14 @@ class PlotTest < ActiveSupport::TestCase
   test "gives a tick the value it stands for and the coordinate it sits at" do
     assert_equal [ Plot::Tick.new(value: 3, at: 41) ], plot.x_ticks([ 3 ])
     assert_equal [ Plot::Tick.new(value: 0, at: 80), Plot::Tick.new(value: 50, at: 45) ], plot.y_ticks([ 0, 50 ])
+  end
+
+  test "rounds a tick's coordinate to one decimal on both axes" do
+    frame = plot(width: 301.23, height: 151.67, margins: { top: 11.17, right: 23.29, bottom: 21.53, left: 35.42 },
+                x: 0..3, y: 0..7)
+
+    assert_equal [ Plot::Tick.new(value: 1, at: 116.3), Plot::Tick.new(value: 2, at: 197.1) ], frame.x_ticks([ 1, 2 ])
+    assert_equal [ Plot::Tick.new(value: 3, at: 79.2) ], frame.y_ticks([ 3 ])
   end
 
   test "writes a run of points as one line of corners" do
@@ -132,6 +165,16 @@ class PlotTest < ActiveSupport::TestCase
     assert_equal 7, plot.columns([ 9 ]).sole.width
   end
 
+  test "rounds every column to one decimal, not just its width" do
+    frame = plot(width: 301.23, height: 151.67, margins: { top: 11.17, right: 23.29, bottom: 21.53, left: 35.42 },
+                x: 0..3, y: 0..7)
+
+    assert_equal [
+      Plot::Rect.new(x: 116.3, y: 11.2, width: 80.8, height: 119),
+      Plot::Rect.new(x: 197.1, y: 11.2, width: 80.8, height: 119)
+    ], frame.columns([ 1, 2 ])
+  end
+
   test "cuts a box out of the plot from a pair of ranges" do
     assert_equal Plot::Rect.new(x: 27, y: 45, width: 14, height: 35), plot.rect(1..3, 0..50)
   end
@@ -142,5 +185,12 @@ class PlotTest < ActiveSupport::TestCase
 
   test "keeps a box's corner at its smaller coordinates when a scale runs the other way" do
     assert_equal Plot::Rect.new(x: 27, y: 10, width: 14, height: 17.5), plot(y: 22..2).rect(1..3, 2..7)
+  end
+
+  test "keeps a box's corner at its smaller x coordinate too, when the x scale runs the other way, every field rounded" do
+    frame = plot(width: 301.23, height: 151.67, margins: { top: 11.17, right: 23.29, bottom: 21.53, left: 35.42 },
+                x: 22..2, y: 0..100)
+
+    assert_equal Plot::Rect.new(x: 217.3, y: 23.1, width: 60.6, height: 95.2), frame.rect(2..7, 10..90)
   end
 end

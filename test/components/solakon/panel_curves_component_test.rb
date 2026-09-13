@@ -45,6 +45,30 @@ class Solakon::PanelCurvesComponentTest < ViewComponent::TestCase
     end
   end
 
+  test "lifts a name by exactly the amount that pushed the highest one past the axis" do
+    single = curves(pv1: [ [ 13, 2.0 ] ], pv2: [], pv3: [], pv4: [])
+
+    label = render_panels(curves: single).css(".direct-labels text").sole
+
+    assert_equal "194", label["y"]
+  end
+
+  test "leaves a name in place when it clears the axis by less than a whole step" do
+    single = curves(pv1: [ [ 13, 2.4 ] ], pv2: [], pv3: [], pv4: [])
+
+    label = render_panels(curves: single).css(".direct-labels text").sole
+
+    assert_equal "193.5", label["y"]
+  end
+
+  test "sorts the placed names by height before spreading them, skipping any panel with no reading" do
+    scattered = curves(pv1: [ [ 13, 50.0 ] ], pv2: [ [ 13, 750.0 ] ], pv3: [ [ 13, 400.0 ] ], pv4: [])
+
+    rendered = render_panels(curves: scattered)
+
+    assert_equal %w[pv2 pv3 pv1], rendered.css(".direct-labels text").map { |node| node["class"] }
+  end
+
   test "pushes two names apart where the lines run together" do
     together = curves(pv2: [ [ 12, 299.0 ], [ 13, 399.0 ], [ 14, 349.0 ] ])
     ys = render_panels(curves: together).css(".direct-labels text").map { |node| node["y"].to_f }.sort
@@ -74,6 +98,14 @@ class Solakon::PanelCurvesComponentTest < ViewComponent::TestCase
     assert_equal "12–13 Uhr · Panel 1 Ø 300 W · Panel 2 Ø 280 W · Panel 3 Ø 120 W · Panel 4 Ø 100 W", title
   end
 
+  test "says so where a panel has no reading for an hour the others do" do
+    gapped = curves(pv1: [ [ 8, 100.0 ], [ 9, 200.0 ], [ 14, 300.0 ] ])
+
+    title = render_panels(curves: gapped).css(".hits rect title").first.text
+
+    assert_equal "8–9 Uhr · Panel 1 Ø 100 W · Panel 2 keine Daten · Panel 3 keine Daten · Panel 4 keine Daten", title
+  end
+
   test "names the hours with their unit on the wide axis and bare on the narrow one" do
     rendered = render_panels
 
@@ -85,6 +117,15 @@ class Solakon::PanelCurvesComponentTest < ViewComponent::TestCase
     gapped = curves(pv1: [ [ 8, 100.0 ], [ 9, 200.0 ], [ 14, 300.0 ] ])
 
     assert_equal 2, render_panels(curves: gapped).css("polyline.pv1").length
+  end
+
+  test "spans the shared axis from the earliest to the latest hour across every panel" do
+    scattered = curves(pv1: [ [ 16, 300.0 ], [ 17, 310.0 ] ], pv2: [ [ 8, 100.0 ], [ 9, 110.0 ] ],
+                       pv3: [ [ 12, 50.0 ] ], pv4: [ [ 12, 40.0 ] ])
+
+    rendered = render_panels(curves: scattered)
+
+    assert_equal [ "8 Uhr", "10 Uhr", "12 Uhr", "14 Uhr", "16 Uhr" ], rendered.css(".label-dense text").map(&:text)
   end
 
   test "waits for the first full day with a word" do
@@ -118,6 +159,36 @@ class Solakon::PanelCurvesComponentTest < ViewComponent::TestCase
 
     assert_equal %w[36 696], rendered.css(".label-dense text").map { |node| node["x"] }
     assert_equal %w[214 214], rendered.css(".label-dense text").map { |node| node["y"] }
+  end
+
+  test "draws a grid line at each labeled height, spanning the full width" do
+    lines = render_panels.css(".grid line")
+
+    assert_equal %w[151.5 105 58.5], lines.map { |line| line["y1"] }
+    assert_equal lines.map { |line| line["y1"] }, lines.map { |line| line["y2"] }
+    assert_equal %w[36 36 36], lines.map { |line| line["x1"] }
+    assert_equal %w[696 696 696], lines.map { |line| line["x2"] }
+  end
+
+  test "scales the grid to the real maximum watt, not to the number of lines it's split into" do
+    curves = [
+      Shading::Curve.new(key: :pv1, points: [ [ 12, 700.5 ] ]),
+      Shading::Curve.new(key: :pv2, points: []),
+      Shading::Curve.new(key: :pv3, points: []),
+      Shading::Curve.new(key: :pv4, points: [])
+    ]
+
+    rendered = render_panels(curves: curves)
+
+    assert_equal %w[151.5 105 58.5], rendered.css(".grid line").map { |line| line["y1"] }
+  end
+
+  test "keeps the axis at least a hundred watts wide, even when every panel reported nothing" do
+    zero = curves(pv1: [ [ 12, 0.0 ] ], pv2: [ [ 12, 0.0 ] ], pv3: [ [ 12, 0.0 ] ], pv4: [ [ 12, 0.0 ] ])
+
+    rendered = render_panels(curves: zero)
+
+    assert_equal "0 0 720 220", rendered.css("svg").sole["viewBox"]
   end
 
   test "says nothing about a period before the first counted day" do

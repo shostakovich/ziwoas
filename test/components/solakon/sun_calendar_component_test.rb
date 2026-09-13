@@ -176,6 +176,19 @@ class Solakon::SunCalendarComponentTest < ViewComponent::TestCase
     assert_equal 0, render_calendar.css("polyline.sun").length
   end
 
+  test "says nothing about sunrise and sunset in the legend without a location" do
+    rendered = render_calendar
+
+    assert_not_includes rendered.css(".sun-calendar .legend").text, "Sonnenaufgang"
+    assert_not_includes rendered.css(".sun-calendar .legend").text, "Sonnenhöchststand"
+  end
+
+  test "rises the month lines a little above the plot, up to their labels" do
+    line = render_calendar.css("[data-strip='pv'] .grid line").first
+
+    assert_equal "18", line["y1"]
+  end
+
   test "labels the axes in two densities so the phone gets the sparse one" do
     rendered = render_calendar
 
@@ -323,6 +336,33 @@ class Solakon::SunCalendarComponentTest < ViewComponent::TestCase
 
     assert_equal %w[3 6 9], labels.map(&:text)
     assert_equal %w[95.5 65.5 35.5], labels.map { |label| label["y"] }
+  end
+
+  test "keeps the kWh grid labels clear of the axis, rounded to one decimal" do
+    days = (Date.new(2026, 1, 1)..Date.new(2026, 12, 31)).map { |date| day(date.yday) }
+    days[99] = day(100, pv_kwh: 11.0)
+
+    labels = render_calendar(days: days).css("[data-strip='energy'] .hour-labels text")
+
+    assert_equal %w[21 21 21], labels.map { |label| label["x"] }
+    assert_equal %w[98.2 71 43.7], labels.map { |label| label["y"] }
+  end
+
+  test "draws a grid line at each labeled kWh height, spanning the full width" do
+    days = (Date.new(2026, 1, 1)..Date.new(2026, 12, 31)).map { |date| day(date.yday) }
+    days[99] = day(100, pv_kwh: 11.0)
+
+    lines = render_calendar(days: days).css("[data-strip='energy'] .grid line").select { |line| line["y1"] == line["y2"] }
+
+    assert_equal %w[94.7 67.5 40.2], lines.map { |line| line["y1"] }
+    assert_equal %w[26 26 26], lines.map { |line| line["x1"] }
+    assert_equal %w[716 716 716], lines.map { |line| line["x2"] }
+  end
+
+  test "puts the energy chart's month labels at their own baseline, clear of the bars" do
+    label = render_calendar.css("[data-strip='energy'] .month-labels.label-dense text").first
+
+    assert_equal "140", label["y"]
   end
 
   test "colours a cell by its share of the strip's maximum, not by the raw value" do

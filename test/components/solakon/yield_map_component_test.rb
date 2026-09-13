@@ -53,6 +53,48 @@ class Solakon::YieldMapComponentTest < ViewComponent::TestCase
     assert_includes heights, "60°"
   end
 
+  test "steps the elevation grid by ten degrees, not by one" do
+    assert_equal 7, render_map.css(".hour-labels text").length
+  end
+
+  test "extends both axes to cover the widest field, not just the sun's own path" do
+    wide = path(points: [ [ 100.0, 10.0 ], [ 150.0, 30.0 ], [ 200.0, 10.0 ] ])
+    wide_bin = bin(azimuth: 20, elevation: 10)
+
+    rendered = render_map(bins: [ wide_bin ], paths: [ wide ], bin_size: 250)
+
+    field = rendered.css(".fields rect").sole
+    assert_equal %w[38 16 671.4 973.8], %w[x y width height].map { |name| field[name] }
+  end
+
+  test "rounds the azimuth labels' height to one decimal, even on a wide sky" do
+    wide = path(points: [ [ 100.0, 10.0 ], [ 150.0, 30.0 ], [ 200.0, 10.0 ] ])
+    wide_bin = bin(azimuth: 20, elevation: 10)
+
+    rendered = render_map(bins: [ wide_bin ], paths: [ wide ], bin_size: 250)
+
+    assert_equal "1043.4", rendered.css(".month-labels text").first["y"]
+  end
+
+  test "rounds each elevation gridline's height and label height to one decimal, even on a wide sky" do
+    wide = path(points: [ [ 100.0, 10.0 ], [ 150.0, 30.0 ], [ 200.0, 10.0 ] ])
+    wide_bin = bin(azimuth: 20, elevation: 10)
+
+    rendered = render_map(bins: [ wide_bin ], paths: [ wide ], bin_size: 250)
+
+    line = rendered.css("g.grid line").select { |node| node["y1"] == node["y2"] }[4]
+    label = rendered.css(".hour-labels text")[4]
+
+    assert_equal "873.5", line["y1"]
+    assert_equal "877", label["y"]
+  end
+
+  test "leaves out a path with no points instead of drawing an empty line" do
+    rendered = render_map(paths: [ path, path(label: "empty", points: []) ])
+
+    assert_equal 1, rendered.css("polyline.sun").length
+  end
+
   test "draws every path once and writes its date over the highest point" do
     rendered = render_map(paths: [ path, path(label: "21.12.", points: [ [ 130.0, 1.0 ], [ 180.0, 14.0 ] ]) ])
 
