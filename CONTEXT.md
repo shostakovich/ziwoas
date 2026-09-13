@@ -169,3 +169,59 @@ The band around zero within which the battery's measured power does not move the
 Keeps noise from being read as a signal.
 _German UI_: Totband
 _Avoid_: Toleranz (that is the switching **grace**), Hysterese, Schwelle
+
+### Sun
+
+**PV power**:
+The DC power the inverter reads from its panels at a point in time: the sum of the four
+**panels**, before battery and conversion. What the sun delivers to the array, not what the
+house receives. Exists only since the inverter reports; the **energy** the producer plug
+measures is a different quantity (AC, and since the battery also its discharge).
+_German UI_: PV-Leistung
+_Avoid_: Ertrag, Erzeugung (both are the plug's quantity), Production, Solar
+
+**PV energy**:
+**PV power** integrated over a period, in Wh — per hour or per day. The daily sum on the sun
+calendar is this, not the plug's **energy**.
+_German UI_: PV-Energie, "PV-Energie je Tag"
+_Avoid_: Tagesertrag, Ertrag (the plug's energy), Yield
+
+**Irradiance**:
+Global radiation the weather station measured over an hour, per square metre. Comes from the
+historic weather record, as average power (W/m²). The reference for what the sun offered,
+independent of the array.
+_German UI_: Einstrahlung
+_Avoid_: Sonnenschein (that is minutes of sunshine), UV, Solar, Strahlung alone
+
+**Sun position**:
+Where the sun stands for the configured location at a point in time: azimuth and elevation.
+Computed, never measured.
+_German UI_: Sonnenstand
+_Avoid_: Sonnenbahn (that is the whole day's curve), Sonnenhöhe alone
+
+**Sun path**:
+The sun positions over one day, drawn as a curve. Sunrise and sunset are its ends.
+_German UI_: Sonnenbahn
+_Avoid_: Tagbogen, Sonnenverlauf
+
+**Yield ratio**:
+**PV power** divided by **irradiance** for one hour, relative to the best hour ever observed.
+Reads as "how much of what the sun offered arrived at the array". Below the best hour means
+something stood in the way: **shading**, **curtailment**, or orientation.
+_German UI_: Ausbeute
+_Avoid_: Ertragsquote (Ertrag is the plug's quantity), Wirkungsgrad, Performance Ratio, Quote alone
+
+**Shading**:
+A **sun position** at which the **yield ratio** stays low again and again, because something
+between sun and panel casts a shadow. A property of the garden, read off the map of sun
+positions, never of a single hour.
+_German UI_: Abschattung
+_Avoid_: Schatten alone, Verschattung, Shadow
+
+**Curtailment**:
+The inverter holding **PV power** below what the sun offers because the battery is full and
+nothing takes the surplus (ADR-0002). Looks like **shading** for an hour and is none. Counted
+in the yield ratio on purpose: it is a state of the house, and one that is meant to disappear
+once surplus is fed to the grid.
+_German UI_: Drosselung
+_Avoid_: Abregelung, Abschattung, Curtailment (in German UI text)
