@@ -1,29 +1,21 @@
-# The frame a chart is drawn in: a viewBox with margins around the drawing
-# area, and the two linear scales that put a pair of values onto it. The four
-# sun charts differ in their boxes and in what they draw, not in this geometry.
+# The frame the four sun charts are drawn in: a viewBox with margins and the
+# two linear scales that put a pair of values onto it.
 #
-# The y domain's beginning lies at the foot of the plot, so a watt scale reads
-# 0..max and the calendar's hours, which run downwards, read as a reversed
-# range. Whatever the frame hands out as geometry carries one decimal; `x` and
-# `y` stay raw, because a caller that goes on calculating with a coordinate
-# would otherwise pile one rounding on the next.
+# The y domain's beginning lies at the foot of the plot, so hours that run
+# downwards are a reversed range rather than a special case. Geometry leaves
+# the frame rounded to one decimal, but `x` and `y` stay raw: a caller that
+# goes on calculating with a coordinate would otherwise round twice.
 class Plot
-  # A gridline or an axis label: the value it stands for and the coordinate it
-  # sits at.
   Tick = Data.define(:value, :at)
 
   Rect = Data.define(:x, :y, :width, :height)
 
-  # SVG coordinates with one decimal: finer than any column these charts draw,
-  # and whole numbers stay whole so the markup carries no trailing zeros.
+  # Whole numbers stay whole, so the markup carries no trailing zeros.
   def self.number(value)
     rounded = value.round(1)
     rounded == rounded.to_i ? rounded.to_i : rounded
   end
 
-  # An axis maximum and its grid step are read, not measured: rounded to whole
-  # hundreds of watts or tens of degrees they land on numbers a person would
-  # say out loud.
   def self.round_up(value, to:) = (value.to_f / to).ceil * to
 
   def self.round_down(value, to:) = (value.to_f / to).floor * to
@@ -46,7 +38,6 @@ class Plot
 
   def bottom = number(y_from)
 
-  # The drawing area itself, for the ground a chart paints under its data.
   def box = Rect.new(x: left, y: top, width: number(x_to - x_from), height: number(plot_height))
 
   def x(value) = x_from + share(value, @x_domain) * (x_to - x_from)
@@ -66,9 +57,6 @@ class Plot
   # data ever took. A repeated value is no step at all and stays inside its run.
   def polylines(points, gap: 1) = runs(points, gap).map { |run| line(run) }
 
-  # One filled shape per run, closed down to the foot of the y scale, for the
-  # same reason the line is broken: a fill across a gap would show unmeasured
-  # values as measured.
   def areas(points, gap: 1)
     foot = @y_domain.begin
 
@@ -77,8 +65,6 @@ class Plot
     end
   end
 
-  # A full-height column per value, reaching to the next one and stopping at
-  # the right edge: the invisible boxes a tooltip hangs on.
   def columns(values)
     values.map do |value|
       from = x(value)
@@ -88,9 +74,6 @@ class Plot
     end
   end
 
-  # The box two ranges cut out of the plot, whichever way the scales run.
-  # `inset` takes a hair off the width and the height, so neighbouring boxes
-  # stay apart.
   def rect(x_range, y_range, inset: 0)
     xs = [ x(x_range.begin), x(x_range.end) ]
     ys = [ y(y_range.begin), y(y_range.end) ]

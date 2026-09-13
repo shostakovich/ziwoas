@@ -1,7 +1,6 @@
 module Solakon
-  # The sun calendar: three heat strips and the daily energy bars, one column
-  # per day of the year, drawn server-side as SVG. Geometry is computed here so
-  # the template only writes attributes.
+  # Three heat strips and the daily energy bars, one column per day of the year.
+  # Geometry is computed here so the template only writes attributes.
   class SunCalendarComponent < ApplicationComponent
     WIDTH = 720
     LEFT = 26
@@ -21,12 +20,8 @@ module Solakon
     DENSE_HOUR_STEP = 3
     MAX_BAR_GRID_LINES = 4
     SPARSE_HOUR_STEP = 6
-    # A bar keeps a hair of space to its neighbour, and half a pixel of body
-    # even where a dense calendar leaves it less than that.
     BAR_GAP = 0.4
     MIN_BAR_WIDTH = 0.5
-    # The month lines reach a little above the plot, up to the labels they
-    # belong to.
     MONTH_LINE_RISE = 4
     MONTH_LABEL_OFFSET = 2
     MONTH_LABEL_LIFT = 6
@@ -50,8 +45,6 @@ module Solakon
 
     def strips = @calendar.strips.values
 
-    # The hours run downwards, so the strip's y domain is read back to front:
-    # the hour after the last one sits at the foot of the plot.
     def strip_plot
       @strip_plot ||= Plot.new(width: WIDTH, height: TOP + strip_height + BOTTOM_PAD, margins: STRIP_MARGINS,
                                x: day_axis, y: (hours.last + 1)..hours.first)
@@ -62,8 +55,7 @@ module Solakon
                               x: day_axis, y: 0..bars_max)
     end
 
-    # One rectangle per run of neighbouring days that share a colour, grouped
-    # by colour so the fill is written once instead of on every rectangle.
+    # Grouped by colour so the fill is written once instead of on every rectangle.
     def cells(strip)
       ramp = Ramp.fetch(strip.ramp)
       hours.flat_map { |hour| row_runs(strip, ramp, hour) }
@@ -126,8 +118,6 @@ module Solakon
 
     def seam_x = number(strip_plot.x(@calendar.seam.yday))
 
-    # Says which side of the dashed line was measured how, in the page's own
-    # words rather than in the glossary's.
     def seam_note
       return nil unless seam?
 
@@ -136,10 +126,6 @@ module Solakon
         "Die gestrichelte Linie markiert den Wechsel."
     end
 
-    # One polyline per unbroken stretch of days. A polar period leaves a gap in
-    # the events, and a single polyline would bridge it with a straight line
-    # that no sun ever took. The daylight saving seam repeats a day of year
-    # rather than skipping one, so it stays inside its segment.
     def sun_segments(key) = strip_plot.polylines(@calendar.lines.public_send(key))
 
     def legend_gradient(strip) = Ramp.fetch(strip.ramp).css_gradient

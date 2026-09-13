@@ -1,8 +1,7 @@
 require "test_helper"
 
 class ReportsControllerTest < ActionDispatch::IntegrationTest
-  # AggregatorJobTest runs without a transaction, so its rows outlive it and
-  # reach this class whenever the seed puts it first.
+  # AggregatorJobTest runs without a transaction, so its rows can reach this class.
   setup do
     Plugs::DailyTotal.delete_all
     DailyEnergySummary.delete_all
@@ -50,8 +49,6 @@ class ReportsControllerTest < ActionDispatch::IntegrationTest
 
     get "/reports"
 
-    # The headings of the page from top to bottom: the groups carry a label
-    # above them, every single box names itself inside.
     headings = css_select(".section-label, .card-title").map { |node| node.text.squish }
     assert_equal "Steckdosen", headings[0]
     assert_match(/\AEnergie/, headings[1])

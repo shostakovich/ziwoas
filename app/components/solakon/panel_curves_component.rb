@@ -1,7 +1,6 @@
 module Solakon
-  # The four panels over the day, one line each with its own colour and its
-  # name written next to it, so the one that falls back in the morning can be
-  # told from the one that falls back in the evening.
+  # The four panels over the day, each line named next to itself, so the one
+  # that falls back in the morning can be told from the one in the evening.
   class PanelCurvesComponent < ApplicationComponent
     WIDTH = 720
     HEIGHT = 220
@@ -24,10 +23,7 @@ module Solakon
     # of each other where the lines run together.
     LABEL_GAP = 20
     LABEL_OFFSET = 6
-    # How far the lowest name stays clear of the axis.
     LABEL_MARGIN = 4
-    # How far a watt label stays clear of the axis, and how far its baseline
-    # sits under the line it names.
     VALUE_LABEL_GAP = 5
     VALUE_LABEL_DROP = 3.5
     HOUR_LABEL_Y = HEIGHT - 6
@@ -50,9 +46,6 @@ module Solakon
       curves.map { |curve| Series.new(key: curve.key, label: name(curve.key), segments: plot.polylines(curve.points)) }
     end
 
-    # The names sit at the same hour, pushed apart where two lines run close
-    # together and lifted back over the axis where that pushed the last one
-    # off the plot.
     def labels
       placed = spread(curves.filter_map { |curve| starting_label(curve) }.sort_by(&:y))
       overflow = placed.map(&:y).max.to_f - (plot.bottom - LABEL_MARGIN)
@@ -103,7 +96,6 @@ module Solakon
 
     def name(key) = "Panel #{key.to_s.delete_prefix('pv')}"
 
-    # Under the highest curve, and never on the axis itself.
     def grid = plot.y_ticks(grid_step.step(max_w - 1, grid_step))
 
     def spread(labels)
@@ -122,8 +114,6 @@ module Solakon
       Label.new(x: number(plot.x(hour) + LABEL_OFFSET), y: number(y(watts)), text: name(curve.key), key: curve.key)
     end
 
-    # The middle of the day where it was measured, otherwise the hour closest
-    # to it.
     def label_hour(curve)
       curve.points.map(&:first).min_by { |hour| (hour - LABEL_HOUR).abs }
     end

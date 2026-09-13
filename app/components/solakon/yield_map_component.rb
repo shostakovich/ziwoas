@@ -1,8 +1,6 @@
 module Solakon
-  # The sky as a map: azimuth across, sun elevation up, one field per few
-  # degrees, coloured by how much of the offered radiation arrived at the
-  # array. Over it the sun's way on the solstices and the equinox, so the
-  # winter sky keeps its shape long before any hour has been measured there.
+  # The sky as a map, with the solstice arcs drawn over it: the winter sky keeps
+  # its shape long before any hour has been measured there.
   class YieldMapComponent < ApplicationComponent
     WIDTH = 720
     # Room for the elevation labels, which the phone's media query enlarges.
@@ -24,9 +22,6 @@ module Solakon
     # the two never meet at noon where both belong to the same place.
     DOT_LABEL_OFFSET = 13
     PATH_LABEL_OFFSET = 9
-    # How far the elevation labels stay clear of the axis, how far their
-    # baseline sits under the line they name, and how far the azimuth labels
-    # sit under the horizon.
     ELEVATION_LABEL_GAP = 5
     LABEL_DROP = 3.5
     AZIMUTH_LABEL_DROP = 14
@@ -71,8 +66,6 @@ module Solakon
       end
     end
 
-    # Dense labels name every line, sparse ones only the compass points — the
-    # phone shows the sparse set.
     def azimuth_lines(density)
       first = Plot.round_up(azimuths.first, to: AZIMUTH_LABEL_STEP)
 
@@ -119,9 +112,8 @@ module Solakon
     # frame exists rather than asked of it.
     def plot_height = top_elevation * scale_x * ELEVATION_STRETCH
 
-    # Wide enough for every field and every path, snapped outwards so the axis
-    # labels land on round degrees. There is always a field — the map is not
-    # drawn without one — so there is always something to measure.
+    # There is always a field — the map is not drawn without one — so there is
+    # always something to measure.
     def azimuths
       @azimuths ||= begin
         values = degrees { |azimuth, _elevation| azimuth } +
@@ -139,8 +131,6 @@ module Solakon
 
     def degrees(&) = @map.paths.flat_map { |path| path.points.map(&) }
 
-    # Only the first path carries the hours; on the others the dots would
-    # repeat what is already said.
     def dots(path, hours:)
       path.dots.map do |dot|
         Dot.new(x: number(x(dot.azimuth)), y: number(y(dot.elevation)),

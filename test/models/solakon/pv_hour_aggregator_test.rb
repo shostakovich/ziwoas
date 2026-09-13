@@ -128,7 +128,7 @@ class SolakonPvHourAggregatorTest < ActiveSupport::TestCase
   end
 
   test "aggregate_day excludes readings from the day before" do
-    readings(local(2026, 6, 20, 23, 30), 20) { 999 }   # previous day, must be excluded
+    readings(local(2026, 6, 20, 23, 30), 20) { 999 }
     readings(local(2026, 6, 21, 10), 20) { 100 }
 
     aggregate(Date.new(2026, 6, 21))
@@ -138,8 +138,7 @@ class SolakonPvHourAggregatorTest < ActiveSupport::TestCase
   end
 
   test "aggregate_day excludes readings exactly at the next day's midnight" do
-    # All 20 share the exact boundary instant: only a range that excludes the
-    # upper bound keeps this hour below MIN_READINGS.
+    # All 20 share the exact boundary instant, so only an exclusive upper bound keeps this hour below MIN_READINGS.
     20.times do
       Solakon::Reading.create!(taken_at: local(2026, 6, 22, 0), pv_power_w: 999,
                                active_power_w: 0, battery_power_w: 0, battery_soc_pct: 50)
@@ -174,7 +173,6 @@ class SolakonPvHourAggregatorTest < ActiveSupport::TestCase
 
   test "panel_means only groups snapshots within the given range" do
     Solakon::Snapshot.create!(taken_at: local(2026, 6, 21, 10, 1), pv1_power_w: 10, pv2_power_w: nil, pv3_power_w: nil, pv4_power_w: nil)
-    # Same clock hour, but the day before: must not be pulled into the range's grouping.
     Solakon::Snapshot.create!(taken_at: local(2026, 6, 20, 10, 1), pv1_power_w: 990, pv2_power_w: nil, pv3_power_w: nil, pv4_power_w: nil)
 
     day = Date.new(2026, 6, 21).in_time_zone(Time.zone)
@@ -184,8 +182,7 @@ class SolakonPvHourAggregatorTest < ActiveSupport::TestCase
   end
 
   test "run_once starts from the first reading's date in the zone it was given" do
-    # 02:00 UTC on the 21st is already the 21st in plain UTC and in the app's
-    # own default zone, but still the 20th in Honolulu.
+    # 02:00 UTC on the 21st is still the 20th in Honolulu.
     readings(Time.utc(2026, 6, 21, 2), 20) { 100 }
 
     aggregator(timezone: ActiveSupport::TimeZone["Pacific/Honolulu"]).run_once(today: Date.new(2026, 6, 22))
@@ -194,8 +191,7 @@ class SolakonPvHourAggregatorTest < ActiveSupport::TestCase
   end
 
   test "run_once treats a day as filled according to the zone it was given, not the app's default" do
-    # 02:00 UTC on the 22nd is already the 22nd in plain UTC and the app's
-    # own default zone, but still the 21st in Honolulu.
+    # 02:00 UTC on the 22nd is still the 21st in Honolulu.
     readings(Time.utc(2026, 6, 22, 2), 20) { 100 }
     Solakon::PvHour.create!(started_at: Time.utc(2026, 6, 22, 2), pv_power_w: 999, reading_count: 20)
 

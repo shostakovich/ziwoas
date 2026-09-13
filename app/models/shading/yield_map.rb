@@ -5,10 +5,7 @@ module Shading
   # shadow every day.
   class YieldMap
     BIN_SIZE_DEG = 5
-    # Below this the station measured little more than the sky's glow, and the
-    # ratio of two small numbers says nothing.
     MIN_IRRADIANCE_W_PER_M2 = 100
-    # A field speaks only once it has been visited on several days.
     MIN_HOURS = 3
 
     def initialize(best_ratio:)

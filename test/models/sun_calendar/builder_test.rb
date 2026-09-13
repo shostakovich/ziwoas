@@ -338,8 +338,7 @@ class SunCalendar::BuilderTest < ActiveSupport::TestCase
   end
 
   test "reads the PV hour's local time in the builder's own zone, not the app default" do
-    # 2026-04-10 23:00 UTC is 2026-04-11 01:00 in the app's default zone (Europe/Berlin),
-    # but 2026-04-10 13:00 in the builder's own zone (Pacific/Honolulu, UTC-10, no DST).
+    # 2026-04-10 23:00 UTC is 2026-04-10 13:00 in Pacific/Honolulu (UTC-10, no DST).
     Solakon::PvHour.create!(started_at: Time.utc(2026, 4, 10, 23, 0, 0), pv_power_w: 500.0, reading_count: 120)
 
     strip = SunCalendar::Builder.new(location: Location.new(timezone: "Pacific/Honolulu")).build(2026).strips.fetch(:pv)
@@ -349,8 +348,6 @@ class SunCalendar::BuilderTest < ActiveSupport::TestCase
 
   test "orders PV hours chronologically so the later reading wins a repeated cell" do
     date = Date.new(2026, 10, 25)
-    # Insert the chronologically LATER instant first, to prove the cell picks the winner
-    # by timestamp order and not by insertion order.
     Solakon::PvHour.create!(
       started_at: Time.zone.local(date.year, date.month, date.day, 2) + 1.hour,
       pv_power_w: 300.0, reading_count: 120
@@ -389,8 +386,6 @@ class SunCalendar::BuilderTest < ActiveSupport::TestCase
   end
 
   test "keeps the year's start in the builder's own zone, not the app default" do
-    # In the app's default zone (Europe/Berlin) both instants already fall inside 2026,
-    # but only the second one sits at or after the year's start in Pacific/Honolulu (UTC-10).
     just_before_start = Time.utc(2026, 1, 1, 9, 0, 0)   # 2025-12-31 23:00 Honolulu, excluded
     at_start          = Time.utc(2026, 1, 1, 10, 0, 0)  # 2026-01-01 00:00 Honolulu, included
 
@@ -403,8 +398,6 @@ class SunCalendar::BuilderTest < ActiveSupport::TestCase
   end
 
   test "keeps the year's end in the builder's own zone, not the app default" do
-    # In the app's default zone (Europe/Berlin) both instants already fall outside 2026,
-    # but only the first one sits before the year's end in Pacific/Honolulu (UTC-10).
     last_included  = Time.utc(2027, 1, 1, 9, 59, 59) # 2026-12-31 23:59:59 Honolulu, included
     first_excluded = Time.utc(2027, 1, 1, 10, 0, 0)  # 2027-01-01 00:00:00 Honolulu, excluded
 

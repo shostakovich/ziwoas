@@ -1,7 +1,4 @@
 module Solakon
-  # Condenses the 30-second readings and the 2-minute snapshots into one PvHour
-  # per clock hour. Days are local calendar days, so the clock-change days come
-  # out with 23 and 25 hours.
   class PvHourAggregator
     PANEL_COLUMNS = Snapshot::PANELS.map { |idx| :"pv#{idx}_power_w" }.freeze
     NO_PANELS = PANEL_COLUMNS.index_with(nil).freeze
@@ -28,7 +25,6 @@ module Solakon
       end
     end
 
-    # Every finished day since the first reading that has no hour yet.
     def run_once(today: Date.current)
       first_reading_at = Reading.minimum(:taken_at)
       return if first_reading_at.nil?

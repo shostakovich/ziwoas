@@ -75,10 +75,7 @@ class SunCalendar::SunLinesTest < ActiveSupport::TestCase
     assert_equal 366, lines.rise.last.first
   end
 
-  # SunCalc's own sunrise/sunset always go nil together (one polar-day
-  # threshold decides both), so a real Sun can never show the events split.
-  # A fake one proves `events` checks each side rather than relying on that
-  # coincidence.
+  # SunCalc's own sunrise/sunset always go nil together, so only a fake Sun can split them.
   def fake_sun(sunrise:, sunset:)
     Class.new do
       define_method(:sunrise) { |_date| sunrise }

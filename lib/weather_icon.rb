@@ -11,7 +11,6 @@ module WeatherIcon
     "weather_#{base.tr("-", "_")}_#{suffix}.webp"
   end
 
-  # The icon says it outright, or the sun over the house decides.
   def self.daytime_for(icon:, timestamp:, location:)
     return "day" if icon.to_s.end_with?("-day")
     return "night" if icon.to_s.end_with?("-night")

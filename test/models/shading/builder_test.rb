@@ -171,15 +171,13 @@ class Shading::BuilderTest < ActiveSupport::TestCase
 
     report = build
 
-    # Nothing is scaled against a zero: no field of the sky gets a share, and
-    # the expected line has nothing to convert the irradiance with.
     assert_empty report.map.bins
     assert_empty report.profiles.sole.curve(:expected).points
     assert_empty report.profiles.sole.curve(:theory).points
   end
 
   test "irradiance_by_time returns nothing rather than everything when there is no PV history yet" do
-    weather(12, solar: 0.5) # a WeatherRecord exists, but there is no `from` to anchor the range
+    weather(12, solar: 0.5)
 
     result = builder.send(:irradiance_by_time, nil, Time.zone.local(2026, 7, 1, 12))
 
@@ -187,9 +185,9 @@ class Shading::BuilderTest < ActiveSupport::TestCase
   end
 
   test "irradiance_by_time only reads records within the given time range" do
-    weather(9, solar: 0.2)   # before the range
-    weather(12, solar: 0.5)  # inside the range
-    weather(15, solar: 0.8)  # after the range
+    weather(9, solar: 0.2)
+    weather(12, solar: 0.5)
+    weather(15, solar: 0.8)
 
     result = builder.send(:irradiance_by_time, Time.zone.local(2026, 7, 1, 11), Time.zone.local(2026, 7, 1, 13))
 
@@ -214,9 +212,7 @@ class Shading::BuilderTest < ActiveSupport::TestCase
     assert_equal times.sort, times
   end
 
-  # Only one query to list the rows and one to join the irradiance — the
-  # class comment promises "the station's whole history never has to be
-  # read", which a lazily re-queried relation would quietly break.
+  # Only one query to list the rows and one to join the irradiance.
   test "hours reads its rows with a single query, not one per first/last/each access" do
     pv_hour(6, 100.0)
     pv_hour(12, 400.0)
@@ -254,8 +250,7 @@ class Shading::BuilderTest < ActiveSupport::TestCase
     fake_sun_paths.define_singleton_method(:build) { |year| captured_year = year; [] }
 
     Shading::SunPaths.stub(:new, fake_sun_paths) do
-      # 22:00 UTC on Dec 31st is still Dec 31st in the app's own default zone
-      # (Europe/Berlin, +1h) but already Jan 1st in Pacific/Auckland (+13h).
+      # 22:00 UTC on Dec 31st is already Jan 1st in Pacific/Auckland (+13h).
       travel_to Time.utc(2026, 12, 31, 22) do
         builder(timezone: "Pacific/Auckland").send(:paths)
       end

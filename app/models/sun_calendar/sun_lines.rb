@@ -2,9 +2,6 @@ module SunCalendar
   # Sunrise, sunset and solar noon over a whole year, in local clock hours.
   # On a daylight saving change the previous offset's value comes first, so the
   # line steps by one hour where the clock does instead of ramping across it.
-  #
-  # A location without coordinates has a sun that rises nowhere, so the lines
-  # come out empty without a guard of their own.
   class SunLines
     SECONDS_PER_HOUR = 3600
     SECONDS_PER_DAY = 86_400
@@ -40,8 +37,6 @@ module SunCalendar
 
     private
 
-    # Both events, or nil on a polar day without either — and on every day of a
-    # location whose coordinates nobody configured.
     def events(date)
       sunrise = @location.sun.sunrise(date)
       sunset = @location.sun.sunset(date)

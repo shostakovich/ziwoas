@@ -1,8 +1,6 @@
 module Solakon
-  # Small multiples, one per month: what the array made over the day, what the
-  # measured irradiance promised, and what a cloudless sky would have offered.
-  # All months share one pair of axes, so the shape of June can be held against
-  # the shape of September.
+  # Small multiples, one per month. All months share one pair of axes, so the
+  # shape of June can be held against the shape of September.
   class DailyProfilesComponent < ApplicationComponent
     WIDTH = 300
     HEIGHT = 150
@@ -19,8 +17,6 @@ module Solakon
     MAX_GRID_LINES = 3
     DENSE_HOUR_STEP = 3
     SPARSE_HOUR_STEP = 6
-    # How far a watt label stays clear of the axis, and how far its baseline
-    # sits under the line it names.
     VALUE_LABEL_GAP = 4
     VALUE_LABEL_DROP = 3.5
     HOUR_LABEL_Y = HEIGHT - 6
@@ -37,8 +33,6 @@ module Solakon
 
     def empty? = @profiles.empty?
 
-    # All months are drawn in one frame, so December is measured against the
-    # same axes as June.
     def plot
       @plot ||= Plot.new(width: WIDTH, height: HEIGHT, margins: MARGINS, x: hours, y: 0..max_w)
     end
@@ -88,7 +82,6 @@ module Solakon
 
     def segments(profile, key) = plot.polylines(profile.curve(key).points)
 
-    # Under the highest curve, and never on the axis itself.
     def grid = plot.y_ticks(grid_step.step(max_w - 1, grid_step))
 
     def hits(profile)
