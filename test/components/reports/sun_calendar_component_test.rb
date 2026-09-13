@@ -158,13 +158,16 @@ class Reports::SunCalendarComponentTest < ViewComponent::TestCase
     assert_equal 0, rendered.css("[data-strip='energy'] line.seam").length
   end
 
-  test "names both sources and their dates under the calendar" do
-    note = render_calendar(seam: Date.new(2026, 6, 20)).css(".sun-calendar .note").text
+  test "names both sources and their dates under the strip they explain" do
+    rendered = render_calendar(seam: Date.new(2026, 6, 20))
+
+    note = rendered.css("[data-strip='pv'] .note").text
 
     assert_includes note, "Bis 19.06."
     assert_includes note, "ab 20.06."
     assert_includes note, "AC"
     assert_includes note, "DC"
+    assert_equal 1, rendered.css(".sun-calendar .note").length, "the note belongs to the PV strip alone"
   end
 
   test "says nothing about a seam on a year that had only one source" do

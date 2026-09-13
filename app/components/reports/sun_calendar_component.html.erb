@@ -35,6 +35,9 @@
             <li class="legend-item"><span class="legend-line noon"></span>Sonnenhöchststand</li>
           <% end %>
         </ul>
+        <% if seam? && strip.key == :pv %>
+          <p class="note"><%= seam_note %></p>
+        <% end %>
       </section>
     <% end %>
 
@@ -56,9 +59,5 @@
         <li class="legend-item">Tage ohne Stundenwerte bleiben leer</li>
       </ul>
     </section>
-
-    <% if seam? %>
-      <p class="note"><%= seam_note %></p>
-    <% end %>
   </div>
 <% end %>
