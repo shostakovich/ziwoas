@@ -1,13 +1,17 @@
 require "date"
 require "tzinfo"
 
-# Sunrise/sunset for a given date and location, computed locally with the
-# NOAA general solar position algorithm
-# (https://gml.noaa.gov/grad/solcalc/solareqns.PDF). Single-pass at solar noon,
-# accurate to a few minutes at mid latitudes — sufficient for deciding whether
-# a weather record falls into "day" or "night".
+# Sunrise/sunset and sun position for a given location, computed locally with
+# the NOAA general solar position algorithm
+# (https://gml.noaa.gov/grad/solcalc/solareqns.PDF). Sunrise and sunset are a
+# single pass at solar noon, accurate to a few minutes at mid latitudes —
+# sufficient for deciding whether a weather record falls into "day" or "night".
 module SunCalc
   ZENITH_DEG = 90.833
+  DEG = Math::PI / 180.0
+
+  # Azimuth clockwise from north, elevation above the horizon, both in degrees.
+  Position = Data.define(:azimuth, :elevation)
 
   module_function
 
@@ -32,6 +36,31 @@ module SunCalc
     timestamp >= sr && timestamp < ss
   end
 
+  # Sun position at an instant. The time may carry any zone: only the instant
+  # counts, so local clock time and its DST offset are already in it.
+  def position(time:, lat:, lon:)
+    utc = time.getutc
+    minutes = utc.hour * 60 + utc.min + utc.sec / 60.0
+    eqtime, decl = solar_terms(utc.to_date, minutes / 60.0)
+
+    hour_angle = ((minutes + eqtime + 4 * lon) / 4.0 - 180.0) * DEG
+    lat_rad = lat * DEG
+    sin_elevation = Math.sin(lat_rad) * Math.sin(decl) +
+                    Math.cos(lat_rad) * Math.cos(decl) * Math.cos(hour_angle)
+
+    # atan2 instead of NOAA's acos-and-branch form: the same angle, but it
+    # wraps the hour angle by itself and has no pole at the zenith.
+    from_north = Math.atan2(
+      Math.sin(hour_angle),
+      Math.cos(hour_angle) * Math.sin(lat_rad) - Math.tan(decl) * Math.cos(lat_rad)
+    )
+
+    Position.new(
+      azimuth: (from_north / DEG + 180.0) % 360,
+      elevation: Math.asin(sin_elevation.clamp(-1.0, 1.0)) / DEG
+    )
+  end
+
   def event_time(date, lat, lon, timezone, event)
     cos_ha = cos_hour_angle(date, lat)
     return nil if cos_ha.abs > 1.0
@@ -40,10 +69,11 @@ module SunCalc
     Time.utc(date.year, date.month, date.day, 0, 0, 0) + minutes * 60
   end
 
-  # NOAA single-pass formula evaluated at solar noon (hour = 12 UTC).
-  def solar_terms(date)
+  # Equation of time (minutes) and declination (radians) for a UTC hour of the
+  # day; the sunrise/sunset pass evaluates them once at solar noon.
+  def solar_terms(date, hour_utc = 12.0)
     n = date.yday
-    gamma = 2 * Math::PI / 365.0 * (n - 1)
+    gamma = 2 * Math::PI / 365.0 * (n - 1 + (hour_utc - 12) / 24.0)
 
     eqtime = 229.18 * (
       0.000075 +
@@ -67,15 +97,15 @@ module SunCalc
 
   def cos_hour_angle(date, lat)
     _, decl = solar_terms(date)
-    lat_rad = lat * Math::PI / 180.0
-    zenith_rad = ZENITH_DEG * Math::PI / 180.0
+    lat_rad = lat * DEG
+    zenith_rad = ZENITH_DEG * DEG
     (Math.cos(zenith_rad) - Math.sin(lat_rad) * Math.sin(decl)) /
       (Math.cos(lat_rad) * Math.cos(decl))
   end
 
   def solar_event_minutes_utc(date, lon, cos_ha, event)
     eqtime, _ = solar_terms(date)
-    ha_deg = Math.acos(cos_ha.clamp(-1.0, 1.0)) * 180.0 / Math::PI
+    ha_deg = Math.acos(cos_ha.clamp(-1.0, 1.0)) / DEG
     case event
     when :sunrise then 720 - 4 * (lon + ha_deg) - eqtime
     when :sunset  then 720 - 4 * (lon - ha_deg) - eqtime
