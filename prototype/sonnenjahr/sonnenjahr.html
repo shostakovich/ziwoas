@@ -1,0 +1,693 @@
+<title>Sonnenjahr</title>
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #f8f9fa;
+    --card: #ffffff;
+    --border: #dee2e6;
+    --text: #212529;
+    --muted: #6c757d;
+    --accent: #f59f00;
+    --accent-soft: #fff8db;
+    --grid: #e9ecef;
+    --nodata: #f1f3f5;
+    --sun-line: #b45309;
+    --sky-line: #1c5cab;
+    --neutral-line: #868e96;
+    --cat-1: #2a78d6;
+    --cat-2: #eb6834;
+    --cat-3: #1baf7a;
+    --cat-4: #eda100;
+    --pill-bg: #212529;
+    --pill-text: #f8f9fa;
+    --shadow: 0 6px 20px rgba(33, 37, 41, .18);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --bg: #15171a;
+      --card: #1e2126;
+      --border: #2f343a;
+      --text: #e9ecef;
+      --muted: #9aa1a9;
+      --accent: #f5b52a;
+      --accent-soft: #2b2510;
+      --grid: #2a2f35;
+      --nodata: #1a1d21;
+      --sun-line: #ffb84d;
+      --sky-line: #6da7ec;
+      --neutral-line: #868e96;
+      --cat-1: #3987e5;
+      --cat-2: #d95926;
+      --cat-3: #199e70;
+      --cat-4: #c98500;
+      --pill-bg: #f8f9fa;
+      --pill-text: #212529;
+      --shadow: 0 6px 20px rgba(0, 0, 0, .5);
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --bg: #15171a;
+    --card: #1e2126;
+    --border: #2f343a;
+    --text: #e9ecef;
+    --muted: #9aa1a9;
+    --accent: #f5b52a;
+    --accent-soft: #2b2510;
+    --grid: #2a2f35;
+    --nodata: #1a1d21;
+    --sun-line: #ffb84d;
+    --sky-line: #6da7ec;
+    --neutral-line: #868e96;
+    --cat-1: #3987e5;
+    --cat-2: #d95926;
+    --cat-3: #199e70;
+    --cat-4: #c98500;
+    --pill-bg: #f8f9fa;
+    --pill-text: #212529;
+    --shadow: 0 6px 20px rgba(0, 0, 0, .5);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    margin: 0 auto;
+    padding: 16px 16px 96px;
+    background: var(--bg);
+    color: var(--text);
+    max-width: 1040px;
+    font-size: 14px;
+    line-height: 1.45;
+  }
+  h1 { font-size: 18px; margin: 0 0 4px; color: var(--muted); font-weight: 500; }
+  h2 { font-size: 20px; margin: 0 0 6px; font-weight: 600; text-wrap: balance; }
+  .lede { color: var(--muted); max-width: 68ch; margin: 0 0 16px; }
+  .lede strong { color: var(--text); font-weight: 600; }
+  .section-label {
+    font-size: 11px; font-weight: 400; color: var(--muted); text-transform: uppercase;
+    letter-spacing: .6px; margin: 20px 0 8px;
+  }
+  .tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 0 0 16px; }
+  .tile { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; min-width: 0; }
+  .tile-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
+  .tile-value { font-size: 22px; font-weight: 600; margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .tile-value small { font-size: 13px; font-weight: 500; color: var(--muted); margin-left: 2px; }
+  .chart-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+    padding: 12px; margin-bottom: 12px;
+  }
+  .chart-title { font-weight: 600; margin: 0 0 8px; display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; }
+  .chart-title span { color: var(--muted); font-weight: 400; font-size: 12px; }
+  .chart-frame { width: 100%; }
+  svg { display: block; font-family: inherit; width: 100%; height: auto; }
+  svg text { fill: var(--text); font-size: 11px; }
+  svg text.muted { fill: var(--muted); }
+  svg text.tiny { font-size: 10px; }
+  svg .grid { stroke: var(--grid); stroke-width: 1; }
+  svg .axis { stroke: var(--border); stroke-width: 1; }
+  svg .nodata { fill: var(--nodata); }
+  svg .sun { fill: none; stroke: var(--sun-line); stroke-width: 1.8; stroke-linejoin: round; stroke-linecap: round; }
+  svg .sun.noon { stroke-dasharray: 2 4; stroke-width: 1.4; }
+  svg .sky { fill: none; stroke: var(--sky-line); stroke-width: 2; stroke-dasharray: 5 4; }
+  svg .theory { fill: none; stroke: var(--neutral-line); stroke-width: 1.5; stroke-dasharray: 1.5 3; }
+  svg .path { fill: none; stroke: var(--muted); stroke-width: 1.4; }
+  svg .measured { fill: none; stroke: var(--sun-line); stroke-width: 2; }
+  svg .measured-area { fill: var(--accent); fill-opacity: .18; }
+  svg .seam { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; }
+  svg .bar { fill: var(--accent); }
+  svg .crosshair { stroke: var(--text); stroke-width: 1; stroke-dasharray: 2 2; pointer-events: none; }
+  svg .hit { fill: transparent; }
+  svg .ring { stroke: var(--card); stroke-width: 2; fill: var(--muted); }
+  svg .panel { fill: none; stroke-width: 2; stroke-linejoin: round; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; margin-top: 8px; font-size: 12px; color: var(--muted); }
+  .legend-item { display: inline-flex; align-items: center; gap: 6px; }
+  .legend-swatch { width: 18px; height: 0; border-top: 2px solid var(--sun-line); flex: none; }
+  .legend-swatch.sky { border-top-style: dashed; border-top-color: var(--sky-line); }
+  .legend-swatch.theory { border-top-style: dotted; border-top-color: var(--neutral-line); }
+  .legend-swatch.noon { border-top-style: dotted; border-top-color: var(--sun-line); }
+  .legend-swatch.path { border-top-color: var(--muted); }
+  .legend-ramp { display: inline-block; width: 100px; height: 10px; border-radius: 2px; border: 1px solid var(--border); }
+  .legend-box { display: inline-block; width: 14px; height: 10px; border-radius: 2px; }
+  .legend-box.nodata { background: var(--nodata); border: 1px solid var(--border); }
+  .note { font-size: 12px; color: var(--muted); margin: 8px 0 0; max-width: 78ch; }
+  .multiples { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; }
+  .multiple { border: 1px solid var(--border); border-radius: 8px; padding: 8px 8px 4px; min-width: 0; }
+  .multiple h3 { font-size: 13px; margin: 0 0 4px; font-weight: 600; }
+  .multiple h3 span { color: var(--muted); font-weight: 400; margin-left: 6px; }
+
+  #tooltip {
+    position: fixed; z-index: 20; pointer-events: none; display: none;
+    background: var(--card); color: var(--text); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 10px; font-size: 12px; line-height: 1.4;
+    box-shadow: var(--shadow); max-width: 260px; font-variant-numeric: tabular-nums;
+  }
+  #tooltip b { display: block; margin-bottom: 2px; }
+  #tooltip .dim { color: var(--muted); }
+
+  .variant { display: none; }
+  .variant.active { display: block; }
+
+  .switcher {
+    position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 30;
+    display: flex; align-items: center; gap: 4px;
+    background: var(--pill-bg); color: var(--pill-text);
+    border-radius: 999px; padding: 6px 8px; box-shadow: var(--shadow);
+    font-size: 13px; white-space: nowrap;
+  }
+  .switcher button {
+    font: inherit; background: transparent; color: inherit; border: 0; cursor: pointer;
+    width: 32px; height: 32px; border-radius: 50%; font-size: 16px;
+  }
+  .switcher button:hover { background: rgba(128, 128, 128, .25); }
+  .switcher button:focus-visible { outline: 2px solid var(--accent); }
+  .switcher .label { padding: 0 8px; min-width: 170px; text-align: center; }
+  .switcher .label kbd { font-family: inherit; opacity: .6; margin-right: 6px; }
+  .switcher .tag { font-size: 10px; text-transform: uppercase; letter-spacing: .6px; opacity: .6; padding: 0 6px 0 4px; }
+
+  @media (max-width: 700px) {
+    body { padding: 12px 10px 96px; }
+    .tiles { grid-template-columns: repeat(2, 1fr); }
+    .tile-value { font-size: 18px; }
+    .switcher .label { min-width: 130px; }
+  }
+</style>
+
+<h1>Sonne</h1>
+<div id="summary" class="tiles" aria-label="Zusammenfassung"></div>
+
+<!-- ===================== B ===================== -->
+<section class="variant" id="variant-b" data-name="Sonnenkalender">
+  <h2>Sonnenkalender – das Jahr als Streifen, die Sonnenbahn als Hülle</h2>
+  <p class="lede">Die Frage: <strong>Wie sitzt der Ertrag im Tageslicht, und wo drückt das Wetter?</strong>
+    Jeder Tag ist eine schmale Spalte, morgens oben, abends unten. PV, DWD-Einstrahlung und Bewölkung liegen
+    untereinander auf derselben Zeitachse, darunter der Tagesertrag. Fahre mit der Maus über ein Diagramm.</p>
+
+  <div class="chart-card">
+    <p class="chart-title">PV-Leistung <span>Stundenmittel in W</span></p>
+    <div class="chart-frame" id="chart-b-pv"></div>
+    <div class="legend" id="legend-b-pv"></div>
+    <p class="note">Bis 19.6. von der Steckdose des Balkonkraftwerks (AC), ab 20.6. vom Solakon-Wechselrichter (DC). Die gestrichelte Linie markiert den Wechsel.</p>
+  </div>
+  <div class="chart-card">
+    <p class="chart-title">Einstrahlung DWD <span>Stundenmittel in W/m², Station Dachau</span></p>
+    <div class="chart-frame" id="chart-b-sol"></div>
+    <div class="legend" id="legend-b-sol"></div>
+  </div>
+  <div class="chart-card">
+    <p class="chart-title">Bewölkung DWD <span>in %</span></p>
+    <div class="chart-frame" id="chart-b-cc"></div>
+    <div class="legend" id="legend-b-cc"></div>
+  </div>
+  <div class="chart-card">
+    <p class="chart-title">Tagesertrag <span>in kWh</span></p>
+    <div class="chart-frame" id="chart-b-daily"></div>
+  </div>
+</section>
+
+<!-- ===================== C ===================== -->
+<section class="variant" id="variant-c" data-name="Schattenkarte">
+  <h2>Schattenkarte – wo am Himmel der Ertrag hinter der Einstrahlung zurückbleibt</h2>
+  <p class="lede">Die Frage: <strong>Wo steht die Sonne, wenn der Garten Schatten wirft?</strong>
+    Für jede Stunde seit dem 20.6. wird die PV-Leistung ins Verhältnis zur gemessenen Einstrahlung der DWD-Station gesetzt
+    und an der Position der Sonne am Himmel eingetragen. Die Bögen zeigen die Sonnenbahn zu Sonnenwende und Tagundnachtgleiche.</p>
+  <div class="chart-card">
+    <p class="chart-title">Ertragsquote nach Sonnenstand <span>Azimut × Sonnenhöhe</span></p>
+    <div class="chart-frame" id="chart-c"></div>
+    <div class="legend" id="legend-c"></div>
+    <p class="note">Quote = PV-Leistung geteilt durch DWD-Einstrahlung, bezogen auf die beste beobachtete Stunde.
+      Nur Stunden mit mindestens 100 W/m². Je Feld von 5° × 5° der Median über alle Stunden.</p>
+  </div>
+
+  <h2 class="section-label">Tagesgang je Monat – gemessen, erwartet, theoretisch</h2>
+  <div class="chart-card">
+    <div class="multiples" id="chart-c2"></div>
+    <div class="legend">
+      <span class="legend-item"><span class="legend-swatch"></span>PV gemessen</span>
+      <span class="legend-item"><span class="legend-swatch sky"></span>Erwartet aus DWD-Einstrahlung</span>
+      <span class="legend-item"><span class="legend-swatch theory"></span>Wolkenloser Himmel, theoretisch</span>
+    </div>
+    <p class="note">Einstrahlung und Theorie sind mit dem Wirkungsgrad der besten Stunde auf Anlagenleistung umgerechnet.
+      Der Abstand zwischen gestrichelter und durchgezogener Linie ist der Anteil, den Abschattung (oder Ausrichtung) kostet.</p>
+  </div>
+
+  <h2 class="section-label">Die vier Panels im Tagesverlauf</h2>
+  <div class="chart-card">
+    <p class="chart-title">Stundenmittel je Panel <span id="c3-period"></span></p>
+    <div class="chart-frame" id="chart-c3"></div>
+    <div class="legend" id="legend-c3"></div>
+    <p class="note">Panel 3 und 4 liefern seit dem 27.8., deshalb zählt der Vergleich nur Tage ab diesem Datum.</p>
+  </div>
+</section>
+
+<div id="tooltip" role="tooltip"></div>
+
+<div class="switcher" role="navigation" aria-label="Prototyp wechseln">
+  <span class="tag">Prototyp</span>
+  <button id="prev" aria-label="Vorheriger Prototyp">&larr;</button>
+  <span class="label" id="switch-label"></span>
+  <button id="next" aria-label="N&auml;chster Prototyp">&rarr;</button>
+</div>
+
+<script src="hours.js"></script>
+<script>
+(() => {
+  // ---------- data ----------
+  const ROWS = window.HOURS;
+  const { lat: LAT, lon: LON } = window.SITE; // written by export.sh from the weather records
+  const SEAM = "2026-06-20";
+  const PANELS_34_SINCE = "2026-08-27";
+  const YEAR = 2026;
+  const MONTHS = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
+  const WEEKDAYS = ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"];
+  const fmt = (n, d = 0) => n.toLocaleString("de-DE", { minimumFractionDigits: d, maximumFractionDigits: d });
+  const esc = s => s.replace(/"/g, "&quot;");
+
+  const yieldOf = r => r.pv ?? (r.d < SEAM ? r.ac : null);
+  const byDay = new Map();
+  for (const r of ROWS) {
+    if (!byDay.has(r.d)) byDay.set(r.d, new Array(24).fill(null));
+    byDay.get(r.d)[r.h] = r;
+  }
+  const days = [...byDay.keys()].sort();
+
+  // ---------- calendar ----------
+  const toDate = d => new Date(d + "T00:00:00Z");
+  const doyOf = dt => Math.round((dt - Date.UTC(YEAR, 0, 1)) / 864e5) + 1;
+  const dateOfDoy = n => new Date(Date.UTC(YEAR, 0, n));
+  const fmtDate = d => { const dt = toDate(d); return `${dt.getUTCDate()}.${dt.getUTCMonth() + 1}.`; };
+  const WEEK1 = Date.UTC(2025, 11, 29); // ISO week 1 of 2026
+  const weekOf = d => Math.floor((toDate(d) - WEEK1) / (7 * 864e5)) + 1;
+  const hhmm = h => { const m = Math.round(h * 60); return `${Math.floor(m / 60)}:${String(m % 60).padStart(2, "0")}`; };
+
+  // ---------- sun (NOAA, matches lib/sun_calc.rb) ----------
+  const rad = x => x * Math.PI / 180, deg = x => x * 180 / Math.PI;
+  // CEST from 29.3. to 25.10.2026
+  const tzOffset = dt => (dt >= Date.UTC(YEAR, 2, 29, 1) && dt < Date.UTC(YEAR, 9, 25, 1)) ? 2 : 1;
+  function solarTerms(doy, utcHour) {
+    const g = 2 * Math.PI / 365 * (doy - 1 + (utcHour - 12) / 24);
+    const eqtime = 229.18 * (0.000075 + 0.001868 * Math.cos(g) - 0.032077 * Math.sin(g)
+      - 0.014615 * Math.cos(2 * g) - 0.040849 * Math.sin(2 * g));
+    const decl = 0.006918 - 0.399912 * Math.cos(g) + 0.070257 * Math.sin(g) - 0.006758 * Math.cos(2 * g)
+      + 0.000907 * Math.sin(2 * g) - 0.002697 * Math.cos(3 * g) + 0.00148 * Math.sin(3 * g);
+    return { eqtime, decl };
+  }
+  function sunPos(dt, localHour) {
+    const tz = tzOffset(dt);
+    const { eqtime, decl } = solarTerms(doyOf(dt), localHour - tz);
+    const tst = localHour * 60 + eqtime + 4 * LON - 60 * tz;
+    const ha = tst / 4 - 180;
+    const lat = rad(LAT);
+    const cosZ = Math.sin(lat) * Math.sin(decl) + Math.cos(lat) * Math.cos(decl) * Math.cos(rad(ha));
+    const zen = Math.acos(Math.max(-1, Math.min(1, cosZ)));
+    let cosA = (Math.sin(lat) * Math.cos(zen) - Math.sin(decl)) / (Math.cos(lat) * Math.sin(zen));
+    cosA = Math.max(-1, Math.min(1, cosA));
+    const theta = deg(Math.acos(cosA));
+    const az = ha > 0 ? (theta + 180) % 360 : (540 - theta) % 360;
+    return { elev: 90 - deg(zen), az };
+  }
+  function sunTimes(dt, tz = tzOffset(dt)) {
+    const { eqtime, decl } = solarTerms(doyOf(dt), 12);
+    const lat = rad(LAT);
+    const cosHa = (Math.cos(rad(90.833)) - Math.sin(lat) * Math.sin(decl)) / (Math.cos(lat) * Math.cos(decl));
+    const ha = deg(Math.acos(Math.max(-1, Math.min(1, cosHa))));
+    const rise = (720 - 4 * (LON + ha) - eqtime) / 60 + tz;
+    const set = (720 - 4 * (LON - ha) - eqtime) / 60 + tz;
+    return { rise, set, noon: (rise + set) / 2 };
+  }
+  // Haurwitz clear-sky global irradiance in W/m²
+  const clearSky = elev => { if (elev <= 0) return 0; const c = Math.sin(rad(elev)); return 1098 * c * Math.exp(-0.059 / c); };
+
+  // ---------- color ----------
+  const isDark = () => {
+    const t = document.documentElement.getAttribute("data-theme");
+    if (t === "dark") return true;
+    if (t === "light") return false;
+    return window.matchMedia("(prefers-color-scheme: dark)").matches;
+  };
+  const RAMPS = {
+    amber: { light: ["#fff8e1", "#ffe9a8", "#ffd166", "#f7b733", "#f59f00", "#d97a00", "#a85300"],
+             dark:  ["#26211a", "#4a3a12", "#7a5a10", "#a87a10", "#d69a12", "#f5b52a", "#ffd166"] },
+    blue:  { light: ["#eef4fb", "#cde2fb", "#9ec5f4", "#6da7ec", "#3987e5", "#256abf", "#184f95"],
+             dark:  ["#1b2230", "#1e3350", "#234a78", "#2a64a3", "#3987e5", "#6da7ec", "#9ec5f4"] },
+    grey:  { light: ["#f8f9fa", "#e9ecef", "#ced4da", "#adb5bd", "#868e96", "#495057", "#343a40"],
+             dark:  ["#1e2126", "#2a2f35", "#3b4148", "#4f5760", "#6c757d", "#adb5bd", "#dee2e6"] },
+    // diverging: blue (below expectation) - neutral - amber (full yield)
+    div:   { light: ["#256abf", "#6da7ec", "#cde2fb", "#f0efec", "#ffe9a8", "#f7b733", "#d97a00"],
+             dark:  ["#6da7ec", "#3987e5", "#234a78", "#383835", "#7a5a10", "#d69a12", "#ffd166"] }
+  };
+  const hex2rgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+  const mix = (a, b, t) => "rgb(" + hex2rgb(a).map((c, i) => Math.round(c + (hex2rgb(b)[i] - c) * t)).join(",") + ")";
+  function ramp(name, t) {
+    const stops = RAMPS[name][isDark() ? "dark" : "light"];
+    const x = Math.max(0, Math.min(1, t)) * (stops.length - 1);
+    const i = Math.min(stops.length - 2, Math.floor(x));
+    return mix(stops[i], stops[i + 1], x - i);
+  }
+  const rampCss = name => `linear-gradient(90deg, ${RAMPS[name][isDark() ? "dark" : "light"].join(",")})`;
+
+  // ---------- tooltip ----------
+  const tip = document.getElementById("tooltip");
+  function bindTips(root) {
+    root.querySelectorAll("[data-tip]").forEach(el => {
+      const move = e => {
+        tip.innerHTML = el.dataset.tip;
+        tip.style.display = "block";
+        const w = tip.offsetWidth, h = tip.offsetHeight;
+        let x = e.clientX + 14, y = e.clientY + 14;
+        if (x + w > window.innerWidth - 8) x = Math.max(4, e.clientX - w - 14);
+        if (y + h > window.innerHeight - 8) y = e.clientY - h - 14;
+        tip.style.left = x + "px"; tip.style.top = y + "px";
+      };
+      el.addEventListener("mousemove", move);
+      el.addEventListener("touchstart", e => move(e.touches[0]), { passive: true });
+      el.addEventListener("mouseleave", () => { tip.style.display = "none"; });
+    });
+  }
+  document.addEventListener("touchstart", e => { if (!e.target.closest("[data-tip]")) tip.style.display = "none"; }, { passive: true });
+
+  const widthOf = id => Math.max(300, document.getElementById(id).clientWidth || 900);
+  const narrow = () => document.body.clientWidth < 600;
+
+  // ---------- summary tiles ----------
+  (function summary() {
+    let wh = 0, sunMin = 0, best = { d: null, wh: 0 };
+    for (const d of days) {
+      const rows = byDay.get(d);
+      let dayWh = 0;
+      for (const r of rows) if (r) { const y = yieldOf(r); if (y != null) dayWh += y; sunMin += r.sun || 0; }
+      wh += dayWh;
+      if (dayWh > best.wh) best = { d, wh: dayWh };
+    }
+    document.getElementById("summary").innerHTML = `
+      <div class="tile"><div class="tile-label">Zeitraum</div><div class="tile-value">${fmtDate(days[0])} – ${fmtDate(days[days.length - 1])}<small>${days.length} Tage</small></div></div>
+      <div class="tile"><div class="tile-label">Ertrag gesamt</div><div class="tile-value">${fmt(wh / 1000, 1)}<small>kWh</small></div></div>
+      <div class="tile"><div class="tile-label">Bester Tag</div><div class="tile-value">${fmt(best.wh / 1000, 2)}<small>kWh · ${fmtDate(best.d)}</small></div></div>
+      <div class="tile"><div class="tile-label">Sonnenschein DWD</div><div class="tile-value">${fmt(sunMin / 60)}<small>h</small></div></div>`;
+  })();
+
+  // ======================================================================
+  // B – Sonnenkalender: one card per strip, shared x axis, shared crosshair
+  // ======================================================================
+  const daily = new Map();
+  let maxDayWh = 0;
+  for (const d of days) {
+    const rows = byDay.get(d);
+    let wh = 0, sun = 0, cc = 0, ncc = 0, has = false;
+    for (const r of rows) if (r) { const y = yieldOf(r); if (y != null) { wh += y; has = true; } sun += r.sun || 0; if (r.cc != null) { cc += r.cc; ncc++; } }
+    daily.set(d, { wh, sun, cc: ncc ? cc / ncc : null, has });
+    if (has) maxDayWh = Math.max(maxDayWh, wh);
+  }
+  const dayTip = d => {
+    const dd = daily.get(d), dt = toDate(d), st = sunTimes(dt);
+    return `<b>${WEEKDAYS[dt.getUTCDay()]} ${fmtDate(d)} · KW ${weekOf(d)}</b>` +
+      (dd.has ? `Ertrag ${fmt(dd.wh / 1000, 2)} kWh<br>` : `<span class="dim">kein Ertragswert</span><br>`) +
+      `Sonnenschein ${fmt(dd.sun / 60, 1)} h · Bewölkung Ø ${dd.cc == null ? "–" : fmt(dd.cc) + " %"}<br>` +
+      `<span class="dim">Aufgang ${hhmm(st.rise)} · Untergang ${hhmm(st.set)}</span>`;
+  };
+  const crosshairs = [];
+  function bindCrosshair(svgEl, x, dw) {
+    const xh = svgEl.querySelector(".crosshair");
+    crosshairs.push({ xh, x, dw });
+    svgEl.querySelectorAll(".hit").forEach(r => {
+      const on = () => crosshairs.forEach(c => { const xx = c.x(+r.dataset.doy) + c.dw / 2; c.xh.setAttribute("x1", xx); c.xh.setAttribute("x2", xx); c.xh.style.display = ""; });
+      const off = () => crosshairs.forEach(c => { c.xh.style.display = "none"; });
+      r.addEventListener("mouseenter", on); r.addEventListener("touchstart", on, { passive: true }); r.addEventListener("mouseleave", off);
+    });
+  }
+  // Sun envelope in local clock time, sampled daily; the DST day gets both
+  // values so the polyline steps vertically by one hour instead of ramping.
+  function sunEnvelope(key, x, y) {
+    let p = "", prevTz = null;
+    for (let n = 1; n <= 365; n++) {
+      const dt = dateOfDoy(n), tz = tzOffset(dt);
+      if (prevTz !== null && tz !== prevTz) p += `${x(n).toFixed(1)},${y(sunTimes(dt, prevTz)[key]).toFixed(1)} `;
+      p += `${x(n).toFixed(1)},${y(sunTimes(dt, tz)[key]).toFixed(1)} `;
+      prevTz = tz;
+    }
+    return p;
+  }
+  function monthAxis(x, yTop, yBottom, labelY) {
+    let s = "";
+    for (let m = 0; m < 12; m++) {
+      const d1 = doyOf(new Date(Date.UTC(YEAR, m, 1)));
+      s += `<line x1="${x(d1).toFixed(1)}" x2="${x(d1).toFixed(1)}" y1="${yTop}" y2="${yBottom}" class="grid"/>`;
+      s += `<text x="${(x(d1) + 3).toFixed(1)}" y="${labelY}" class="muted tiny">${MONTHS[m]}</text>`;
+    }
+    return s;
+  }
+  function renderStrip(id, legendId, { rampName, vmax, unit, get, seam }) {
+    const W = widthOf(id);
+    const H0 = 3, H1 = 23, left = 26, top = 16, rh = narrow() ? 6 : 8;
+    const dw = (W - left - 4) / 365;
+    const stripH = (H1 - H0) * rh;
+    const Hh = top + stripH + 4;
+    const x = doy => left + (doy - 1) * dw;
+    const y = h => top + (h - H0) * rh;
+    let s = `<svg viewBox="0 0 ${W} ${Hh}" role="img">`;
+    s += monthAxis(x, top - 4, top + stripH, top - 6);
+    for (let h = H0; h <= H1; h += 4) s += `<text x="${left - 5}" y="${y(h) + 3.5}" text-anchor="end" class="muted tiny">${h}</text>`;
+    s += `<rect x="${x(1)}" y="${top}" width="${365 * dw}" height="${stripH}" class="nodata"/>`;
+    for (const d of days) {
+      const rows = byDay.get(d), doy = doyOf(toDate(d));
+      for (let h = H0; h < H1; h++) {
+        const r = rows[h]; if (!r) continue;
+        const v = get(r); if (v == null) continue;
+        s += `<rect x="${x(doy).toFixed(2)}" y="${y(h)}" width="${dw.toFixed(2)}" height="${rh}" fill="${ramp(rampName, v / vmax)}"/>`;
+      }
+    }
+    s += `<polyline points="${sunEnvelope("rise", x, y)}" class="sun"/><polyline points="${sunEnvelope("set", x, y)}" class="sun"/><polyline points="${sunEnvelope("noon", x, y)}" class="sun noon"/>`;
+    if (seam) { const sx = x(doyOf(toDate(SEAM))).toFixed(1); s += `<line x1="${sx}" x2="${sx}" y1="${top}" y2="${top + stripH}" class="seam"/>`; }
+    for (const d of days) s += `<rect x="${x(doyOf(toDate(d))).toFixed(2)}" y="${top}" width="${dw.toFixed(2)}" height="${stripH}" class="hit" data-doy="${doyOf(toDate(d))}" data-tip="${esc(dayTip(d))}"/>`;
+    s += `<line x1="0" x2="0" y1="${top}" y2="${top + stripH}" class="crosshair" style="display:none"/></svg>`;
+    const el = document.getElementById(id);
+    el.innerHTML = s; bindTips(el); bindCrosshair(el.querySelector("svg"), x, dw);
+    document.getElementById(legendId).innerHTML = `
+      <span class="legend-item">0 <span class="legend-ramp" style="background:${rampCss(rampName)}"></span> ${fmt(vmax)} ${unit}</span>
+      <span class="legend-item"><span class="legend-box nodata"></span>keine Daten</span>
+      <span class="legend-item"><span class="legend-swatch"></span>Sonnenauf-/-untergang</span>
+      <span class="legend-item"><span class="legend-swatch noon"></span>Sonnenhöchststand</span>`;
+  }
+  function renderDaily(id) {
+    const W = widthOf(id);
+    const left = 26, top = 12, barsH = narrow() ? 70 : 100, bottom = 18;
+    const dw = (W - left - 4) / 365;
+    const x = doy => left + (doy - 1) * dw;
+    const Hh = top + barsH + bottom;
+    const maxK = Math.ceil(maxDayWh / 1000);
+    const y = wh => top + barsH - wh / (maxK * 1000) * barsH;
+    let s = `<svg viewBox="0 0 ${W} ${Hh}" role="img">`;
+    s += monthAxis(x, top, top + barsH, top + barsH + 13);
+    for (let k = 1; k <= maxK; k++) s += `<line x1="${left}" x2="${x(366).toFixed(1)}" y1="${y(k * 1000).toFixed(1)}" y2="${y(k * 1000).toFixed(1)}" class="grid"/><text x="${left - 5}" y="${y(k * 1000) + 3.5}" text-anchor="end" class="muted tiny">${k}</text>`;
+    s += `<line x1="${left}" x2="${x(366).toFixed(1)}" y1="${top + barsH}" y2="${top + barsH}" class="axis"/>`;
+    for (const d of days) {
+      const dd = daily.get(d); if (!dd.has) continue;
+      s += `<rect x="${x(doyOf(toDate(d))).toFixed(2)}" y="${y(dd.wh).toFixed(1)}" width="${Math.max(0.5, dw - 0.4).toFixed(2)}" height="${(top + barsH - y(dd.wh)).toFixed(1)}" class="bar"/>`;
+    }
+    for (const d of days) s += `<rect x="${x(doyOf(toDate(d))).toFixed(2)}" y="${top}" width="${dw.toFixed(2)}" height="${barsH}" class="hit" data-doy="${doyOf(toDate(d))}" data-tip="${esc(dayTip(d))}"/>`;
+    s += `<line x1="0" x2="0" y1="${top}" y2="${top + barsH}" class="crosshair" style="display:none"/></svg>`;
+    const el = document.getElementById(id);
+    el.innerHTML = s; bindTips(el); bindCrosshair(el.querySelector("svg"), x, dw);
+  }
+  function renderB() {
+    crosshairs.length = 0;
+    renderStrip("chart-b-pv", "legend-b-pv", { rampName: "amber", vmax: 760, unit: "W", get: yieldOf, seam: true });
+    renderStrip("chart-b-sol", "legend-b-sol", { rampName: "blue", vmax: 900, unit: "W/m²", get: r => r.sol });
+    renderStrip("chart-b-cc", "legend-b-cc", { rampName: "grey", vmax: 100, unit: "%", get: r => r.cc });
+    renderDaily("chart-b-daily");
+  }
+
+  // ======================================================================
+  // C – Schattenkarte
+  // ======================================================================
+  const effs = [];
+  for (const r of ROWS) if (r.pv != null && r.sol >= 300) effs.push(r.pv / r.sol);
+  effs.sort((a, b) => a - b);
+  const K = effs.length ? effs[Math.floor(effs.length * 0.95)] : 1;
+  const median = a => { const s = [...a].sort((p, q) => p - q); const m = Math.floor(s.length / 2); return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+
+  function renderC() {
+    const W = widthOf("chart-c");
+    const AZ0 = 50, AZ1 = 310, EL1 = 70, bin = 5;
+    const left = 30, top = 14;
+    const px = (W - left - 10) / (AZ1 - AZ0);
+    const py = Math.max(2.4, Math.min(4.6, px * 1.45));
+    const Hh = top + EL1 * py + 30;
+    const x = az => left + (az - AZ0) * px;
+    const y = el => top + (EL1 - el) * py;
+
+    const bins = new Map();
+    for (const r of ROWS) {
+      if (r.pv == null || r.sol == null || r.sol < 100 || r.d < SEAM) continue;
+      const p = sunPos(toDate(r.d), r.h + 0.5);
+      if (p.elev <= 0) continue;
+      const key = `${Math.floor(p.az / bin)}:${Math.floor(p.elev / bin)}`;
+      if (!bins.has(key)) bins.set(key, { az: Math.floor(p.az / bin) * bin, el: Math.floor(p.elev / bin) * bin, e: [], hours: new Set() });
+      const b = bins.get(key); b.e.push(r.pv / r.sol); b.hours.add(r.h);
+    }
+
+    let s = `<svg viewBox="0 0 ${W} ${Hh}" role="img">`;
+    for (let el = 0; el <= EL1; el += 10) s += `<line x1="${left}" x2="${x(AZ1).toFixed(1)}" y1="${y(el).toFixed(1)}" y2="${y(el).toFixed(1)}" class="grid"/><text x="${left - 5}" y="${(y(el) + 3.5).toFixed(1)}" text-anchor="end" class="muted tiny">${el}°</text>`;
+    for (let az = 60; az <= 300; az += 30) {
+      const name = { 90: "Ost", 180: "Süd", 270: "West" }[az];
+      s += `<line x1="${x(az).toFixed(1)}" x2="${x(az).toFixed(1)}" y1="${top}" y2="${y(0).toFixed(1)}" class="grid"/>`;
+      if (name || !narrow()) s += `<text x="${x(az).toFixed(1)}" y="${(y(0) + 14).toFixed(1)}" text-anchor="middle" class="muted tiny">${name ? name + " " : ""}${az}°</text>`;
+    }
+    s += `<text x="${left}" y="${top - 4}" class="muted tiny">Sonnenhöhe</text>`;
+    for (const b of bins.values()) {
+      if (b.e.length < 3) continue;
+      const q = Math.min(1, median(b.e) / K);
+      const hrs = [...b.hours].sort((a, c) => a - c);
+      const t = `<b>Azimut ${b.az}–${b.az + bin}° · Höhe ${b.el}–${b.el + bin}°</b>Quote ${fmt(q * 100)} % <span class="dim">(${b.e.length} Stunden, ${hrs[0]}–${hrs[hrs.length - 1] + 1} Uhr)</span>`;
+      s += `<rect x="${x(b.az).toFixed(1)}" y="${y(b.el + bin).toFixed(1)}" width="${(bin * px - .6).toFixed(1)}" height="${(bin * py - .6).toFixed(1)}" rx="1" fill="${ramp("div", q)}" data-tip="${esc(t)}"/>`;
+    }
+    const paths = [["21.6.", Date.UTC(YEAR, 5, 21)], ["21.3. / 23.9.", Date.UTC(YEAR, 8, 23)], ["21.12.", Date.UTC(YEAR, 11, 21)]];
+    for (const [label, ts] of paths) {
+      const dt = new Date(ts);
+      let p = "", labelAt = null;
+      for (let h = 3; h <= 21.5; h += 0.25) {
+        const sp = sunPos(dt, h);
+        if (sp.elev < 0 || sp.az < AZ0 || sp.az > AZ1) continue;
+        p += `${x(sp.az).toFixed(1)},${y(sp.elev).toFixed(1)} `;
+        if (Math.abs(h - 13) < 0.01) labelAt = sp;
+      }
+      s += `<polyline points="${p}" class="path"/>`;
+      for (const h of [6, 9, 12, 15, 18]) {
+        const sp = sunPos(dt, h);
+        if (sp.elev > 0 && sp.az >= AZ0 && sp.az <= AZ1) {
+          s += `<circle cx="${x(sp.az).toFixed(1)}" cy="${y(sp.elev).toFixed(1)}" r="3" class="ring"/>`;
+          if (label === "21.6.") s += `<text x="${x(sp.az).toFixed(1)}" y="${(y(sp.elev) - 6).toFixed(1)}" text-anchor="middle" class="muted tiny">${h}${narrow() ? "" : " Uhr"}</text>`;
+        }
+      }
+      if (labelAt) s += `<text x="${(x(labelAt.az) + 8).toFixed(1)}" y="${(y(labelAt.elev) - 2).toFixed(1)}" class="muted tiny">${label}</text>`;
+    }
+    s += `</svg>`;
+    const el = document.getElementById("chart-c");
+    el.innerHTML = s; bindTips(el);
+    document.getElementById("legend-c").innerHTML = `
+      <span class="legend-item">unter Erwartung (Schatten) <span class="legend-ramp" style="background:${rampCss("div")}"></span> voller Ertrag</span>
+      <span class="legend-item"><span class="legend-swatch path"></span>Sonnenbahn, Punkte alle 3 Stunden (6 bis 18 Uhr)</span>`;
+  }
+
+  function renderC2() {
+    const months = [5, 6, 7, 8];
+    const H0 = 4, H1 = 22;
+    const el = document.getElementById("chart-c2");
+    el.innerHTML = months.map(m => {
+      const acc = []; for (let h = 0; h < 24; h++) acc.push({ pv: 0, npv: 0, sol: 0, nsol: 0, cs: 0, ncs: 0 });
+      let ndays = 0;
+      for (const d of days) {
+        const dt = toDate(d); if (dt.getUTCMonth() !== m || d < SEAM) continue;
+        ndays++;
+        const rows = byDay.get(d);
+        for (let h = 0; h < 24; h++) {
+          const r = rows[h];
+          if (r && r.pv != null) { acc[h].pv += r.pv; acc[h].npv++; }
+          if (r && r.sol != null) { acc[h].sol += r.sol; acc[h].nsol++; }
+          acc[h].cs += clearSky(sunPos(dt, h + 0.5).elev); acc[h].ncs++;
+        }
+      }
+      if (!ndays) return "";
+      const W = 300, Hh = 150, left = 30, top = 10, bottom = 22;
+      const vmax = 1000 * K;
+      const x = h => left + (h - H0) / (H1 - H0) * (W - left - 8);
+      const y = v => top + (1 - v / vmax) * (Hh - top - bottom);
+      const series = get => { let p = ""; for (let h = H0; h <= H1; h++) { const v = get(acc[h]); if (v == null) continue; p += `${x(h).toFixed(1)},${y(v).toFixed(1)} `; } return p; };
+      const pv = a => a.npv ? a.pv / a.npv : null;
+      const sol = a => a.nsol ? a.sol / a.nsol * K : null;
+      const cs = a => a.cs / a.ncs * K;
+      let s = `<svg viewBox="0 0 ${W} ${Hh}" role="img" aria-label="Tagesgang ${MONTHS[m]}">`;
+      for (const v of [250, 500, 750]) if (v < vmax) s += `<line x1="${left}" x2="${W - 8}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}" class="grid"/><text x="${left - 4}" y="${y(v) + 3.5}" text-anchor="end" class="muted tiny">${v}</text>`;
+      s += `<line x1="${left}" x2="${W - 8}" y1="${y(0)}" y2="${y(0)}" class="axis"/>`;
+      for (let h = H0; h <= H1; h += 3) s += `<text x="${x(h)}" y="${Hh - 6}" text-anchor="middle" class="muted tiny">${h}</text>`;
+      s += `<polygon points="${x(H0)},${y(0)} ${series(pv)} ${x(H1)},${y(0)}" class="measured-area"/>`;
+      s += `<polyline points="${series(cs)}" class="theory"/>`;
+      s += `<polyline points="${series(sol)}" class="sky"/>`;
+      s += `<polyline points="${series(pv)}" class="measured"/>`;
+      for (let h = H0; h < H1; h++) {
+        const t = `<b>${MONTHS[m]} · ${h}–${h + 1} Uhr</b>PV Ø ${pv(acc[h]) == null ? "–" : fmt(pv(acc[h])) + " W"}<br>erwartet ${sol(acc[h]) == null ? "–" : fmt(sol(acc[h])) + " W"} · theoretisch ${fmt(cs(acc[h]))} W`;
+        s += `<rect x="${x(h)}" y="${top}" width="${(x(h + 1) - x(h)).toFixed(1)}" height="${Hh - top - bottom}" class="hit" data-tip="${esc(t)}"/>`;
+      }
+      s += `</svg>`;
+      return `<div class="multiple"><h3>${MONTHS[m]} <span>${ndays} Tage · W</span></h3>${s}</div>`;
+    }).join("");
+    bindTips(el);
+  }
+
+  function renderC3() {
+    const W = widthOf("chart-c3");
+    const H0 = 5, H1 = 21;
+    const KEYS = ["p1", "p2", "p3", "p4"];
+    const acc = []; for (let h = 0; h < 24; h++) acc.push({ p1: 0, p2: 0, p3: 0, p4: 0, n: 0 });
+    let ndays = new Set();
+    for (const r of ROWS) if (r.d >= PANELS_34_SINCE && r.p1 != null) { for (const k of KEYS) acc[r.h][k] += r[k] || 0; acc[r.h].n++; ndays.add(r.d); }
+    const Hh = narrow() ? 190 : 220, left = 36, top = 12, bottom = 22, right = 8;
+    let vmax = 0; for (let h = H0; h <= H1; h++) if (acc[h].n) vmax = Math.max(vmax, acc[h].p1 / acc[h].n, acc[h].p2 / acc[h].n);
+    vmax = Math.ceil(vmax / 100) * 100;
+    const x = h => left + (h - H0) / (H1 - H0) * (W - left - right);
+    const y = v => top + (1 - v / vmax) * (Hh - top - bottom);
+    const mean = (h, k) => acc[h].n ? acc[h][k] / acc[h].n : null;
+    const line = k => { let p = ""; for (let h = H0; h <= H1; h++) if (acc[h].n) p += `${x(h).toFixed(1)},${y(mean(h, k)).toFixed(1)} `; return p; };
+    let s = `<svg viewBox="0 0 ${W} ${Hh}" role="img">`;
+    for (let v = 100; v < vmax; v += 100) s += `<line x1="${left}" x2="${W - right}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}" class="grid"/><text x="${left - 5}" y="${(y(v) + 3.5).toFixed(1)}" text-anchor="end" class="muted tiny">${v}</text>`;
+    s += `<text x="${left - 5}" y="${top - 2}" text-anchor="end" class="muted tiny">W</text>`;
+    s += `<line x1="${left}" x2="${W - right}" y1="${y(0)}" y2="${y(0)}" class="axis"/>`;
+    for (let h = H0; h <= H1; h += 2) s += `<text x="${x(h).toFixed(1)}" y="${Hh - 6}" text-anchor="middle" class="muted tiny">${h}${narrow() ? "" : " Uhr"}</text>`;
+    KEYS.forEach((k, i) => { s += `<polyline points="${line(k)}" class="panel" style="stroke:var(--cat-${i + 1})"/>`; });
+    // direct labels at 13h, spread apart where lines are close
+    const lx = x(13) + 6;
+    const labels = KEYS.map((k, i) => ({ k, i, yy: y(mean(13, k) ?? 0) })).sort((a, b) => a.yy - b.yy);
+    for (let j = 1; j < labels.length; j++) if (labels[j].yy - labels[j - 1].yy < 12) labels[j].yy = labels[j - 1].yy + 12;
+    for (const l of labels) s += `<text x="${lx.toFixed(1)}" y="${(l.yy + 3.5).toFixed(1)}" class="tiny" style="fill:var(--cat-${l.i + 1})">Panel ${l.i + 1}</text>`;
+    for (let h = H0; h < H1; h++) {
+      if (!acc[h].n) continue;
+      const t = `<b>${h}–${h + 1} Uhr</b>` + KEYS.map((k, i) => `Panel ${i + 1} Ø ${fmt(mean(h, k))} W`).join("<br>") + `<br><span class="dim">${acc[h].n} Stunden</span>`;
+      s += `<rect x="${x(h).toFixed(1)}" y="${top}" width="${(x(h + 1) - x(h)).toFixed(1)}" height="${Hh - top - bottom}" class="hit" data-tip="${esc(t)}"/>`;
+    }
+    s += `</svg>`;
+    const el = document.getElementById("chart-c3");
+    el.innerHTML = s; bindTips(el);
+    document.getElementById("c3-period").textContent = `seit ${fmtDate(PANELS_34_SINCE)}, ${ndays.size} Tage`;
+    document.getElementById("legend-c3").innerHTML = KEYS.map((k, i) =>
+      `<span class="legend-item"><span class="legend-swatch" style="border-top-color:var(--cat-${i + 1})"></span>Panel ${i + 1}</span>`).join("");
+  }
+
+  // ---------- variant switcher ----------
+  const variants = [...document.querySelectorAll(".variant")];
+  const keys = variants.map(v => v.id.replace("variant-", ""));
+  const renderers = { b: renderB, c: () => { renderC(); renderC2(); renderC3(); } };
+  const rendered = new Set();
+  function show(key) {
+    if (!keys.includes(key)) key = keys[0];
+    variants.forEach(v => v.classList.toggle("active", v.id === "variant-" + key));
+    const v = document.getElementById("variant-" + key);
+    document.getElementById("switch-label").innerHTML = `<kbd>${key.toUpperCase()}</kbd>${v.dataset.name}`;
+    if (!rendered.has(key)) { renderers[key](); rendered.add(key); }
+    if (location.hash !== "#" + key) history.replaceState(null, "", "#" + key);
+    window.scrollTo({ top: 0 });
+  }
+  const current = () => keys.find(k => document.getElementById("variant-" + k).classList.contains("active"));
+  const step = n => show(keys[(keys.indexOf(current()) + n + keys.length) % keys.length]);
+  document.getElementById("prev").addEventListener("click", () => step(-1));
+  document.getElementById("next").addEventListener("click", () => step(1));
+  document.addEventListener("keydown", e => {
+    const t = e.target;
+    if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+    if (e.key === "ArrowLeft") step(-1);
+    if (e.key === "ArrowRight") step(1);
+  });
+  window.addEventListener("hashchange", () => show(location.hash.slice(1)));
+
+  // re-render on theme or width change; the hidden variant is re-rendered when shown
+  let lastW = document.body.clientWidth, timer = null;
+  const rerender = () => { const k = current(); rendered.clear(); if (k) { renderers[k](); rendered.add(k); } };
+  window.addEventListener("resize", () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => { if (document.body.clientWidth !== lastW) { lastW = document.body.clientWidth; rerender(); } }, 150);
+  });
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", rerender);
+  new MutationObserver(rerender).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+
+  show(location.hash.slice(1) || keys[0]);
+})();
+</script>
