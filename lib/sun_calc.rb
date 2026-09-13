@@ -43,18 +43,22 @@ module SunCalc
     minutes = utc.hour * 60 + utc.min + utc.sec / 60.0
     eqtime, decl = solar_terms(utc.to_date, minutes / 60.0)
 
-    hour_angle = (minutes + eqtime + 4 * lon) / 4.0 - 180.0
+    hour_angle = ((minutes + eqtime + 4 * lon) / 4.0 - 180.0) * DEG
     lat_rad = lat * DEG
-    cos_zenith = Math.sin(lat_rad) * Math.sin(decl) +
-                 Math.cos(lat_rad) * Math.cos(decl) * Math.cos(hour_angle * DEG)
-    zenith = Math.acos(cos_zenith.clamp(-1.0, 1.0))
+    sin_elevation = Math.sin(lat_rad) * Math.sin(decl) +
+                    Math.cos(lat_rad) * Math.cos(decl) * Math.cos(hour_angle)
 
-    cos_azimuth = (Math.sin(lat_rad) * Math.cos(zenith) - Math.sin(decl)) /
-                  (Math.cos(lat_rad) * Math.sin(zenith))
-    from_south = Math.acos(cos_azimuth.clamp(-1.0, 1.0)) / DEG
-    azimuth = hour_angle > 0 ? (from_south + 180.0) % 360 : (540.0 - from_south) % 360
+    # atan2 instead of NOAA's acos-and-branch form: the same angle, but it
+    # wraps the hour angle by itself and has no pole at the zenith.
+    from_north = Math.atan2(
+      Math.sin(hour_angle),
+      Math.cos(hour_angle) * Math.sin(lat_rad) - Math.tan(decl) * Math.cos(lat_rad)
+    )
 
-    Position.new(azimuth: azimuth, elevation: 90.0 - zenith / DEG)
+    Position.new(
+      azimuth: (from_north / DEG + 180.0) % 360,
+      elevation: Math.asin(sin_elevation.clamp(-1.0, 1.0)) / DEG
+    )
   end
 
   def event_time(date, lat, lon, timezone, event)
@@ -93,15 +97,15 @@ module SunCalc
 
   def cos_hour_angle(date, lat)
     _, decl = solar_terms(date)
-    lat_rad = lat * Math::PI / 180.0
-    zenith_rad = ZENITH_DEG * Math::PI / 180.0
+    lat_rad = lat * DEG
+    zenith_rad = ZENITH_DEG * DEG
     (Math.cos(zenith_rad) - Math.sin(lat_rad) * Math.sin(decl)) /
       (Math.cos(lat_rad) * Math.cos(decl))
   end
 
   def solar_event_minutes_utc(date, lon, cos_ha, event)
     eqtime, _ = solar_terms(date)
-    ha_deg = Math.acos(cos_ha.clamp(-1.0, 1.0)) * 180.0 / Math::PI
+    ha_deg = Math.acos(cos_ha.clamp(-1.0, 1.0)) / DEG
     case event
     when :sunrise then 720 - 4 * (lon + ha_deg) - eqtime
     when :sunset  then 720 - 4 * (lon - ha_deg) - eqtime

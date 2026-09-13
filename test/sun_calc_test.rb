@@ -104,6 +104,23 @@ class SunCalcTest < Minitest::Test
     assert_in_delta 49.2, position.azimuth, 2.0
   end
 
+  def test_position_after_solar_midnight_is_just_east_of_north
+    # 23:00 UTC in Berlin is past solar midnight (~22:50 UTC in November): the
+    # true solar time has wrapped past 24 h, and the sun has crossed north.
+    position = SunCalc.position(time: Time.utc(2026, 11, 5, 23, 0), lat: BERLIN_LAT, lon: BERLIN_LON)
+
+    assert_operator position.azimuth, :>, 0.0
+    assert_operator position.azimuth, :<, 10.0
+  end
+
+  def test_position_at_the_zenith_is_defined
+    eqtime, decl = SunCalc.solar_terms(Date.new(2026, 6, 21), 12.0)
+    position = SunCalc.position(time: Time.utc(2026, 6, 21, 12), lat: decl / SunCalc::DEG, lon: -eqtime / 4.0)
+
+    assert_in_delta 90.0, position.elevation, 1e-6
+    assert_in_delta 180.0, position.azimuth, 1e-6
+  end
+
   def test_position_moves_west_through_the_afternoon
     noon      = SunCalc.position(time: Time.utc(2026, 6, 21, 11, 8), lat: BERLIN_LAT, lon: BERLIN_LON)
     afternoon = SunCalc.position(time: Time.utc(2026, 6, 21, 15, 8), lat: BERLIN_LAT, lon: BERLIN_LON)

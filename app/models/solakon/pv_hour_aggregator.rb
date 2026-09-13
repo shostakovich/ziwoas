@@ -5,7 +5,7 @@ module Solakon
   class PvHourAggregator
     HOUR_START_SQL = "CAST(strftime('%s', taken_at) AS INTEGER) / 3600 * 3600".freeze
     PANEL_COLUMNS = Snapshot::PANELS.map { |idx| :"pv#{idx}_power_w" }.freeze
-    NO_PANELS = PANEL_COLUMNS.to_h { |column| [ column, nil ] }.freeze
+    NO_PANELS = PANEL_COLUMNS.index_with(nil).freeze
 
     def aggregate_day(date)
       day = date.in_time_zone.beginning_of_day

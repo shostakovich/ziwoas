@@ -84,6 +84,71 @@ class SolakonPvHourAggregatorTest < ActiveSupport::TestCase
     assert_equal 0, Solakon::PvHour.count
   end
 
+  test "run_once defaults to today when no date is given" do
+    travel_to Time.zone.local(2026, 6, 23, 12) do
+      readings(local(2026, 6, 21, 10), 20) { 100 }
+
+      Solakon::PvHourAggregator.new.run_once
+
+      assert_equal [ local(2026, 6, 21, 10) ], Solakon::PvHour.pluck(:started_at)
+    end
+  end
+
+  test "run_once aggregates through the day immediately before today" do
+    readings(local(2026, 6, 22, 10), 20) { 100 }
+
+    Solakon::PvHourAggregator.new.run_once(today: Date.new(2026, 6, 23))
+
+    assert_equal [ local(2026, 6, 22, 10) ], Solakon::PvHour.pluck(:started_at)
+  end
+
+  test "aggregate_day excludes readings from the day before" do
+    readings(local(2026, 6, 20, 23, 30), 20) { 999 }   # previous day, must be excluded
+    readings(local(2026, 6, 21, 10), 20) { 100 }
+
+    aggregate(Date.new(2026, 6, 21))
+
+    assert_equal [ local(2026, 6, 21, 10) ], Solakon::PvHour.pluck(:started_at)
+    assert_in_delta 100.0, Solakon::PvHour.sole.pv_power_w
+  end
+
+  test "aggregate_day excludes readings exactly at the next day's midnight" do
+    # All 20 share the exact boundary instant: only a range that excludes the
+    # upper bound keeps this hour below MIN_READINGS.
+    20.times do
+      Solakon::Reading.create!(taken_at: local(2026, 6, 22, 0), pv_power_w: 999,
+                               active_power_w: 0, battery_power_w: 0, battery_soc_pct: 50)
+    end
+
+    aggregate(Date.new(2026, 6, 21))
+
+    assert_equal 0, Solakon::PvHour.count
+  end
+
+  test "separates panel means by hour instead of averaging them together" do
+    readings(local(2026, 6, 21, 10), 20) { 100 }
+    readings(local(2026, 6, 21, 11), 20) { 100 }
+    Solakon::Snapshot.create!(taken_at: local(2026, 6, 21, 10, 1), pv1_power_w: 10, pv2_power_w: nil, pv3_power_w: nil, pv4_power_w: nil)
+    Solakon::Snapshot.create!(taken_at: local(2026, 6, 21, 11, 1), pv1_power_w: 90, pv2_power_w: nil, pv3_power_w: nil, pv4_power_w: nil)
+
+    aggregate(Date.new(2026, 6, 21))
+
+    assert_in_delta 10.0, Solakon::PvHour.find_by!(started_at: local(2026, 6, 21, 10)).pv1_power_w
+    assert_in_delta 90.0, Solakon::PvHour.find_by!(started_at: local(2026, 6, 21, 11)).pv1_power_w
+  end
+
+
+  test "wraps the delete and insert in a transaction so a failed insert leaves the old row intact" do
+    existing = Solakon::PvHour.create!(started_at: local(2026, 6, 21, 10), pv_power_w: 111, reading_count: 20)
+    readings(local(2026, 6, 21, 10), 20) { 100 }
+
+    Solakon::PvHour.stub(:insert_all, ->(*) { raise "boom" }) do
+      assert_raises(RuntimeError) { aggregate(Date.new(2026, 6, 21)) }
+    end
+
+    assert_equal 111, existing.reload.pv_power_w
+  end
+
   private
 
   def aggregate(date) = Solakon::PvHourAggregator.new.aggregate_day(date)

@@ -11,8 +11,4 @@ class SolakonPvHourTest < ActiveSupport::TestCase
     assert_includes hour.errors[:pv_power_w], "can't be blank"
     assert_includes hour.errors[:reading_count], "can't be blank"
   end
-
-  test "counts an hour from twenty readings" do
-    assert_equal 20, Solakon::PvHour::MIN_READINGS
-  end
 end
