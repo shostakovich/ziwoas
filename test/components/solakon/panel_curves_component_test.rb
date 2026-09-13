@@ -53,11 +53,19 @@ class Solakon::PanelCurvesComponentTest < ViewComponent::TestCase
   end
 
   test "says since when the days were counted" do
-    assert_equal "Stundenmittel je Panel seit 27.08.2026 · 16 Tage", render_panels.css(".chart-title").sole.text.squish
+    assert_equal "Die vier Panels im Tagesverlauf seit 27.08.2026 · 16 Tage",
+                 render_panels.css(".card-title").sole.text.squish
   end
 
-  test "counts a single day in the singular" do
-    assert_includes render_panels(days: 1).css(".chart-title").sole.text, "1 Tag"
+  test "counts a single day in the singular and every other count in the plural" do
+    assert_equal "seit 27.08.2026 · 1 Tag", render_panels(days: 1).css(".card-subtitle").sole.text.squish
+    assert_equal "seit 27.08.2026 · 2 Tage", render_panels(days: 2).css(".card-subtitle").sole.text.squish
+  end
+
+  test "explains why a day can go uncounted" do
+    assert_equal "Gezählt sind nur Tage, an denen alle vier Panels geliefert haben — ein Panel, das noch nicht " \
+                 "angeschlossen war, meldet null Watt und würde seine eigene Linie nach unten ziehen.",
+                 render_panels.css(".note").sole.text
   end
 
   test "tells all four numbers of an hour" do
@@ -84,6 +92,39 @@ class Solakon::PanelCurvesComponentTest < ViewComponent::TestCase
 
     assert_empty rendered.css("svg")
     assert_match(/Vergleich erscheint/, rendered.css(".note").sole.text)
+  end
+
+  test "measures the lines, the grid, the names and the hits against the same axes" do
+    rendered = render_panels
+
+    assert_equal "0 0 720 220", rendered.css("svg").sole["viewBox"]
+
+    axis = rendered.css("line.axis").sole
+    assert_equal %w[36 696 198 198], %w[x1 x2 y1 y2].map { |name| axis[name] }
+
+    assert_equal [ [ "100", "31", "155.0" ], [ "200", "31", "108.5" ], [ "300", "31", "62.0" ] ],
+                 rendered.css(".value-labels text").map { |node| [ node.text, node["x"], node["y"] ] }
+
+    assert_equal "36,58.5 366,12 696,35.3", rendered.css("polyline.pv1").sole["points"]
+    assert_equal "36,151.5 366,132.9 696,137.6", rendered.css("polyline.pv4").sole["points"]
+
+    names = rendered.css(".direct-labels text")
+    assert_equal %w[372 372 372 372], names.map { |node| node["x"] }
+    assert_equal %w[12 32 123.6 143.6], names.map { |node| node["y"] }
+
+    hit = rendered.css(".hits rect").first
+    assert_equal %w[36 12 330 186], %w[x y width height].map { |name| hit[name] }
+    assert_equal %w[696 0], %w[x width].map { |name| rendered.css(".hits rect").last[name] }
+
+    assert_equal %w[36 696], rendered.css(".label-dense text").map { |node| node["x"] }
+    assert_equal %w[214 214], rendered.css(".label-dense text").map { |node| node["y"] }
+  end
+
+  test "says nothing about a period before the first counted day" do
+    rendered = render_panels(curves: curves(pv1: [ [ 12, 5.0 ] ]), days: 0, since: nil)
+
+    assert_equal "Die vier Panels im Tagesverlauf", rendered.css(".card-title").sole.text.squish
+    assert_empty rendered.css(".card-subtitle")
   end
 
   test "spreads the watt grid over the plot instead of stacking it on the axis" do

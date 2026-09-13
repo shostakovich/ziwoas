@@ -1,4 +1,5 @@
-<section class="chart-card sun-chart" data-chart="yield-map">
+<%= render CardComponent.new(title: "Ausbeute nach Sonnenstand", classes: "sun-chart",
+                             data: { chart: "yield-map" }) do %>
   <% if empty? %>
     <p class="note">Die Karte füllt sich, sobald Stunden mit Einstrahlung und PV-Leistung zusammenkommen.</p>
   <% else %>
@@ -24,4 +25,4 @@
     </ul>
     <p class="note"><%= note %></p>
   <% end %>
-</section>
+<% end %>

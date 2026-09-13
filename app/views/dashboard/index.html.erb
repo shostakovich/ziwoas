@@ -21,14 +21,14 @@
     <%= render Dashboard::TileComponent.self_consumption(@summary) %>
   </div>
 
-  <h2 class="section-label">Energiefluss</h2>
-  <div class="chart-card energy-flow-card" data-controller="energy-flow">
+  <%= render CardComponent.new(title: "Energiefluss", classes: "energy-flow-card",
+                               data: { controller: "energy-flow" }) do %>
     <%= render Dashboard::EnergyFlowStateComponent.new(live: @live) %>
     <%= render "shared/energy_flow",
                pv_asset: @weather_asset,
                pv_alt: @weather_alt,
                battery_asset: ApplicationHelper::DEFAULT_BATTERY_ASSET %>
-  </div>
+  <% end %>
 
   <h2 class="section-label">Steckdosen</h2>
   <%= render Dashboard::PlugBarComponent.new(live: @live) %>
@@ -36,27 +36,24 @@
   <div data-controller="today-chart">
     <%= render Dashboard::PlugDeltasComponent.new(deltas: []) %>
 
-    <h2 class="section-label">Gesamtenergie — Letzte 24 h</h2>
-    <div class="chart-card">
+    <%= render CardComponent.new(title: "Gesamtenergie", subtitle: "Letzte 24 h") do %>
       <div class="chart-frame">
         <canvas data-today-chart-target="energyCanvas"></canvas>
       </div>
-    </div>
+    <% end %>
 
-    <h2 class="section-label">Leistung — Letzte 24 h</h2>
-    <div class="chart-card">
+    <%= render CardComponent.new(title: "Leistung", subtitle: "Letzte 24 h") do %>
       <div class="chart-frame">
         <canvas data-today-chart-target="powerCanvas"></canvas>
       </div>
-    </div>
+    <% end %>
   </div>
 
   <div data-controller="history-chart">
-    <h2 class="section-label">Ertrag — Letzte 14 Tage</h2>
-    <div class="chart-card">
+    <%= render CardComponent.new(title: "Ertrag", subtitle: "Letzte 14 Tage") do %>
       <div class="chart-frame">
         <canvas data-history-chart-target="canvas"></canvas>
       </div>
-    </div>
+    <% end %>
   </div>
 </div>

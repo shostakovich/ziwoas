@@ -6,8 +6,8 @@
 <% else %>
   <div class="sun-charts sun-calendar">
     <% strips.each do |strip| %>
-      <section class="chart-card sun-strip" data-strip="<%= strip.key %>">
-        <h3 class="sun-strip-title"><%= strip.title %></h3>
+      <%= render CardComponent.new(title: strip.title, level: 3, classes: "sun-strip",
+                                   data: { strip: strip.key }) do %>
         <svg viewBox="<%= strip_view_box %>" role="img" aria-label="<%= strip.title %> je Stunde über das Jahr <%= year %>">
           <g class="grid"><% month_lines.each do |mx| %><line x1="<%= mx %>" x2="<%= mx %>" y1="<%= plot_top - 4 %>" y2="<%= plot_top + strip_height %>"/><% end %></g>
           <% %i[dense sparse].each do |density| %>
@@ -38,11 +38,11 @@
         <% if seam? && strip.key == :pv %>
           <p class="note"><%= seam_note %></p>
         <% end %>
-      </section>
+      <% end %>
     <% end %>
 
-    <section class="chart-card sun-strip" data-strip="energy">
-      <h3 class="sun-strip-title">PV-Energie je Tag</h3>
+    <%= render CardComponent.new(title: "PV-Energie je Tag", level: 3, classes: "sun-strip",
+                                 data: { strip: "energy" }) do %>
       <svg viewBox="<%= bars_view_box %>" role="img" aria-label="PV-Energie je Tag über das Jahr <%= year %>">
         <g class="grid"><% month_lines.each do |mx| %><line x1="<%= mx %>" x2="<%= mx %>" y1="<%= plot_top %>" y2="<%= baseline_y %>"/><% end %></g>
         <g class="grid"><% bar_grid.each do |label| %><line x1="<%= plot_left %>" x2="<%= plot_right %>" y1="<%= label.y %>" y2="<%= label.y %>"/><% end %></g>
@@ -58,6 +58,6 @@
         <li class="legend-item"><span class="legend-box bar"></span>PV-Energie je Tag in kWh</li>
         <li class="legend-item">Tage ohne Stundenwerte bleiben leer</li>
       </ul>
-    </section>
+    <% end %>
   </div>
 <% end %>

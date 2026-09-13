@@ -1,4 +1,4 @@
-module Reports
+module Solakon
   # The sun calendar: three heat strips and the daily energy bars, one column
   # per day of the year, drawn server-side as SVG. Geometry is computed here so
   # the template only writes attributes.

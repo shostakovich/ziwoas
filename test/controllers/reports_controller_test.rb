@@ -6,8 +6,6 @@ class ReportsControllerTest < ActionDispatch::IntegrationTest
   setup do
     Plugs::DailyTotal.delete_all
     DailyEnergySummary.delete_all
-    Solakon::PvHour.delete_all
-    WeatherRecord.delete_all
   end
 
   test "reports page renders" do
@@ -38,8 +36,8 @@ class ReportsControllerTest < ActionDispatch::IntegrationTest
     assert_select ".section-label", text: "Zeitraum", count: 0
     assert_select ".section-label", text: "Zusammenfassung", count: 0
     assert_select ".section-label", text: "Steckdosen"
-    assert_select ".section-label", text: "Energie — Ertrag / Verbrauch"
-    assert_select ".section-label", text: /Leistung/
+    assert_select ".card-title", text: /\AEnergie Ertrag \/ Verbrauch/
+    assert_select ".card-title", text: /\ALeistung/
     assert_select ".chart-card .chart-frame", minimum: 2
     assert_select ".report-ranking .report-ranking-row", minimum: 1
     assert_select "[data-energy-report-target='dailyCanvas']", 1
@@ -52,11 +50,13 @@ class ReportsControllerTest < ActionDispatch::IntegrationTest
 
     get "/reports"
 
-    labels = css_select(".section-label").map { |node| node.text.squish }
-    assert_equal "Steckdosen", labels[0]
-    assert_match(/\AEnergie/, labels[1])
-    assert_match(/\ALeistung/, labels[2])
-    assert_match(/\AAutarkie/, labels[3])
+    # The headings of the page from top to bottom: the groups carry a label
+    # above them, every single box names itself inside.
+    headings = css_select(".section-label, .card-title").map { |node| node.text.squish }
+    assert_equal "Steckdosen", headings[0]
+    assert_match(/\AEnergie/, headings[1])
+    assert_match(/\ALeistung/, headings[2])
+    assert_match(/\AAutarkie/, headings[3])
   end
 
   test "reports page describes the power chart resolution" do
@@ -67,7 +67,7 @@ class ReportsControllerTest < ActionDispatch::IntegrationTest
     get "/reports", params: { preset: "last_30" }
 
     assert_response :success
-    assert_select ".section-label", text: /Leistung — Tagesmittel/
+    assert_select ".card-title", text: /\ALeistung Tagesmittel · /
   end
 
   test "reports page shows empty state without data" do
@@ -125,40 +125,7 @@ class ReportsControllerTest < ActionDispatch::IntegrationTest
     get "/reports"
 
     assert_response :success
-    assert_select ".section-label", text: "Autarkie & Eigenverbrauchsquote"
+    assert_select ".card-title", text: "Autarkie & Eigenverbrauchsquote"
     assert_select "[data-energy-report-target='ratiosCanvas']", 1
-  end
-
-  test "reports page shows the sun calendar for the year of the range" do
-    Plugs::DailyTotal.create!(plug_id: "bkw", date: "2026-04-10", energy_wh: 2000)
-    Solakon::PvHour.create!(started_at: Time.zone.local(2026, 4, 10, 12), pv_power_w: 640.0, reading_count: 120)
-
-    get "/reports"
-
-    assert_response :success
-    assert_select ".section-label", text: "Sonnenkalender 2026"
-    assert_select ".sun-calendar [data-strip]", 4
-    assert_select ".sun-calendar [data-strip='pv'] .cells rect", minimum: 1
-    assert_select ".sun-calendar [data-strip='pv'] polyline.sun", 3
-  end
-
-  test "sun calendar stands on its own PV hours, without a plug aggregation" do
-    Solakon::PvHour.create!(started_at: Time.zone.local(2026, 4, 10, 12), pv_power_w: 640.0, reading_count: 120)
-
-    get "/reports"
-
-    assert_response :success
-    assert_select ".empty-state h2", text: "Noch keine Berichtsdaten"
-    assert_select ".sun-calendar [data-strip='pv'] .cells rect", minimum: 1
-  end
-
-  test "sun calendar keeps its own empty state while no PV hour exists" do
-    Plugs::DailyTotal.create!(plug_id: "bkw", date: "2026-04-10", energy_wh: 2000)
-
-    get "/reports"
-
-    assert_response :success
-    assert_select ".sun-calendar", 0
-    assert_select ".empty-state h2", text: "Noch kein Sonnenkalender"
   end
 end

@@ -1,4 +1,5 @@
-<section class="chart-card sun-chart" data-chart="daily-profiles">
+<%= render CardComponent.new(title: "Tagesgang je Monat", classes: "sun-chart",
+                             data: { chart: "daily-profiles" }) do %>
   <% if empty? %>
     <p class="note">Der Tagesgang erscheint, sobald ein Monat Stundenwerte hat.</p>
   <% else %>
@@ -27,4 +28,4 @@
     </ul>
     <p class="note"><%= note %></p>
   <% end %>
-</section>
+<% end %>

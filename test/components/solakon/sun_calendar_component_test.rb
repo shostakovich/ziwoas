@@ -1,7 +1,7 @@
 require "test_helper"
 
-class Reports::SunCalendarComponentTest < ViewComponent::TestCase
-  cover "Reports::SunCalendarComponent*"
+class Solakon::SunCalendarComponentTest < ViewComponent::TestCase
+  cover "Solakon::SunCalendarComponent*"
 
   def strip(key, title, unit, ramp, max, values)
     SunCalendar::Strip.new(key: key, title: title, unit: unit, ramp: ramp, max: max, values: values)
@@ -31,7 +31,7 @@ class Reports::SunCalendarComponentTest < ViewComponent::TestCase
     SunCalendar::Day.new(doy: doy, date: date, pv_kwh: pv_kwh, irradiance_kwh_per_m2: irradiance, cloud_avg: cloud)
   end
 
-  def render_calendar(**options) = render_inline(Reports::SunCalendarComponent.new(calendar: calendar(**options)))
+  def render_calendar(**options) = render_inline(Solakon::SunCalendarComponent.new(calendar: calendar(**options)))
 
   test "stacks the three strips and the daily bars on one time axis" do
     rendered = render_calendar
@@ -42,7 +42,7 @@ class Reports::SunCalendarComponentTest < ViewComponent::TestCase
   end
 
   test "shows the empty state while no PV hour exists" do
-    rendered = render_inline(Reports::SunCalendarComponent.new(calendar: calendar(pv: {})))
+    rendered = render_inline(Solakon::SunCalendarComponent.new(calendar: calendar(pv: {})))
 
     assert_selector ".empty-state"
     assert_text "Stundenwerte"

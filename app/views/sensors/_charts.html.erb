@@ -1,30 +1,30 @@
 <%# app/views/sensors/_charts.html.erb %>
 <div data-controller="sensors-chart"
      data-sensors-chart-url-value="<%= sensors_series_path %>">
-  <h2 class="section-label">CO₂ — Letzte 24 h</h2>
-  <div class="chart-card sensor-chart-card sensor-chart-card-co2">
+  <%= render CardComponent.new(title: "CO₂", subtitle: "Letzte 24 h",
+                               classes: "sensor-chart-card sensor-chart-card-co2") do %>
     <div class="chart-frame chart-frame-prominent">
       <canvas data-sensors-chart-target="co2"></canvas>
     </div>
-  </div>
+  <% end %>
 
   <div class="sensor-secondary-charts">
     <section>
-      <h2 class="section-label">Temperatur — Letzte 24 h</h2>
-      <div class="chart-card sensor-chart-card">
+      <%= render CardComponent.new(title: "Temperatur", subtitle: "Letzte 24 h",
+                                   classes: "sensor-chart-card") do %>
         <div class="chart-frame chart-frame-compact">
           <canvas data-sensors-chart-target="temperature"></canvas>
         </div>
-      </div>
+      <% end %>
     </section>
 
     <section>
-      <h2 class="section-label">Luftfeuchtigkeit — Letzte 24 h</h2>
-      <div class="chart-card sensor-chart-card">
+      <%= render CardComponent.new(title: "Luftfeuchtigkeit", subtitle: "Letzte 24 h",
+                                   classes: "sensor-chart-card") do %>
         <div class="chart-frame chart-frame-compact">
           <canvas data-sensors-chart-target="humidity"></canvas>
         </div>
-      </div>
+      <% end %>
     </section>
   </div>
 </div>
