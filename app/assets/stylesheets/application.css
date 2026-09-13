@@ -67,8 +67,6 @@ h1 { font-size: 18px; margin: 0 0 16px; color: var(--muted); font-weight: 500; }
 .section-label { font-size: 11px; font-weight: 400; color: var(--muted); text-transform: uppercase;
                  letter-spacing: 0.6px; margin: 20px 0 8px; }
 
-/* A panel names itself: the heading sits inside the box it belongs to. Only a
-   section made of several boxes still carries a .section-label above them. */
 .card-title {
   display: flex;
   flex-wrap: wrap;
@@ -79,8 +77,6 @@ h1 { font-size: 18px; margin: 0 0 16px; color: var(--muted); font-weight: 500; }
   font-weight: 600;
   color: var(--text);
 }
-/* A box inside a labelled group (the sun calendar's strips) stays one step
-   quieter than a box that is a section of the page in its own right. */
 h3.card-title { font-size: 13px; }
 .card-subtitle { font-weight: 400; color: var(--muted); }
 
@@ -1428,8 +1424,7 @@ body.page-light-detail { max-width: 760px; }
 .ld-btn-ghost { background: var(--card); border-color: var(--border); color: var(--muted); }
 .ld-btn-ghost:hover { background: var(--surface-hover); color: var(--text); }
 
-/* Server-drawn SVG charts (sun calendar on Berichte, sky map on PV). Shared:
-   type, grid, legend, and the two label densities the media query picks. */
+/* Server-drawn SVG charts: sun calendar on Berichte, sky map on PV. */
 .sun-charts .sun-strip { padding: 12px 10px 10px; }
 .sun-charts svg {
   display: block;
@@ -1506,8 +1501,6 @@ body.page-light-detail { max-width: 760px; }
   border-top-style: dashed;
   border-top-color: var(--muted);
 }
-/* The note reads as a footnote to the box, not as another line of its legend:
-   it keeps its distance and runs the full width. */
 .sun-charts .note {
   margin: 18px 0 0;
   font-size: 12px;
@@ -1515,8 +1508,7 @@ body.page-light-detail { max-width: 760px; }
   color: var(--muted);
 }
 
-/* Sky map, monthly profiles and the four panels (PV): the same type and legend
-   as the calendar, plus fields of sky, curves and the panels' own colours. */
+/* Sky map, monthly profiles and the four panels on the PV page. */
 .shading {
   --panel-1: #2a78d6;
   --panel-2: #eb6834;

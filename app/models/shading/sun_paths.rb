@@ -1,10 +1,4 @@
 module Shading
-  # The sun's way across the sky on the two solstices and the equinox, so the
-  # map keeps its shape where no hour was ever measured — the winter sky above
-  # all, which the data will not reach for months.
-  #
-  # Which days are worth drawing and where the hours get marked is this map's
-  # choice; the sun path itself belongs to the sun.
   class SunPaths
     DATES = [
       [ "21.6.", [ 6, 21 ] ],
@@ -18,8 +12,6 @@ module Shading
       @location = location
     end
 
-    # A date on which the sun never rose leaves no path — a polar winter, or a
-    # location whose coordinates nobody configured.
     def build(year)
       DATES.filter_map do |label, (month, day)|
         waypoints = @location.sun.path(Date.new(year, month, day))

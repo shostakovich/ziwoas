@@ -6,9 +6,6 @@ class AggregatorJobTest < ActiveJob::TestCase
 
   self.use_transactional_tests = false
 
-  # Records the arguments AggregatorJob#perform forwards, without doing any
-  # real aggregation or file I/O. Both keyword args are required (no
-  # defaults) so a dropped kwarg raises instead of silently passing.
   class RecordingAggregator
     attr_reader :today, :backup_dir
 
@@ -44,8 +41,6 @@ class AggregatorJobTest < ActiveJob::TestCase
       total = Plugs::DailyTotal.find_by!(plug_id: "bkw", date: "2026-04-10")
       assert_in_delta 50.0, total.energy_wh
       assert_equal 1, Dir.glob("#{backup_dir}/ziwoas-*.db").length
-      # Proves config.plugs actually reaches the Aggregator (not dropped or
-      # nil'd): without a plug roster the summary is never built.
       assert DailyEnergySummary.exists?(date: "2026-04-10")
     end
   end
@@ -88,8 +83,7 @@ class AggregatorJobTest < ActiveJob::TestCase
     aggregator = RecordingAggregator.new
     pv_hour_aggregator = RecordingPvHourAggregator.new
 
-    # 23:30 UTC is already the next day in Berlin: the zone's date must win
-    # over the process date.
+    # 23:30 UTC is already the next day in Berlin.
     travel_to Time.utc(2026, 4, 10, 23, 30) do
       Aggregator.stub(:new, aggregator) do
         Solakon::PvHourAggregator.stub(:new, pv_hour_aggregator) do
@@ -117,8 +111,6 @@ class AggregatorJobTest < ActiveJob::TestCase
       end
     end
 
-    # Compared through ActiveSupport::TimeZone so this doesn't care whether
-    # the value is a bare zone name or a TZInfo::Timezone wrapping it.
     assert_equal "America/New_York", ActiveSupport::TimeZone[captured.fetch(:timezone)].name
     assert_equal fake_plugs, captured.fetch(:plugs)
   end

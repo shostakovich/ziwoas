@@ -1,17 +1,6 @@
 module SunCalendar
-  # Reads one calendar year out of the PV hours and the historic weather and
-  # lays it out as the sun calendar's three strips and its daily bars. Every
-  # source is flattened to [local time, value] pairs first, so the layout knows
-  # nothing about where a number came from.
-  #
-  # Before the inverter existed the producer plug measured the same array from
-  # the other side, so days ahead of its first hour take their power from the
-  # plug. An hour of the plug's energy in Wh is that hour's mean power in W,
-  # which is why the two quantities share one strip; the seam says where the
-  # handover sits.
   class Builder
     WATTS_PER_KILOWATT = 1000.0
-    # Strip maxima snap to this step so the legend reads as a round number.
     MAX_STEP = 50
 
     def initialize(location:, producer_ids: [])
@@ -20,9 +9,6 @@ module SunCalendar
       @producer_ids = producer_ids.to_a
     end
 
-    # The year the calendar opens on: the one the newest hour falls into, so it
-    # keeps showing a full year over the turn of the year, until the first hour
-    # of the new one arrives.
     def latest_year
       Solakon::PvHour.maximum(:started_at)&.in_time_zone(@zone)&.year || Time.current.in_time_zone(@zone).year
     end
@@ -68,13 +54,8 @@ module SunCalendar
                      .map { |time, watts| [ time.in_time_zone(@zone), watts ] }
     end
 
-    # The local date the inverter first reported; everything before it belongs
-    # to the plug.
     def seam_date(pv) = pv.first&.first&.to_date
 
-    # The producer plug's energy, totalled per local clock hour. Wh over one
-    # hour is that hour's mean power in W, so the value lands on the same
-    # scale as the inverter's reading.
     def plug_points(range, seam)
       return [] if @producer_ids.empty?
 
@@ -100,7 +81,6 @@ module SunCalendar
                    .to_a
     end
 
-    # [local time, value] pairs, skipping what the station left unmeasured.
     def weather_points(records)
       records.filter_map do |record|
         value = yield(record)
@@ -125,8 +105,6 @@ module SunCalendar
       [ (values.values.max.to_f / MAX_STEP).ceil * MAX_STEP, MAX_STEP ].max.to_f
     end
 
-    # Wide enough for every measured hour and for the sun lines, so neither
-    # ends up drawn outside the strip.
     def hour_range(strips, lines)
       hours = strips.flat_map { |strip| strip.values.keys.map(&:last) }
       events = lines.rise + lines.set

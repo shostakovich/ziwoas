@@ -185,9 +185,6 @@ class ConfigLoader
     FritzBoxCfg.new(host: host, user: user, password: password)
   end
 
-  # The zone is required — without it no local clock hour exists. The
-  # coordinates are optional, but only as a pair: half a position places
-  # nothing.
   def build_location(h)
     h  = require_hash(h, "location")
     tz = require_string(h["timezone"], "location.timezone")

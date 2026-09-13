@@ -1,9 +1,4 @@
 module Shading
-  # The day's shape per month, as three curves over the same clock hours: what
-  # the array made, what the measured irradiance promised, and what a cloudless
-  # sky would have offered. The latter two are converted with the best hour's
-  # ratio, so all three read in watts and the distance between them is the
-  # share that shading, orientation or curtailment cost.
   class DailyProfiles
     KEYS = %i[measured expected theory].freeze
 
@@ -20,10 +15,6 @@ module Shading
 
     private
 
-    # The distance between the measured and the expected line is only the share
-    # that shading cost if both averages cover the same hours, so an hour the
-    # station left out counts for neither. A month the station never covered
-    # keeps its measured curve — there is no comparison to mislead then.
     def comparable(hours)
       measured = hours.reject { |hour| hour.irradiance_w_per_m2.nil? }
       measured.empty? ? hours : measured

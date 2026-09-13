@@ -1,17 +1,10 @@
 module Shading
-  # Reads every PV hour ever aggregated, joins the station's irradiance onto it
-  # and places it where the sun stood. The scale everything else hangs on is the
-  # best hour the array ever had: the ratio of its PV power to the irradiance of
-  # the same hour. It is read from the data, never configured, so a new module
-  # or a cleaned panel recalibrates the page by itself.
   class Builder
-    # Below this the sky is too dim for a ratio to say anything about the array.
     CALIBRATION_MIN_IRRADIANCE_W_PER_M2 = 300
     # "The best hour" as the 95th percentile rather than the single maximum: one
     # hour with an underreported irradiance would otherwise set the scale for
     # every field of the sky.
     BEST_HOUR_PERCENTILE = 0.95
-    # The sun position of the hour's middle stands for the whole hour.
     MIDDLE_OF_HOUR = 30.minutes
 
     def initialize(location:)
@@ -48,8 +41,6 @@ module Shading
       end
     end
 
-    # Only the hours the inverter also reported can ever meet a PV hour, so the
-    # station's whole history never has to be read.
     def irradiance_by_time(from, to)
       return {} if from.nil?
 
@@ -68,8 +59,6 @@ module Shading
       end
       return nil if ratios.empty?
 
-      # An array that produced nothing under a bright sky has no best hour:
-      # zero is not a scale, and everything measured against it is undefined.
       best = ratios.sort[(ratios.length * BEST_HOUR_PERCENTILE).floor]
       best if best.positive?
     end

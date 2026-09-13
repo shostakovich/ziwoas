@@ -1,6 +1,3 @@
-# One row per clock hour with the mean PV power the inverter reported, the grain
-# the sun calendar and the yield map read. Rebuilt per day by the aggregator, so
-# the table carries no timestamps of its own.
 class CreateSolakonPvHours < ActiveRecord::Migration[8.1]
   def change
     create_table :solakon_pv_hours do |t|

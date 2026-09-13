@@ -1,7 +1,3 @@
-# A colour ramp for one chart: stops interpolated in sRGB, so a value becomes a
-# fill and the legend becomes a gradient. The sequential ramps run light to
-# dark; `diverging` runs from blue through a neutral middle to amber, for a
-# value that is read against an expectation rather than against zero.
 class Ramp
   STOPS = {
     amber: %w[#fff8e1 #ffe9a8 #ffd166 #f7b733 #f59f00 #d97a00 #a85300],

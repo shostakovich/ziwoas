@@ -8,8 +8,7 @@ class SolakonControllerTest < ActionDispatch::IntegrationTest
     Solakon::Snapshot.delete_all if defined?(Solakon::Snapshot)
     Solakon::PvHour.delete_all
     WeatherRecord.delete_all
-    # AggregatorJobTest runs without a transaction, so its buckets outlive it;
-    # the sun calendar reads them as the time before the inverter.
+    # AggregatorJobTest runs without a transaction, so its buckets can reach this class.
     Plugs::Sample5min.delete_all
   end
 
@@ -30,7 +29,6 @@ class SolakonControllerTest < ActionDispatch::IntegrationTest
     assert_select ".card-title", text: "Energiefluss"
     assert_select ".card-title", text: "Status"
     assert_select ".card-title", text: "Solakon-Verlauf"
-    # Sections made of several tiles keep their label above the group.
     assert_select ".section-label", text: "Steuerung"
     assert_select ".section-label", text: "Panels"
     assert_select ".section-label", text: "Speicher"

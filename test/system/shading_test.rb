@@ -41,8 +41,7 @@ class ShadingTest < ApplicationSystemTestCase
 
   private
 
-  # Three months of clear-ish days, with the fourth panel behind the other
-  # three so the panel comparison has something to tell apart.
+  # The fourth panel sits behind the other three so the panel comparison has something to tell apart.
   def seed_hours
     hours = []
     records = []

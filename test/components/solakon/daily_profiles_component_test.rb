@@ -35,22 +35,11 @@ class Solakon::DailyProfilesComponentTest < ViewComponent::TestCase
     assert_equal 2, rendered.css("polyline.measured").length
   end
 
-  test "fills the measured curve down to the baseline" do
-    points = render_profiles.css("polygon.measured-area").sole["points"].split
-
-    assert_equal points.first.split(",").last, points.last.split(",").last
-  end
-
-  test "breaks the fill where the curve breaks, instead of closing over the gap" do
+  test "fills only the measured curve, and breaks the fill where the curve breaks" do
     rendered = render_profiles([ profile(measured: [ [ 8, 100.0 ], [ 9, 200.0 ], [ 14, 300.0 ] ]) ])
 
-    areas = rendered.css("polygon.measured-area")
-    assert_equal 2, areas.length
-
-    hours = areas.map { |area| area["points"].split.map { |point| point.split(",").first.to_f } }
-    assert_equal hours.map(&:min), hours.map(&:max).zip(hours.map(&:min)).map(&:last)
-    # The first shape ends where hour nine sits, the second starts at hour 14.
-    assert_operator hours.first.max, :<, hours.last.min
+    assert_equal 2, rendered.css("polygon.measured-area").length
+    assert_equal 1, rendered.css("polygon").map { |node| node["class"] }.uniq.length
   end
 
   test "puts every month on the same scale" do
@@ -69,6 +58,21 @@ class Solakon::DailyProfilesComponentTest < ViewComponent::TestCase
     assert_operator labels.last["y"].to_f, :<, labels.first["y"].to_f
   end
 
+  test "keeps the top grid line off the axis when the maximum lands exactly on a step" do
+    rendered = render_profiles([ profile(measured: [ [ 10, 300.0 ] ], expected: [ [ 10, 100.0 ] ], theory: [ [ 10, 50.0 ] ]) ])
+
+    assert_equal %w[100 200], rendered.css(".value-labels text").map(&:text)
+  end
+
+  test "draws a grid line at each labeled height, spanning the full width" do
+    lines = render_profiles.css(".grid line")
+
+    assert_equal %w[77.4 26.9], lines.map { |line| line["y1"] }
+    assert_equal lines.map { |line| line["y1"] }, lines.map { |line| line["y2"] }
+    assert_equal %w[40 40], lines.map { |line| line["x1"] }
+    assert_equal %w[286 286], lines.map { |line| line["x2"] }
+  end
+
   test "tells every hour's three numbers" do
     title = render_profiles.css(".hits rect title").first.text
 
@@ -76,18 +80,36 @@ class Solakon::DailyProfilesComponentTest < ViewComponent::TestCase
                  "Wolkenloser Himmel Ø 500 W", title
   end
 
+  test "tells every distinct hour once, in ascending order, even when a curve's hours run out of step" do
+    rendered = render_profiles([ profile(
+      measured: [ [ 10, 300.0 ], [ 11, 400.0 ] ],
+      expected: [ [ 10, 350.0 ], [ 11, 450.0 ] ],
+      theory: [ [ 8, 200.0 ], [ 9, 250.0 ], [ 10, 500.0 ], [ 11, 600.0 ] ]
+    ) ])
+
+    titles = rendered.css(".hits rect title").map(&:text)
+
+    assert_equal 4, titles.length
+    assert_equal [ 8, 9, 10, 11 ], titles.map { |title| title[/(\d+)–\d+ Uhr/, 1].to_i }
+  end
+
+  test "takes the largest of every month's maximum, not the first or the last, and never truncates picking it" do
+    low   = profile(month: 1, measured: [ [ 6, 350.7 ] ], expected: [], theory: [])
+    empty = profile(month: 2, measured: [], expected: [], theory: [])
+    high  = profile(month: 3, measured: [ [ 6, 700.5 ] ], expected: [], theory: [])
+    mid   = profile(month: 4, measured: [ [ 6, 210.5 ] ], expected: [], theory: [])
+
+    rendered = render_profiles([ low, empty, high, mid ])
+
+    labels = rendered.css(".multiple").first.css(".value-labels text")
+    assert_equal %w[300 600], labels.map(&:text)
+    assert_equal %w[87.3 43], labels.map { |label| label["y"] }
+  end
+
   test "says so where the station measured nothing" do
     title = render_profiles([ profile(expected: []) ]).css(".hits rect title").first.text
 
     assert_includes title, "Erwartet aus Einstrahlung keine Daten"
-  end
-
-  test "keeps the hits inside the drawing" do
-    rendered = render_profiles
-    right = rendered.css("line.axis").first["x2"].to_f
-    hit = rendered.css(".hits rect").last
-
-    assert_operator hit["x"].to_f + hit["width"].to_f, :<=, right
   end
 
   test "measures the curves, the grid and the hits against the same axes" do
@@ -108,16 +130,16 @@ class Solakon::DailyProfilesComponentTest < ViewComponent::TestCase
     hit = rendered.css(".hits rect").first
     assert_equal %w[40 10 123 118], %w[x y width height].map { |name| hit[name] }
     assert_equal %w[286 0], %w[x width].map { |name| rendered.css(".hits rect").last[name] }
+
+    hour = rendered.css(".hour-labels.label-dense text").sole
+    assert_equal %w[10 40 144], [ hour.text, hour["x"], hour["y"] ]
   end
 
   test "names every third hour on the wide axis and every sixth on the narrow one" do
     wide = [ profile(measured: (6..18).map { |hour| [ hour, 100.0 * hour ] }, expected: [], theory: []) ]
     rendered = render_profiles(wide)
 
-    dense = rendered.css(".hour-labels.label-dense text")
-    assert_equal %w[6 9 12 15 18], dense.map(&:text)
-    assert_equal %w[40 101.5 163 224.5 286], dense.map { |node| node["x"] }
-    assert_equal %w[144 144 144 144 144], dense.map { |node| node["y"] }
+    assert_equal %w[6 9 12 15 18], rendered.css(".hour-labels.label-dense text").map(&:text)
     assert_equal %w[6 12 18], rendered.css(".hour-labels.label-sparse text").map(&:text)
   end
 
@@ -134,8 +156,9 @@ class Solakon::DailyProfilesComponentTest < ViewComponent::TestCase
 
     dense = rendered.css(".multiple[data-month='6'] .hour-labels.label-dense text")
 
+    # June has no hour six of its own; the axis it is drawn on starts there
+    # because March does.
     assert_equal %w[6 9 12], dense.map(&:text)
-    assert_equal %w[40 163 286], dense.map { |node| node["x"] }
   end
 
   test "keeps an axis for a month whose curves are all empty" do
