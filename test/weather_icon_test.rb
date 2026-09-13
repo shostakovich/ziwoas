@@ -2,6 +2,8 @@ require "test_helper"
 require "weather_icon"
 
 class WeatherIconTest < Minitest::Test
+  cover "WeatherIcon*"
+
   def test_maps_bright_sky_day_and_night_icons
     assert_equal "weather_clear_day.webp", WeatherIcon.asset_name("clear-day", "day")
     assert_equal "weather_clear_night.webp", WeatherIcon.asset_name("clear-night", "night")
@@ -17,6 +19,11 @@ class WeatherIconTest < Minitest::Test
   def test_falls_back_for_unknown_icon
     assert_equal "weather_unknown_day.webp", WeatherIcon.asset_name("not-real", "day")
     assert_equal "weather_unknown_night.webp", WeatherIcon.asset_name(nil, "night")
+  end
+
+  def test_normalizes_daytime_instead_of_passing_it_through_raw
+    assert_equal "weather_rain_day.webp", WeatherIcon.asset_name("rain", "morning")
+    assert_equal "weather_rain_night.webp", WeatherIcon.asset_name("rain", :night)
   end
 
   BERLIN = Location.new(timezone: "Europe/Berlin", lat: 52.52, lon: 13.405)
@@ -36,6 +43,10 @@ class WeatherIconTest < Minitest::Test
 
   def test_calls_a_neutral_icon_day_where_no_coordinates_place_the_sun
     assert_equal "day", WeatherIcon.daytime_for(icon: "rain", timestamp: Time.utc(2026, 5, 4, 22), location: NOWHERE)
+  end
+
+  def test_falls_back_to_sun_position_when_icon_has_no_suffix
+    assert_equal "day", WeatherIcon.daytime_for(icon: nil, timestamp: Time.utc(2026, 5, 4, 10), location: BERLIN)
   end
 
   def test_uses_real_sunrise_not_fixed_window

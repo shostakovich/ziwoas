@@ -11,7 +11,7 @@ module Solakon
     end
 
     def aggregate_day(date)
-      day = date.in_time_zone(@zone).beginning_of_day
+      day = date.in_time_zone(@zone)
       range = day...(day + 1.day)
       panels = panel_means(range, day.utc_offset)
 
@@ -24,7 +24,7 @@ module Solakon
 
       PvHour.transaction do
         PvHour.where(started_at: range).delete_all
-        PvHour.insert_all(rows) if rows.any?
+        PvHour.insert_all(rows)
       end
     end
 

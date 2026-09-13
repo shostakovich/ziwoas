@@ -5,6 +5,7 @@ class SunTest < ActiveSupport::TestCase
 
   BERLIN = Location.new(timezone: "Europe/Berlin", lat: 52.52, lon: 13.405)
   LONGYEARBYEN = Location.new(timezone: "Europe/Oslo", lat: 78.22, lon: 15.65)
+  TOKYO = Location.new(timezone: "Asia/Tokyo", lat: 35.68, lon: 139.77)
   NOWHERE = Location.new(timezone: "Europe/Berlin")
 
   MIDSUMMER = Date.new(2026, 6, 21)
@@ -85,5 +86,33 @@ class SunTest < ActiveSupport::TestCase
 
   test "calls every hour day without coordinates, because an icon has to pick one" do
     assert NOWHERE.sun.daytime?(Time.utc(2026, 6, 21, 0))
+  end
+
+  test "answers exactly false for known?, not merely a falsy nil" do
+    assert_equal false, NOWHERE.sun.known?
+  end
+
+  test "converts sunrise and sunset into the location's own zone, not the app default" do
+    sunrise = TOKYO.sun.sunrise(MIDSUMMER)
+
+    assert_equal "Asia/Tokyo", sunrise.time_zone.name
+  end
+
+  test "anchors the path to the location's own midnight, not the app's default zone" do
+    local_noon = ActiveSupport::TimeZone["Asia/Tokyo"].local(2026, 6, 21, 12)
+    expected = TOKYO.sun.position(local_noon)
+
+    actual = TOKYO.sun.path(MIDSUMMER).find { |waypoint| waypoint.hour == 12.0 }
+
+    assert_in_delta expected.azimuth, actual.azimuth, 0.01
+    assert_in_delta expected.elevation, actual.elevation, 0.01
+  end
+
+  test "samples the whole day from local midnight up to but excluding the next one" do
+    hours = LONGYEARBYEN.sun.path(MIDSUMMER).map(&:hour)
+
+    assert_equal 96, hours.length
+    assert_equal 0.0, hours.first
+    assert_equal 23.75, hours.last
   end
 end

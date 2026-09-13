@@ -76,4 +76,10 @@ class Shading::SunPathsTest < ActiveSupport::TestCase
   test "draws nothing for a location without coordinates" do
     assert_empty paths(lat: nil, lon: nil)
   end
+
+  test "keeps the dot's hour as a whole number, not a fractional clock reading" do
+    dot = paths.first.dots.first
+
+    assert_equal "6", dot.hour.to_s
+  end
 end

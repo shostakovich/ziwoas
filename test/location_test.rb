@@ -50,4 +50,10 @@ class LocationTest < ActiveSupport::TestCase
 
     assert_same location.sun, location.sun
   end
+
+  test "gives the located sun the location itself, so it can read real coordinates" do
+    location = Location.new(timezone: "UTC", lat: 52.52, lon: 13.405)
+
+    assert_kind_of Sun::Position, location.sun.position(Time.utc(2026, 6, 21, 12))
+  end
 end

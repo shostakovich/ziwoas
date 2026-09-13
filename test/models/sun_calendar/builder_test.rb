@@ -99,6 +99,15 @@ class SunCalendar::BuilderTest < ActiveSupport::TestCase
     assert_in_delta 20.5, day.cloud_avg
   end
 
+  test "weather_records materializes an Array, not a lazy relation" do
+    weather(11, solar: 0.4, cloud: 20)
+    range = Time.zone.local(2026, 4, 10)...Time.zone.local(2026, 4, 11)
+
+    records = builder.send(:weather_records, range)
+
+    assert_kind_of Array, records
+  end
+
   test "leaves a day without data empty rather than at zero" do
     pv_hour(12, 640.0)
 
@@ -411,5 +420,14 @@ class SunCalendar::BuilderTest < ActiveSupport::TestCase
     year = SunCalendar::Builder.new(location: Location.new(timezone: "Europe/Berlin")).build(2026)
 
     assert_predicate year.lines, :empty?
+  end
+
+  test "coerces producer_ids to an array" do
+    instance = SunCalendar::Builder.new(
+      location: Location.new(timezone: "Europe/Berlin", lat: LAT, lon: LON),
+      producer_ids: Set["bkw"]
+    )
+
+    assert_equal [ "bkw" ], instance.instance_variable_get(:@producer_ids)
   end
 end

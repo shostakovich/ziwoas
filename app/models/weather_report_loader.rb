@@ -20,8 +20,6 @@ class WeatherReportLoader
     grouped = records.group_by { |r| local_date(r.timestamp) }
 
     grouped.each_with_object({}) do |(date, day_records), out|
-      next if date < start_date || date > end_date
-
       out[date.to_s] = {
         solar_kwh_per_m2: day_solar_kwh(day_records),
         asset_name:       day_asset_name(day_records),

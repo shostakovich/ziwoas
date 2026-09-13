@@ -3,6 +3,10 @@ require "config_loader"
 require "tempfile"
 
 class ConfigLoaderTest < Minitest::Test
+  cover "ConfigLoader#build_location"
+  cover "ConfigLoader#coordinates"
+  cover "ConfigLoader#reject_retired_keys!"
+
   def teardown
     ConfigLoader.reset_app_config!
   end
@@ -139,6 +143,7 @@ class ConfigLoaderTest < Minitest::Test
     yaml = valid_yaml.sub("Europe/Berlin", "Not/ATimezone")
     err = assert_raises(ConfigLoader::Error) { load_yaml(yaml) }
     assert_match(/location\.timezone/i, err.message)
+    assert_match(/Not\/ATimezone/, err.message)
   end
 
   def test_requires_a_location
@@ -147,9 +152,22 @@ class ConfigLoaderTest < Minitest::Test
     assert_match(/location/i, err.message)
   end
 
+  def test_rejects_a_location_without_a_timezone_key
+    yaml = valid_yaml.sub("location:\n  timezone: Europe/Berlin\n", "location:\n  lat: 52.52\n  lon: 13.405\n")
+    err = assert_raises(ConfigLoader::Error) { load_yaml(yaml) }
+    assert_match(/location\.timezone/i, err.message)
+  end
+
+  def test_rejects_an_empty_location_timezone_by_name
+    yaml = valid_yaml.sub("timezone: Europe/Berlin", "timezone: \"\"")
+    err = assert_raises(ConfigLoader::Error) { load_yaml(yaml) }
+    assert_match(/location\.timezone/i, err.message)
+  end
+
   def test_rejects_the_retired_top_level_timezone
     err = assert_raises(ConfigLoader::Error) { load_yaml("timezone: Europe/Berlin\n" + valid_yaml) }
     assert_match(/location\.timezone/i, err.message)
+    assert_match(/'timezone'/, err.message)
   end
 
   def test_rejects_the_retired_weather_block

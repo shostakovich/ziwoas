@@ -74,4 +74,33 @@ class SunCalendar::SunLinesTest < ActiveSupport::TestCase
     assert_equal 366 + 2, lines.rise.length
     assert_equal 366, lines.rise.last.first
   end
+
+  # SunCalc's own sunrise/sunset always go nil together (one polar-day
+  # threshold decides both), so a real Sun can never show the events split.
+  # A fake one proves `events` checks each side rather than relying on that
+  # coincidence.
+  def fake_sun(sunrise:, sunset:)
+    Class.new do
+      define_method(:sunrise) { |_date| sunrise }
+      define_method(:sunset) { |_date| sunset }
+    end.new
+  end
+
+  test "has no events when only the sunset is missing" do
+    location = Location.new(**BERLIN)
+    sun = fake_sun(sunrise: Time.utc(2026, 6, 21, 4), sunset: nil)
+    location.define_singleton_method(:sun) { sun }
+    sun_lines = SunCalendar::SunLines.new(location: location)
+
+    assert_nil sun_lines.send(:events, Date.new(2026, 6, 21))
+  end
+
+  test "has no events when only the sunrise is missing" do
+    location = Location.new(**BERLIN)
+    sun = fake_sun(sunrise: nil, sunset: Time.utc(2026, 6, 21, 21))
+    location.define_singleton_method(:sun) { sun }
+    sun_lines = SunCalendar::SunLines.new(location: location)
+
+    assert_nil sun_lines.send(:events, Date.new(2026, 6, 21))
+  end
 end

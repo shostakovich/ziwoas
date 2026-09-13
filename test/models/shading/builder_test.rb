@@ -28,7 +28,11 @@ class Shading::BuilderTest < ActiveSupport::TestCase
   end
 
   def build(lat: LAT, lon: LON)
-    Shading::Builder.new(location: Location.new(timezone: "Europe/Berlin", lat: lat, lon: lon)).build
+    builder(lat: lat, lon: lon).build
+  end
+
+  def builder(lat: LAT, lon: LON, timezone: "Europe/Berlin")
+    Shading::Builder.new(location: Location.new(timezone: timezone, lat: lat, lon: lon))
   end
 
   test "reads the day's shape from the PV hours alone" do
@@ -172,5 +176,91 @@ class Shading::BuilderTest < ActiveSupport::TestCase
     assert_empty report.map.bins
     assert_empty report.profiles.sole.curve(:expected).points
     assert_empty report.profiles.sole.curve(:theory).points
+  end
+
+  test "irradiance_by_time returns nothing rather than everything when there is no PV history yet" do
+    weather(12, solar: 0.5) # a WeatherRecord exists, but there is no `from` to anchor the range
+
+    result = builder.send(:irradiance_by_time, nil, Time.zone.local(2026, 7, 1, 12))
+
+    assert_equal({}, result)
+  end
+
+  test "irradiance_by_time only reads records within the given time range" do
+    weather(9, solar: 0.2)   # before the range
+    weather(12, solar: 0.5)  # inside the range
+    weather(15, solar: 0.8)  # after the range
+
+    result = builder.send(:irradiance_by_time, Time.zone.local(2026, 7, 1, 11), Time.zone.local(2026, 7, 1, 13))
+
+    assert_equal [ Time.zone.local(2026, 7, 1, 12).to_i ], result.keys
+  end
+
+  test "irradiance_by_time omits hours whose solar reading is missing" do
+    weather(12, solar: nil)
+    weather(13, solar: 0.5)
+
+    result = builder.send(:irradiance_by_time, Time.zone.local(2026, 7, 1, 12), Time.zone.local(2026, 7, 1, 13))
+
+    assert_equal [ Time.zone.local(2026, 7, 1, 13).to_i ], result.keys
+  end
+
+  test "hours lists PV hours chronologically regardless of insertion order" do
+    pv_hour(18, 900.0)
+    pv_hour(6, 100.0)
+
+    times = builder.send(:hours).map(&:time)
+
+    assert_equal times.sort, times
+  end
+
+  # Only one query to list the rows and one to join the irradiance — the
+  # class comment promises "the station's whole history never has to be
+  # read", which a lazily re-queried relation would quietly break.
+  test "hours reads its rows with a single query, not one per first/last/each access" do
+    pv_hour(6, 100.0)
+    pv_hour(12, 400.0)
+    weather(12, solar: 0.5)
+
+    queries = 0
+    subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |*, payload|
+      queries += 1 unless payload[:name] == "SCHEMA"
+    end
+    begin
+      builder.send(:hours)
+    ensure
+      ActiveSupport::Notifications.unsubscribe(subscriber)
+    end
+
+    assert_equal 2, queries
+  end
+
+  test "hours bounds the irradiance lookup by the last PV hour, not the whole station history" do
+    pv_hour(6, 100.0)
+    pv_hour(12, 400.0)
+    instance = builder
+    captured_to = :not_called
+
+    instance.stub(:irradiance_by_time, ->(_from, to) { captured_to = to; {} }) do
+      instance.send(:hours)
+    end
+
+    assert_equal Time.zone.local(JULY.year, JULY.month, JULY.day, 12), captured_to
+  end
+
+  test "paths reads the current year in the location's own zone, not the app's default" do
+    captured_year = nil
+    fake_sun_paths = Object.new
+    fake_sun_paths.define_singleton_method(:build) { |year| captured_year = year; [] }
+
+    Shading::SunPaths.stub(:new, fake_sun_paths) do
+      # 22:00 UTC on Dec 31st is still Dec 31st in the app's own default zone
+      # (Europe/Berlin, +1h) but already Jan 1st in Pacific/Auckland (+13h).
+      travel_to Time.utc(2026, 12, 31, 22) do
+        builder(timezone: "Pacific/Auckland").send(:paths)
+      end
+    end
+
+    assert_equal 2027, captured_year
   end
 end

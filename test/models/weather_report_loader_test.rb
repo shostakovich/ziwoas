@@ -92,6 +92,104 @@ class WeatherReportLoaderTest < ActiveSupport::TestCase
     assert_empty hourly
   end
 
+  test "day_segment picks the dominant icon only from daytime records when some exist" do
+    create_historic(Time.utc(2026, 5, 1, 12), solar: 0.3, icon: "clear-day", daytime: "day")
+    # More severe than "clear", but at night: must not out-rank the day icon.
+    create_historic(Time.utc(2026, 5, 1, 19), solar: 0.0, icon: "thunderstorm", daytime: "night")
+
+    daily = @loader.daily(Date.new(2026, 5, 1), Date.new(2026, 5, 1))
+
+    assert_equal "clear", daily["2026-05-01"][:alt]
+    assert_equal "weather_clear_day.webp", daily["2026-05-01"][:asset_name]
+  end
+
+  test "day_segment falls back to all records when none are marked daytime" do
+    create_historic(Time.utc(2026, 5, 1, 19), solar: 0.0, icon: "clear-night", daytime: "night")
+
+    daily = @loader.daily(Date.new(2026, 5, 1), Date.new(2026, 5, 1))
+
+    assert_equal "clear", daily["2026-05-01"][:alt]
+  end
+
+  test "excludes a record exactly at the local midnight after the end date" do
+    loader = WeatherReportLoader.new(location: location(timezone: "UTC"))
+    create_historic(Time.utc(2026, 5, 2, 0), solar: 0.1, icon: "clear-day", daytime: "day")
+    create_historic(Time.utc(2026, 5, 1, 23), solar: 0.2, icon: "clear-day", daytime: "day")
+
+    hourly = loader.hourly(Date.new(2026, 5, 1), Date.new(2026, 5, 1))
+
+    assert_equal 1, hourly.size
+    assert_equal Time.utc(2026, 5, 1, 23).to_i, hourly.first[:ts]
+  end
+
+  test "orders hourly records chronologically regardless of insertion order" do
+    create_historic(Time.utc(2026, 5, 1, 18), solar: 0.05, icon: "clear-day", daytime: "day")
+    create_historic(Time.utc(2026, 5, 1, 6),  solar: 0.10, icon: "clear-day", daytime: "day")
+
+    hourly = @loader.hourly(Date.new(2026, 5, 1), Date.new(2026, 5, 1))
+
+    assert_equal [ Time.utc(2026, 5, 1, 6).to_i, Time.utc(2026, 5, 1, 18).to_i ], hourly.map { |h| h[:ts] }
+  end
+
+  test "counts only historic records, not forecast or current ones in the same range" do
+    create_historic(Time.utc(2026, 5, 1, 10), solar: 0.2, icon: "clear-day", daytime: "day")
+    WeatherRecord.create!(kind: "forecast", timestamp: Time.utc(2026, 5, 1, 11),
+                           lat: 48.15, lon: 11.26, solar: 0.3, icon: "clear-day", daytime: "day")
+
+    hourly = @loader.hourly(Date.new(2026, 5, 1), Date.new(2026, 5, 1))
+
+    assert_equal 1, hourly.size
+  end
+
+  test "day_solar_kwh returns nil rather than zero when every record's solar reading is missing" do
+    create_historic(Time.utc(2026, 5, 1, 10), solar: nil, icon: "clear-day", daytime: "day")
+
+    daily = @loader.daily(Date.new(2026, 5, 1), Date.new(2026, 5, 1))
+
+    assert_nil daily["2026-05-01"][:solar_kwh_per_m2]
+  end
+
+  test "rounds the daily solar total to three decimals" do
+    create_historic(Time.utc(2026, 5, 1, 10), solar: 0.12345, icon: "clear-day", daytime: "day")
+
+    daily = @loader.daily(Date.new(2026, 5, 1), Date.new(2026, 5, 1))
+
+    assert_equal 0.123, daily["2026-05-01"][:solar_kwh_per_m2]
+  end
+
+  test "includes the raw icon string in the hourly alt field" do
+    create_historic(Time.utc(2026, 5, 1, 10), solar: 0.3, icon: "clear-day", daytime: "day")
+
+    hourly = @loader.hourly(Date.new(2026, 5, 1), Date.new(2026, 5, 1))
+
+    assert_equal "clear-day", hourly.first[:alt]
+  end
+
+  test "stringifies a missing icon in the hourly alt field rather than leaving it nil" do
+    create_historic(Time.utc(2026, 5, 1, 10), solar: 0.3, icon: nil, daytime: "day")
+
+    hourly = @loader.hourly(Date.new(2026, 5, 1), Date.new(2026, 5, 1))
+
+    assert_equal "", hourly.first[:alt]
+  end
+
+  test "day_segment labels itself 'day' and spans the full 24 hours, whatever it pools" do
+    create_historic(Time.utc(2026, 5, 1, 12), solar: 0.3, icon: "clear-day", daytime: "day")
+
+    segment = @loader.send(:day_segment, WeatherRecord.historic.to_a)
+
+    assert_equal "day", segment.label
+    assert_equal(0..23, segment.hour_range)
+  end
+
+  test "historic_records_in_range materializes an Array, not a lazy relation" do
+    create_historic(Time.utc(2026, 5, 1, 12), solar: 0.3, icon: "clear-day", daytime: "day")
+
+    records = @loader.send(:historic_records_in_range, Date.new(2026, 5, 1), Date.new(2026, 5, 1))
+
+    assert_kind_of Array, records
+  end
+
   private
 
   def location(timezone: "Europe/Berlin") = Location.new(timezone: timezone, lat: 48.15, lon: 11.26)
