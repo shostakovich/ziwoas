@@ -84,18 +84,22 @@ class AggregatorJobTest < ActiveJob::TestCase
     ConfigLoader.define_singleton_method(:load, original_load)
   end
 
-  test "defaults to today's date and the storage/backup directory, forwarding both to the aggregators" do
+  test "defaults to the configured zone's date and the storage/backup directory, forwarding both to the aggregators" do
     aggregator = RecordingAggregator.new
     pv_hour_aggregator = RecordingPvHourAggregator.new
 
-    Aggregator.stub(:new, aggregator) do
-      Solakon::PvHourAggregator.stub(:new, pv_hour_aggregator) do
-        AggregatorJob.perform_now
+    # 23:30 UTC is already the next day in Berlin: the zone's date must win
+    # over the process date.
+    travel_to Time.utc(2026, 4, 10, 23, 30) do
+      Aggregator.stub(:new, aggregator) do
+        Solakon::PvHourAggregator.stub(:new, pv_hour_aggregator) do
+          AggregatorJob.perform_now
+        end
       end
     end
 
-    assert_equal Date.today, aggregator.today
-    assert_equal Date.today, pv_hour_aggregator.today
+    assert_equal Date.new(2026, 4, 11), aggregator.today
+    assert_equal Date.new(2026, 4, 11), pv_hour_aggregator.today
     assert_equal Rails.root.join("storage", "backup").to_s, aggregator.backup_dir
   end
 

@@ -5,7 +5,7 @@ require "tzinfo"
 class AggregatorJob < ApplicationJob
   queue_as :default
 
-  def perform(today: Date.today, backup_dir: Rails.root.join("storage", "backup").to_s)
+  def perform(today: Date.current, backup_dir: Rails.root.join("storage", "backup").to_s)
     config = ConfigLoader.app_config
     tz = TZInfo::Timezone.get(config.timezone)
     aggregator = Aggregator.new(timezone: tz, plugs: config.plugs)

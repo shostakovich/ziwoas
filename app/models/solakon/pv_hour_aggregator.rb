@@ -3,16 +3,15 @@ module Solakon
   # per clock hour. Days are local calendar days, so the clock-change days come
   # out with 23 and 25 hours.
   class PvHourAggregator
-    HOUR_START_SQL = "CAST(strftime('%s', taken_at) AS INTEGER) / 3600 * 3600".freeze
     PANEL_COLUMNS = Snapshot::PANELS.map { |idx| :"pv#{idx}_power_w" }.freeze
     NO_PANELS = PANEL_COLUMNS.index_with(nil).freeze
 
     def aggregate_day(date)
       day = date.in_time_zone.beginning_of_day
       range = day...(day + 1.day)
-      panels = panel_means(range)
+      panels = panel_means(range, day.utc_offset)
 
-      rows = reading_means(range).filter_map do |epoch, pv_power_w, reading_count|
+      rows = reading_means(range, day.utc_offset).filter_map do |epoch, pv_power_w, reading_count|
         next if reading_count < PvHour::MIN_READINGS
 
         { started_at: Time.zone.at(epoch), pv_power_w: pv_power_w, reading_count: reading_count }
@@ -38,17 +37,28 @@ module Solakon
 
     private
 
-    def reading_means(range)
+    def reading_means(range, utc_offset)
+      hour_start = hour_start_sql(utc_offset)
       Reading.where(taken_at: range)
-             .group(Arel.sql(HOUR_START_SQL))
-             .pluck(Arel.sql(HOUR_START_SQL), Arel.sql("AVG(pv_power_w)"), Arel.sql("COUNT(*)"))
+             .group(hour_start)
+             .pluck(hour_start, Arel.sql("AVG(pv_power_w)"), Arel.sql("COUNT(*)"))
     end
 
-    def panel_means(range)
+    def panel_means(range, utc_offset)
+      hour_start = hour_start_sql(utc_offset)
       Snapshot.where(taken_at: range)
-              .group(Arel.sql(HOUR_START_SQL))
-              .pluck(Arel.sql(HOUR_START_SQL), *PANEL_COLUMNS.map { |column| Arel.sql("AVG(#{column})") })
+              .group(hour_start)
+              .pluck(hour_start, *PANEL_COLUMNS.map { |column| Arel.sql("AVG(#{column})") })
               .to_h { |epoch, *means| [ epoch, PANEL_COLUMNS.zip(means).to_h ] }
+    end
+
+    # Epoch of the local clock hour a row falls into. Shifting by the day's UTC
+    # offset keeps the buckets on local hours in zones like Asia/Kolkata, whose
+    # offset is not a whole hour.
+    def hour_start_sql(utc_offset)
+      Arel.sql(PvHour.sanitize_sql_array(
+        [ "(CAST(strftime('%s', taken_at) AS INTEGER) + ?) / 3600 * 3600 - ?", utc_offset, utc_offset ]
+      ))
     end
   end
 end

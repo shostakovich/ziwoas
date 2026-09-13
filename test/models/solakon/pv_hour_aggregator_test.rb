@@ -66,6 +66,31 @@ class SolakonPvHourAggregatorTest < ActiveSupport::TestCase
     assert_equal [ 1.0, 2.0, 3.0, 4.0 ], Solakon::PvHour.order(:started_at).pluck(:pv_power_w)
   end
 
+  test "keeps the buckets on local clock hours in a half-hour zone" do
+    Time.use_zone("Asia/Kolkata") do
+      readings(local(2026, 6, 21, 10), 20) { 100 }
+      Solakon::Snapshot.create!(taken_at: local(2026, 6, 21, 10, 5), pv1_power_w: 7)
+
+      aggregate(Date.new(2026, 6, 21))
+
+      hour = Solakon::PvHour.sole
+      assert_equal Time.utc(2026, 6, 21, 4, 30), hour.started_at
+      assert_in_delta 7.0, hour.pv1_power_w
+    end
+  end
+
+  test "backfills two adjacent days in a half-hour zone without colliding on the midnight hour" do
+    Time.use_zone("Asia/Kolkata") do
+      readings(local(2026, 6, 21, 23, 45), 20) { 1 }
+      readings(local(2026, 6, 22, 0, 0), 20) { 2 }
+
+      Solakon::PvHourAggregator.new.run_once(today: Date.new(2026, 6, 23))
+
+      assert_equal [ [ local(2026, 6, 21, 23), 1.0 ], [ local(2026, 6, 22, 0), 2.0 ] ],
+                   Solakon::PvHour.order(:started_at).pluck(:started_at, :pv_power_w)
+    end
+  end
+
   test "run_once fills every finished day since the first reading and keeps the ones it has" do
     readings(local(2026, 6, 21, 10), 20) { 100 }
     readings(local(2026, 6, 22, 10), 20) { 200 }
