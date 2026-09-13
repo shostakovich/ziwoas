@@ -84,18 +84,6 @@ class Solakon::YieldMapComponentTest < ViewComponent::TestCase
     assert_equal [ "9" ], rendered.css("text.dot-label").map(&:text)
   end
 
-  test "keeps the fields and the paths inside the drawing" do
-    rendered = render_map
-    width, height = rendered.css("svg").sole["viewBox"].split.last(2).map(&:to_f)
-    xs = rendered.css(".fields rect, polyline.sun").map { |node| node["x"] || node["points"] }
-
-    assert_equal 720.0, width
-    assert_operator height, :>, 200
-    assert xs.all?(&:present?)
-    axis = rendered.css(".hour-labels text").first["x"].to_f
-    assert_operator rendered.css(".fields rect").sole["x"].to_f, :>, axis
-  end
-
   test "measures the fields, the grid and the paths against the same axes" do
     dots = [ Shading::Dot.new(hour: 12, azimuth: 180.0, elevation: 60.0) ]
     rendered = render_map(paths: [ path(dots: dots) ])

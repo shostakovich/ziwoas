@@ -11,6 +11,7 @@ module Solakon
     TOP = 16
     # Room under the horizon for the azimuth labels.
     BOTTOM = 30
+    MARGINS = { top: TOP, right: RIGHT, bottom: BOTTOM, left: LEFT }.freeze
     # The sky is wider than it is high; stretching the elevation keeps the
     # fields close to square and the low morning sun readable.
     ELEVATION_STRETCH = 1.45
@@ -23,10 +24,16 @@ module Solakon
     # the two never meet at noon where both belong to the same place.
     DOT_LABEL_OFFSET = 13
     PATH_LABEL_OFFSET = 9
+    # How far the elevation labels stay clear of the axis, how far their
+    # baseline sits under the line they name, and how far the azimuth labels
+    # sit under the horizon.
+    ELEVATION_LABEL_GAP = 5
+    LABEL_DROP = 3.5
+    AZIMUTH_LABEL_DROP = 14
     COMPASS = { 90 => "Ost", 180 => "Süd", 270 => "West" }.freeze
 
-    Field = Data.define(:x, :y, :width, :height, :fill, :title)
-    Gridline = Data.define(:x1, :y1, :x2, :y2, :label_x, :label_y, :text)
+    Field = Data.define(:rect, :fill, :title)
+    Gridline = Data.define(:at, :label_at, :text)
     Dot = Data.define(:x, :y, :text, :text_y)
     PathView = Data.define(:label, :points, :dots, :label_x, :label_y)
 
@@ -36,44 +43,43 @@ module Solakon
 
     def empty? = @map.bins.empty?
 
-    def view_box = "0 0 #{WIDTH} #{number(TOP + plot_height + BOTTOM)}"
+    def plot
+      @plot ||= Plot.new(width: WIDTH, height: TOP + plot_height + BOTTOM, margins: MARGINS,
+                         x: azimuths, y: 0..top_elevation)
+    end
 
     def fields
       ramp = Ramp.fetch(:diverging)
 
       @map.bins.map do |bin|
         Field.new(
-          x: number(x(bin.azimuth)),
-          y: number(y(bin.elevation + bin_size)),
-          width: number(bin_size * scale_x - CELL_GAP),
-          height: number(bin_size * scale_y - CELL_GAP),
+          rect: plot.rect(bin.azimuth..(bin.azimuth + bin_size), bin.elevation..(bin.elevation + bin_size),
+                          inset: CELL_GAP),
           fill: ramp.color(bin.share.clamp(0.0, 1.0)),
           title: title_for(bin)
         )
       end
     end
 
+    def elevation_label_x = plot.left - ELEVATION_LABEL_GAP
+
     def elevation_lines
       0.step(top_elevation, ELEVATION_LABEL_STEP).map do |elevation|
-        Gridline.new(
-          x1: LEFT, x2: number(x(azimuths.last)), y1: number(y(elevation)), y2: number(y(elevation)),
-          label_x: LEFT - 5, label_y: number(y(elevation) + 3.5), text: "#{elevation}°"
-        )
+        at = y(elevation)
+
+        Gridline.new(at: number(at), label_at: number(at + LABEL_DROP), text: "#{elevation}°")
       end
     end
 
     # Dense labels name every line, sparse ones only the compass points — the
     # phone shows the sparse set.
     def azimuth_lines(density)
-      first = (azimuths.first / AZIMUTH_LABEL_STEP.to_f).ceil * AZIMUTH_LABEL_STEP
+      first = Plot.round_up(azimuths.first, to: AZIMUTH_LABEL_STEP)
 
       first.step(azimuths.last, AZIMUTH_LABEL_STEP).filter_map do |azimuth|
         next if density == :sparse && !COMPASS.key?(azimuth)
 
-        Gridline.new(
-          x1: number(x(azimuth)), x2: number(x(azimuth)), y1: TOP, y2: number(y(0)),
-          label_x: number(x(azimuth)), label_y: number(y(0) + 14), text: azimuth_label(azimuth, density)
-        )
+        Gridline.new(at: number(x(azimuth)), label_at: azimuth_label_y, text: azimuth_label(azimuth, density))
       end
     end
 
@@ -83,7 +89,7 @@ module Solakon
 
         PathView.new(
           label: path.label,
-          points: path.points.map { |azimuth, elevation| "#{number(x(azimuth))},#{number(y(elevation))}" }.join(" "),
+          points: plot.line(path.points),
           dots: dots(path, hours: index.zero?),
           label_x: number(x(peak.first)), label_y: number(y(peak.last) - PATH_LABEL_OFFSET)
         )
@@ -101,17 +107,17 @@ module Solakon
 
     private
 
+    delegate :x, :y, :number, to: :plot, private: true
+
     def bin_size = @map.bin_size
+
+    def azimuth_label_y = number(y(0) + AZIMUTH_LABEL_DROP)
 
     def scale_x = (WIDTH - LEFT - RIGHT) / (azimuths.last - azimuths.first).to_f
 
-    def scale_y = scale_x * ELEVATION_STRETCH
-
-    def plot_height = top_elevation * scale_y
-
-    def x(azimuth) = LEFT + (azimuth - azimuths.first) * scale_x
-
-    def y(elevation) = TOP + (top_elevation - elevation) * scale_y
+    # The stretch decides how tall the plot is, so it is measured before the
+    # frame exists rather than asked of it.
+    def plot_height = top_elevation * scale_x * ELEVATION_STRETCH
 
     # Wide enough for every field and every path, snapped outwards so the axis
     # labels land on round degrees. There is always a field — the map is not
@@ -120,21 +126,18 @@ module Solakon
       @azimuths ||= begin
         values = degrees { |azimuth, _elevation| azimuth } +
                  @map.bins.flat_map { |bin| [ bin.azimuth, bin.azimuth + bin_size ] }
-        snap_down(values.min)..snap_up(values.max)
+        Plot.round_down(values.min, to: AXIS_ROUNDING_DEG)..Plot.round_up(values.max, to: AXIS_ROUNDING_DEG)
       end
     end
 
     def top_elevation
-      @top_elevation ||= snap_up(
-        (degrees { |_azimuth, elevation| elevation } + @map.bins.map { |bin| bin.elevation + bin_size }).max
+      @top_elevation ||= Plot.round_up(
+        (degrees { |_azimuth, elevation| elevation } + @map.bins.map { |bin| bin.elevation + bin_size }).max,
+        to: AXIS_ROUNDING_DEG
       )
     end
 
     def degrees(&) = @map.paths.flat_map { |path| path.points.map(&) }
-
-    def snap_down(value) = (value / AXIS_ROUNDING_DEG.to_f).floor * AXIS_ROUNDING_DEG
-
-    def snap_up(value) = (value / AXIS_ROUNDING_DEG.to_f).ceil * AXIS_ROUNDING_DEG
 
     # Only the first path carries the hours; on the others the dots would
     # repeat what is already said.

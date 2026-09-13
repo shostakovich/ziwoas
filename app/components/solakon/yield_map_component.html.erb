@@ -3,14 +3,14 @@
   <% if empty? %>
     <p class="note">Die Karte füllt sich, sobald Stunden mit Einstrahlung und PV-Leistung zusammenkommen.</p>
   <% else %>
-    <svg viewBox="<%= view_box %>" role="img" aria-label="Ausbeute nach Sonnenstand, Azimut über Sonnenhöhe">
-      <g class="grid"><% elevation_lines.each do |line| %><line x1="<%= line.x1 %>" x2="<%= line.x2 %>" y1="<%= line.y1 %>" y2="<%= line.y2 %>"/><% end %></g>
-      <g class="hour-labels"><% elevation_lines.each do |line| %><text x="<%= line.label_x %>" y="<%= line.label_y %>" text-anchor="end"><%= line.text %></text><% end %></g>
+    <svg viewBox="<%= plot.view_box %>" role="img" aria-label="Ausbeute nach Sonnenstand, Azimut über Sonnenhöhe">
+      <g class="grid"><% elevation_lines.each do |line| %><line x1="<%= plot.left %>" x2="<%= plot.right %>" y1="<%= line.at %>" y2="<%= line.at %>"/><% end %></g>
+      <g class="hour-labels"><% elevation_lines.each do |line| %><text x="<%= elevation_label_x %>" y="<%= line.label_at %>" text-anchor="end"><%= line.text %></text><% end %></g>
       <% %i[dense sparse].each do |density| %>
-        <g class="grid label-<%= density %>"><% azimuth_lines(density).each do |line| %><line x1="<%= line.x1 %>" x2="<%= line.x2 %>" y1="<%= line.y1 %>" y2="<%= line.y2 %>"/><% end %></g>
-        <g class="month-labels label-<%= density %>"><% azimuth_lines(density).each do |line| %><text x="<%= line.label_x %>" y="<%= line.label_y %>" text-anchor="middle"><%= line.text %></text><% end %></g>
+        <g class="grid label-<%= density %>"><% azimuth_lines(density).each do |line| %><line x1="<%= line.at %>" x2="<%= line.at %>" y1="<%= plot.top %>" y2="<%= plot.bottom %>"/><% end %></g>
+        <g class="month-labels label-<%= density %>"><% azimuth_lines(density).each do |line| %><text x="<%= line.at %>" y="<%= line.label_at %>" text-anchor="middle"><%= line.text %></text><% end %></g>
       <% end %>
-      <g class="fields"><% fields.each do |field| %><rect x="<%= field.x %>" y="<%= field.y %>" width="<%= field.width %>" height="<%= field.height %>" rx="1" fill="<%= field.fill %>"><title><%= field.title %></title></rect><% end %></g>
+      <g class="fields"><% fields.each do |field| %><rect x="<%= field.rect.x %>" y="<%= field.rect.y %>" width="<%= field.rect.width %>" height="<%= field.rect.height %>" rx="1" fill="<%= field.fill %>"><title><%= field.title %></title></rect><% end %></g>
       <% paths.each do |path| %>
         <g class="sun-path">
           <polyline class="sun" points="<%= path.points %>"/>
