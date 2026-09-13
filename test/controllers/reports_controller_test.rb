@@ -1,9 +1,13 @@
 require "test_helper"
 
 class ReportsControllerTest < ActionDispatch::IntegrationTest
+  # AggregatorJobTest runs without a transaction, so its rows outlive it and
+  # reach this class whenever the seed puts it first.
   setup do
     Plugs::DailyTotal.delete_all
     DailyEnergySummary.delete_all
+    Solakon::PvHour.delete_all
+    WeatherRecord.delete_all
   end
 
   test "reports page renders" do
@@ -123,5 +127,38 @@ class ReportsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select ".section-label", text: "Autarkie & Eigenverbrauchsquote"
     assert_select "[data-energy-report-target='ratiosCanvas']", 1
+  end
+
+  test "reports page shows the sun calendar for the year of the range" do
+    Plugs::DailyTotal.create!(plug_id: "bkw", date: "2026-04-10", energy_wh: 2000)
+    Solakon::PvHour.create!(started_at: Time.zone.local(2026, 4, 10, 12), pv_power_w: 640.0, reading_count: 120)
+
+    get "/reports"
+
+    assert_response :success
+    assert_select ".section-label", text: "Sonnenkalender 2026"
+    assert_select ".sun-calendar [data-strip]", 4
+    assert_select ".sun-calendar [data-strip='pv'] .cells rect", minimum: 1
+    assert_select ".sun-calendar [data-strip='pv'] polyline.sun", 3
+  end
+
+  test "sun calendar stands on its own PV hours, without a plug aggregation" do
+    Solakon::PvHour.create!(started_at: Time.zone.local(2026, 4, 10, 12), pv_power_w: 640.0, reading_count: 120)
+
+    get "/reports"
+
+    assert_response :success
+    assert_select ".empty-state h2", text: "Noch keine Berichtsdaten"
+    assert_select ".sun-calendar [data-strip='pv'] .cells rect", minimum: 1
+  end
+
+  test "sun calendar keeps its own empty state while no PV hour exists" do
+    Plugs::DailyTotal.create!(plug_id: "bkw", date: "2026-04-10", energy_wh: 2000)
+
+    get "/reports"
+
+    assert_response :success
+    assert_select ".sun-calendar", 0
+    assert_select ".empty-state h2", text: "Noch kein Sonnenkalender"
   end
 end
