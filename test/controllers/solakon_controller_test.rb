@@ -6,6 +6,16 @@ class SolakonControllerTest < ActionDispatch::IntegrationTest
   setup do
     Solakon::Reading.delete_all
     Solakon::Snapshot.delete_all if defined?(Solakon::Snapshot)
+    Solakon::PvHour.delete_all
+    WeatherRecord.delete_all
+  end
+
+  def pv_hour(date, hour, watts, panels: [ 100.0, 100.0, 100.0, 100.0 ])
+    Solakon::PvHour.create!(
+      started_at: Time.zone.local(date.year, date.month, date.day, hour),
+      pv_power_w: watts, reading_count: 120,
+      pv1_power_w: panels[0], pv2_power_w: panels[1], pv3_power_w: panels[2], pv4_power_w: panels[3]
+    )
   end
 
   test "page renders single continuous Solakon overview" do
@@ -176,5 +186,32 @@ class SolakonControllerTest < ActionDispatch::IntegrationTest
     assert_select ".solakon-status-figure img[data-solakon-battery-state=charging][src*=solakon_battery_charging]", 1
     assert_select ".solakon-status-summary", text: /Akku lädt gerade/
     assert_select ".solakon-battery-states", count: 0
+  end
+
+  test "page shows the shading section under the history" do
+    3.times do |index|
+      date = Date.new(2026, 7, 1) + index
+      pv_hour(date, 12, 400.0)
+      WeatherRecord.create!(kind: "historic", daytime: "day", lat: 52.52, lon: 13.405,
+                            timestamp: Time.zone.local(date.year, date.month, date.day, 12), solar: 0.5)
+    end
+
+    get "/solakon"
+
+    assert_response :success
+    assert_select ".section-label", text: "Ausbeute nach Sonnenstand"
+    assert_select ".section-label", text: "Tagesgang je Monat"
+    assert_select ".section-label", text: "Die vier Panels im Tagesverlauf"
+    assert_select ".shading [data-chart='yield-map'] .fields rect", minimum: 1
+    assert_select ".shading [data-chart='daily-profiles'] .multiple", 1
+    assert_select ".shading [data-chart='panels'] polyline", 4
+  end
+
+  test "page keeps an empty state for the shading section while no PV hour exists" do
+    get "/solakon"
+
+    assert_response :success
+    assert_select ".shading", 0
+    assert_select ".empty-state h2", text: "Noch keine Ausbeute"
   end
 end

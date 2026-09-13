@@ -140,5 +140,7 @@
     </div>
   </section>
 
+  <%= render Solakon::ShadingComponent.new(report: @shading) %>
+
   <script type="application/json" data-solakon-target="historyPayload"><%= raw json_escape(@history_payload.to_json) %></script>
 </div>

@@ -1,0 +1,24 @@
+<section class="chart-card sun-chart" data-chart="panels">
+  <% if empty? %>
+    <p class="note">Der Vergleich erscheint, sobald alle vier Panels einen Tag lang geliefert haben.</p>
+  <% else %>
+    <p class="chart-title">Stundenmittel je Panel <span><%= period %></span></p>
+    <svg viewBox="<%= view_box %>" role="img" aria-label="Stundenmittel je Panel über den Tag">
+      <g class="grid"><% grid.each do |label| %><line x1="<%= plot_left %>" x2="<%= plot_right %>" y1="<%= label.y %>" y2="<%= label.y %>"/><% end %></g>
+      <g class="value-labels"><% grid.each do |label| %><text x="<%= label.x %>" y="<%= label.y + 3.5 %>" text-anchor="end"><%= label.text %></text><% end %></g>
+      <% %i[dense sparse].each do |density| %>
+        <g class="hour-labels label-<%= density %>"><% hour_labels(density).each do |label| %><text x="<%= label.x %>" y="<%= label.y %>" text-anchor="middle"><%= label.text %></text><% end %></g>
+      <% end %>
+      <line class="axis" x1="<%= plot_left %>" x2="<%= plot_right %>" y1="<%= baseline_y %>" y2="<%= baseline_y %>"/>
+      <% series.each do |panel| %><% panel.segments.each do |points| %><polyline class="curve <%= panel.key %>" points="<%= points %>"/><% end %><% end %>
+      <g class="direct-labels"><% labels.each do |label| %><text class="<%= label.key %>" x="<%= label.x %>" y="<%= label.y %>"><%= label.text %></text><% end %></g>
+      <g class="hits"><% hits.each do |hit| %><rect x="<%= hit.x %>" y="<%= plot_top %>" width="<%= hit.width %>" height="<%= plot_height %>"><title><%= hit.title %></title></rect><% end %></g>
+    </svg>
+    <ul class="legend">
+      <% series.each do |panel| %>
+        <li class="legend-item"><span class="legend-line <%= panel.key %>"></span><%= panel.label %></li>
+      <% end %>
+    </ul>
+    <p class="note"><%= note %></p>
+  <% end %>
+</section>

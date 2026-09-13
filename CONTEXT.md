@@ -199,6 +199,13 @@ independent of the array.
 _German UI_: Einstrahlung
 _Avoid_: Sonnenschein (that is minutes of sunshine), UV, Solar, Strahlung alone
 
+**Clear sky**:
+The radiation a cloudless sky would deliver at a **sun position**, computed from the sun's
+height alone. Never measured, and no forecast — the upper edge the measured day is read
+against, and the only line that exists for hours and months no station covered.
+_German UI_: Wolkenloser Himmel
+_Avoid_: Theorie alone, Ideal, Clear Sky (in German UI text), Einstrahlung (that is measured)
+
 **Sun position**:
 Where the sun stands for the configured location at a point in time: azimuth and elevation.
 Computed, never measured.

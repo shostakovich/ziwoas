@@ -1,0 +1,18 @@
+<% if empty? %>
+  <h2 class="section-label">Ausbeute nach Sonnenstand</h2>
+  <section class="chart-card empty-state">
+    <h2>Noch keine Ausbeute</h2>
+    <p>Die Karte erscheint, sobald die ersten Stundenwerte der PV-Leistung vorliegen.</p>
+  </section>
+<% else %>
+  <div class="sun-charts shading">
+    <h2 class="section-label">Ausbeute nach Sonnenstand</h2>
+    <%= render Solakon::YieldMapComponent.new(map: map) %>
+
+    <h2 class="section-label">Tagesgang je Monat</h2>
+    <%= render Solakon::DailyProfilesComponent.new(profiles: profiles) %>
+
+    <h2 class="section-label">Die vier Panels im Tagesverlauf</h2>
+    <%= render Solakon::PanelCurvesComponent.new(panels: panels) %>
+  </div>
+<% end %>

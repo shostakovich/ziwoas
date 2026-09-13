@@ -4,7 +4,7 @@
     <p>Der Kalender erscheint, sobald die ersten Stundenwerte der PV-Leistung vorliegen.</p>
   </section>
 <% else %>
-  <div class="sun-calendar">
+  <div class="sun-charts sun-calendar">
     <% strips.each do |strip| %>
       <section class="chart-card sun-strip" data-strip="<%= strip.key %>">
         <h3 class="sun-strip-title"><%= strip.title %></h3>

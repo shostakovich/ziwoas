@@ -1,0 +1,27 @@
+<section class="chart-card sun-chart" data-chart="yield-map">
+  <% if empty? %>
+    <p class="note">Die Karte füllt sich, sobald Stunden mit Einstrahlung und PV-Leistung zusammenkommen.</p>
+  <% else %>
+    <svg viewBox="<%= view_box %>" role="img" aria-label="Ausbeute nach Sonnenstand, Azimut über Sonnenhöhe">
+      <g class="grid"><% elevation_lines.each do |line| %><line x1="<%= line.x1 %>" x2="<%= line.x2 %>" y1="<%= line.y1 %>" y2="<%= line.y2 %>"/><% end %></g>
+      <g class="hour-labels"><% elevation_lines.each do |line| %><text x="<%= line.label_x %>" y="<%= line.label_y %>" text-anchor="end"><%= line.text %></text><% end %></g>
+      <% %i[dense sparse].each do |density| %>
+        <g class="grid label-<%= density %>"><% azimuth_lines(density).each do |line| %><line x1="<%= line.x1 %>" x2="<%= line.x2 %>" y1="<%= line.y1 %>" y2="<%= line.y2 %>"/><% end %></g>
+        <g class="month-labels label-<%= density %>"><% azimuth_lines(density).each do |line| %><text x="<%= line.label_x %>" y="<%= line.label_y %>" text-anchor="middle"><%= line.text %></text><% end %></g>
+      <% end %>
+      <g class="fields"><% fields.each do |field| %><rect x="<%= field.x %>" y="<%= field.y %>" width="<%= field.width %>" height="<%= field.height %>" rx="1" fill="<%= field.fill %>"><title><%= field.title %></title></rect><% end %></g>
+      <% paths.each do |path| %>
+        <g class="sun-path">
+          <polyline class="sun" points="<%= path.points %>"/>
+          <% path.dots.each do |dot| %><circle class="dot" cx="<%= dot.x %>" cy="<%= dot.y %>" r="<%= Solakon::YieldMapComponent::DOT_RADIUS %>"/><% if dot.text %><text class="dot-label" x="<%= dot.x %>" y="<%= dot.text_y %>" text-anchor="middle"><%= dot.text %></text><% end %><% end %>
+          <text class="path-label" x="<%= path.label_x %>" y="<%= path.label_y %>" text-anchor="middle"><%= path.label %></text>
+        </g>
+      <% end %>
+    </svg>
+    <ul class="legend">
+      <li class="legend-item">unter Erwartung<span class="legend-ramp" style="background: <%= legend_gradient %>"></span>voller Ertrag</li>
+      <li class="legend-item"><span class="legend-line"></span>Sonnenbahn, Punkte alle drei Stunden</li>
+    </ul>
+    <p class="note"><%= note %></p>
+  <% end %>
+</section>

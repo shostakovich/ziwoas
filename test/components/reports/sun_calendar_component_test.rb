@@ -271,7 +271,7 @@ class Reports::SunCalendarComponentTest < ViewComponent::TestCase
   test "shows the ramp's css gradient in the legend" do
     style = render_calendar.css("[data-strip='pv'] .legend-ramp").first["style"]
 
-    assert_includes style, SunCalendar::Ramp.fetch(:amber).css_gradient
+    assert_includes style, Ramp.fetch(:amber).css_gradient
   end
 
   test "draws a bar at the exact position and size the day's energy scales to" do
@@ -358,7 +358,7 @@ class Reports::SunCalendarComponentTest < ViewComponent::TestCase
 
     fill = rendered.css("[data-strip='pv'] .cells g").first["fill"]
 
-    assert_equal SunCalendar::Ramp.fetch(:amber).color(0.5), fill
+    assert_equal Ramp.fetch(:amber).color(0.5), fill
   end
 
   test "rounds the colour share to the nearest level instead of using the raw fraction" do
