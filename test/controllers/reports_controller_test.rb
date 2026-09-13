@@ -1,9 +1,13 @@
 require "test_helper"
 
 class ReportsControllerTest < ActionDispatch::IntegrationTest
+  # AggregatorJobTest runs without a transaction, so its rows outlive it and
+  # reach this class whenever the seed puts it first.
   setup do
     Plugs::DailyTotal.delete_all
     DailyEnergySummary.delete_all
+    Solakon::PvHour.delete_all
+    WeatherRecord.delete_all
   end
 
   test "reports page renders" do

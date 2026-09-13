@@ -59,8 +59,15 @@ class SunCalendar::SunLinesTest < ActiveSupport::TestCase
   end
 
   test "has nothing to draw without a location" do
-    assert_predicate SunCalendar::SunLines.new(zone: "Europe/Berlin", lat: nil, lon: 13.405).build(2026), :empty?
-    assert_predicate SunCalendar::SunLines.new(zone: "Europe/Berlin", lat: 52.52, lon: nil).build(2026), :empty?
+    without_lat = SunCalendar::SunLines.new(zone: "Europe/Berlin", lat: nil, lon: 13.405).build(2026)
+    without_lon = SunCalendar::SunLines.new(zone: "Europe/Berlin", lat: 52.52, lon: nil).build(2026)
+
+    assert_predicate without_lat, :empty?
+    assert_empty without_lat.set
+    assert_empty without_lat.noon
+    assert_predicate without_lon, :empty?
+    assert_empty without_lon.set
+    assert_empty without_lon.noon
   end
 
   test "covers the leap day" do

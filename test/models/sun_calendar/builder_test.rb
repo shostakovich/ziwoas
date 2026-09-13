@@ -71,6 +71,15 @@ class SunCalendar::BuilderTest < ActiveSupport::TestCase
     assert_in_delta 50.0, day.cloud_avg
   end
 
+  test "averages cloud cover as a true mean, not truncated to an integer" do
+    weather(11, solar: 0.4, cloud: 20)
+    weather(12, solar: 0.6, cloud: 21)
+
+    day = builder.build(2026).days.find { |candidate| candidate.doy == DOY }
+
+    assert_in_delta 20.5, day.cloud_avg
+  end
+
   test "leaves a day without data empty rather than at zero" do
     pv_hour(12, 640.0)
 
@@ -83,7 +92,10 @@ class SunCalendar::BuilderTest < ActiveSupport::TestCase
   end
 
   test "covers every day of the year, leap day included" do
-    assert_equal 365, builder.build(2026).days.length
+    year = builder.build(2026)
+
+    assert_equal 2026, year.year
+    assert_equal 365, year.days.length
     assert_equal 366, builder.build(2024).days.length
   end
 
@@ -101,6 +113,43 @@ class SunCalendar::BuilderTest < ActiveSupport::TestCase
     assert_equal 50.0, builder.build(2026).strips.fetch(:pv).max
   end
 
+  test "rounds using the highest reading, not the first or last one inserted" do
+    pv_hour(10, 300.0)
+    pv_hour(11, 900.0)
+    pv_hour(12, 500.0)
+
+    assert_equal 900.0, builder.build(2026).strips.fetch(:pv).max
+  end
+
+  test "labels each strip with its key, title, unit and ramp" do
+    pv_hour(12, 640.0)
+    weather(12, solar: 0.62, cloud: 40)
+
+    strips = builder.build(2026).strips
+
+    assert_equal :pv, strips.fetch(:pv).key
+    assert_equal "PV-Leistung", strips.fetch(:pv).title
+
+    assert_equal :irradiance, strips.fetch(:irradiance).key
+    assert_equal "Einstrahlung", strips.fetch(:irradiance).title
+    assert_equal "W/m²", strips.fetch(:irradiance).unit
+    assert_equal :blue, strips.fetch(:irradiance).ramp
+
+    assert_equal :cloud, strips.fetch(:cloud).key
+    assert_equal "Bewölkung", strips.fetch(:cloud).title
+    assert_equal "%", strips.fetch(:cloud).unit
+    assert_equal :grey, strips.fetch(:cloud).ramp
+  end
+
+  test "takes the best day's PV energy as the year's maximum, not the first or last day" do
+    pv_hour(11, 100.0, date: Date.new(2026, 1, 15))
+    pv_hour(11, 500.0, date: Date.new(2026, 4, 10))
+    pv_hour(12, 700.0, date: Date.new(2026, 4, 10))
+    pv_hour(11, 200.0, date: Date.new(2026, 11, 1))
+
+    assert_in_delta 1.2, builder.build(2026).max_kwh
+  end
+
   test "shows the base hours and widens them for data outside" do
     assert_equal (3..22), builder.build(2026).hours
 
@@ -115,6 +164,22 @@ class SunCalendar::BuilderTest < ActiveSupport::TestCase
 
     assert_operator year.hours.first, :<=, year.lines.rise.map(&:last).min
     assert_operator year.hours.last + 1, :>=, year.lines.set.map(&:last).max
+  end
+
+  test "widens using whichever of sunrise or sunset reaches furthest, not just one" do
+    # West of its zone's meridian: the extreme hour comes from sunset.
+    west = SunCalendar::Builder.new(timezone: "Europe/Oslo", lat: 69.6, lon: 18.9).build(2026)
+    # East of its zone's meridian: the extreme hour comes from sunrise instead.
+    east = SunCalendar::Builder.new(timezone: "Europe/Oslo", lat: 69.6, lon: 40.0).build(2026)
+
+    assert_equal (0..24), west.hours
+    assert_equal (0..24), east.hours
+  end
+
+  test "keeps the base hours when the sun stays safely inside them" do
+    year = SunCalendar::Builder.new(timezone: "UTC", lat: 0.0, lon: 0.0).build(2026)
+
+    assert_equal (3..22), year.hours
   end
 
   test "ignores hours and records outside the year" do
@@ -182,5 +247,90 @@ class SunCalendar::BuilderTest < ActiveSupport::TestCase
     day = builder.build(2026).days.find { |candidate| candidate.doy == Date.new(2026, 10, 25).yday }
 
     assert_in_delta 0.4, day.pv_kwh
+  end
+
+  test "reads the PV hour's local time in the builder's own zone, not the app default" do
+    # 2026-04-10 23:00 UTC is 2026-04-11 01:00 in the app's default zone (Europe/Berlin),
+    # but 2026-04-10 13:00 in the builder's own zone (Pacific/Honolulu, UTC-10, no DST).
+    Solakon::PvHour.create!(started_at: Time.utc(2026, 4, 10, 23, 0, 0), pv_power_w: 500.0, reading_count: 120)
+
+    strip = SunCalendar::Builder.new(timezone: "Pacific/Honolulu").build(2026).strips.fetch(:pv)
+
+    assert_equal({ [ Date.new(2026, 4, 10).yday, 13 ] => 500.0 }, strip.values)
+  end
+
+  test "orders PV hours chronologically so the later reading wins a repeated cell" do
+    date = Date.new(2026, 10, 25)
+    # Insert the chronologically LATER instant first, to prove the cell picks the winner
+    # by timestamp order and not by insertion order.
+    Solakon::PvHour.create!(
+      started_at: Time.zone.local(date.year, date.month, date.day, 2) + 1.hour,
+      pv_power_w: 300.0, reading_count: 120
+    )
+    pv_hour(2, 100.0, date: date)
+
+    strip = builder.build(2026).strips.fetch(:pv)
+
+    assert_equal 300.0, strip.values.fetch([ date.yday, 2 ])
+  end
+
+  test "reads a weather record's local time in the builder's own zone, not the app default" do
+    WeatherRecord.create!(
+      kind: "historic", daytime: "day", lat: 21.3, lon: -157.8,
+      timestamp: Time.utc(2026, 4, 10, 23, 0, 0), solar: 0.5, cloud_cover: 40
+    )
+
+    strip = SunCalendar::Builder.new(timezone: "Pacific/Honolulu", lat: 21.3, lon: -157.8)
+                                 .build(2026).strips.fetch(:irradiance)
+
+    assert_equal [ [ Date.new(2026, 4, 10).yday, 13 ] ], strip.values.keys
+  end
+
+  test "orders weather records chronologically so the later reading wins a repeated cell" do
+    date = Date.new(2026, 10, 25)
+    WeatherRecord.create!(
+      kind: "historic", daytime: "day", lat: LAT, lon: LON,
+      timestamp: Time.zone.local(date.year, date.month, date.day, 2) + 1.hour,
+      solar: 0.9, cloud_cover: 90
+    )
+    weather(2, solar: 0.1, cloud: 10, date: date)
+
+    strip = builder.build(2026).strips.fetch(:irradiance)
+
+    assert_in_delta 900.0, strip.values.fetch([ date.yday, 2 ])
+  end
+
+  test "keeps the year's start in the builder's own zone, not the app default" do
+    # In the app's default zone (Europe/Berlin) both instants already fall inside 2026,
+    # but only the second one sits at or after the year's start in Pacific/Honolulu (UTC-10).
+    just_before_start = Time.utc(2026, 1, 1, 9, 0, 0)   # 2025-12-31 23:00 Honolulu, excluded
+    at_start          = Time.utc(2026, 1, 1, 10, 0, 0)  # 2026-01-01 00:00 Honolulu, included
+
+    Solakon::PvHour.create!(started_at: just_before_start, pv_power_w: 111.0, reading_count: 120)
+    Solakon::PvHour.create!(started_at: at_start, pv_power_w: 222.0, reading_count: 120)
+
+    strip = SunCalendar::Builder.new(timezone: "Pacific/Honolulu").build(2026).strips.fetch(:pv)
+
+    assert_equal({ [ 1, 0 ] => 222.0 }, strip.values)
+  end
+
+  test "keeps the year's end in the builder's own zone, not the app default" do
+    # In the app's default zone (Europe/Berlin) both instants already fall outside 2026,
+    # but only the first one sits before the year's end in Pacific/Honolulu (UTC-10).
+    last_included  = Time.utc(2027, 1, 1, 9, 59, 59) # 2026-12-31 23:59:59 Honolulu, included
+    first_excluded = Time.utc(2027, 1, 1, 10, 0, 0)  # 2027-01-01 00:00:00 Honolulu, excluded
+
+    Solakon::PvHour.create!(started_at: last_included, pv_power_w: 333.0, reading_count: 120)
+    Solakon::PvHour.create!(started_at: first_excluded, pv_power_w: 444.0, reading_count: 120)
+
+    strip = SunCalendar::Builder.new(timezone: "Pacific/Honolulu").build(2026).strips.fetch(:pv)
+
+    assert_equal({ [ 365, 23 ] => 333.0 }, strip.values)
+  end
+
+  test "defaults to no location when lat and lon are omitted" do
+    year = SunCalendar::Builder.new(timezone: "Europe/Berlin").build(2026)
+
+    assert_predicate year.lines, :empty?
   end
 end

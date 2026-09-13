@@ -17,7 +17,7 @@
           <rect class="nodata" x="<%= plot_left %>" y="<%= plot_top %>" width="<%= ground_width %>" height="<%= strip_height %>"/>
           <g class="cells"><% cells(strip).each do |group| %><g fill="<%= group.fill %>"><% group.rects.each do |cell| %><rect x="<%= cell.x %>" y="<%= cell.y %>" width="<%= cell.width %>" height="<%= row_height %>"/><% end %></g><% end %></g>
           <% if lines? %>
-            <% %i[rise set noon].each do |event| %><polyline class="sun <%= event %>" points="<%= sun_points(event) %>"/><% end %>
+            <% %i[rise set noon].each do |event| %><% sun_segments(event).each do |points| %><polyline class="sun <%= event %>" points="<%= points %>"/><% end %><% end %>
           <% end %>
           <g class="hits"><% hits.each do |hit| %><rect x="<%= hit.x %>" y="<%= plot_top %>" width="<%= hit.width %>" height="<%= strip_height %>"><title><%= hit.title %></title></rect><% end %></g>
         </svg>

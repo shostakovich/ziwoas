@@ -96,8 +96,14 @@ module Reports
 
     def lines? = !@calendar.lines.empty?
 
-    def sun_points(key)
-      @calendar.lines.public_send(key).map { |doy, hour| "#{number(x(doy))},#{number(y(hour))}" }.join(" ")
+    # One polyline per unbroken stretch of days. A polar period leaves a gap in
+    # the events, and a single polyline would bridge it with a straight line
+    # that no sun ever took. The daylight saving seam repeats a day of year
+    # rather than skipping one, so it stays inside its segment.
+    def sun_segments(key)
+      @calendar.lines.public_send(key)
+               .slice_when { |(previous, _), (doy, _)| doy - previous > 1 }
+               .map { |segment| segment.map { |doy, hour| "#{number(x(doy))},#{number(y(hour))}" }.join(" ") }
     end
 
     def month_lines = (1..12).map { |month| number(x(first_doy(month))) }
