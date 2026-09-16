@@ -119,6 +119,7 @@ class ConfigLoader
 
   def build
     reject_retired_keys!
+    warn_obsolete_keys!
     location = build_location(@raw["location"])
 
     mqtt       = build_mqtt(@raw["mqtt"])
@@ -207,14 +208,30 @@ class ConfigLoader
   end
 
   # The zone and the coordinates used to live apart, under `timezone` and
-  # `weather`; the electricity price used to be a single number here and now
-  # has a validity date (ADR-0004). Refusing the old keys by name beats reading
-  # a config that means something else than it says.
+  # `weather`. Refusing those by name beats reading a config that means
+  # something else than it says: their values still belong in this file, just
+  # under another key.
   def reject_retired_keys!
-    retired = { "timezone" => "location.timezone", "weather" => "location.lat / location.lon",
-                "electricity_price_eur_per_kwh" => "the Strompreis list under PV > Wirtschaftlichkeit" }
+    retired = { "timezone" => "location.timezone", "weather" => "location.lat / location.lon" }
     retired.each do |old, new|
       raise Error, "'#{old}' has moved to #{new}" if @raw.key?(old)
+    end
+  end
+
+  # The electricity price left this file entirely (ADR-0004): the migration
+  # carried its value into the database, and nothing reads it here any more.
+  # Refusing it would stop the app between migrating and editing the file by
+  # hand, so it is ignored with a word about where it went.
+  OBSOLETE_KEYS = {
+    "electricity_price_eur_per_kwh" => "the Strompreis list under PV > Wirtschaftlichkeit"
+  }.freeze
+
+  def warn_obsolete_keys!
+    OBSOLETE_KEYS.each do |old, new|
+      next unless @raw.key?(old)
+
+      message = "config: '#{old}' is no longer read — it moved to #{new}. Remove the key."
+      defined?(Rails) && Rails.logger ? Rails.logger.warn(message) : warn(message)
     end
   end
 

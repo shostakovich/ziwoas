@@ -1,6 +1,10 @@
 require "test_helper"
 
 class EconomicsControllerTest < ActionDispatch::IntegrationTest
+  cover "Economics::CostItem*"
+  cover "Economics::ElectricityPrice*"
+  cover "Economics::Forms*"
+
   setup do
     DailyEnergySummary.delete_all
     Economics::CostItem.delete_all
@@ -102,6 +106,27 @@ class EconomicsControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :unprocessable_entity
     assert_match "bereits einen Preis", response.body
+  end
+
+  test "a price that rounds away in the column is refused as a price, not as a date clash" do
+    assert_no_difference -> { Economics::ElectricityPrice.count } do
+      post electricity_prices_path, params: { electricity_price: { eur_per_kwh: "0,000004",
+                                                                   valid_from: "2026-07-01" } }
+    end
+
+    assert_response :unprocessable_entity
+    assert_match "Preis muss größer als 0 sein", response.body
+    assert_no_match(/bereits einen Preis/, response.body)
+  end
+
+  test "an amount that is not a finite number is refused" do
+    assert_no_difference -> { Economics::CostItem.count } do
+      post cost_items_path, params: { cost_item: { label: "Module", amount_eur: "1e400",
+                                                   spent_on: "2026-03-01" } }
+    end
+
+    assert_response :unprocessable_entity
+    assert_match "Betrag als Zahl angeben", response.body
   end
 
   test "a price is deleted" do

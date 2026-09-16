@@ -6,6 +6,7 @@ class ConfigLoaderTest < Minitest::Test
   cover "ConfigLoader#build_location"
   cover "ConfigLoader#coordinates"
   cover "ConfigLoader#reject_retired_keys!"
+  cover "ConfigLoader#warn_obsolete_keys!"
 
   def teardown
     ConfigLoader.reset_app_config!
@@ -541,11 +542,23 @@ class ConfigLoaderTest < Minitest::Test
     assert_raises(ConfigLoader::Error) { load_yaml(yaml) }
   end
 
-  def test_retired_electricity_price_key_is_refused_by_name
+  # The key is obsolete, not moved within the file: a config that still carries
+  # it has to keep booting, or migrating would take the app down until someone
+  # edits the file by hand.
+  def test_obsolete_electricity_price_key_is_ignored_with_a_warning
     yaml = "electricity_price_eur_per_kwh: 0.3\n" + valid_yaml
-    error = assert_raises(ConfigLoader::Error) { load_yaml(yaml) }
-    assert_match(/electricity_price_eur_per_kwh/, error.message)
-    assert_match(/Wirtschaftlichkeit/, error.message)
+    log = StringIO.new
+    previous = Rails.logger
+    Rails.logger = ActiveSupport::Logger.new(log)
+
+    cfg = load_yaml(yaml)
+
+    assert_equal "Europe/Berlin", cfg.location.timezone_name
+    refute_respond_to cfg, :electricity_price_eur_per_kwh
+    assert_match(/electricity_price_eur_per_kwh/, log.string)
+    assert_match(/Wirtschaftlichkeit/, log.string)
+  ensure
+    Rails.logger = previous
   end
 
   def test_govee_block_parses_intervals_device_map_and_api_key_from_yml

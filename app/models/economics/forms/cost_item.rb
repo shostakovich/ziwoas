@@ -23,8 +23,11 @@ module Economics
       end
 
       # German keyboards type a comma; the record stores a number either way.
+      # Infinity and NaN are not amounts — they would survive into every sum and
+      # blow up the payback projection rather than fail here.
       def self.amount(value)
-        Float(value.to_s.tr(",", "."))
+        number = Float(value.to_s.tr(",", "."))
+        number.finite? ? number : nil
       rescue ArgumentError, TypeError
         nil
       end

@@ -9,15 +9,18 @@ their own tables and their own page, like the switch times and the lights, not c
 
 The alternative was a list under a new YAML key. It was rejected because it would put the one
 setting that changes most often behind an SSH session and a restart, and because a validity date
-per entry is a record, not a key. The existing `electricity_price_eur_per_kwh` key is refused by
-name after this change (ADR-0003 rewrote what it was used for anyway), the way the retired
-`timezone` and `weather` keys are: a config that silently means something else than it says is
-worse than one that refuses to boot.
+per entry is a record, not a key. The existing `electricity_price_eur_per_kwh` key is ignored
+after this change, with a warning naming where the price went. It is *not* refused the way the
+retired `timezone` and `weather` keys are: those moved to another key in the same file, where a
+reader would still expect their value to be read, while this one left the file altogether and
+the migration already carried its value into the database. Refusing it would take the app down
+between running the migration and hand-editing the config.
 
 ## Consequences
 
 - Deploying this change means running the migration first — it carries the YAML price over as
-  the first electricity price — and only then removing the key from `config/ziwoas.yml`.
+  the first electricity price — and removing the key from `config/ziwoas.yml` afterwards, at
+  leisure: the app keeps running either way and logs a line until the key is gone.
 - `ConfigLoader::Config` no longer carries a price, so nothing outside the Economics seam can
   price energy by accident.
 - Savings are unknown, not zero, while no price is on record. Every display shows an em dash
