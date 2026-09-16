@@ -6,7 +6,7 @@ class EnergySummary
   def initialize(config:)
     @config     = config
     @zone       = config.location.timezone
-    @calculator = SavingsCalculator.new(price_eur_per_kwh: config.electricity_price_eur_per_kwh)
+    @calculator = SavingsCalculator.new(price_book: Economics::ElectricityPrice.book)
   end
 
   def compute_today
@@ -17,7 +17,7 @@ class EnergySummary
       today_power_series(start_ts, end_ts)
         .self_consumed_wh(produced_wh: @produced.wh, consumed_wh: @consumed.wh)
     )
-    @savings_eur   = @calculator.savings_eur(@produced)
+    @savings_eur   = @calculator.savings_eur(@self_consumed, on: today)
     @date          = today.to_s
     self
   end

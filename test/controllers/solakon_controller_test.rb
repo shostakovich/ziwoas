@@ -10,6 +10,9 @@ class SolakonControllerTest < ActionDispatch::IntegrationTest
     WeatherRecord.delete_all
     # AggregatorJobTest runs without a transaction, so its buckets can reach this class.
     Plugs::Sample5min.delete_all
+    DailyEnergySummary.delete_all
+    Economics::CostItem.delete_all
+    Economics::ElectricityPrice.delete_all
   end
 
   def pv_hour(date, hour, watts, panels: [ 100.0, 100.0, 100.0, 100.0 ])
@@ -43,6 +46,33 @@ class SolakonControllerTest < ActionDispatch::IntegrationTest
     assert_select "[data-solakon-target='balanceRows']", 1
     assert_select "input[data-solakon-target='epsToggle'][data-action='change->solakon#toggleEps']", 1
     assert_select "input[data-solakon-target='controlToggle'][data-action='change->solakon#toggleControl']", 1
+  end
+
+  test "page carries the Wirtschaftlichkeit card between the history and the sun calendar" do
+    Economics::CostItem.create!(label: "Anlage", amount_eur: 1_000.00, spent_on: "2026-01-01")
+    Economics::ElectricityPrice.create!(valid_from: "2026-01-01", eur_per_kwh: 0.30)
+    DailyEnergySummary.create!(date: "2026-01-01", produced_wh: 5_000.0, consumed_wh: 3_000.0,
+                               self_consumed_wh: 2_000.0)
+
+    get "/solakon"
+
+    assert_response :success
+    assert_select ".card-title", text: /\AWirtschaftlichkeit/
+    labels = css_select(".economics-tiles .tile-label").map { |node| node.text.squish }
+    assert_equal [ "Anschaffungskosten", "Ersparnis", "Zurückverdient", "Voraussichtliche Amortisation" ], labels
+    assert_match "1.000,00 €", response.body
+    assert_match "0,60 €", response.body
+    assert_select "a[href=?]", economics_path
+    assert_operator response.body.index("Wirtschaftlichkeit"), :<, response.body.index("Sonnenkalender")
+    assert_operator response.body.index("Solakon-Verlauf"), :<, response.body.index("Wirtschaftlichkeit")
+  end
+
+  test "page asks for cost items while none are recorded" do
+    get "/solakon"
+
+    assert_response :success
+    assert_match "Kosten erfassen", response.body
+    assert_select "[data-economics-covered-pct]", 0
   end
 
   test "page reuses four-node energy flow with Solakon targets" do

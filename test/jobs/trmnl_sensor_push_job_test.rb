@@ -6,7 +6,7 @@ class TrmnlSensorPushJobTest < ActiveJob::TestCase
     plug = ConfigLoader::PlugCfg.new(id: "bkw", name: "BKW", role: :producer, driver: :shelly, ain: nil)
     mqtt = ConfigLoader::MqttCfg.new(host: "localhost", port: 1883, topic_prefix: "shellies")
     ConfigLoader::Config.new(
-      electricity_price_eur_per_kwh: 0.32, location: Location.new(timezone: "Europe/Berlin"),
+      location: Location.new(timezone: "Europe/Berlin"),
       mqtt: mqtt, fritz_poll: nil, plugs: [ plug ], fritz_box: nil,
       sensors: [], switchbot: nil,
       trmnl: ConfigLoader::TrmnlCfg.new(energy_webhook_url: nil,

@@ -13,6 +13,7 @@ class SolakonController < ApplicationController
     )
     @sun_calendar = calendar.build(calendar.latest_year)
     @shading = Shading::Builder.new(location: app_config.location).build
+    @economics = Economics::Overview.new.build
   end
 
   def history

@@ -51,7 +51,13 @@
       </div>
       <div class="tile">
         <div class="tile-label">Gespart</div>
-        <div class="tile-value"><%= number_with_precision(@report.summary.fetch(:savings_eur), precision: 2, delimiter: ".", separator: ",") %> €</div>
+        <div class="tile-value">
+          <% if @report.summary.fetch(:savings_eur).nil? %>
+            —
+          <% else %>
+            <%= number_with_precision(@report.summary.fetch(:savings_eur), precision: 2, delimiter: ".", separator: ",") %> €
+          <% end %>
+        </div>
       </div>
       <div class="tile">
         <div class="tile-label">Bilanz</div>
@@ -62,7 +68,7 @@
         <div class="tile-value"><%= number_with_precision(@report.summary.fetch(:autarky_ratio) * 100, precision: 1, delimiter: ".", separator: ",") %> %</div>
       </div>
       <div class="tile">
-        <div class="tile-label">Eigenverbrauch</div>
+        <div class="tile-label">Eigenverbrauchsquote</div>
         <div class="tile-value"><%= number_with_precision(@report.summary.fetch(:self_consumption_ratio) * 100, precision: 1, delimiter: ".", separator: ",") %> %</div>
       </div>
       <div class="tile">

@@ -10,17 +10,35 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_13_080000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_16_090000) do
+  create_table "cost_items", force: :cascade do |t|
+    t.decimal "amount_eur", precision: 10, scale: 2, null: false
+    t.datetime "created_at", null: false
+    t.string "label", null: false
+    t.string "note"
+    t.string "spent_on", null: false
+    t.datetime "updated_at", null: false
+    t.index ["spent_on"], name: "index_cost_items_on_spent_on"
+  end
+
   create_table "daily_energy_summary", primary_key: "date", id: :string, force: :cascade do |t|
     t.float "consumed_wh", null: false
     t.float "produced_wh", null: false
     t.float "self_consumed_wh", null: false
   end
 
-  create_table "daily_totals", primary_key: [ "plug_id", "date" ], force: :cascade do |t|
+  create_table "daily_totals", primary_key: ["plug_id", "date"], force: :cascade do |t|
     t.string "date", null: false
     t.float "energy_wh", null: false
     t.string "plug_id", null: false
+  end
+
+  create_table "electricity_prices", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.decimal "eur_per_kwh", precision: 8, scale: 5, null: false
+    t.datetime "updated_at", null: false
+    t.string "valid_from", null: false
+    t.index ["valid_from"], name: "index_electricity_prices_on_valid_from", unique: true
   end
 
   create_table "light_states", force: :cascade do |t|
@@ -36,7 +54,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_13_080000) do
     t.boolean "reachable"
     t.datetime "updated_at", null: false
     t.text "zone_states"
-    t.index [ "light_key" ], name: "index_light_states_on_light_key", unique: true
+    t.index ["light_key"], name: "index_light_states_on_light_key", unique: true
   end
 
   create_table "lights", force: :cascade do |t|
@@ -52,7 +70,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_13_080000) do
     t.boolean "supports_color_temp", default: false, null: false
     t.datetime "updated_at", null: false
     t.text "zones"
-    t.index [ "key" ], name: "index_lights_on_key", unique: true
+    t.index ["key"], name: "index_lights_on_key", unique: true
   end
 
   create_table "plug_states", force: :cascade do |t|
@@ -60,18 +78,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_13_080000) do
     t.boolean "output", null: false
     t.string "plug_id", null: false
     t.datetime "updated_at", null: false
-    t.index [ "plug_id" ], name: "index_plug_states_on_plug_id", unique: true
+    t.index ["plug_id"], name: "index_plug_states_on_plug_id", unique: true
   end
 
-  create_table "samples", primary_key: [ "plug_id", "ts" ], force: :cascade do |t|
+  create_table "samples", primary_key: ["plug_id", "ts"], force: :cascade do |t|
     t.float "aenergy_wh", null: false
     t.float "apower_w", null: false
     t.string "plug_id", null: false
     t.bigint "ts", null: false
-    t.index [ "ts" ], name: "index_samples_on_ts"
+    t.index ["ts"], name: "index_samples_on_ts"
   end
 
-  create_table "samples_5min", primary_key: [ "plug_id", "bucket_ts" ], force: :cascade do |t|
+  create_table "samples_5min", primary_key: ["plug_id", "bucket_ts"], force: :cascade do |t|
     t.float "avg_power_w", null: false
     t.bigint "bucket_ts", null: false
     t.float "energy_delta_wh", null: false
@@ -84,7 +102,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_13_080000) do
     t.datetime "last_tick_at", null: false
     t.string "plug_id", null: false
     t.datetime "updated_at", null: false
-    t.index [ "plug_id" ], name: "index_scheduler_states_on_plug_id", unique: true
+    t.index ["plug_id"], name: "index_scheduler_states_on_plug_id", unique: true
   end
 
   create_table "sensor_readings", force: :cascade do |t|
@@ -97,8 +115,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_13_080000) do
     t.datetime "taken_at", null: false
     t.float "temperature"
     t.datetime "updated_at", null: false
-    t.index [ "device_id", "taken_at" ], name: "index_sensor_readings_on_device_id_and_taken_at"
-    t.index [ "taken_at" ], name: "index_sensor_readings_on_taken_at"
+    t.index ["device_id", "taken_at"], name: "index_sensor_readings_on_device_id_and_taken_at"
+    t.index ["taken_at"], name: "index_sensor_readings_on_taken_at"
   end
 
   create_table "solakon_control_states", force: :cascade do |t|
@@ -120,7 +138,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_13_080000) do
     t.float "pv_power_w", null: false
     t.integer "reading_count", null: false
     t.datetime "started_at", null: false
-    t.index [ "started_at" ], name: "index_solakon_pv_hours_on_started_at", unique: true
+    t.index ["started_at"], name: "index_solakon_pv_hours_on_started_at", unique: true
   end
 
   create_table "solakon_readings", force: :cascade do |t|
@@ -143,7 +161,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_13_080000) do
     t.integer "status3"
     t.datetime "taken_at", null: false
     t.datetime "updated_at", null: false
-    t.index [ "taken_at" ], name: "index_solakon_readings_on_taken_at"
+    t.index ["taken_at"], name: "index_solakon_readings_on_taken_at"
   end
 
   create_table "solakon_snapshots", force: :cascade do |t|
@@ -189,7 +207,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_13_080000) do
     t.integer "status3"
     t.datetime "taken_at", null: false
     t.datetime "updated_at", null: false
-    t.index [ "taken_at" ], name: "index_solakon_snapshots_on_taken_at"
+    t.index ["taken_at"], name: "index_solakon_snapshots_on_taken_at"
   end
 
   create_table "switch_commands", force: :cascade do |t|
@@ -198,7 +216,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_13_080000) do
     t.string "plug_id", null: false
     t.string "source", null: false
     t.datetime "updated_at", null: false
-    t.index [ "plug_id", "created_at" ], name: "index_switch_commands_on_plug_id_and_created_at"
+    t.index ["plug_id", "created_at"], name: "index_switch_commands_on_plug_id_and_created_at"
   end
 
   create_table "switch_rules", force: :cascade do |t|
@@ -210,8 +228,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_13_080000) do
     t.string "group_id"
     t.string "plug_id", null: false
     t.datetime "updated_at", null: false
-    t.index [ "group_id", "action" ], name: "index_switch_rules_on_group_id_and_action", unique: true, where: "group_id IS NOT NULL"
-    t.index [ "plug_id" ], name: "index_switch_rules_on_plug_id"
+    t.index ["group_id", "action"], name: "index_switch_rules_on_group_id_and_action", unique: true, where: "group_id IS NOT NULL"
+    t.index ["plug_id"], name: "index_switch_rules_on_plug_id"
   end
 
   create_table "weather_records", force: :cascade do |t|
@@ -240,8 +258,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_13_080000) do
     t.integer "wind_gust_direction"
     t.float "wind_gust_speed"
     t.float "wind_speed"
-    t.index [ "kind", "lat", "lon", "timestamp" ], name: "idx_weather_records_identity", unique: true
-    t.index [ "kind", "timestamp" ], name: "idx_weather_records_kind_ts"
-    t.index [ "lat", "lon", "timestamp" ], name: "idx_weather_records_location_ts"
+    t.index ["kind", "lat", "lon", "timestamp"], name: "idx_weather_records_identity", unique: true
+    t.index ["kind", "timestamp"], name: "idx_weather_records_kind_ts"
+    t.index ["lat", "lon", "timestamp"], name: "idx_weather_records_location_ts"
   end
 end

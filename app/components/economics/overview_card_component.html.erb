@@ -1,0 +1,43 @@
+<%= render CardComponent.new(title: "Wirtschaftlichkeit", subtitle: subtitle,
+                             classes: "economics-card") do %>
+  <div class="tiles economics-tiles">
+    <div class="tile">
+      <div class="tile-label">Anschaffungskosten</div>
+      <div class="tile-value"><%= cost_value %></div>
+    </div>
+    <div class="tile">
+      <div class="tile-label">Ersparnis</div>
+      <div class="tile-value"><%= saved_value %></div>
+    </div>
+    <div class="tile">
+      <div class="tile-label">Zurückverdient</div>
+      <div class="tile-value"><%= covered_value %></div>
+    </div>
+    <div class="tile">
+      <div class="tile-label"><%= payback_label %></div>
+      <div class="tile-value"><%= payback_value %></div>
+    </div>
+  </div>
+
+  <% if covered_pct %>
+    <div class="economics-bar" role="img"
+         aria-label="<%= covered_value %> der Anschaffungskosten zurückverdient"
+         data-economics-covered-pct="<%= covered_pct %>">
+      <span style="width: <%= covered_pct %>%"></span>
+    </div>
+  <% end %>
+
+  <p class="muted-text">
+    Gerechnet wird nur mit dem Strom, den die gemessenen Verbraucher im selben
+    Moment genutzt haben. Eingespeister Strom wird nicht vergütet und zählt nicht.
+  </p>
+
+  <% if hint %>
+    <p class="muted-text"><%= hint %></p>
+  <% end %>
+
+  <p class="economics-actions">
+    <%= link_to (result.costed? ? "Kosten und Preise pflegen" : "Kosten erfassen"),
+                economics_path, class: "sw-btn ghost" %>
+  </p>
+<% end %>

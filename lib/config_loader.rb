@@ -16,7 +16,7 @@ class ConfigLoader
                               keyword_init: true)
   GoveeCfg     = Struct.new(:api_key, :lan_poll_seconds, :api_poll_seconds,
                             :pending_window_seconds, :names, keyword_init: true)
-  Config       = Struct.new(:electricity_price_eur_per_kwh, :location,
+  Config       = Struct.new(:location,
                             :mqtt, :fritz_poll, :plugs, :fritz_box,
                             :switchbot, :sensors, :trmnl, :solakon, :govee,
                             keyword_init: true) do
@@ -119,7 +119,6 @@ class ConfigLoader
 
   def build
     reject_retired_keys!
-    price    = require_number(@raw["electricity_price_eur_per_kwh"], "electricity_price_eur_per_kwh", allow_zero: false)
     location = build_location(@raw["location"])
 
     mqtt       = build_mqtt(@raw["mqtt"])
@@ -141,7 +140,6 @@ class ConfigLoader
     end
 
     Config.new(
-      electricity_price_eur_per_kwh: price,
       location:   location,
       mqtt:       mqtt,
       fritz_poll: fritz_poll,
@@ -209,10 +207,12 @@ class ConfigLoader
   end
 
   # The zone and the coordinates used to live apart, under `timezone` and
-  # `weather`. Refusing the old keys by name beats reading a config that means
-  # something else than it says.
+  # `weather`; the electricity price used to be a single number here and now
+  # has a validity date (ADR-0004). Refusing the old keys by name beats reading
+  # a config that means something else than it says.
   def reject_retired_keys!
-    retired = { "timezone" => "location.timezone", "weather" => "location.lat / location.lon" }
+    retired = { "timezone" => "location.timezone", "weather" => "location.lat / location.lon",
+                "electricity_price_eur_per_kwh" => "the Strompreis list under PV > Wirtschaftlichkeit" }
     retired.each do |old, new|
       raise Error, "'#{old}' has moved to #{new}" if @raw.key?(old)
     end

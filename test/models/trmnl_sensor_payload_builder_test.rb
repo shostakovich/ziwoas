@@ -13,7 +13,7 @@ class TrmnlSensorPayloadBuilderTest < ActiveSupport::TestCase
     mqtt = ConfigLoader::MqttCfg.new(host: "h", port: 1, topic_prefix: "p")
     plug = ConfigLoader::PlugCfg.new(id: "bkw", name: "BKW", role: :producer, driver: :shelly, ain: nil)
     @config = ConfigLoader::Config.new(
-      electricity_price_eur_per_kwh: 0.32, location: Location.new(timezone: "Europe/Berlin"),
+      location: Location.new(timezone: "Europe/Berlin"),
       mqtt: mqtt, fritz_poll: nil, plugs: [ plug ], fritz_box: nil,
       switchbot: ConfigLoader::SwitchbotCfg.new(token: "t", secret: "s"),
       sensors: [ @indoor1, @indoor2, @outdoor ],

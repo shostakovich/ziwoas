@@ -1,0 +1,92 @@
+<% content_for :title, "Wirtschaftlichkeit" %>
+<% content_for :body_class, "page-economics" %>
+
+<h1>Wirtschaftlichkeit</h1>
+
+<div class="economics-page">
+  <%= render Economics::OverviewCardComponent.new(result: @overview) %>
+
+  <%= render CardComponent.new(title: "Kostenposten") do %>
+    <p class="muted-text">
+      Alles, was die Anlage gekostet hat. Eine Förderung oder Rückerstattung wird
+      als negativer Betrag erfasst.
+    </p>
+
+    <% if @cost_items.any? %>
+      <ul class="economics-list">
+        <% @cost_items.each do |item| %>
+          <li class="economics-row">
+            <span class="economics-row-date"><%= l(item.date, format: "%d.%m.%Y") %></span>
+            <span class="economics-row-label">
+              <%= item.label %>
+              <% if item.note.present? %><span class="sw-hint"><%= item.note %></span><% end %>
+            </span>
+            <span class="economics-row-value"><%= number_with_precision(item.amount_eur, precision: 2, delimiter: ".", separator: ",") %> €</span>
+            <%= button_to "Löschen", cost_item_path(item), method: :delete,
+                          class: "sw-btn ghost",
+                          form: { data: { turbo_confirm: "#{item.label} wirklich löschen?" } } %>
+          </li>
+        <% end %>
+      </ul>
+      <p class="economics-total">
+        Summe <strong><%= number_with_precision(@overview.acquisition_cost_eur, precision: 2, delimiter: ".", separator: ",") %> €</strong>
+      </p>
+    <% else %>
+      <p class="sw-empty">Noch keine Kostenposten erfasst.</p>
+    <% end %>
+
+    <%= form_with url: cost_items_path, method: :post, scope: :cost_item, class: "sw-form" do |f| %>
+      <% if @cost_errors.present? %>
+        <div class="sw-form-errors"><%= @cost_errors.join(", ") %></div>
+      <% end %>
+      <div class="sw-form-row">
+        <%= f.text_field :label, placeholder: "Bezeichnung", class: "sw-time economics-input-wide" %>
+        <%= f.text_field :amount_eur, placeholder: "Betrag in €", inputmode: "decimal", class: "sw-time" %>
+        <%= f.date_field :spent_on, value: Date.current, class: "sw-time" %>
+      </div>
+      <div class="sw-form-row">
+        <%= f.text_field :note, placeholder: "Notiz (optional)", class: "sw-time economics-input-wide" %>
+      </div>
+      <div class="sw-form-row sw-form-actions">
+        <%= f.submit "Hinzufügen", class: "sw-btn" %>
+      </div>
+    <% end %>
+  <% end %>
+
+  <%= render CardComponent.new(title: "Strompreise") do %>
+    <p class="muted-text">
+      Was eine Kilowattstunde aus dem Netz kostet. Ein Preis gilt ab seinem Datum
+      bis zum nächsten; der früheste deckt auch alle Tage davor.
+    </p>
+
+    <% if @prices.any? %>
+      <ul class="economics-list">
+        <% @prices.each do |price| %>
+          <li class="economics-row">
+            <span class="economics-row-date">ab <%= l(price.date, format: "%d.%m.%Y") %></span>
+            <span class="economics-row-label"></span>
+            <span class="economics-row-value"><%= number_with_precision(price.eur_per_kwh, precision: 4, delimiter: ".", separator: ",") %> €/kWh</span>
+            <%= button_to "Löschen", electricity_price_path(price), method: :delete,
+                          class: "sw-btn ghost",
+                          form: { data: { turbo_confirm: "Preis ab #{l(price.date, format: '%d.%m.%Y')} wirklich löschen?" } } %>
+          </li>
+        <% end %>
+      </ul>
+    <% else %>
+      <p class="sw-empty">Noch kein Strompreis erfasst. Ohne ihn bleibt die Ersparnis unbekannt.</p>
+    <% end %>
+
+    <%= form_with url: electricity_prices_path, method: :post, scope: :electricity_price, class: "sw-form" do |f| %>
+      <% if @price_errors.present? %>
+        <div class="sw-form-errors"><%= @price_errors.join(", ") %></div>
+      <% end %>
+      <div class="sw-form-row">
+        <%= f.text_field :eur_per_kwh, placeholder: "€/kWh", inputmode: "decimal", class: "sw-time" %>
+        <%= f.date_field :valid_from, value: Date.current, class: "sw-time" %>
+        <%= f.submit "Hinzufügen", class: "sw-btn" %>
+      </div>
+    <% end %>
+  <% end %>
+
+  <p class="economics-actions"><%= link_to "Zurück zu PV", solakon_path, class: "sw-btn ghost" %></p>
+</div>

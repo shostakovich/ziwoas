@@ -14,6 +14,12 @@ Rails.application.routes.draw do
   patch "/solakon/eps", to: "solakon_controls#eps", as: :solakon_eps
   patch "/solakon/control", to: "solakon_controls#control", as: :solakon_control
 
+  # What the plant cost and what a kilowatt-hour costs: maintained under the PV
+  # tab, because that is where the Wirtschaftlichkeit card reads them.
+  get "/solakon/wirtschaftlichkeit", to: "economics#index", as: :economics
+  resources :cost_items, only: %i[create destroy], path: "/solakon/wirtschaftlichkeit/kosten"
+  resources :electricity_prices, only: %i[create destroy], path: "/solakon/wirtschaftlichkeit/preise"
+
   scope "/plugs/:plug_id" do
     post "switch", to: "plug_switches#create", as: :plug_switch
     # Two resources, two identities: a Zeitfenster is its group, an

@@ -21,8 +21,11 @@ module Dashboard
         new(id: "tile_consumed", label: "Verbraucht heute", value: kwh(summary.consumed.wh))
       end
 
+      # No price on record means the savings are unknown, not zero.
       def savings(summary)
-        new(id: "tile_savings", label: "Gespart heute", value: "#{de(summary.savings_eur)} €")
+        eur = summary.savings_eur
+        value = eur.nil? ? "—" : "#{de(eur)} €"
+        new(id: "tile_savings", label: "Gespart heute", value: value)
       end
 
       def net_today(summary)
@@ -35,7 +38,7 @@ module Dashboard
       end
 
       def self_consumption(summary)
-        new(id: "tile_self_consumption", label: "Eigenverbrauch", value: pct(summary.self_consumption_ratio))
+        new(id: "tile_self_consumption", label: "Eigenverbrauchsquote", value: pct(summary.self_consumption_ratio))
       end
 
       def summary_tiles(summary)

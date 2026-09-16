@@ -7,7 +7,6 @@ class TrmnlPushJobTest < ActiveJob::TestCase
     plug_fridge = ConfigLoader::PlugCfg.new(id: "fridge", name: "Fridge", role: :consumer, driver: :shelly, ain: nil)
     mqtt = ConfigLoader::MqttCfg.new(host: "localhost", port: 1883, topic_prefix: "shellies")
     ConfigLoader::Config.new(
-      electricity_price_eur_per_kwh: 0.32,
       location: Location.new(timezone: "Europe/Berlin"),
       mqtt: mqtt,
       fritz_poll: nil,

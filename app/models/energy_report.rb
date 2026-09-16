@@ -29,11 +29,11 @@ class EnergyReport
     "last_30" => 30
   }.freeze
 
-  def initialize(params:, plugs:, location:, electricity_price_eur_per_kwh: 0.32)
+  def initialize(params:, plugs:, location:, price_book: Economics::ElectricityPrice.book)
     @params = params.to_h.with_indifferent_access
     @roster = Plugs::Roster.wrap(plugs)
     @timezone = location.timezone
-    @savings_calculator = SavingsCalculator.new(price_eur_per_kwh: electricity_price_eur_per_kwh)
+    @savings_calculator = SavingsCalculator.new(price_book: price_book)
     @store = Store.new
     @chart_builder = ChartBuilder.new(
       plugs: @roster, timezone: @timezone, store: @store,
@@ -161,7 +161,7 @@ class EnergyReport
       produced_kwh:           produced.kwh.round(3),
       consumed_kwh:           consumed.kwh.round(3),
       self_consumed_kwh:      self_consumed.kwh.round(3),
-      savings_eur:            @savings_calculator.savings_eur(produced).round(2),
+      savings_eur:            savings_eur(covered_points),
       balance_kwh:            (produced - consumed).kwh.round(3),
       avg_produced_kwh:       average_kwh(produced, days),
       avg_consumed_kwh:       average_kwh(consumed, days),
@@ -175,13 +175,22 @@ class EnergyReport
       produced_kwh:           0.0,
       consumed_kwh:           0.0,
       self_consumed_kwh:      0.0,
-      savings_eur:            0.0,
+      savings_eur:            savings_eur([]),
       balance_kwh:            0.0,
       avg_produced_kwh:       0.0,
       avg_consumed_kwh:       0.0,
       autarky_ratio:          0.0,
       self_consumption_ratio: 0.0
     }
+  end
+
+  # Every day carries the price that was in force on it, so a range spanning a
+  # price change is not levelled to one of the two.
+  def savings_eur(covered_points)
+    total = @savings_calculator.total_eur(
+      covered_points.map { |point| [ Date.iso8601(point.date), point.self_consumed ] }
+    )
+    total&.round(2)
   end
 
   def average_kwh(total, days)

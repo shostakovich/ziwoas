@@ -22,7 +22,6 @@ class ConfigLoaderTest < Minitest::Test
 
   def valid_yaml
     <<~YAML
-      electricity_price_eur_per_kwh: 0.32
       location:
         timezone: Europe/Berlin
       mqtt:
@@ -62,7 +61,6 @@ class ConfigLoaderTest < Minitest::Test
 
   def test_loads_valid_config
     cfg = load_yaml(valid_yaml)
-    assert_in_delta 0.32, cfg.electricity_price_eur_per_kwh
     assert_equal "Europe/Berlin", cfg.location.timezone_name
     assert_equal 2, cfg.plugs.length
     assert_equal "bkw", cfg.plugs.first.id
@@ -543,9 +541,15 @@ class ConfigLoaderTest < Minitest::Test
     assert_raises(ConfigLoader::Error) { load_yaml(yaml) }
   end
 
+  def test_retired_electricity_price_key_is_refused_by_name
+    yaml = "electricity_price_eur_per_kwh: 0.3\n" + valid_yaml
+    error = assert_raises(ConfigLoader::Error) { load_yaml(yaml) }
+    assert_match(/electricity_price_eur_per_kwh/, error.message)
+    assert_match(/Wirtschaftlichkeit/, error.message)
+  end
+
   def test_govee_block_parses_intervals_device_map_and_api_key_from_yml
     yaml = <<~YML
-      electricity_price_eur_per_kwh: 0.3
       location: { timezone: Europe/Berlin }
       mqtt: { host: h, port: 1883, topic_prefix: shellies }
       plugs: []
@@ -568,7 +572,7 @@ class ConfigLoaderTest < Minitest::Test
   end
 
   def test_absent_govee_block_yields_nil_bridge_off
-    yaml = "electricity_price_eur_per_kwh: 0.3\nlocation: { timezone: Europe/Berlin }\nmqtt: { host: h, port: 1883, topic_prefix: shellies }\nplugs: []\n"
+    yaml = "location: { timezone: Europe/Berlin }\nmqtt: { host: h, port: 1883, topic_prefix: shellies }\nplugs: []\n"
     file = Tempfile.new([ "z", ".yml" ]); file.write(yaml); file.flush
     assert_nil ConfigLoader.load(file.path).govee
   ensure
