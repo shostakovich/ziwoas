@@ -26,6 +26,29 @@ class EconomicsControllerTest < ActionDispatch::IntegrationTest
     assert_match "Förderung", response.body
     assert_match "1.000,00 €", response.body
     assert_match "0,2902 €/kWh", response.body
+    assert_match "05.01.2026", response.body
+    assert_match "ab 01.01.2026", response.body
+  end
+
+  test "a fractional cost total keeps its cents, not just whole euros" do
+    Economics::CostItem.create!(label: "Wechselrichter", amount_eur: 699.90, spent_on: "2026-01-05")
+    Economics::CostItem.create!(label: "Montage", amount_eur: 200.00, spent_on: "2026-01-06")
+
+    get economics_path
+
+    assert_response :success
+    assert_match "899,90 €", response.body
+  end
+
+  test "the page prices self-consumption from the price book, not zero" do
+    Economics::ElectricityPrice.create!(valid_from: "2026-01-01", eur_per_kwh: 0.30)
+    DailyEnergySummary.create!(date: "2026-04-01", produced_wh: 5_000.0, consumed_wh: 2_000.0,
+                               self_consumed_wh: 1_000.0)
+
+    get economics_path
+
+    assert_response :success
+    assert_match "0,30 €", response.body
   end
 
   test "an empty page says what is missing" do
@@ -122,6 +145,26 @@ class EconomicsControllerTest < ActionDispatch::IntegrationTest
   test "an amount that is not a finite number is refused" do
     assert_no_difference -> { Economics::CostItem.count } do
       post cost_items_path, params: { cost_item: { label: "Module", amount_eur: "1e400",
+                                                   spent_on: "2026-03-01" } }
+    end
+
+    assert_response :unprocessable_entity
+    assert_match "Betrag als Zahl angeben", response.body
+  end
+
+  test "an unparseable date is refused as a date, not silently accepted" do
+    assert_no_difference -> { Economics::CostItem.count } do
+      post cost_items_path, params: { cost_item: { label: "Module", amount_eur: "100",
+                                                   spent_on: "not-a-date" } }
+    end
+
+    assert_response :unprocessable_entity
+    assert_match "Datum angeben", response.body
+  end
+
+  test "an explicitly empty amount is refused as an amount, not a crash" do
+    assert_no_difference -> { Economics::CostItem.count } do
+      post cost_items_path, params: { cost_item: { label: "Module", amount_eur: nil,
                                                    spent_on: "2026-03-01" } }
     end
 

@@ -32,6 +32,36 @@ class Economics::OverviewTest < ActiveSupport::TestCase
     overview = build
     assert_not overview.priced?
     assert_nil overview.saved_eur
+    assert_equal 0, overview.projection_days
+  end
+
+  test "without a price but with cost items, the covered share stays unknown" do
+    cost("Anlage", 600.00, "2026-01-01")
+    seed("2026-04-01", self_consumed: 1_000.0)
+
+    assert_nil build.covered_ratio
+  end
+
+  test "a reached payback names the day it happened" do
+    price("2026-01-01", 0.30)
+    cost("Anlage", 3.00, "2026-01-01")
+    seed("2026-01-01", self_consumed: 10_000.0)
+
+    overview = build(today: Date.new(2026, 1, 5))
+    assert_predicate overview, :priced?
+    assert_equal Date.new(2026, 1, 1), overview.reached_on
+  end
+
+  test "without an explicit today it defaults to the current date" do
+    travel_to Date.new(2026, 4, 10) do
+      price("2026-01-01", 0.30)
+      100.times { |i| seed((Date.new(2026, 1, 1) + i).to_s, self_consumed: 10_000.0) }
+      cost("Anlage", 600.00, "2026-01-01")
+
+      overview = Economics::Overview.new.build
+
+      assert_equal Date.new(2026, 4, 10) + 100, overview.projected_payback_date
+    end
   end
 
   test "data start is the first day on record" do

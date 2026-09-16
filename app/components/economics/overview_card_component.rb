@@ -46,9 +46,8 @@ module Economics
       return "Noch kein Strompreis erfasst." unless result.priced?
       return "Noch keine Kosten erfasst." unless result.costed?
       return "Hochrechnung aus #{result.projection_days} Tagen." if result.projected_payback_date
-      return "Basis sind erst #{result.projection_days} Tage." if short_of_data?
 
-      nil
+      "Basis sind erst #{result.projection_days} Tage." if short_of_data?
     end
 
     def date(value) = I18n.l(value, format: "%d.%m.%Y")

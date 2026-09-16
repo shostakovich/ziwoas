@@ -20,6 +20,29 @@ class Economics::OverviewCardComponentTest < ViewComponent::TestCase
     values = rendered.css(".tile-value").map { |node| node.text.squish }
     assert_equal [ "1.000,00 €", "200,00 €", "20,0 %", "09.11.2028" ], values
     assert_equal "20", rendered.css("[data-economics-covered-pct]").first["data-economics-covered-pct"]
+    assert_equal "Voraussichtliche Amortisation", rendered.css(".tile-label").last.text
+    assert_match "Hochrechnung aus 200 Tagen.", rendered.to_html
+  end
+
+  test "the covered share rounds from its own ratio, not a nearby one" do
+    rendered = render_inline(Economics::OverviewCardComponent.new(result: result(covered_ratio: 0.51)))
+
+    assert_equal "51", rendered.css("[data-economics-covered-pct]").first["data-economics-covered-pct"]
+  end
+
+  test "the covered share keeps one decimal, not the full float" do
+    rendered = render_inline(Economics::OverviewCardComponent.new(result: result(covered_ratio: 1.0 / 3)))
+
+    assert_equal "33,3 %", rendered.css(".tile-value")[2].text.squish
+  end
+
+  test "plenty of data without a projection still shows an em dash, not a data warning" do
+    rendered = render_inline(Economics::OverviewCardComponent.new(
+      result: result(projected_payback_date: nil, projection_days: 200)
+    ))
+
+    assert_equal "—", rendered.css(".tile-value").last.text.squish
+    assert_equal 1, rendered.css(".muted-text").size
   end
 
   test "a reached payback names the day instead of a projection" do
@@ -44,21 +67,25 @@ class Economics::OverviewCardComponentTest < ViewComponent::TestCase
   test "without cost items it asks for them instead of showing a payback" do
     rendered = render_inline(Economics::OverviewCardComponent.new(
       result: result(acquisition_cost_eur: 0.0, costed?: false, covered_ratio: nil,
-                     projected_payback_date: nil)
+                     projected_payback_date: nil, projection_days: 10)
     ))
 
     assert_match "Kosten erfassen", rendered.to_html
     assert_empty rendered.css("[data-economics-covered-pct]")
+    assert_equal "—", rendered.css(".tile-value")[2].text.squish
+    assert_equal "—", rendered.css(".tile-value").last.text.squish
+    assert_match "Noch keine Kosten erfasst.", rendered.to_html
   end
 
   test "without a price it says the savings are unknown" do
     rendered = render_inline(Economics::OverviewCardComponent.new(
       result: result(saved_eur: nil, covered_ratio: nil, priced?: false,
-                     projected_payback_date: nil)
+                     projected_payback_date: nil, projection_days: 10)
     ))
 
     assert_match "Strompreis", rendered.to_html
     assert_equal "—", rendered.css(".tile-value")[1].text.squish
+    assert_equal "—", rendered.css(".tile-value").last.text.squish
   end
 
   test "without any data it names no start date" do
