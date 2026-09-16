@@ -23,6 +23,11 @@ ViewComponent · dry-rb.
 Non-interactive shells don't load rbenv and fall back to Ruby 2.6 — prefix Ruby commands with
 `PATH="$HOME/.rbenv/shims:$PATH"`.
 
+Cloud sessions (Claude Code on the web) are set up by the SessionStart hook
+[`.claude/hooks/session-start.sh`](.claude/hooks/session-start.sh): rbenv shims on `PATH`, gems,
+`config/ziwoas.yml` seeded from the test config, prepared databases, Chromium for system tests.
+It is a no-op outside a remote container.
+
 Real data only exists on the home server (Docker). Local SQLite is not a copy of production:
 "empty locally" doesn't mean empty.
 
