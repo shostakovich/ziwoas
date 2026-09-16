@@ -68,8 +68,96 @@ class PaybackTest < ActiveSupport::TestCase
     payback = steady(cost: 0.0)
 
     refute_predicate payback, :costed?
+    refute_predicate payback, :reached?
     assert_nil payback.projected_date
     assert_nil payback.covered_ratio
+  end
+
+  test "reached is true once savings equal the cost, not only once they exceed it" do
+    payback = steady(days: 100, per_day: 10.0, cost: 1000.0)
+
+    assert_predicate payback, :reached?
+  end
+
+  test "without an explicit today, the current date anchors the projection" do
+    travel_to Date.new(2026, 9, 1) do
+      days = (0...100).map { |i| [ Date.new(2026, 9, 1) - 99 + i, 1.0 ] }
+      payback = Payback.new(acquisition_cost_eur: 200.0, daily_savings: days)
+
+      assert_equal Date.new(2026, 9, 1) + 100, payback.projected_date
+    end
+  end
+
+  test "daily savings need not arrive sorted by date" do
+    today = Date.new(2026, 9, 1)
+    scrambled = [
+      [ today,     5.0 ],
+      [ today - 2, 100.0 ],
+      [ today - 1, 5.0 ]
+    ]
+    payback = Payback.new(acquisition_cost_eur: 100.0, daily_savings: scrambled, today: today)
+
+    assert_equal today - 2, payback.data_start
+    # Reached on the earliest day chronologically, not the earliest in the array.
+    assert_equal today - 2, payback.reached_on
+  end
+
+  test "the projection window covers exactly the last 365 days, cutoff inclusive" do
+    today = Date.new(2026, 9, 1)
+    # 89 recent days plus one day exactly 364 days back (the 365th day of the
+    # window) reach the 90-day minimum only if that boundary day is included.
+    bulk = (1..89).map { |age| [ today - age, 1.0 ] }
+    boundary_in  = [ today - 364, 1.0 ]       # last day still inside the window
+    boundary_out = [ today - 365, 100_000.0 ] # one day older: must not count
+
+    payback = Payback.new(
+      acquisition_cost_eur: 200_000.0,
+      daily_savings: bulk + [ boundary_in, boundary_out ],
+      today: today
+    )
+
+    assert_equal today + 99_910, payback.projected_date
+  end
+
+  test "a spike above the running total that later falls back below cost is not reached" do
+    today = Date.new(2026, 9, 1)
+    payback = Payback.new(
+      acquisition_cost_eur: 100.0,
+      daily_savings: [ [ today - 1, 150.0 ], [ today, -100.0 ] ],
+      today: today
+    )
+
+    refute_predicate payback, :reached?
+    assert_nil payback.reached_on
+  end
+
+  test "the running total starts at zero, not off by a day's savings" do
+    today = Date.new(2026, 9, 1)
+    payback = Payback.new(
+      acquisition_cost_eur: 5.0,
+      daily_savings: [ [ today - 1, 4.0 ], [ today, 1.0 ] ],
+      today: today
+    )
+
+    assert_equal today, payback.reached_on
+  end
+
+  test "reached_on returns the day the running total passes the cost, even when it overshoots" do
+    today = Date.new(2026, 9, 1)
+    payback = Payback.new(acquisition_cost_eur: 7.0, daily_savings: [ [ today, 10.0 ] ], today: today)
+
+    assert_equal today, payback.reached_on
+  end
+
+  test "reached_on is nil, not the raw days, when floating-point summation never quite matches the cost" do
+    today = Date.new(2026, 9, 1)
+    amounts = Array.new(6, 0.1)
+    cost = amounts.sum
+    dated = Array.new(6) { |i| [ today - 5 + i, 0.1 ] }
+    payback = Payback.new(acquisition_cost_eur: cost, daily_savings: dated, today: today)
+
+    assert_predicate payback, :reached?
+    assert_nil payback.reached_on
   end
 
   test "without savings days there is no data start and no projection" do

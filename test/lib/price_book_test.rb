@@ -25,6 +25,15 @@ class PriceBookTest < ActiveSupport::TestCase
     assert_in_delta 0.30, book.on(Date.new(2026, 3, 1))
   end
 
+  test "unsorted entries still resolve to the price most recently in force, not merely any past one" do
+    # Inserted out of chronological order: the 2026-03-01 entry sits between the
+    # other two in the array, not at the end. Without sorting, #on's reverse scan
+    # meets 2026-01-01 before 2026-03-01 and would answer with the wrong price.
+    book = PriceBook.new([ entry("2026-03-01", 0.10), entry("2026-01-01", 0.20), entry("2026-06-01", 0.30) ])
+
+    assert_in_delta 0.10, book.on(Date.new(2026, 4, 1))
+  end
+
   test "an empty book knows no price" do
     book = PriceBook.new([])
 
