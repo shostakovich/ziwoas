@@ -5,6 +5,8 @@ require "govees/lan_client"
 require "govees/device"
 
 class GoveesReconcilerTest < ActiveSupport::TestCase
+  cover "Govees::Messages::DeviceState*"
+
   def device(zones: [ "rippleLightToggle" ])
     Govees::Device.new(key: "K", api_id: "14:AB", sku: "H60B0", name: "n", ip: "1.2.3.4",
       supports_color: true, supports_color_temp: true, zones: zones,
