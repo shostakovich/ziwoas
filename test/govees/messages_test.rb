@@ -79,7 +79,20 @@ class GoveesMessagesStateTest < ActiveSupport::TestCase
 end
 
 class GoveesMessagesDeviceStateTest < ActiveSupport::TestCase
+  cover "Govees::Messages::DeviceState*"
+
   M = Govees::Messages
+
+  test "DeviceState: an offline lamp is never on, whatever the cloud remembers" do
+    ds = M::DeviceState.from_capabilities({ "powerSwitch" => 1, "online" => false }, zone_keys: [])
+    assert_equal false, ds.on
+    assert_equal false, ds.reachable
+  end
+
+  test "DeviceState: an online lamp adopts powerSwitch as on" do
+    assert_equal true,  M::DeviceState.from_capabilities({ "powerSwitch" => 1, "online" => true }, zone_keys: []).on
+    assert_equal false, M::DeviceState.from_capabilities({ "powerSwitch" => 0, "online" => true }, zone_keys: []).on
+  end
 
   test "DeviceState maps a raw capability map to telemetry" do
     map = { "powerSwitch" => 1, "online" => true, "brightness" => 70,
@@ -99,6 +112,69 @@ class GoveesMessagesDeviceStateTest < ActiveSupport::TestCase
     assert_equal false, t[:on]
     assert_equal 3000, t[:color_temp_k]
     assert_not t.key?(:color)
+  end
+
+  test "DeviceState: reachable requires online to equal true or 1, not just be truthy" do
+    ds = M::DeviceState.from_capabilities({ "online" => 2, "powerSwitch" => 1 }, zone_keys: [])
+    assert_equal false, ds.reachable
+    assert_equal false, ds.on
+  end
+
+  test "DeviceState: a lenient numeric powerSwitch string still turns the lamp on" do
+    ds = M::DeviceState.from_capabilities({ "online" => true, "powerSwitch" => "1abc" }, zone_keys: [])
+    assert_equal true, ds.on
+  end
+
+  test "DeviceState: a powerSwitch value outside 0/1 never turns the lamp on" do
+    ds = M::DeviceState.from_capabilities({ "online" => true, "powerSwitch" => 2 }, zone_keys: [])
+    assert_equal false, ds.on
+  end
+
+  test "DeviceState: a missing powerSwitch key defaults to off" do
+    ds = M::DeviceState.from_capabilities({ "online" => true }, zone_keys: [])
+    assert_equal false, ds.on
+  end
+
+  test "DeviceState: a lenient numeric colorRgb string is still parsed" do
+    ds = M::DeviceState.from_capabilities({ "colorRgb" => "65280.9" }, zone_keys: [])
+    assert_equal({ r: 0, g: 255, b: 0 }, ds.to_telemetry[:color])
+  end
+
+  test "DeviceState: colorRgb bits beyond the 24-bit range are masked to a valid byte" do
+    rgb = (300 << 16) | (200 << 8) | 100
+    ds = M::DeviceState.from_capabilities({ "colorRgb" => rgb }, zone_keys: [])
+    assert_equal({ r: 44, g: 200, b: 100 }, ds.to_telemetry[:color])
+  end
+
+  test "DeviceState: full-intensity odd RGB bytes survive masking exactly" do
+    ds = M::DeviceState.from_capabilities({ "colorRgb" => 0xFFFFFF }, zone_keys: [])
+    assert_equal({ r: 255, g: 255, b: 255 }, ds.to_telemetry[:color])
+  end
+
+  test "DeviceState: an empty-string zone value is excluded, unlike other falsy-looking values" do
+    ds = M::DeviceState.from_capabilities({ "rippleLightToggle" => "", "sideLightToggle" => 1 },
+                                            zone_keys: [ "rippleLightToggle", "sideLightToggle" ])
+    assert_equal({ "sideLightToggle" => true }, ds.to_telemetry[:zone_states])
+  end
+
+  test "DeviceState: a zone value outside 0/1 reports off, not on" do
+    ds = M::DeviceState.from_capabilities({ "rippleLightToggle" => 2 }, zone_keys: [ "rippleLightToggle" ])
+    assert_equal({ "rippleLightToggle" => false }, ds.to_telemetry[:zone_states])
+  end
+
+  test "DeviceState: a numeric-string zone value is coerced like an integer" do
+    ds = M::DeviceState.from_capabilities({ "rippleLightToggle" => "1" }, zone_keys: [ "rippleLightToggle" ])
+    assert_equal({ "rippleLightToggle" => true }, ds.to_telemetry[:zone_states])
+  end
+
+  test "DeviceState: a lenient numeric-string zone value with trailing garbage still reports on" do
+    ds = M::DeviceState.from_capabilities({ "rippleLightToggle" => "1abc" }, zone_keys: [ "rippleLightToggle" ])
+    assert_equal({ "rippleLightToggle" => true }, ds.to_telemetry[:zone_states])
+  end
+
+  test "DeviceState: no zone_states attribute when no zone reports a usable value" do
+    ds = M::DeviceState.from_capabilities({}, zone_keys: [ "rippleLightToggle" ])
+    refute ds.attributes.key?(:zone_states)
   end
 end
 

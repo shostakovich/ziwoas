@@ -18,6 +18,10 @@ services:
     container_name: ziwoas_collector
     restart: unless-stopped
     command: ["./bin/ziwoas_collector"]
+    # The Govee LAN protocol answers via multicast on UDP 4002, which never
+    # crosses a Docker bridge network. Host networking is the only way the
+    # collector sees those replies (and the 8 s LAN reconcile they carry).
+    network_mode: host
     environment:
       TZ: Europe/Berlin
       SECRET_KEY_BASE: dummy_secret_for_local_docker

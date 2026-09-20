@@ -84,9 +84,13 @@ module Govees
       attribute? :color_temp_k, Types::Kelvin
       attribute? :zone_states,  Types::Hash.map(Types::ZoneName, Types::Bool)
 
+      # An unreachable lamp is dark as far as we can tell: the cloud's
+      # powerSwitch is only its last memory, not the current state, so it is
+      # never adopted as `on`.
       def self.from_capabilities(map, zone_keys:)
-        online = map.fetch("online", true)
-        attrs = { on: map["powerSwitch"].to_i == 1, reachable: (online == true || online == 1) }
+        online    = map.fetch("online", true)
+        reachable = (online == true || online == 1)
+        attrs = { on: reachable && map["powerSwitch"].to_i == 1, reachable: reachable }
         attrs[:brightness] = map["brightness"] if map.key?("brightness")
         if map["colorRgb"].to_i.positive?
           rgb = map["colorRgb"].to_i
