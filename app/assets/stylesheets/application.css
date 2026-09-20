@@ -1593,3 +1593,29 @@ body.page-light-detail { max-width: 760px; }
   .shading svg .dot { stroke-width: 3; }
   .shading .multiples { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
 }
+
+/* Wirtschaftlichkeit: four tiles, a progress bar and two maintenance lists.
+   The bar reuses the ranking bar's proportions so the PV page keeps one
+   vocabulary of horizontal measures. */
+.economics-tiles { grid-template-columns: repeat(4, 1fr); margin-bottom: 12px; }
+.economics-bar { height: 10px; border-radius: 999px; background: var(--border);
+                 overflow: hidden; margin-bottom: 10px; }
+.economics-bar span { display: block; height: 100%; background: var(--accent); }
+.economics-actions { margin: 10px 0 0; }
+.economics-list { list-style: none; margin: 0 0 10px; padding: 0; }
+.economics-row { display: grid; grid-template-columns: auto 1fr auto auto; gap: 10px;
+                 align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border);
+                 font-size: 14px; }
+.economics-row:last-child { border-bottom: none; }
+.economics-row-date { color: var(--muted); font-variant-numeric: tabular-nums; }
+.economics-row-label { display: flex; flex-direction: column; }
+.economics-row-value { font-weight: 600; font-variant-numeric: tabular-nums; }
+.economics-row form { margin: 0; }
+.economics-total { margin: 0 0 10px; font-size: 14px; }
+.economics-input-wide { flex: 1 1 180px; }
+
+@media (max-width: 640px) {
+  .economics-tiles { grid-template-columns: repeat(2, 1fr); }
+  .economics-row { grid-template-columns: 1fr auto; row-gap: 4px; }
+  .economics-row-date { grid-column: 1 / -1; }
+}

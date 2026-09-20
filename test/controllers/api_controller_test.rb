@@ -5,6 +5,8 @@ class ApiControllerTest < ActionDispatch::IntegrationTest
     Plugs::Sample.delete_all
     Plugs::DailyTotal.delete_all
     Solakon::Reading.delete_all
+    Economics::ElectricityPrice.delete_all
+    Economics::ElectricityPrice.create!(valid_from: "2020-01-01", eur_per_kwh: 0.2902)
   end
 
   # --- /api/today ---
@@ -52,7 +54,7 @@ class ApiControllerTest < ActionDispatch::IntegrationTest
 
   # --- /api/today/summary ---
 
-  test "GET /api/today/summary calculates energy and savings" do
+  test "GET /api/today/summary saves nothing from energy no consumer took at the time" do
     tz       = TZInfo::Timezone.get("Europe/Berlin")
     midnight = tz.local_to_utc(Time.parse("#{Date.today} 00:00:00")).to_i
 
@@ -67,7 +69,7 @@ class ApiControllerTest < ActionDispatch::IntegrationTest
     data = response.parsed_body
     assert_in_delta 1000.0, data["produced_wh_today"]
     assert_in_delta 100.0,  data["consumed_wh_today"]
-    assert_in_delta 1000.0 * 0.2902 / 1000.0, data["savings_eur_today"], 0.001
+    assert_in_delta 0.0,    data["savings_eur_today"], 0.001
   end
 
   test "GET /api/today/summary includes self-consumption fields" do
@@ -89,6 +91,16 @@ class ApiControllerTest < ActionDispatch::IntegrationTest
     assert_in_delta 100.0, data["self_consumed_wh_today"], 2.0
     assert_in_delta 1.0,   data["autarky_ratio"],          0.05
     assert_in_delta 0.5,   data["self_consumption_ratio"], 0.05
+    assert_in_delta 100.0 * 0.2902 / 1000.0, data["savings_eur_today"], 0.001
+  end
+
+  test "GET /api/today/summary reports no savings while no price is on record" do
+    Economics::ElectricityPrice.delete_all
+
+    get "/api/today/summary", as: :json
+    assert_response :ok
+
+    assert_nil response.parsed_body["savings_eur_today"]
   end
 
   # --- /api/history ---

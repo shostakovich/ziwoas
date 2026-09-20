@@ -32,6 +32,12 @@ class Dashboard::TileComponentTest < ViewComponent::TestCase
     assert_equal "1.234,50 kWh", rendered.css(".tile-value").text
   end
 
+  test "savings without a price on record show an em dash, not a free kilowatt-hour" do
+    rendered = render_inline(Dashboard::TileComponent.savings(summary(savings_eur: nil)))
+
+    assert_equal "—", rendered.css(".tile-value").text
+  end
+
   test "consumed and savings round to two decimals" do
     consumed = render_inline(Dashboard::TileComponent.consumed(summary(consumed_wh: 1234.5)))
     assert_equal "Verbraucht heute", consumed.css(".tile-label").text
@@ -66,7 +72,7 @@ class Dashboard::TileComponentTest < ViewComponent::TestCase
     assert_equal "37,5 %", autarky.css(".tile-value").text
 
     self_consumption = render_inline(Dashboard::TileComponent.self_consumption(s))
-    assert_equal "Eigenverbrauch", self_consumption.css(".tile-label").text
+    assert_equal "Eigenverbrauchsquote", self_consumption.css(".tile-label").text
     assert_equal "50,0 %", self_consumption.css(".tile-value").text
   end
 

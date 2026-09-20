@@ -6,6 +6,7 @@ class ConfigLoaderTest < Minitest::Test
   cover "ConfigLoader#build_location"
   cover "ConfigLoader#coordinates"
   cover "ConfigLoader#reject_retired_keys!"
+  cover "ConfigLoader#warn_obsolete_keys!"
 
   def teardown
     ConfigLoader.reset_app_config!
@@ -22,7 +23,6 @@ class ConfigLoaderTest < Minitest::Test
 
   def valid_yaml
     <<~YAML
-      electricity_price_eur_per_kwh: 0.32
       location:
         timezone: Europe/Berlin
       mqtt:
@@ -62,7 +62,6 @@ class ConfigLoaderTest < Minitest::Test
 
   def test_loads_valid_config
     cfg = load_yaml(valid_yaml)
-    assert_in_delta 0.32, cfg.electricity_price_eur_per_kwh
     assert_equal "Europe/Berlin", cfg.location.timezone_name
     assert_equal 2, cfg.plugs.length
     assert_equal "bkw", cfg.plugs.first.id
@@ -543,9 +542,27 @@ class ConfigLoaderTest < Minitest::Test
     assert_raises(ConfigLoader::Error) { load_yaml(yaml) }
   end
 
+  # The key is obsolete, not moved within the file: a config that still carries
+  # it has to keep booting, or migrating would take the app down until someone
+  # edits the file by hand.
+  def test_obsolete_electricity_price_key_is_ignored_with_a_warning
+    yaml = "electricity_price_eur_per_kwh: 0.3\n" + valid_yaml
+    log = StringIO.new
+    previous = Rails.logger
+    Rails.logger = ActiveSupport::Logger.new(log)
+
+    cfg = load_yaml(yaml)
+
+    assert_equal "Europe/Berlin", cfg.location.timezone_name
+    refute_respond_to cfg, :electricity_price_eur_per_kwh
+    assert_match(/electricity_price_eur_per_kwh/, log.string)
+    assert_match(/Wirtschaftlichkeit/, log.string)
+  ensure
+    Rails.logger = previous
+  end
+
   def test_govee_block_parses_intervals_device_map_and_api_key_from_yml
     yaml = <<~YML
-      electricity_price_eur_per_kwh: 0.3
       location: { timezone: Europe/Berlin }
       mqtt: { host: h, port: 1883, topic_prefix: shellies }
       plugs: []
@@ -568,7 +585,7 @@ class ConfigLoaderTest < Minitest::Test
   end
 
   def test_absent_govee_block_yields_nil_bridge_off
-    yaml = "electricity_price_eur_per_kwh: 0.3\nlocation: { timezone: Europe/Berlin }\nmqtt: { host: h, port: 1883, topic_prefix: shellies }\nplugs: []\n"
+    yaml = "location: { timezone: Europe/Berlin }\nmqtt: { host: h, port: 1883, topic_prefix: shellies }\nplugs: []\n"
     file = Tempfile.new([ "z", ".yml" ]); file.write(yaml); file.flush
     assert_nil ConfigLoader.load(file.path).govee
   ensure

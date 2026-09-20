@@ -138,6 +138,8 @@
     </div>
   <% end %>
 
+  <%= render Economics::OverviewCardComponent.new(result: @economics) %>
+
   <h2 class="section-label">Sonnenkalender <%= @sun_calendar.year %></h2>
   <%= render Solakon::SunCalendarComponent.new(calendar: @sun_calendar) %>
 

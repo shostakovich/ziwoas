@@ -31,7 +31,7 @@ class ReportsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select ".tiles .tile", 8
     labels = css_select(".tiles .tile .tile-label").map { |node| node.text.squish }
-    assert_equal [ "Ertrag", "Verbrauch", "Gespart", "Bilanz", "Autarkie", "Eigenverbrauch", "Ø Ertrag/Tag", "Ø Verbrauch/Tag" ], labels
+    assert_equal [ "Ertrag", "Verbrauch", "Gespart", "Bilanz", "Autarkie", "Eigenverbrauchsquote", "Ø Ertrag/Tag", "Ø Verbrauch/Tag" ], labels
     assert_select ".section-label", text: "Zeitraum", count: 0
     assert_select ".section-label", text: "Zusammenfassung", count: 0
     assert_select ".section-label", text: "Steckdosen"

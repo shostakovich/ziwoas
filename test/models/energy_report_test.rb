@@ -9,6 +9,8 @@ class EnergyReportTest < ActiveSupport::TestCase
     Plugs::DailyTotal.delete_all
     Plugs::Sample5min.delete_all
     DailyEnergySummary.delete_all
+    Economics::ElectricityPrice.delete_all
+    Economics::ElectricityPrice.create!(valid_from: "2020-01-01", eur_per_kwh: 0.32)
 
     @plugs = [
       ConfigLoader::PlugCfg.new(id: "pv", name: "Balkonkraftwerk", role: :producer, driver: :shelly, ain: nil),
@@ -35,7 +37,7 @@ class EnergyReportTest < ActiveSupport::TestCase
     assert_equal 7, report.daily_points.length
     assert_in_delta 9.8, report.summary.fetch(:produced_kwh)
     assert_in_delta 3.22, report.summary.fetch(:consumed_kwh)
-    assert_in_delta 3.14, report.summary.fetch(:savings_eur)
+    assert_in_delta 0.0,  report.summary.fetch(:savings_eur)
     assert_in_delta 6.58, report.summary.fetch(:balance_kwh)
     assert_in_delta 1.4, report.summary.fetch(:avg_produced_kwh)
     assert_in_delta 0.46, report.summary.fetch(:avg_consumed_kwh)
@@ -314,7 +316,10 @@ class EnergyReportTest < ActiveSupport::TestCase
   test "totals are summed in watt-hours, not from rounded kilowatt-hours" do
     # Each day rounds down to 0.100 kWh on its own; summing the rounded days would
     # lose 3.5 Wh and drop the savings a whole cent.
-    7.times { |i| seed_daily((Date.new(2026, 4, 1) + i).to_s, pv: 100.4999, desk: 0.0, washer: 0.0) }
+    7.times do |i|
+      seed_daily((Date.new(2026, 4, 1) + i).to_s, pv: 100.4999, desk: 0.0, washer: 0.0,
+                 self_consumed: 100.4999)
+    end
 
     report = EnergyReport.new(params: {}, plugs: @plugs, location: LOCATION).build
 
@@ -322,9 +327,37 @@ class EnergyReportTest < ActiveSupport::TestCase
     assert_in_delta 0.23,  report.summary.fetch(:savings_eur),  1e-9
   end
 
+  test "savings come from self-consumption, not from what was produced" do
+    seed_daily("2026-04-01", pv: 10_000, desk: 500, washer: 500, self_consumed: 1_000)
+
+    report = EnergyReport.new(params: {}, plugs: @plugs, location: LOCATION).build
+
+    assert_in_delta 10.0, report.summary.fetch(:produced_kwh)
+    assert_in_delta 0.32, report.summary.fetch(:savings_eur)
+  end
+
+  test "each day of the range carries the price that was in force on it" do
+    Economics::ElectricityPrice.create!(valid_from: "2026-04-02", eur_per_kwh: 0.20)
+    seed_daily("2026-04-01", pv: 5_000, desk: 0, washer: 0, self_consumed: 1_000)
+    seed_daily("2026-04-02", pv: 5_000, desk: 0, washer: 0, self_consumed: 1_000)
+
+    report = EnergyReport.new(params: {}, plugs: @plugs, location: LOCATION).build
+
+    assert_in_delta 0.52, report.summary.fetch(:savings_eur)
+  end
+
+  test "without a price on record the savings are unknown rather than zero" do
+    Economics::ElectricityPrice.delete_all
+    seed_daily("2026-04-01", pv: 5_000, desk: 0, washer: 0, self_consumed: 1_000)
+
+    report = EnergyReport.new(params: {}, plugs: @plugs, location: LOCATION).build
+
+    assert_nil report.summary.fetch(:savings_eur)
+  end
+
   private
 
-  def seed_daily(date, pv:, desk:, washer:)
+  def seed_daily(date, pv:, desk:, washer:, self_consumed: 0.0)
     Plugs::DailyTotal.create!(plug_id: "pv",     date: date, energy_wh: pv)
     Plugs::DailyTotal.create!(plug_id: "desk",   date: date, energy_wh: desk)
     Plugs::DailyTotal.create!(plug_id: "washer", date: date, energy_wh: washer)
@@ -332,7 +365,7 @@ class EnergyReportTest < ActiveSupport::TestCase
       date:             date,
       produced_wh:      pv,
       consumed_wh:      desk + washer,
-      self_consumed_wh: 0.0
+      self_consumed_wh: self_consumed
     )
   end
 end

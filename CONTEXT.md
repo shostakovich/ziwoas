@@ -249,3 +249,60 @@ in the yield ratio on purpose: it is a state of the house, and one that is meant
 once surplus is fed to the grid.
 _German UI_: Drosselung
 _Avoid_: Abregelung, Abschattung, Curtailment (in German UI text)
+
+### Economics
+
+**Self-consumption**:
+The part of the producer plug's **energy** that the measured consumers took at the same moment:
+per bucket the smaller of production and consumption, summed over the day. A lower bound — what
+unmeasured loads take from the array is real but not provable, and does not count. Battery
+discharge counts, because it leaves the inverter as AC just like PV does. `PowerSeries#self_consumed_wh`.
+_German UI_: Eigenverbrauch
+_Avoid_: Selbstverbrauch, Direktverbrauch, Gesicherter Eigenverbrauch (gesichert belongs to the
+control's **guaranteed floor**), Eigenverbrauch for the quota (that is **Eigenverbrauchsquote**)
+
+**Self-consumption quota**:
+**Self-consumption** divided by the producer plug's **energy** over the same period. A ratio, never
+an amount.
+_German UI_: Eigenverbrauchsquote
+_Avoid_: Eigenverbrauch alone, Self-use rate
+
+**Electricity price**:
+What one kilowatt-hour from the grid costs the household, from a date on: a price applies from its
+date until the next one begins, and the first price also covers every earlier day. There is no
+feed-in price — nothing is paid for exported energy.
+_German UI_: Strompreis
+_Avoid_: Tarif, Arbeitspreis, Einspeisevergütung
+
+**Savings**:
+**Self-consumption** priced at the **electricity price** valid on that day. Exported energy earns
+nothing and cannot be measured here, so it is worth nothing (ADR-0003). Never derived from the
+energy produced.
+_German UI_: Ersparnis, "Gespart heute"
+_Avoid_: Ertrag in €, Einnahmen, Vergütung, Gewinn, Rendite
+
+**Cost item**:
+One amount spent on the plant on one date: modules, inverter, battery, mounting, a repair, an
+insurance year, a subsidy as a negative amount. Nothing repeats by itself — a recurring cost is
+entered once per occurrence.
+_German UI_: Kostenposten
+_Avoid_: Investition, Anschaffung alone, Rechnung, Kosten (that is the sum)
+
+**Acquisition cost**:
+The sum of all **cost items**, whatever their date.
+_German UI_: Anschaffungskosten
+_Avoid_: Anlagenkosten, Gesamtkosten, Investitionssumme
+
+**Data start**:
+The first day for which a daily summary exists. **Savings** are summed from here, never
+estimated for the time before — the plant may be older than its records.
+_German UI_: Datenbeginn
+_Avoid_: Inbetriebnahme, Installationsdatum, Start
+
+**Payback**:
+The day on which the **savings** since **data start** reach the **acquisition cost**. Until then
+a projection: the remaining amount at the average daily savings of the last 365 days, or of all
+days when there are fewer — and no date at all below 90 days of data.
+_German UI_: Amortisation, "voraussichtliche Amortisation"
+_Avoid_: ROI (in German UI text), Break-even, Rendite, Amortisationszeit (that is a duration, the
+UI shows a date)

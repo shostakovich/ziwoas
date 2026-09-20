@@ -1,5 +1,4 @@
 # Copy to config/ziwoas.yml and edit to your setup.
-electricity_price_eur_per_kwh: 0.32
 # Where the house stands. The timezone is required; lat and lon are optional,
 # but only as a pair — without them there is no sun position and no weather.
 location:

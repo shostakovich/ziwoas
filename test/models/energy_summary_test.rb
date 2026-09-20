@@ -10,8 +10,10 @@ class EnergySummaryTest < ActiveSupport::TestCase
     plug_bkw    = ConfigLoader::PlugCfg.new(id: "bkw",    name: "BKW",   role: :producer, driver: :shelly, ain: nil)
     plug_fridge = ConfigLoader::PlugCfg.new(id: "fridge", name: "Fridge", role: :consumer, driver: :shelly, ain: nil)
     mqtt = ConfigLoader::MqttCfg.new(host: "localhost", port: 1883, topic_prefix: "shellies")
+    Economics::ElectricityPrice.delete_all
+    Economics::ElectricityPrice.create!(valid_from: "2020-01-01", eur_per_kwh: 0.32)
+
     @config = ConfigLoader::Config.new(
-      electricity_price_eur_per_kwh: 0.32,
       location: Location.new(timezone: "Europe/Berlin"),
       mqtt: mqtt,
       fritz_poll: nil,
@@ -20,7 +22,7 @@ class EnergySummaryTest < ActiveSupport::TestCase
     )
   end
 
-  test "compute_today returns produced, consumed, savings and date" do
+  test "compute_today saves nothing from energy no consumer took at the time" do
     tz       = TZInfo::Timezone.get("Europe/Berlin")
     midnight = tz.local_to_utc(Time.parse("#{Date.today} 00:00:00")).to_i
 
@@ -33,7 +35,9 @@ class EnergySummaryTest < ActiveSupport::TestCase
 
     assert_in_delta 1000.0, summary.produced.wh
     assert_in_delta 100.0,  summary.consumed.wh
-    assert_in_delta 0.32,   summary.savings_eur
+    # Counters without simultaneous power: nothing was demonstrably self-consumed,
+    # so the produced kilowatt-hour replaced no bought one.
+    assert_in_delta 0.0,    summary.savings_eur
     assert_equal Date.today.to_s, summary.date
   end
 
@@ -89,6 +93,14 @@ class EnergySummaryTest < ActiveSupport::TestCase
     assert_in_delta 100.0, summary.self_consumed.wh, 2.0
     assert_in_delta 1.0,   summary.autarky_ratio,           0.05
     assert_in_delta 0.5,   summary.self_consumption_ratio,  0.05
+    # 100 Wh self-consumed at 0.32 €/kWh.
+    assert_in_delta 0.032, summary.savings_eur, 0.001
+  end
+
+  test "compute_today reports no savings at all while no price is on record" do
+    Economics::ElectricityPrice.delete_all
+
+    assert_nil EnergySummary.new(config: @config).compute_today.savings_eur
   end
 
   test "compute_today ratios are zero when denominator is zero" do
