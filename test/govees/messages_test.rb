@@ -81,6 +81,17 @@ end
 class GoveesMessagesDeviceStateTest < ActiveSupport::TestCase
   M = Govees::Messages
 
+  test "DeviceState: an offline lamp is never on, whatever the cloud remembers" do
+    ds = M::DeviceState.from_capabilities({ "powerSwitch" => 1, "online" => false }, zone_keys: [])
+    assert_equal false, ds.on
+    assert_equal false, ds.reachable
+  end
+
+  test "DeviceState: an online lamp adopts powerSwitch as on" do
+    assert_equal true,  M::DeviceState.from_capabilities({ "powerSwitch" => 1, "online" => true }, zone_keys: []).on
+    assert_equal false, M::DeviceState.from_capabilities({ "powerSwitch" => 0, "online" => true }, zone_keys: []).on
+  end
+
   test "DeviceState maps a raw capability map to telemetry" do
     map = { "powerSwitch" => 1, "online" => true, "brightness" => 70,
             "colorRgb" => (10 << 16) | (20 << 8) | 30, "rippleLightToggle" => 1 }
