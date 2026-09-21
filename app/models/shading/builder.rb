@@ -41,15 +41,18 @@ module Shading
       end
     end
 
+    # Irradiance keyed by the start of the hour it was summed over. The station
+    # stamps a record with the end of its hour, so the hour that starts with
+    # the last PV hour is stamped one hour later than that.
     def irradiance_by_time(from, to)
       return {} if from.nil?
 
       WeatherRecord.historic
                    .for_location(@location)
-                   .where(timestamp: from..to)
+                   .where(timestamp: (from + 1.hour)..(to + 1.hour))
                    .each_with_object({}) do |record, out|
         value = record.solar_w_per_m2
-        out[record.timestamp.to_i] = value unless value.nil?
+        out[record.period_started_at.to_i] = value unless value.nil?
       end
     end
 

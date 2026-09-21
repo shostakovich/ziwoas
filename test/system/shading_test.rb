@@ -55,8 +55,9 @@ class ShadingTest < ApplicationSystemTestCase
           pv1_power_w: (power * 0.3).round(1), pv2_power_w: (power * 0.3).round(1),
           pv3_power_w: (power * 0.25).round(1), pv4_power_w: (power * 0.15).round(1)
         }
+        # Bright Sky stamps the end of the hour it sums up.
         records << {
-          kind: "historic", daytime: "day", lat: LAT, lon: LON, timestamp: at,
+          kind: "historic", daytime: "day", lat: LAT, lon: LON, timestamp: at + 1.hour,
           solar: (irradiance / 1000.0).round(4), cloud_cover: 20, icon: "partly-cloudy-day",
           created_at: Time.current, updated_at: Time.current
         }

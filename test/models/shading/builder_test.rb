@@ -20,10 +20,11 @@ class Shading::BuilderTest < ActiveSupport::TestCase
     )
   end
 
-  def weather(local_hour, solar:, date: JULY, lat: LAT, lon: LON)
+  # `local_hour` is the hour the record sums up; Bright Sky stamps its end.
+  def weather(local_hour, solar:, date: JULY, lat: LAT, lon: LON, kind: "historic")
     WeatherRecord.create!(
-      kind: "historic", daytime: "day", lat: lat, lon: lon,
-      timestamp: Time.zone.local(date.year, date.month, date.day, local_hour), solar: solar
+      kind: kind, daytime: "day", lat: lat, lon: lon,
+      timestamp: Time.zone.local(date.year, date.month, date.day, local_hour) + 1.hour, solar: solar
     )
   end
 
@@ -44,13 +45,31 @@ class Shading::BuilderTest < ActiveSupport::TestCase
     assert_equal [ [ 12, 640.0 ] ], profile.curve(:measured).points
   end
 
-  test "joins the station's irradiance of the same hour onto the PV hour" do
+  test "joins the irradiance summed over the PV hour onto it" do
     pv_hour(12, 400.0)
     weather(12, solar: 0.5)
 
     profile = build.profiles.sole
 
     assert_equal [ [ 12, 400.0 ] ], profile.curve(:expected).points
+  end
+
+  # A record stamped 12:00 sums up 11:00 to 12:00 — the hour before the PV
+  # hour starting at 12:00, not that hour itself.
+  test "does not read a record stamped like the PV hour as that hour's irradiance" do
+    pv_hour(12, 400.0)
+    weather(11, solar: 0.5)
+
+    assert_empty build.profiles.sole.curve(:expected).points
+  end
+
+  test "reads the irradiance of the hour that starts with the last PV hour" do
+    pv_hour(12, 400.0)
+    pv_hour(13, 400.0)
+    weather(12, solar: 0.5)
+    weather(13, solar: 0.5)
+
+    assert_equal [ [ 12, 400.0 ], [ 13, 400.0 ] ], build.profiles.sole.curve(:expected).points
   end
 
   test "ignores the irradiance measured somewhere else" do
@@ -113,10 +132,7 @@ class Shading::BuilderTest < ActiveSupport::TestCase
   test "reads the station's history, not its forecast of the same hour" do
     2.times { |index| pv_hour(12, 400.0, date: JULY + index) }
     2.times { |index| weather(12, solar: 0.5, date: JULY + index) }
-    WeatherRecord.create!(
-      kind: "forecast", daytime: "day", lat: LAT, lon: LON,
-      timestamp: Time.zone.local(2026, 7, 2, 12), solar: 2.0
-    )
+    weather(12, solar: 2.0, date: JULY + 1, kind: "forecast")
 
     assert_equal [ [ 12, 400.0 ] ], build.profiles.sole.curve(:expected).points
   end
@@ -201,6 +217,31 @@ class Shading::BuilderTest < ActiveSupport::TestCase
     result = builder.send(:irradiance_by_time, Time.zone.local(2026, 7, 1, 12), Time.zone.local(2026, 7, 1, 13))
 
     assert_equal [ Time.zone.local(2026, 7, 1, 13).to_i ], result.keys
+  end
+
+  # `from` itself, and everything up to `from + 1.hour`, sums up the hour before the
+  # range and must stay out — this is the same boundary as "does not read a record
+  # stamped like the PV hour", pinned directly on irradiance_by_time.
+  test "irradiance_by_time excludes a record stamped less than an hour after from" do
+    WeatherRecord.create!(
+      kind: "historic", daytime: "day", lat: LAT, lon: LON,
+      timestamp: Time.zone.local(2026, 7, 1, 11) + 30.minutes, solar: 0.5
+    )
+
+    result = builder.send(:irradiance_by_time, Time.zone.local(2026, 7, 1, 11), Time.zone.local(2026, 7, 1, 13))
+
+    assert_empty result
+  end
+
+  test "irradiance_by_time excludes a record stamped more than an hour after to" do
+    WeatherRecord.create!(
+      kind: "historic", daytime: "day", lat: LAT, lon: LON,
+      timestamp: Time.zone.local(2026, 7, 1, 13) + 2.hours, solar: 0.5
+    )
+
+    result = builder.send(:irradiance_by_time, Time.zone.local(2026, 7, 1, 11), Time.zone.local(2026, 7, 1, 13))
+
+    assert_empty result
   end
 
   test "hours lists PV hours chronologically regardless of insertion order" do

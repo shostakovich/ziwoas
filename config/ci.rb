@@ -3,7 +3,10 @@
 CI.run do
   step "Setup", "bin/setup --skip-server > /dev/null"
 
-  step "Style: Ruby", "bin/rubocop --format quiet"
+  # The explicit "." keeps AllCops.Exclude in force inside a checkout under a
+  # dot directory (a worktree in .claude/worktrees/): without a path, RuboCop
+  # treats such a base directory as hidden and inspects everything under it.
+  step "Style: Ruby", "bin/rubocop --format quiet ."
 
   step "Security: Gem audit", "bin/bundler-audit"
   step "Security: Importmap vulnerability audit", "bin/importmap audit"
