@@ -2,7 +2,7 @@
 # SessionStart hook for Claude Code on the web.
 #
 # Brings a remote container to the point where bin/rubocop, bin/rails test and
-# bin/ci run unattended: Ruby 4.0.5 on PATH, gems installed, a device config in
+# bin/ci run unattended: Ruby 4.0.7 on PATH, gems installed, a device config in
 # place and the SQLite databases prepared.
 set -euo pipefail
 

@@ -487,6 +487,7 @@ PLATFORMS
   arm-linux-gnu
   arm-linux-musl
   arm64-darwin-25
+  arm64-darwin-27
   x86_64-linux
   x86_64-linux-gnu
   x86_64-linux-musl
@@ -531,7 +532,7 @@ DEPENDENCIES
   webmock
 
 RUBY VERSION
-  ruby 4.0.5
+  ruby 4.0.7
 
 BUNDLED WITH
   4.0.4
