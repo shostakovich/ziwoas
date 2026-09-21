@@ -6,7 +6,7 @@ decisions in [`docs/adr/`](docs/adr/).
 
 ## Setup
 
-Rails 8.1 · Ruby 4.0.5 · SQLite · Solid Queue/Cache/Cable · Propshaft + Importmap + Turbo ·
+Rails 8.1 · Ruby 4.0.7 · SQLite · Solid Queue/Cache/Cable · Propshaft + Importmap + Turbo ·
 ViewComponent · dry-rb.
 
 | Path | What |
