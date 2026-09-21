@@ -118,24 +118,7 @@
   </section>
 
   <%= render CardComponent.new(title: "Solakon-Verlauf") do %>
-    <div class="preset-actions" role="group" aria-label="Zeitraum">
-      <button type="button" class="preset-link active" data-solakon-range-param="24h" data-action="solakon#selectRange">Letzte 24 h</button>
-      <button type="button" class="preset-link" data-solakon-range-param="7d" data-action="solakon#selectRange">Letzte 7 Tage</button>
-      <button type="button" class="preset-link" data-solakon-range-param="30d" data-action="solakon#selectRange">Letzte 30 Tage</button>
-    </div>
-    <div class="chart-frame">
-      <canvas data-solakon-target="historyCanvas"></canvas>
-    </div>
-    <p class="muted-text">Akku: + lädt, − entlädt. Außensteckdose: + liefert ins Hausnetz, − zieht Leistung.</p>
-    <div class="solakon-balance" data-solakon-target="balanceRows">
-      <% @history_payload.fetch(:balance_rows).each do |row| %>
-        <div class="solakon-balance-row <%= row.fetch(:role) %>">
-          <span class="solakon-balance-label"><%= row.fetch(:label) %></span>
-          <span class="report-ranking-bar" aria-hidden="true"><span style="width: <%= row.fetch(:share) %>%"></span></span>
-          <span class="report-ranking-value"><%= row.fetch(:value) %></span>
-        </div>
-      <% end %>
-    </div>
+    <%= render "history", history: @history %>
   <% end %>
 
   <%= render Economics::OverviewCardComponent.new(result: @economics) %>
@@ -144,6 +127,4 @@
   <%= render Solakon::SunCalendarComponent.new(calendar: @sun_calendar) %>
 
   <%= render Solakon::ShadingComponent.new(report: @shading) %>
-
-  <script type="application/json" data-solakon-target="historyPayload"><%= raw json_escape(@history_payload.to_json) %></script>
 </div>

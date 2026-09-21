@@ -1,0 +1,28 @@
+<%# Range switches navigate the frame; the chart controller inside is rebuilt on every swap. %>
+<%= turbo_frame_tag "solakon_history" do %>
+  <div data-controller="solakon-history" data-solakon-history-url-value="<%= solakon_history_path(range: history.fetch(:range)) %>">
+    <div class="preset-actions" role="group" aria-label="Zeitraum">
+      <% Solakon::History::RANGE_LABELS.each do |key, label| %>
+        <% active = key == history.fetch(:range) %>
+        <%= link_to label, solakon_history_path(range: key), class: [ "preset-link", ("active" if active) ], aria: { current: (active || nil) } %>
+      <% end %>
+    </div>
+    <div class="chart-frame">
+      <canvas data-solakon-history-target="canvas"></canvas>
+    </div>
+    <% if history.fetch(:message) %>
+      <p class="muted-text"><%= history.fetch(:message) %></p>
+    <% end %>
+    <p class="muted-text">Akku: + lädt, − entlädt. Außensteckdose: + liefert ins Hausnetz, − zieht Leistung.</p>
+    <div class="solakon-balance">
+      <% history.fetch(:balance_rows).each do |row| %>
+        <div class="solakon-balance-row <%= row.fetch(:role) %>">
+          <span class="solakon-balance-label"><%= row.fetch(:label) %></span>
+          <span class="report-ranking-bar" aria-hidden="true"><span style="width: <%= row.fetch(:share) %>%"></span></span>
+          <span class="report-ranking-value"><%= row.fetch(:value) %></span>
+        </div>
+      <% end %>
+    </div>
+    <script type="application/json" data-solakon-history-target="payload"><%= raw json_escape(history.fetch(:chart).to_json) %></script>
+  </div>
+<% end %>

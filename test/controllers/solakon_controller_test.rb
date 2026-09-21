@@ -41,9 +41,10 @@ class SolakonControllerTest < ActionDispatch::IntegrationTest
     assert_match(/Außensteckdose/, response.body)
     assert_match(/Auto-Regelung/, response.body)
     assert_match(/Batteriegesundheit/, response.body)
-    assert_select "canvas[data-solakon-target='historyCanvas']", 1
-    assert_select "script[data-solakon-target='historyPayload']", 1
-    assert_select "[data-solakon-target='balanceRows']", 1
+    assert_select "turbo-frame#solakon_history canvas[data-solakon-history-target='canvas']", 1
+    assert_select "turbo-frame#solakon_history script[data-solakon-history-target='payload']", 1
+    assert_select "turbo-frame#solakon_history .solakon-balance", 1
+    assert_select "turbo-frame#solakon_history a.preset-link.active", text: "Letzte 24 h", count: 1
     assert_select "input[data-solakon-target='epsToggle'][data-action='change->solakon#toggleEps']", 1
     assert_select "input[data-solakon-target='controlToggle'][data-action='change->solakon#toggleControl']", 1
   end
@@ -93,15 +94,30 @@ class SolakonControllerTest < ActionDispatch::IntegrationTest
     assert_select "image[data-ef='efBatteryImage'][data-battery-state-fault*='solakon_battery_fault']", 1
   end
 
-  test "history endpoint returns selected range payload" do
+  test "history frame renders the selected range with its switch active" do
     Solakon::Snapshot.create!(taken_at: 10.minutes.ago, pv1_power_w: 100, pv2_power_w: 50, battery_power_w: 20, active_power_w: 140, grid_power_w: 30)
 
-    get "/solakon/history.json", params: { range: "24h" }
+    get "/solakon/history", params: { range: "7d" }, headers: { "Turbo-Frame" => "solakon_history" }
 
     assert_response :success
-    data = response.parsed_body
-    assert_equal "24h", data["range"]
-    assert_equal [ "PV", "Akku", "Außensteckdose", "0 W" ], data.dig("chart", "datasets").map { |dataset| dataset.fetch("label") }
+    assert_select "h1", 0
+    assert_select "turbo-frame#solakon_history", 1
+    assert_select "a.preset-link.active", text: "Letzte 7 Tage", count: 1
+    assert_select "a.preset-link.active", 1
+    assert_select "a.preset-link[href=?]", "/solakon/history?range=30d"
+    assert_select "[data-controller='solakon-history'][data-solakon-history-url-value=?]", "/solakon/history?range=7d"
+    assert_select ".solakon-balance-row", minimum: 6
+    chart = JSON.parse(css_select("script[data-solakon-history-target='payload']").first.text)
+    assert_equal [ "PV", "Akku", "Außensteckdose", "0 W" ], chart.fetch("datasets").map { |dataset| dataset.fetch("label") }
+  end
+
+  test "history frame falls back to 24 h for an unknown range and names the empty state" do
+    get "/solakon/history", params: { range: "1y" }, headers: { "Turbo-Frame" => "solakon_history" }
+
+    assert_response :success
+    assert_select "a.preset-link.active", text: "Letzte 24 h", count: 1
+    assert_select ".muted-text", text: "Keine Solakon-Historie"
+    assert_select ".solakon-balance-row", 0
   end
 
   test "page renders controls, panel, storage, balance, and status labels without protocol language" do
