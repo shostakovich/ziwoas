@@ -1,6 +1,8 @@
 require "test_helper"
 
 class WeatherRecordTest < ActiveSupport::TestCase
+  cover "WeatherRecord*"
+
   setup { WeatherRecord.delete_all }
 
   test "requires supported kind and daytime" do

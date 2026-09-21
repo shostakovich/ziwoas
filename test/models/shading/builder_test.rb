@@ -219,6 +219,31 @@ class Shading::BuilderTest < ActiveSupport::TestCase
     assert_equal [ Time.zone.local(2026, 7, 1, 13).to_i ], result.keys
   end
 
+  # `from` itself, and everything up to `from + 1.hour`, sums up the hour before the
+  # range and must stay out — this is the same boundary as "does not read a record
+  # stamped like the PV hour", pinned directly on irradiance_by_time.
+  test "irradiance_by_time excludes a record stamped less than an hour after from" do
+    WeatherRecord.create!(
+      kind: "historic", daytime: "day", lat: LAT, lon: LON,
+      timestamp: Time.zone.local(2026, 7, 1, 11) + 30.minutes, solar: 0.5
+    )
+
+    result = builder.send(:irradiance_by_time, Time.zone.local(2026, 7, 1, 11), Time.zone.local(2026, 7, 1, 13))
+
+    assert_empty result
+  end
+
+  test "irradiance_by_time excludes a record stamped more than an hour after to" do
+    WeatherRecord.create!(
+      kind: "historic", daytime: "day", lat: LAT, lon: LON,
+      timestamp: Time.zone.local(2026, 7, 1, 13) + 2.hours, solar: 0.5
+    )
+
+    result = builder.send(:irradiance_by_time, Time.zone.local(2026, 7, 1, 11), Time.zone.local(2026, 7, 1, 13))
+
+    assert_empty result
+  end
+
   test "hours lists PV hours chronologically regardless of insertion order" do
     pv_hour(18, 900.0)
     pv_hour(6, 100.0)
