@@ -33,4 +33,24 @@ class SolakonOverviewTest < ApplicationSystemTestCase
     assert_operator chart_box.fetch("width"), :>, 250
     assert_operator chart_box.fetch("height"), :>, 180
   end
+
+  test "range buttons keep the clicked range active across switches" do
+    visit solakon_path
+
+    within("[aria-label='Zeitraum']") do
+      assert_selector "button.active", text: "Letzte 24 h", count: 1
+
+      click_button "Letzte 7 Tage"
+      assert_selector "button.active", text: "Letzte 7 Tage", count: 1
+      assert_selector "button.active", count: 1
+
+      click_button "Letzte 30 Tage"
+      assert_selector "button.active", text: "Letzte 30 Tage", count: 1
+      assert_selector "button.active", count: 1
+
+      click_button "Letzte 24 h"
+      assert_selector "button.active", text: "Letzte 24 h", count: 1
+      assert_selector "button.active", count: 1
+    end
+  end
 end

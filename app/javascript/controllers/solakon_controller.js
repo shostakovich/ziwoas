@@ -26,13 +26,15 @@ export default class extends Controller {
   }
 
   async selectRange(event) {
+    // event.currentTarget is reset to null once the handler yields, so the
+    // range must be read before the first await and matched by value after it.
     const range = event.currentTarget.dataset.solakonRangeParam
     this.currentRange = range
     try {
       const response = await fetch(`/solakon/history.json?range=${encodeURIComponent(range)}`)
       if (!response.ok) return
       const payload = await response.json()
-      this.element.querySelectorAll(".preset-link").forEach((button) => button.classList.toggle("active", button === event.currentTarget))
+      this._markActiveRange(range)
       this._buildChart(payload)
       this._renderBalanceRows(payload.balance_rows || [])
     } catch (error) {
@@ -91,6 +93,12 @@ export default class extends Controller {
       event.target.checked = !desired
       this._showError(this.controlErrorTarget, error.message)
     }
+  }
+
+  _markActiveRange(range) {
+    this.element.querySelectorAll(".preset-link").forEach((button) => {
+      button.classList.toggle("active", button.dataset.solakonRangeParam === range)
+    })
   }
 
   _readPayload() {
