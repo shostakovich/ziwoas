@@ -2,6 +2,8 @@ require "test_helper"
 
 class SolakonControllerTest < ActionDispatch::IntegrationTest
   cover "Solakon::Snapshot#panels"
+  cover "SolakonController#index"
+  cover "SolakonController#history"
 
   setup do
     Solakon::Reading.delete_all
