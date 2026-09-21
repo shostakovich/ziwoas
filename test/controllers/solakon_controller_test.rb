@@ -224,8 +224,9 @@ class SolakonControllerTest < ActionDispatch::IntegrationTest
     3.times do |index|
       date = Date.new(2026, 7, 1) + index
       pv_hour(date, 12, 400.0)
+      # Bright Sky stamps the end of the hour it sums up.
       WeatherRecord.create!(kind: "historic", daytime: "day", lat: 52.52, lon: 13.405,
-                            timestamp: Time.zone.local(date.year, date.month, date.day, 12), solar: 0.5)
+                            timestamp: Time.zone.local(date.year, date.month, date.day, 13), solar: 0.5)
     end
 
     get "/solakon"

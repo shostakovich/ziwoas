@@ -52,6 +52,18 @@ class WeatherRecordTest < ActiveSupport::TestCase
     assert_in_delta 320.0, record.solar_w_per_m2
   end
 
+  test "period_started_at is the full hour before a historic record's stamp" do
+    record = WeatherRecord.new(kind: "historic", timestamp: Time.utc(2026, 7, 10, 13))
+
+    assert_equal Time.utc(2026, 7, 10, 12), record.period_started_at
+  end
+
+  test "period_started_at is the ten minutes before a current record's stamp" do
+    record = WeatherRecord.new(kind: "current", timestamp: Time.utc(2026, 7, 10, 13))
+
+    assert_equal Time.utc(2026, 7, 10, 12, 50), record.period_started_at
+  end
+
   test "solar_w_per_m2 returns nil when raw solar is nil" do
     record = WeatherRecord.new(kind: "forecast", solar: nil)
 
