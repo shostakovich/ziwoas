@@ -238,6 +238,54 @@ class SolakonControllerTest < ActionDispatch::IntegrationTest
     assert_select ".solakon-battery-states", count: 0
   end
 
+  test "auto-regulation card reflects an enabled config with an active runtime state" do
+    config = ConfigLoader.app_config.dup
+    config.solakon = ConfigLoader::SolakonCfg.new(control_enabled: true)
+
+    ConfigLoader.stub(:app_config, config) do
+      get "/solakon"
+    end
+
+    assert_response :success
+    assert_select ".tile-value[data-solakon-target='controlState']", text: "Aktiv"
+    assert_select ".muted-text[data-solakon-target='controlHelp']", text: "folgt dem gemessenen Verbrauch"
+    assert_select "input[data-solakon-target='controlToggle'][checked]", 1
+    assert_select "input[data-solakon-target='controlToggle'][disabled]", 0
+  end
+
+  test "auto-regulation card stays off when the config disables control despite a config object being present" do
+    config = ConfigLoader.app_config.dup
+    config.solakon = ConfigLoader::SolakonCfg.new(control_enabled: false)
+
+    ConfigLoader.stub(:app_config, config) do
+      get "/solakon"
+    end
+
+    assert_response :success
+    assert_select ".tile-value[data-solakon-target='controlState']", text: "Aus"
+    assert_select ".muted-text[data-solakon-target='controlHelp']", text: "in Konfiguration deaktiviert"
+    assert_select "input[data-solakon-target='controlToggle'][checked]", 0
+    assert_select "input[data-solakon-target='controlToggle'][disabled]", 1
+  end
+
+  test "status shows the newest reading, not merely any reading" do
+    Solakon::Reading.create!(taken_at: 1.hour.ago, active_power_w: 0, pv_power_w: 0, battery_power_w: 0, battery_soc_pct: 50)
+    Solakon::Reading.create!(taken_at: Time.current, active_power_w: 0, pv_power_w: 0, battery_power_w: 0, battery_soc_pct: 84)
+
+    get "/solakon"
+
+    assert_response :success
+    assert_select ".solakon-storage-grid .tile-value", text: "84 %"
+  end
+
+  test "history frame falls back to 24 h when the range parameter is missing entirely" do
+    get "/solakon/history", headers: { "Turbo-Frame" => "solakon_history" }
+
+    assert_response :success
+    assert_select "a.preset-link.active", text: "Letzte 24 h", count: 1
+    assert_select ".muted-text", text: "Keine Solakon-Historie"
+  end
+
   test "page shows the shading section under the history" do
     3.times do |index|
       date = Date.new(2026, 7, 1) + index
@@ -275,6 +323,23 @@ class SolakonControllerTest < ActionDispatch::IntegrationTest
     assert_select ".sun-calendar [data-strip]", 4
     assert_select ".sun-calendar [data-strip='pv'] .cells rect", minimum: 1
     assert_select ".sun-calendar [data-strip='pv'] polyline.sun", 3
+  end
+
+  test "sun calendar marks the switch from producer-plug energy once PV data begins" do
+    pv_hour(Date.new(2026, 4, 10), 12, 640.0)
+    Plugs::Sample5min.create!(
+      plug_id: "bkw",
+      bucket_ts: Time.zone.local(2026, 3, 1, 12).to_i,
+      avg_power_w: 120.0,
+      energy_delta_wh: 10.0,
+      sample_count: 12
+    )
+
+    get "/solakon"
+
+    assert_response :success
+    assert_select ".sun-calendar .legend-item", text: "Wechsel der Quelle", count: 1
+    assert_select ".sun-calendar .note", 1
   end
 
   test "sun calendar keeps its own empty state while no PV hour exists" do
