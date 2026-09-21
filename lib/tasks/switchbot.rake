@@ -1,6 +1,4 @@
 # lib/tasks/switchbot.rake
-require "switch_bot_client"
-require "config_loader"
 
 namespace :switchbot do
   desc "List all SwitchBot devices and emit a config snippet for ziwoas.yml"

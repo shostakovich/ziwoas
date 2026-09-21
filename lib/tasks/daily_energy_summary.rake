@@ -1,6 +1,3 @@
-require "config_loader"
-require "daily_energy_summary_builder"
-
 namespace :daily_energy_summary do
   desc "Rebuild daily_energy_summary rows from samples_5min for every day in daily_totals"
   task rebuild: :environment do
