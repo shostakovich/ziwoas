@@ -6,6 +6,12 @@ module Solakon
       "30d" => 30.days
     }.freeze
 
+    RANGE_LABELS = {
+      "24h" => "Letzte 24 h",
+      "7d" => "Letzte 7 Tage",
+      "30d" => "Letzte 30 Tage"
+    }.freeze
+
     # Longest gap between two snapshots we still integrate over. Snapshots arrive
     # every 2 min; capping at 5 min keeps monitoring downtime from inflating the
     # Außensteckdose energy totals (trapezoidal integration would otherwise treat

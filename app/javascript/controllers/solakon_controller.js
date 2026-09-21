@@ -1,58 +1,10 @@
 import { Controller } from "@hotwired/stimulus"
-import "chart.js"
 
 export default class extends Controller {
   static targets = [
-    "historyCanvas", "historyPayload", "balanceRows",
     "epsToggle", "epsState", "epsPower", "epsVoltage", "epsError",
     "controlToggle", "controlState", "controlHelp", "controlError",
   ]
-
-  connect() {
-    this.chart = null
-    this.currentRange = "24h"
-    this._buildChart(this._readPayload())
-
-    this._onResync = () => this.refreshHistory()
-    document.addEventListener("live-freshness:resync", this._onResync)
-
-    this.historyInterval = setInterval(() => this.refreshHistory(), 60_000)
-  }
-
-  disconnect() {
-    document.removeEventListener("live-freshness:resync", this._onResync)
-    clearInterval(this.historyInterval)
-    this.chart?.destroy()
-  }
-
-  async selectRange(event) {
-    const range = event.currentTarget.dataset.solakonRangeParam
-    this.currentRange = range
-    try {
-      const response = await fetch(`/solakon/history.json?range=${encodeURIComponent(range)}`)
-      if (!response.ok) return
-      const payload = await response.json()
-      this.element.querySelectorAll(".preset-link").forEach((button) => button.classList.toggle("active", button === event.currentTarget))
-      this._buildChart(payload)
-      this._renderBalanceRows(payload.balance_rows || [])
-    } catch (error) {
-      console.error("solakon history load failed:", error)
-    }
-  }
-
-  async refreshHistory() {
-    const activeButton = this.element.querySelector(".preset-link.active")
-    const range = activeButton?.dataset.solakonRangeParam || this.currentRange || "24h"
-    try {
-      const response = await fetch(`/solakon/history.json?range=${encodeURIComponent(range)}`)
-      if (!response.ok) return
-      const payload = await response.json()
-      this._buildChart(payload)
-      this._renderBalanceRows(payload.balance_rows || [])
-    } catch (error) {
-      console.error("solakon history refresh failed:", error)
-    }
-  }
 
   async toggleEps(event) {
     const desired = event.target.checked
@@ -91,54 +43,6 @@ export default class extends Controller {
       event.target.checked = !desired
       this._showError(this.controlErrorTarget, error.message)
     }
-  }
-
-  _readPayload() {
-    try {
-      return JSON.parse(this.historyPayloadTarget.textContent)
-    } catch (error) {
-      return { chart: { labels: [], datasets: [] }, balance_rows: [] }
-    }
-  }
-
-  _buildChart(payload) {
-    if (!this.hasHistoryCanvasTarget) return
-    const chart = payload?.chart || { labels: [], datasets: [] }
-    const colors = { "PV": "#f59f00", "Akku": "#14b8a6", "Außensteckdose": "#3b82f6", "0 W": "#6c757d" }
-    const datasets = (chart.datasets || []).map((dataset) => ({
-      label: dataset.label,
-      data: dataset.data,
-      borderColor: colors[dataset.label] || "#6c757d",
-      backgroundColor: dataset.label === "PV" ? "rgba(245,159,0,0.14)" : "transparent",
-      borderDash: dataset.label === "0 W" ? [4, 4] : [],
-      fill: dataset.label === "PV",
-      pointRadius: 0,
-      tension: 0.2,
-    }))
-
-    this.chart?.destroy()
-    this.chart = new Chart(this.historyCanvasTarget, {
-      type: "line",
-      data: { labels: chart.labels || [], datasets },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        scales: { y: { title: { display: true, text: "Watt" } } },
-        plugins: { legend: { position: "bottom", labels: { boxWidth: 12, boxHeight: 12, padding: 10, font: { size: 12 } } } },
-        animation: false,
-      },
-    })
-  }
-
-  _renderBalanceRows(rows) {
-    if (!this.hasBalanceRowsTarget) return
-    this.balanceRowsTarget.innerHTML = rows.map((row) => `
-      <div class="solakon-balance-row ${row.role}">
-        <span class="solakon-balance-label">${row.label}</span>
-        <span class="report-ranking-bar" aria-hidden="true"><span style="width: ${row.share}%"></span></span>
-        <span class="report-ranking-value">${row.value}</span>
-      </div>
-    `).join("")
   }
 
   _jsonHeaders() {

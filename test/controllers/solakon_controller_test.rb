@@ -2,6 +2,8 @@ require "test_helper"
 
 class SolakonControllerTest < ActionDispatch::IntegrationTest
   cover "Solakon::Snapshot#panels"
+  cover "SolakonController#index"
+  cover "SolakonController#history"
 
   setup do
     Solakon::Reading.delete_all
@@ -41,9 +43,10 @@ class SolakonControllerTest < ActionDispatch::IntegrationTest
     assert_match(/Außensteckdose/, response.body)
     assert_match(/Auto-Regelung/, response.body)
     assert_match(/Batteriegesundheit/, response.body)
-    assert_select "canvas[data-solakon-target='historyCanvas']", 1
-    assert_select "script[data-solakon-target='historyPayload']", 1
-    assert_select "[data-solakon-target='balanceRows']", 1
+    assert_select "turbo-frame#solakon_history canvas[data-solakon-history-target='canvas']", 1
+    assert_select "turbo-frame#solakon_history script[data-solakon-history-target='payload']", 1
+    assert_select "turbo-frame#solakon_history .solakon-balance", 1
+    assert_select "turbo-frame#solakon_history a.preset-link.active", text: "Letzte 24 h", count: 1
     assert_select "input[data-solakon-target='epsToggle'][data-action='change->solakon#toggleEps']", 1
     assert_select "input[data-solakon-target='controlToggle'][data-action='change->solakon#toggleControl']", 1
   end
@@ -93,15 +96,30 @@ class SolakonControllerTest < ActionDispatch::IntegrationTest
     assert_select "image[data-ef='efBatteryImage'][data-battery-state-fault*='solakon_battery_fault']", 1
   end
 
-  test "history endpoint returns selected range payload" do
+  test "history frame renders the selected range with its switch active" do
     Solakon::Snapshot.create!(taken_at: 10.minutes.ago, pv1_power_w: 100, pv2_power_w: 50, battery_power_w: 20, active_power_w: 140, grid_power_w: 30)
 
-    get "/solakon/history.json", params: { range: "24h" }
+    get "/solakon/history", params: { range: "7d" }, headers: { "Turbo-Frame" => "solakon_history" }
 
     assert_response :success
-    data = response.parsed_body
-    assert_equal "24h", data["range"]
-    assert_equal [ "PV", "Akku", "Außensteckdose", "0 W" ], data.dig("chart", "datasets").map { |dataset| dataset.fetch("label") }
+    assert_select "h1", 0
+    assert_select "turbo-frame#solakon_history", 1
+    assert_select "a.preset-link.active", text: "Letzte 7 Tage", count: 1
+    assert_select "a.preset-link.active", 1
+    assert_select "a.preset-link[href=?]", "/solakon/history?range=30d"
+    assert_select "[data-controller='solakon-history'][data-solakon-history-url-value=?]", "/solakon/history?range=7d"
+    assert_select ".solakon-balance-row", minimum: 6
+    chart = JSON.parse(css_select("script[data-solakon-history-target='payload']").first.text)
+    assert_equal [ "PV", "Akku", "Außensteckdose", "0 W" ], chart.fetch("datasets").map { |dataset| dataset.fetch("label") }
+  end
+
+  test "history frame falls back to 24 h for an unknown range and names the empty state" do
+    get "/solakon/history", params: { range: "1y" }, headers: { "Turbo-Frame" => "solakon_history" }
+
+    assert_response :success
+    assert_select "a.preset-link.active", text: "Letzte 24 h", count: 1
+    assert_select ".muted-text", text: "Keine Solakon-Historie"
+    assert_select ".solakon-balance-row", 0
   end
 
   test "page renders controls, panel, storage, balance, and status labels without protocol language" do
@@ -220,6 +238,54 @@ class SolakonControllerTest < ActionDispatch::IntegrationTest
     assert_select ".solakon-battery-states", count: 0
   end
 
+  test "auto-regulation card reflects an enabled config with an active runtime state" do
+    config = ConfigLoader.app_config.dup
+    config.solakon = ConfigLoader::SolakonCfg.new(control_enabled: true)
+
+    ConfigLoader.stub(:app_config, config) do
+      get "/solakon"
+    end
+
+    assert_response :success
+    assert_select ".tile-value[data-solakon-target='controlState']", text: "Aktiv"
+    assert_select ".muted-text[data-solakon-target='controlHelp']", text: "folgt dem gemessenen Verbrauch"
+    assert_select "input[data-solakon-target='controlToggle'][checked]", 1
+    assert_select "input[data-solakon-target='controlToggle'][disabled]", 0
+  end
+
+  test "auto-regulation card stays off when the config disables control despite a config object being present" do
+    config = ConfigLoader.app_config.dup
+    config.solakon = ConfigLoader::SolakonCfg.new(control_enabled: false)
+
+    ConfigLoader.stub(:app_config, config) do
+      get "/solakon"
+    end
+
+    assert_response :success
+    assert_select ".tile-value[data-solakon-target='controlState']", text: "Aus"
+    assert_select ".muted-text[data-solakon-target='controlHelp']", text: "in Konfiguration deaktiviert"
+    assert_select "input[data-solakon-target='controlToggle'][checked]", 0
+    assert_select "input[data-solakon-target='controlToggle'][disabled]", 1
+  end
+
+  test "status shows the newest reading, not merely any reading" do
+    Solakon::Reading.create!(taken_at: 1.hour.ago, active_power_w: 0, pv_power_w: 0, battery_power_w: 0, battery_soc_pct: 50)
+    Solakon::Reading.create!(taken_at: Time.current, active_power_w: 0, pv_power_w: 0, battery_power_w: 0, battery_soc_pct: 84)
+
+    get "/solakon"
+
+    assert_response :success
+    assert_select ".solakon-storage-grid .tile-value", text: "84 %"
+  end
+
+  test "history frame falls back to 24 h when the range parameter is missing entirely" do
+    get "/solakon/history", headers: { "Turbo-Frame" => "solakon_history" }
+
+    assert_response :success
+    assert_select "a.preset-link.active", text: "Letzte 24 h", count: 1
+    assert_select ".muted-text", text: "Keine Solakon-Historie"
+  end
+
   test "page shows the shading section under the history" do
     3.times do |index|
       date = Date.new(2026, 7, 1) + index
@@ -258,6 +324,23 @@ class SolakonControllerTest < ActionDispatch::IntegrationTest
     assert_select ".sun-calendar [data-strip]", 4
     assert_select ".sun-calendar [data-strip='pv'] .cells rect", minimum: 1
     assert_select ".sun-calendar [data-strip='pv'] polyline.sun", 3
+  end
+
+  test "sun calendar marks the switch from producer-plug energy once PV data begins" do
+    pv_hour(Date.new(2026, 4, 10), 12, 640.0)
+    Plugs::Sample5min.create!(
+      plug_id: "bkw",
+      bucket_ts: Time.zone.local(2026, 3, 1, 12).to_i,
+      avg_power_w: 120.0,
+      energy_delta_wh: 10.0,
+      sample_count: 12
+    )
+
+    get "/solakon"
+
+    assert_response :success
+    assert_select ".sun-calendar .legend-item", text: "Wechsel der Quelle", count: 1
+    assert_select ".sun-calendar .note", 1
   end
 
   test "sun calendar keeps its own empty state while no PV hour exists" do

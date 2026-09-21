@@ -1227,14 +1227,6 @@ body.page-solakon { max-width: 1040px; }
 .solakon-panel-card.is-unavailable {
   opacity: 0.68;
 }
-.solakon-page button.preset-link {
-  background: var(--card);
-  font: inherit;
-  cursor: pointer;
-}
-.solakon-page button.preset-link.active {
-  background: #fff8db;
-}
 
 /* ---- Lamp detail page ---- */
 body.page-light-detail { max-width: 760px; }
