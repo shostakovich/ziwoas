@@ -1,14 +1,17 @@
-<%# app/views/lights/_settings_sheet.html.erb %>
-<%# Zentriertes Einstellungs-Overlay, per Turbo-Stream in #light_settings injiziert. %>
-<div class="ld-modal-wrap" role="dialog" aria-modal="true" aria-labelledby="ld-modal-title">
-  <%= link_to "", light_path(light.key), class: "ld-modal-scrim", tabindex: "-1", "aria-label": "Schließen" %>
-  <div class="ld-modal">
-    <div class="ld-modal-head">
-      <h2 id="ld-modal-title" class="ld-modal-title">Einstellungen</h2>
-      <%= link_to "✕", light_path(light.key), class: "ld-modal-x", "aria-label": "Schließen" %>
-    </div>
-    <div class="ld-modal-body">
-      <%= render "form", light: light, plugs: plugs %>
+<%# Streamed into #light_settings; opens itself as a modal and removes itself
+    once closed (close button, Abbrechen, Esc or a click on the backdrop). %>
+<dialog class="modal" closedby="any" aria-labelledby="light_settings_title"
+        data-controller="settings-dialog"
+        data-action="close->settings-dialog#remove click->settings-dialog#backdrop">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h1 class="modal-title fs-5" id="light_settings_title">Einstellungen</h1>
+        <button type="button" class="btn-close" aria-label="Schließen" data-action="settings-dialog#close"></button>
+      </div>
+      <div class="modal-body">
+        <%= render "form", light: light, plugs: plugs %>
+      </div>
     </div>
   </div>
-</div>
+</dialog>

@@ -4,10 +4,10 @@
     <%= render Switches::ScheduleEntryComponent.new(entry: entry, plug: plug) %>
   <% end %>
   <div id="sw_editor_<%= plug.id %>"></div>
-  <div class="sw-add-row">
+  <div class="d-flex flex-wrap gap-2 mt-2">
     <%= link_to "+ Zeitfenster", new_switch_window_path(plug_id: plug.id),
-                class: "sw-add", data: { turbo_stream: true } %>
+                class: "btn btn-sm btn-pill btn-outline-secondary", data: { turbo_stream: true } %>
     <%= link_to "+ Einzelschaltung", new_switch_rule_path(plug_id: plug.id),
-                class: "sw-add", data: { turbo_stream: true } %>
+                class: "btn btn-sm btn-pill btn-outline-secondary", data: { turbo_stream: true } %>
   </div>
 </div>

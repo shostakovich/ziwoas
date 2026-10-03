@@ -7,7 +7,7 @@ class Lights::WhitePanelComponentTest < ViewComponent::TestCase
   end
 
   def preset_param(rendered, label)
-    rendered.css("button.ld-preset").find { |b| b.text.strip == label }["data-light-detail-temp-param"]
+    rendered.css("button[data-light-detail-temp-param]").find { |b| b.text.strip == label }["data-light-detail-temp-param"]
   end
 
   test "renders the white panel with the lamp's slider range" do
@@ -17,7 +17,7 @@ class Lights::WhitePanelComponentTest < ViewComponent::TestCase
     slider = rendered.css("input.ld-white").first
     assert_equal "2200", slider["min"]
     assert_equal "6500", slider["max"]
-    assert rendered.css("div.ld-panel[data-tab='white']").any?
+    assert rendered.css("div[role=tabpanel][data-tab='white']:not([hidden])").any?
   end
 
   test "presets span min..5400 with the midpoint in between (2200 lamp)" do
@@ -43,7 +43,7 @@ class Lights::WhitePanelComponentTest < ViewComponent::TestCase
     assert_equal "3100", preset_param(rendered, "Neutral")
     assert_equal "4000", preset_param(rendered, "Arbeiten")
     # no preset may exceed the slider's own max
-    rendered.css("button.ld-preset").each do |b|
+    rendered.css("button[data-light-detail-temp-param]").each do |b|
       assert_operator b["data-light-detail-temp-param"].to_i, :<=, 4000
     end
   end
@@ -53,7 +53,7 @@ class Lights::WhitePanelComponentTest < ViewComponent::TestCase
     state = LightState.new(light_key: "K3", color_temp_k: 5400)
     rendered = render_inline(panel(light: light, state: state))
 
-    active = rendered.css("button.ld-preset.ld-preset--active")
+    active = rendered.css("button.active[data-light-detail-temp-param]")
     assert_equal 1, active.length
     assert_equal "Arbeiten", active.first.text.strip
     assert_equal "true", active.first["aria-pressed"]

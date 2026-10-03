@@ -9,5 +9,8 @@ module Lights
     private
 
     attr_reader :snapshot
+
+    # The swatch the lamp shows right now, if it shows a colour at all.
+    def selected?(hex) = !snapshot.white? && snapshot.color_hex == hex
   end
 end

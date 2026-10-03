@@ -31,24 +31,24 @@ class Switches::ScheduleEntryComponentTest < ViewComponent::TestCase
   test "a Zeitfenster is one plain pill in a row named by its group" do
     rendered = render_entry(window)
 
-    assert rendered.css("div.sw-entry#sw_entry_fridge_g-1").any?
-    assert rendered.css("span.sw-pill").any?
-    assert rendered.css("span.sw-pill.single").none?
-    assert rendered.css("span.sw-dir").none?
-    assert_equal "Mo–Fr · 10:00–20:00", rendered.css("span.sw-pill").text.squish
+    assert rendered.css("div#sw_entry_fridge_g-1").any?
+    assert rendered.css("span.badge.rounded-pill").any?
+    assert rendered.css("span.badge.border").none?, "a Zeitfenster pill is filled, not drawn open"
+    assert rendered.css("span.badge .fw-bold").none?
+    assert_equal "Mo–Fr · 10:00–20:00", rendered.css("span.badge").text.squish
   end
 
-  test "an Einzelschaltung is a dashed, directed pill in a row named by its rule" do
+  test "an Einzelschaltung is an open, directed pill in a row named by its rule" do
     rendered = render_entry(single)
 
-    assert rendered.css("div.sw-entry#sw_entry_fridge_7").any?
-    assert rendered.css("span.sw-pill.single").any?
-    assert_equal "→ aus", rendered.css("span.sw-pill.single .sw-dir").text
-    assert_equal "täglich · 22:00 → aus", rendered.css("span.sw-pill").text.squish
+    assert rendered.css("div#sw_entry_fridge_7").any?
+    assert rendered.css("span.badge.rounded-pill.border").any?
+    assert_equal "→ aus", rendered.css("span.badge.border .fw-bold").text
+    assert_equal "täglich · 22:00 → aus", rendered.css("span.badge").text.squish
   end
 
   test "an Einzelschaltung that switches on points the other way" do
-    assert_equal "→ an", render_entry(single(action: "on")).css(".sw-dir").text
+    assert_equal "→ an", render_entry(single(action: "on")).css("span.badge .fw-bold").text
   end
 
   test "the buttons of a Zeitfenster address the group and say Zeitfenster" do
@@ -74,7 +74,7 @@ class Switches::ScheduleEntryComponentTest < ViewComponent::TestCase
   test "a paused row is struck through and its button resumes instead" do
     rendered = render_entry(window(enabled: false))
 
-    assert rendered.css("span.sw-pill.paused").any?
+    assert rendered.css("span.badge.text-decoration-line-through").any?
     assert_equal "Zeitfenster aktivieren", rendered.css("button[aria-label]").first["aria-label"]
     assert rendered.css("form[action$='/enabled'] input[name=enabled][value=true]").any?
   end
@@ -82,7 +82,7 @@ class Switches::ScheduleEntryComponentTest < ViewComponent::TestCase
   test "a running row offers to pause" do
     rendered = render_entry(single)
 
-    assert rendered.css("span.sw-pill.paused").none?
+    assert rendered.css("span.badge.text-decoration-line-through").none?
     assert rendered.css("form[action$='/enabled'] input[name=enabled][value=false]").any?
   end
 end

@@ -1,66 +1,9 @@
-/* Lamps: lamp cards on the Schalten tab, lamp detail page, scenes, toast and
-   the settings overlay. Lamp cards build on .sw-card/.sw-knob from
-   switches.css; overrides of those carry .sw-knob in the selector so they win
-   whatever order the files load in. */
+/* Lamps: the plush lamp knob on the Schalten tab and the ZiWoAS-specific
+   widgets of the lamp detail page. Everything else there is plain felt-css.
+   Knob overrides carry .sw-knob in the selector so they win whatever order
+   the files load in. */
 
-/* ---- Lamp detail page ---- */
-.ld-topbar { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
-.ld-back { width: 34px; height: 34px; border-radius: 10px; border: 1px solid var(--border);
-           background: var(--surface); display: inline-flex; align-items: center; justify-content: center;
-           font-size: 17px; text-decoration: none; color: var(--text); }
-.ld-title { font-weight: 600; font-size: 18px; }
-.ld-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg);
-           padding: 14px; margin-bottom: 12px; }
-.ld-hero { display: flex; align-items: center; gap: 14px; background: var(--surface);
-           border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 14px; margin-bottom: 12px; }
-.ld-lamp { width: 64px; height: 64px; flex-shrink: 0; border-radius: var(--radius-lg);
-           background-size: contain; background-position: center; background-repeat: no-repeat; }
-.ld-lamp.off { filter: grayscale(.4); }
-.ld-power { display: flex; gap: 8px; flex: 1; }
-.ld-pill { flex: 1; padding: 10px 0; border-radius: 11px; font-weight: 600; font-size: 13px;
-           border: 1px solid var(--border); background: var(--surface); color: var(--muted); cursor: pointer; }
-.ld-pill.on { background: var(--warning-subtle); border-color: var(--warning); color: var(--warning-text); }
-.ld-label { font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted);
-            margin: 0 0 9px; }
-/* nicer slider (replaces bare range) */
-.ld-range { -webkit-appearance: none; appearance: none; width: 100%; height: 34px; border-radius: var(--radius-pill);
-            background: linear-gradient(90deg, var(--warning-subtle), var(--warning)); outline: none; }
-.ld-range.ld-white { background: linear-gradient(90deg, #ffb24d, #ffe7c2, #fff, #dcebff, #bcd6ff); }
-.ld-range::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 28px; height: 28px;
-            border-radius: 50%; background: #fff; border: 2px solid var(--warning);
-            box-shadow: 0 1px 4px rgba(0,0,0,.3); cursor: pointer; }
-.ld-range::-moz-range-thumb { width: 28px; height: 28px; border-radius: 50%; background: #fff;
-            border: 2px solid var(--warning); box-shadow: 0 1px 4px rgba(0,0,0,.3); cursor: pointer; }
-.ld-range:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
-.ld-scale { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted);
-            margin-top: 6px; }
-.ld-presets { display: flex; gap: 8px; margin-top: 12px; }
-.ld-preset { flex: 1; padding: 8px 0; border-radius: 10px; border: 1px solid var(--border);
-             background: var(--surface); color: var(--text); font-size: 12px; cursor: pointer; }
-.ld-preset--active { background: var(--warning-subtle); border-color: var(--warning); color: var(--warning-text); font-weight: 600; }
-.ld-tabs { display: flex; gap: 6px; margin-bottom: 12px; }
-.ld-tab { flex: 1; padding: 9px 0; border-radius: 11px; font-size: 12px; font-weight: 600;
-          border: 1px solid var(--border); background: var(--surface); color: var(--muted); cursor: pointer; }
-.ld-tab.active { background: var(--warning-subtle); border-color: var(--warning); color: var(--warning-text); }
-.ld-swatches { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
-.ld-sw { aspect-ratio: 1; border-radius: 10px; border: 1px solid rgba(0,0,0,.12); cursor: pointer;
-         display: inline-flex; align-items: center; justify-content: center; }
-.ld-more { background: conic-gradient(red,#ff0,#0f0,#0ff,#00f,#f0f,red); color: #fff; font-size: 17px;
-           text-shadow: 0 0 3px rgba(0,0,0,.6); position: relative; overflow: hidden; }
-.ld-more input[type=color] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
-
-/* lamp tile mirrors the plug card 2x2 grid */
-.sw-light-card { display: grid; grid-template-columns: 1fr auto;
-                 column-gap: 14px; row-gap: 8px; align-items: center;
-                 grid-template-areas: "info knob" "sub aux"; }
-.sw-light-link { grid-area: info; min-width: 0; text-decoration: none; color: inherit; display: block; }
-.sw-light-card .sw-knob { grid-area: knob; justify-self: end; }
-.sw-state { font-size: 13px; color: var(--muted); margin-top: 3px; }
-.sw-light-sub { grid-area: sub; align-self: start; font-size: 13px; color: var(--muted);
-                text-decoration: none; }
-.sw-light-card .sw-watt-chip { grid-area: aux; }
-.sw-swatch { width: 13px; height: 13px; border-radius: 4px; border: 1px solid rgba(0,0,0,.15); }
-/* plush lamp: per-SKU artwork via background-image (same technique as .sw-knob) */
+/* Plush lamp knob: per-SKU artwork, glowing while the lamp is on. */
 .sw-knob.sw-lamp-knob { border-color: var(--warning); background-color: transparent;
                         box-shadow: 0 0 16px 3px color-mix(in oklab, var(--warning) 42%, transparent); }
 .sw-knob.sw-lamp-knob.off { border-color: var(--border-strong); background-color: var(--surface-sunk);
@@ -76,111 +19,35 @@
 .sw-knob.plush-generic { background-image: url(lamp_generic_on.webp); }
 .sw-knob.plush-generic.off { background-image: url(lamp_generic_off.webp); }
 
-/* ---- Szenen tab (Govee firmware scenes) ---- */
-.ld-scenes { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
-.ld-scenes-scroll { max-height: 230px; overflow-y: auto; padding-right: 2px; }
-.ld-scene { padding: 0; border: 1px solid var(--border); border-radius: 13px; overflow: hidden;
-            background: var(--surface); cursor: pointer; text-align: left; }
-.ld-scene-prev { display: block; height: 46px; }
-.ld-scene-nm { display: block; padding: 7px 9px; font-size: 12px; font-weight: 600; color: var(--text);
-               white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ld-scene:focus-visible { outline-offset: 1px; }
+/* The lamp's current colour inside its chip. */
+.sw-swatch { display: inline-block; width: .8rem; height: .8rem; border-radius: var(--radius-sm);
+             border: 1px solid color-mix(in oklab, var(--text) 15%, transparent); }
 
-/* --- zone toggles (standalone pills inside the hero tile) --- */
-.ld-hero-main { display: flex; flex-direction: column; gap: 8px; flex: 1; min-width: 0; }
-.ld-zones-row { display: flex; flex-wrap: wrap; gap: 6px; }
-.ld-zones-row.is-off { display: none; }
-.ld-zone-btn { flex: 1 1 auto; min-width: 64px; padding: 8px 10px; border-radius: 11px;
-               font-size: 12px; font-weight: 600; border: 1px solid var(--border);
-               background: var(--surface); color: var(--muted); cursor: pointer; }
-.ld-zone-btn.on { background: var(--warning-subtle); border-color: var(--warning); color: var(--warning-text); }
-.ld-zone-hint { font-size: 11px; color: var(--muted); margin: 6px 2px 0; }
+/* White temperature: the track itself is the scale from warm to cold. */
+.form-range.ld-white::-webkit-slider-runnable-track { height: .75rem; background-image: var(--ld-kelvin); }
+.form-range.ld-white::-moz-range-track { height: .75rem; background-image: var(--ld-kelvin); }
+.form-range.ld-white::-webkit-slider-thumb { margin-top: -.25rem; }
+.form-range.ld-white {
+  --ld-kelvin: linear-gradient(to right, var(--warning), color-mix(in oklab, var(--warning) 30%, var(--light-fixed)),
+                               var(--light-fixed), color-mix(in oklab, var(--primary) 25%, var(--light-fixed)),
+                               color-mix(in oklab, var(--primary) 50%, var(--light-fixed)));
+}
 
-/* --- toast (max-2 auto-off) --- */
-.ld-toast { position: fixed; left: 16px; right: 16px; bottom: 16px; z-index: 20;
-            display: flex; align-items: center; gap: 9px; background: #212529; color: #fff;
-            border-radius: var(--radius); padding: 11px 13px; font-size: 12px;
-            box-shadow: 0 6px 20px rgba(0,0,0,.3); }
-.ld-toast[hidden] { display: none; }
-.ld-toast-undo { margin-left: auto; background: none; border: none; cursor: pointer;
-                 color: var(--warning); font-weight: 700; }
-.ld-inline-form { display: contents; }
+/* Colour swatches: the label carries its colour inline; a ring marks the
+   chosen one. */
+.ld-swatch { border-color: color-mix(in oklab, var(--text) 15%, transparent); }
+.btn-check:checked + .ld-swatch { outline: 3px solid var(--text); outline-offset: 2px; }
+.ld-swatch-wheel { position: relative; overflow: hidden;
+                   background-image: conic-gradient(in hsl longer hue, hsl(0 90% 60%), hsl(0 90% 60%)); }
+.ld-swatch-wheel input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
 
-/* --- Lampen-Detail: Einstellungs-Zahnrad --- */
-.ld-gear {
-  margin-left: auto;
-  width: 36px; height: 36px;
-  display: flex; align-items: center; justify-content: center;
-  border: 1px solid var(--border);
-  border-radius: 50%;
-  background: var(--surface);
-}
-.ld-gear-icon { width: 26px; height: 26px; display: block; }
+/* Scene list scrolls inside its card; the preview strip is derived from the name. */
+.ld-scenes { max-height: 15rem; overflow: hidden auto; }
+.ld-scene-preview { display: block; height: 2.75rem; }
 
-/* --- Einstellungs-Overlay (zentriertes Modal, mobil + Desktop) --- */
-.ld-modal-wrap {
-  position: fixed; inset: 0; z-index: 50;
-  display: flex; align-items: center; justify-content: center;
-  padding: 16px;
+/* Toast above the page end — and above the tab bar where there is one. */
+.ld-toast-container { position: fixed; inset-inline: 0; bottom: var(--space-3); margin-inline: auto;
+                      padding-inline: var(--space-3); }
+@media (max-width: 991.98px) {
+  .ld-toast-container { bottom: calc(5.5rem + env(safe-area-inset-bottom)); }
 }
-.ld-modal-scrim { position: absolute; inset: 0; background: rgba(33, 37, 41, .45); }
-.ld-modal {
-  position: relative;
-  width: 100%; max-width: 420px;
-  max-height: calc(100dvh - 32px);
-  overflow: auto;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  box-shadow: 0 18px 50px rgba(33, 37, 41, .28);
-  animation: ld-modal-in .16s ease-out;
-}
-@keyframes ld-modal-in {
-  from { opacity: 0; transform: translateY(8px) scale(.98); }
-  to   { opacity: 1; transform: none; }
-}
-.ld-modal-head {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 16px 18px;
-  border-bottom: 1px solid var(--border);
-}
-.ld-modal-title { font-size: 17px; font-weight: 600; margin: 0; }
-.ld-modal-x {
-  display: flex; align-items: center; justify-content: center;
-  width: 32px; height: 32px; margin: -4px -6px -4px 0;
-  border-radius: var(--radius-sm);
-  color: var(--muted); text-decoration: none; font-size: 16px; line-height: 1;
-}
-.ld-modal-x:hover { background: var(--surface-hover); color: var(--text); }
-.ld-modal-body { padding: 18px; }
-
-/* Formular im Overlay */
-.ld-form .form-errors { color: var(--danger-text); font-size: 13px; margin: 0 0 12px; padding-left: 18px; }
-.ld-field { margin-bottom: 14px; }
-.ld-field-label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 6px; }
-.ld-input {
-  width: 100%; box-sizing: border-box;
-  padding: 10px 12px;
-  border: 1px solid var(--border); border-radius: var(--radius-sm);
-  background: var(--surface); color: var(--text); font-size: 15px;
-}
-.ld-input:focus-visible { outline-offset: 1px; border-color: var(--warning); }
-.ld-select {
-  appearance: none; -webkit-appearance: none;
-  padding-right: 36px;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='none' stroke='%236c757d' stroke-width='1.5' d='M1 1.5 6 6.5 11 1.5'/%3E%3C/svg%3E");
-  background-repeat: no-repeat; background-position: right 12px center;
-}
-.ld-form-actions {
-  display: flex; align-items: center; justify-content: space-between; gap: 10px;
-  margin-top: 20px;
-}
-.ld-btn {
-  border-radius: var(--radius-sm); padding: 10px 18px;
-  font-size: 14px; font-weight: 600; line-height: 1.2;
-  cursor: pointer; text-decoration: none; border: 1px solid transparent;
-}
-.ld-btn-primary { background: var(--warning); border-color: var(--warning); color: #fff; }
-.ld-btn-primary:hover { filter: brightness(1.05); }
-.ld-btn-ghost { background: var(--surface); border-color: var(--border); color: var(--muted); }
-.ld-btn-ghost:hover { background: var(--surface-hover); color: var(--text); }

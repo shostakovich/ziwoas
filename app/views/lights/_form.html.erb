@@ -1,26 +1,30 @@
-<%# app/views/lights/_form.html.erb %>
-<%= form_with model: light, class: "ld-form" do |f| %>
+<%= form_with model: light do |f| %>
   <% if light.errors.any? %>
-    <ul class="form-errors">
-      <% light.errors.full_messages.each do |m| %><li><%= m %></li><% end %>
-    </ul>
+    <div class="alert alert-danger small py-2" role="alert">
+      <ul class="mb-0 ps-3">
+        <% light.errors.full_messages.each do |m| %><li><%= m %></li><% end %>
+      </ul>
+    </div>
   <% end %>
 
-  <div class="ld-field">
-    <%= f.label :name, "Name", class: "ld-field-label" %>
-    <%= f.text_field :name, class: "ld-input" %>
+  <div class="mb-3">
+    <%= f.label :name, "Name", class: "form-label" %>
+    <%= f.text_field :name, class: "form-control" %>
   </div>
 
-  <div class="ld-field">
-    <%= f.label :shelly_plug_id, "Shelly-Plug", class: "ld-field-label" %>
+  <div class="mb-4">
+    <%= f.label :shelly_plug_id, "Shelly-Plug", class: "form-label" %>
     <%= f.select :shelly_plug_id,
           options_for_select(plugs.map { |p| [ p.name, p.id ] }, light.shelly_plug_id),
           { include_blank: "— keine —" },
-          { class: "ld-input ld-select" } %>
+          { class: "form-select" } %>
   </div>
 
-  <div class="ld-form-actions">
-    <%= link_to "Abbrechen", light_path(light.key), class: "ld-btn ld-btn-ghost" %>
-    <%= f.submit "Speichern", class: "ld-btn ld-btn-primary" %>
+  <div class="d-flex justify-content-end gap-2">
+    <%# Inside the settings dialog Abbrechen just closes it; on the plain edit
+        page it leads back to the lamp. %>
+    <%= link_to "Abbrechen", light_path(light.key), class: "btn btn-outline-secondary",
+                data: { action: "settings-dialog#close" } %>
+    <%= f.submit "Speichern", class: "btn btn-primary" %>
   </div>
 <% end %>
