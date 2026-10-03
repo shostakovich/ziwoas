@@ -7,9 +7,9 @@
     </section>
   <% else %>
     <%= render "sensors/battery_warning", sensors: sensors, latest: latest %>
-    <section class="sensor-cards">
+    <section class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 g-3 mb-3" aria-label="Sensoren">
       <% sensors.each do |s| %>
-        <%= render "sensors/card", sensor: s, reading: latest[s.id] %>
+        <div class="col"><%= render "sensors/card", sensor: s, reading: latest[s.id] %></div>
       <% end %>
     </section>
     <%= render "sensors/charts" %>

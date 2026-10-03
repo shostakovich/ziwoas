@@ -187,7 +187,9 @@ class WeatherControllerTest < ActionDispatch::IntegrationTest
 
     get "/weather"
 
-    assert_select ".weather-segment-solar.is-night", text: /Nacht/
+    assert_select ".weather-segment", text: /\ANacht/ do
+      assert_select ".weather-segment-solar", text: "Nacht"
+    end
   end
 
   test "next-day card renders four segment tiles" do

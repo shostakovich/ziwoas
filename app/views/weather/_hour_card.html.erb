@@ -4,13 +4,13 @@
   wind = record.wind_speed if record.wind_speed && record.wind_speed >= 20
   has_extras = precip_mm || precip_prob || wind
 %>
-<article class="weather-hour-card">
-  <div class="weather-hour-time"><%= record.timestamp.strftime("%H:%M") %></div>
-  <%= image_tag record.asset_name, class: "weather-hour-icon", width: 42, height: 42, loading: "lazy", alt: weather_icon_label(record.icon) %>
-  <strong><%= number_with_precision(record.temperature, precision: 0, delimiter: ".", separator: ",") %>°</strong>
+<article class="weather-hour-card flex-shrink-0 text-center small">
+  <div class="weather-hour-time fw-semibold tabular-nums"><%= record.timestamp.strftime("%H:%M") %></div>
+  <%= image_tag record.asset_name, class: "weather-icon weather-icon-sm d-block mx-auto my-2", width: 42, height: 42, loading: "lazy", alt: weather_icon_label(record.icon) %>
+  <strong class="d-block fs-4 tabular-nums"><%= number_with_precision(record.temperature, precision: 0, delimiter: ".", separator: ",") %>°</strong>
   <% if record.daytime != "night" %>
-    <div class="weather-hour-solar">
-      <%= image_tag "weather_clear_day.webp", class: "weather-inline-icon", alt: "" %>
+    <div class="weather-hour-solar mt-1 fw-semibold text-warning-emphasis tabular-nums text-nowrap">
+      <%= image_tag "weather_clear_day.webp", class: "weather-icon-inline", alt: "" %>
       <% if record.solar_w_per_m2 %>
         <%= number_with_precision(record.solar_w_per_m2, precision: 0, delimiter: ".", separator: ",") %> W/m²
       <% else %>
@@ -19,12 +19,10 @@
     </div>
   <% end %>
   <% if has_extras %>
-    <div class="weather-hour-extras">
-      <% parts = [] %>
-      <% parts << "💨 #{number_with_precision(wind, precision: 0, delimiter: '.', separator: ',')} km/h" if wind %>
-      <% parts << "🌧 #{number_with_precision(precip_mm, precision: 1, delimiter: '.', separator: ',')} mm" if precip_mm %>
-      <% parts << "💧 #{precip_prob}%" if precip_prob %>
-      <%= parts.join(" · ") %>
-    </div>
+    <ul class="list-unstyled mt-1 mb-0 text-body-secondary tabular-nums">
+      <% if wind %><li>💨 <%= number_with_precision(wind, precision: 0, delimiter: ".", separator: ",") %> km/h</li><% end %>
+      <% if precip_mm %><li>🌧 <%= number_with_precision(precip_mm, precision: 1, delimiter: ".", separator: ",") %> mm</li><% end %>
+      <% if precip_prob %><li>💧 <%= precip_prob %>%</li><% end %>
+    </ul>
   <% end %>
 </article>
