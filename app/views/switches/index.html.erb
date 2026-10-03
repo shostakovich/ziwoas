@@ -7,9 +7,9 @@
 
 <div>
   <% if @rows.empty? %>
-    <section class="sw-card empty-state">
-      <h2>Keine schaltbaren Steckdosen</h2>
-      <p class="sw-empty">Markiere Verbraucher in <code>ziwoas.yml</code> mit <code>switchable: true</code>.</p>
+    <section class="card card-body mb-3 empty-state">
+      <h2 class="card-title h5">Keine schaltbaren Steckdosen</h2>
+      <p class="text-body-secondary mb-0">Markiere Verbraucher in <code>ziwoas.yml</code> mit <code>switchable: true</code>.</p>
     </section>
   <% end %>
 
@@ -17,11 +17,9 @@
     <h2 class="h6 text-uppercase text-body-secondary mt-4 mb-2">Lampen</h2>
     <%# Live MQTT state reconciles each card via Turbo Streams (see Govees::Subscriber). %>
     <%= turbo_stream_from "lights" %>
-    <div class="sw-lights">
-      <% @light_snapshots.each do |snapshot| %>
-        <%= render Lights::LightCardComponent.new(snapshot: snapshot) %>
-      <% end %>
-    </div>
+    <% @light_snapshots.each do |snapshot| %>
+      <%= render Lights::LightCardComponent.new(snapshot: snapshot) %>
+    <% end %>
   <% end %>
 
   <% if @rows.any? %>

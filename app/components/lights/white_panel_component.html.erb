@@ -1,19 +1,18 @@
-<%# app/components/lights/white_panel_component.html.erb %>
-<div class="ld-panel" data-light-detail-target="panel" data-tab="white">
-  <div class="ld-card">
-    <p class="ld-label">Lichtfarbe</p>
-    <input class="ld-range ld-white" type="range"
+<div class="card mb-3" id="light_panel_white" role="tabpanel" aria-labelledby="light_tab_white"
+     data-light-detail-target="panel" data-tab="white">
+  <div class="card-body">
+    <label class="d-block mb-2 small text-uppercase text-body-secondary" for="light_temp">Lichtfarbe</label>
+    <input class="form-range ld-white" type="range" id="light_temp"
            min="<%= light.color_temp_min_k %>" max="<%= light.color_temp_max_k %>" step="100"
            value="<%= slider_value %>"
-           data-light-detail-target="temp" data-action="light-detail#temp"
-           aria-label="Lichtfarbe (Kelvin)">
-    <div class="ld-scale">
+           data-light-detail-target="temp" data-action="light-detail#temp">
+    <div class="d-flex justify-content-between small text-body-secondary mt-1">
       <span><%= light.color_temp_min_k %> K · warm</span>
       <span><%= light.color_temp_max_k %> K · kalt</span>
     </div>
-    <div class="ld-presets">
+    <div class="d-flex gap-2 mt-3">
       <% presets.each do |label, kelvin| %>
-        <button class="ld-preset<%= " ld-preset--active" if active?(kelvin) %>"
+        <button type="button" class="btn btn-sm btn-outline-secondary flex-fill<%= " active" if active?(kelvin) %>"
                 data-action="light-detail#temp" data-light-detail-target="preset"
                 data-light-detail-temp-param="<%= kelvin %>"
                 aria-pressed="<%= active?(kelvin) %>"><%= label %></button>

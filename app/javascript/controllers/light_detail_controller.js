@@ -1,26 +1,38 @@
 // Connects to data-controller="light-detail". Slim: tab switching + debounced
-// fire-and-forget sliders/wheel. Zone/power/toast state is server-rendered via
-// Turbo Streams (see app/components/lights/*).
+// fire-and-forget sliders/swatches/wheel. Zone/power/toast state is
+// server-rendered via Turbo Streams (see app/components/lights/*).
 import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
   static values = { key: String, tab: String }
-  static targets = ["panel", "temp", "preset"]
+  static targets = ["panel", "tab", "range", "temp", "preset"]
 
-  connect() { this.showTab(this.tabValue || "white") }
+  connect() {
+    this.showTab(this.tabValue || "white")
+    this.rangeTargets.forEach((r) => this.fill(r))
+  }
 
   tab(event) { this.showTab(event.params.tab) }
 
   showTab(name) {
     this.tabValue = name
     this.panelTargets.forEach((p) => { p.hidden = p.dataset.tab !== name })
-    this.element.querySelectorAll(".ld-tab").forEach((b) => {
-      b.classList.toggle("active", b.dataset.lightDetailTabParam === name)
+    this.tabTargets.forEach((t) => {
+      const active = t.dataset.lightDetailTabParam === name
+      t.classList.toggle("active", active)
+      t.setAttribute("aria-selected", active)
     })
   }
 
   brightness(event) {
+    this.fill(event.target)
     this.debounce(() => this.send({ command: "brightness", value: event.target.value }))
+  }
+
+  // felt's .form-range draws its filled part up to --fill.
+  fill(range) {
+    const share = (range.value - range.min) / (range.max - range.min) * 100
+    range.style.setProperty("--fill", `${share}%`)
   }
 
   temp(event) {
@@ -33,7 +45,7 @@ export default class extends Controller {
   markActivePreset(k) {
     this.presetTargets.forEach((b) => {
       const active = b.dataset.lightDetailTempParam === String(k)
-      b.classList.toggle("ld-preset--active", active)
+      b.classList.toggle("active", active)
       b.setAttribute("aria-pressed", active)
     })
   }

@@ -18,6 +18,14 @@ class SwitchRulesControllerTest < ActionDispatch::IntegrationTest
     assert_match "switch_rule[days][]", @response.body
   end
 
+  test "the editor offers the direction and the weekdays as toggle buttons" do
+    get "/plugs/fridge/switch_rules/new", as: :turbo_stream
+    assert_select "[role=group][aria-label=Richtung] input.btn-check[type=radio][name='switch_rule[action]']", 2
+    assert_select "input#sw_fridge_new_action_on + label[for=sw_fridge_new_action_on]", text: "an"
+    assert_select "[role=group][aria-label=Wochentage] input.btn-check[type=checkbox]", 7
+    assert_select "input#sw_day_fridge_new_1 + label[for=sw_day_fridge_new_1]", text: "Mo"
+  end
+
   test "create writes one rule without a group and re-renders the rules region" do
     post "/plugs/fridge/switch_rules", params: valid_params, as: :turbo_stream
     assert_response :success

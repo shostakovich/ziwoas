@@ -14,8 +14,8 @@ class SwitchesControllerTest < ActionDispatch::IntegrationTest
   test "lamp tile links to the detail page and exposes a toggle knob" do
     get switches_url
     assert_response :success
-    assert_select "a.sw-light-link[href=?]", light_path(@light.key)
-    assert_select ".sw-light-card[data-light-key=?] button.sw-knob", @light.key
+    assert_select "#light_card_#{@light.key} a[aria-label='Wohnzimmer Stehlampe Details'][href=?]", light_path(@light.key)
+    assert_select ".card[data-light-key=?] button.sw-knob", @light.key
     assert_match "Wohnzimmer Stehlampe", @response.body
     assert_match "An · Weiß · 60 %", @response.body
   end
@@ -52,7 +52,7 @@ class SwitchesControllerTest < ActionDispatch::IntegrationTest
     )
     get "/switches"
     assert_match "Mo–Fr · 18:00–23:00", @response.body
-    assert_select "#sw_card_fridge a.sw-add", count: 2
+    assert_select "#sw_card_fridge a[data-turbo-stream]", text: /\A\+ /, count: 2
   end
 
   test "the summary counts Schaltzeiten, not rows" do
@@ -81,5 +81,28 @@ class SwitchesControllerTest < ActionDispatch::IntegrationTest
     get "/switches"
     assert_no_match(/gone/, @response.body)
     assert_equal 1, Switching::Rule.where(plug_id: "gone").count
+  end
+
+  test "a plug that reports power shows its watts under the knob" do
+    Plugs::Sample.create!(plug_id: "fridge", ts: Time.current.to_i, apower_w: 84.4, aenergy_wh: 1)
+    Plugs::State.create!(plug_id: "fridge", output: true)
+    get "/switches"
+    assert_select "#sw_head_fridge button.sw-knob:not(.off)[aria-label='Kühlschrank ausschalten']"
+    assert_select "#sw_head_fridge .badge", text: /84 W/
+    assert_select "#sw_card_fridge.opacity-75", false
+  end
+
+  test "a silent plug is dimmed, its knob disabled and without watts" do
+    get "/switches"
+    assert_select "#sw_card_fridge.card.opacity-75"
+    assert_select "#sw_head_fridge button.sw-knob.off[disabled]"
+    assert_select "#sw_head_fridge .badge", false
+  end
+
+  test "without switchable plugs the page says how to mark one" do
+    ConfigLoader.stub :app_config, Struct.new(:plugs).new([]) do
+      get "/switches"
+    end
+    assert_select ".empty-state h2", text: "Keine schaltbaren Steckdosen"
   end
 end

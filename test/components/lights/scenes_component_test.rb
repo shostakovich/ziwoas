@@ -7,9 +7,9 @@ class Lights::ScenesComponentTest < ViewComponent::TestCase
     rendered = render_inline(Lights::ScenesComponent.new(light: light))
 
     assert_includes rendered.to_html, "Govee-Szenen"
-    assert_equal 2, rendered.css("button.ld-scene").length
+    assert_equal 2, rendered.css("form input[name=effect]").length
     assert_includes rendered.to_html, "Forest"
-    previews = rendered.css("span.ld-scene-prev").map { |n| n["style"] }
+    previews = rendered.css("span.ld-scene-preview").map { |n| n["style"] }
     assert previews.all? { |s| s.include?("linear-gradient") }
     refute_equal previews[0], previews[1]
   end
@@ -18,7 +18,7 @@ class Lights::ScenesComponentTest < ViewComponent::TestCase
     light = Light.new(key: "K2", name: "Lampe", firmware_scenes: [])
     rendered = render_inline(Lights::ScenesComponent.new(light: light))
 
-    assert rendered.css("button.ld-scene").none?
+    assert rendered.css("form input[name=effect]").none?
     assert_includes rendered.to_html, "Diese Lampe meldet keine Govee-Szenen."
   end
 end

@@ -20,6 +20,13 @@ class SwitchWindowsControllerTest < ActionDispatch::IntegrationTest
     assert_match "switch_window[days][]", @response.body
   end
 
+  test "the editor takes two times and the weekdays as toggle buttons" do
+    get "/plugs/fridge/switch_windows/new", as: :turbo_stream
+    assert_select "input.form-control[type=time]", 2
+    assert_select "[role=group][aria-label=Wochentage] input.btn-check[type=checkbox][name='switch_window[days][]']", 7
+    assert_select "input[type=hidden][name='switch_window[days][]'][value='']"
+  end
+
   test "create writes both halves as one group and re-renders the rules region" do
     post "/plugs/fridge/switch_windows", params: valid_params, as: :turbo_stream
     assert_response :success

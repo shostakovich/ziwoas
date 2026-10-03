@@ -5,7 +5,7 @@ class Lights::ZoneComponentTest < ViewComponent::TestCase
     zone = Lights::Zone.new(key: "bottomLightToggle", label: "Leselicht", role: "main", on: true)
     rendered = render_inline(Lights::ZoneComponent.new(zone: zone, light_key: "K1"))
 
-    assert rendered.css("button.ld-zone-btn.on").any?
+    assert rendered.css("button.active").any?
     assert rendered.css("form#zone_bottomLightToggle").any?
     assert_equal "true", rendered.css("button").first["aria-pressed"]
     assert_includes rendered.to_html, "Leselicht"
@@ -15,8 +15,8 @@ class Lights::ZoneComponentTest < ViewComponent::TestCase
     zone = Lights::Zone.new(key: "sideLightToggle", label: "Seite", role: "side", on: false)
     rendered = render_inline(Lights::ZoneComponent.new(zone: zone, light_key: "K1"))
 
-    assert rendered.css("button.ld-zone-btn").any?
-    assert rendered.css("button.ld-zone-btn.on").none?
+    assert rendered.css("form#zone_sideLightToggle button").any?
+    assert rendered.css("button.active").none?
     assert_equal "false", rendered.css("button").first["aria-pressed"]
   end
 end

@@ -20,8 +20,18 @@ module Switches
     # Einzelschaltung, so one expression serves both.
     def row_id = "sw_entry_#{plug.id}_#{entry.id}"
 
+    # A Zeitfenster is a filled pill; an Einzelschaltung is the same pill drawn
+    # open, because its counter-direction is missing. A paused entry of either
+    # kind is struck through and loses its colour.
     def pill_class
-      [ "sw-pill", ("single" unless window?), ("paused" unless entry.enabled?) ].compact.join(" ")
+      [ "badge rounded-pill fw-normal",
+        ("border" unless window?),
+        tone_class ].compact.join(" ")
+    end
+
+    def tone_class
+      return "text-body-secondary text-decoration-line-through" unless entry.enabled?
+      window? ? "bg-primary-subtle text-primary-emphasis" : "border-primary text-primary-emphasis"
     end
 
     def noun = window? ? "Zeitfenster" : "Schaltzeit"
