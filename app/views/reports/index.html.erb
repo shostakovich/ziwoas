@@ -1,6 +1,6 @@
 <% content_for :title, "Berichte" %>
 <% content_for :body_class, "page-reports" %>
-<h1>Berichte</h1>
+<h1 class="h3 fw-medium text-body-secondary mb-3">Berichte</h1>
 
 <%
   daily_has_weather = @report.chart_payload.dig(:daily, :weather).present?
@@ -8,12 +8,12 @@
 %>
 
 <div class="reports-page" data-controller="energy-report">
-  <section class="chart-card report-controls" aria-label="Zeitraum">
-    <div class="preset-actions" role="group" aria-label="Schnellauswahl">
-      <%= link_to "Letzte 7 Tage", reports_path(preset: "last_7"), class: [ "preset-link", ("active" if @report.preset == "last_7") ] %>
-      <%= link_to "Letzte 30 Tage", reports_path(preset: "last_30"), class: [ "preset-link", ("active" if @report.preset == "last_30") ] %>
+  <section class="card card-body mb-3 report-controls" aria-label="Zeitraum">
+    <div class="preset-actions d-flex flex-wrap gap-2 align-items-end" role="group" aria-label="Schnellauswahl">
+      <%= link_to "Letzte 7 Tage", reports_path(preset: "last_7"), class: [ "btn btn-outline-secondary", ("active" if @report.preset == "last_7") ] %>
+      <%= link_to "Letzte 30 Tage", reports_path(preset: "last_30"), class: [ "btn btn-outline-secondary", ("active" if @report.preset == "last_30") ] %>
       <% unless %w[last_7 last_30].include?(@report.preset) %>
-        <span class="preset-link active" aria-current="true">Benutzerdefiniert</span>
+        <span class="btn btn-outline-secondary active" aria-current="true">Benutzerdefiniert</span>
       <% end %>
     </div>
 
@@ -35,65 +35,37 @@
   <% end %>
 
   <% if @report.empty? %>
-    <section class="chart-card empty-state">
-      <h2>Noch keine Berichtsdaten</h2>
+    <section class="card card-body mb-3 empty-state">
+      <h2 class="card-title">Noch keine Berichtsdaten</h2>
       <p>Die Rückschau erscheint, sobald die erste Tagesaggregation vorhanden ist.</p>
     </section>
   <% else %>
-    <section class="tiles" aria-label="Zusammenfassung">
-      <div class="tile">
-        <div class="tile-label">Ertrag</div>
-        <div class="tile-value"><%= number_with_precision(@report.summary.fetch(:produced_kwh), precision: 2, delimiter: ".", separator: ",") %> kWh</div>
-      </div>
-      <div class="tile">
-        <div class="tile-label">Verbrauch</div>
-        <div class="tile-value"><%= number_with_precision(@report.summary.fetch(:consumed_kwh), precision: 2, delimiter: ".", separator: ",") %> kWh</div>
-      </div>
-      <div class="tile">
-        <div class="tile-label">Gespart</div>
-        <div class="tile-value">
-          <% if @report.summary.fetch(:savings_eur).nil? %>
-            —
-          <% else %>
-            <%= number_with_precision(@report.summary.fetch(:savings_eur), precision: 2, delimiter: ".", separator: ",") %> €
-          <% end %>
-        </div>
-      </div>
-      <div class="tile">
-        <div class="tile-label">Bilanz</div>
-        <div class="tile-value"><%= number_with_precision(@report.summary.fetch(:balance_kwh), precision: 2, delimiter: ".", separator: ",") %> kWh</div>
-      </div>
-      <div class="tile">
-        <div class="tile-label">Autarkie</div>
-        <div class="tile-value"><%= number_with_precision(@report.summary.fetch(:autarky_ratio) * 100, precision: 1, delimiter: ".", separator: ",") %> %</div>
-      </div>
-      <div class="tile">
-        <div class="tile-label">Eigenverbrauchsquote</div>
-        <div class="tile-value"><%= number_with_precision(@report.summary.fetch(:self_consumption_ratio) * 100, precision: 1, delimiter: ".", separator: ",") %> %</div>
-      </div>
-      <div class="tile">
-        <div class="tile-label">Ø Ertrag/Tag</div>
-        <div class="tile-value"><%= number_with_precision(@report.summary.fetch(:avg_produced_kwh), precision: 2, delimiter: ".", separator: ",") %> kWh</div>
-      </div>
-      <div class="tile">
-        <div class="tile-label">Ø Verbrauch/Tag</div>
-        <div class="tile-value"><%= number_with_precision(@report.summary.fetch(:avg_consumed_kwh), precision: 2, delimiter: ".", separator: ",") %> kWh</div>
-      </div>
+    <% kwh = ->(key) { "#{number_with_precision(@report.summary.fetch(key), precision: 2, delimiter: ".", separator: ",")} kWh" } %>
+    <% pct = ->(key) { "#{number_with_precision(@report.summary.fetch(key) * 100, precision: 1, delimiter: ".", separator: ",")} %" } %>
+    <% savings = @report.summary.fetch(:savings_eur) %>
+    <section class="row row-cols-2 row-cols-md-4 g-2 mb-3" aria-label="Zusammenfassung">
+      <%= render Dashboard::TileComponent.new(label: "Ertrag", value: kwh.call(:produced_kwh)) %>
+      <%= render Dashboard::TileComponent.new(label: "Verbrauch", value: kwh.call(:consumed_kwh)) %>
+      <%= render Dashboard::TileComponent.new(label: "Gespart", value: savings.nil? ? "—" : "#{number_with_precision(savings, precision: 2, delimiter: ".", separator: ",")} €") %>
+      <%= render Dashboard::TileComponent.new(label: "Bilanz", value: kwh.call(:balance_kwh)) %>
+      <%= render Dashboard::TileComponent.new(label: "Autarkie", value: pct.call(:autarky_ratio)) %>
+      <%= render Dashboard::TileComponent.new(label: "Eigenverbrauchsquote", value: pct.call(:self_consumption_ratio)) %>
+      <%= render Dashboard::TileComponent.new(label: "Ø Ertrag/Tag", value: kwh.call(:avg_produced_kwh)) %>
+      <%= render Dashboard::TileComponent.new(label: "Ø Verbrauch/Tag", value: kwh.call(:avg_consumed_kwh)) %>
     </section>
 
-    <h2 class="section-label">Steckdosen</h2>
+    <h2 class="h6 text-uppercase text-body-secondary mt-4 mb-2">Steckdosen</h2>
     <%= render "ranking", rows: @report.producer_ranking + @report.consumer_ranking %>
 
     <%= render CardComponent.new(title: "Energie", subtitle: "Ertrag / Verbrauch") do %>
       <% if daily_has_weather %>
-        <div class="chart-card-toolbar">
-          <label class="ios-toggle">
-            <input type="checkbox"
+        <div class="d-flex align-items-center mb-2">
+          <div class="form-check form-switch mb-0">
+            <input type="checkbox" class="form-check-input" role="switch" id="report-daily-weather"
                    data-energy-report-target="dailyWeatherCheckbox"
                    data-action="change->energy-report#toggleDailyWeather">
-            <span class="ios-toggle-track"><span class="ios-toggle-thumb"></span></span>
-            <span class="ios-toggle-label">Wetter & Solar</span>
-          </label>
+            <label class="form-check-label" for="report-daily-weather">Wetter & Solar</label>
+          </div>
         </div>
       <% end %>
       <div class="chart-frame">
@@ -107,14 +79,13 @@
     <% detail_range = detail_from == detail_to ? detail_from : "#{detail_from} bis #{detail_to}" %>
     <%= render CardComponent.new(title: "Leistung", subtitle: "#{power_resolution} · #{detail_range}") do %>
       <% if detail_has_weather %>
-        <div class="chart-card-toolbar">
-          <label class="ios-toggle">
-            <input type="checkbox"
+        <div class="d-flex align-items-center mb-2">
+          <div class="form-check form-switch mb-0">
+            <input type="checkbox" class="form-check-input" role="switch" id="report-detail-weather"
                    data-energy-report-target="detailWeatherCheckbox"
                    data-action="change->energy-report#toggleDetailWeather">
-            <span class="ios-toggle-track"><span class="ios-toggle-thumb"></span></span>
-            <span class="ios-toggle-label">Wetter-Overlay</span>
-          </label>
+            <label class="form-check-label" for="report-detail-weather">Wetter-Overlay</label>
+          </div>
         </div>
       <% end %>
       <div class="chart-frame">

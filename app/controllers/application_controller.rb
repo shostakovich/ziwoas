@@ -5,7 +5,13 @@ class ApplicationController < ActionController::Base
   # Changes to the importmap will invalidate the etag for HTML responses
   stale_when_importmap_changes
 
+  helper_method :current_look
+
   private
+
+  def current_look
+    Look.named(cookies[Look::COOKIE])
+  end
 
   def app_config
     ConfigLoader.app_config

@@ -11,10 +11,17 @@ require "capybara/cuprite"
 CHROME_PATH = ENV["CUPRITE_CHROME_PATH"].presence ||
   Dir[File.expand_path("~/.cache/ms-playwright/chromium-*/chrome-linux/chrome")].max
 
+# Pages load felt-css from its CDN. Chrome ignores HTTPS_PROXY, so hand it over
+# where outbound traffic has to go through one (cloud sessions); the app server
+# on loopback stays direct.
+BROWSER_OPTIONS = { "no-sandbox": nil }.merge(
+  ENV["HTTPS_PROXY"].present? ? { "proxy-server": ENV["HTTPS_PROXY"] } : {}
+)
+
 class ApplicationSystemTestCase < ActionDispatch::SystemTestCase
   driven_by :cuprite, screen_size: [ 1400, 1400 ], options: {
     browser_path: CHROME_PATH,
-    browser_options: { "no-sandbox": nil },
+    browser_options: BROWSER_OPTIONS,
     headless: true,
     process_timeout: 30,
     timeout: 30

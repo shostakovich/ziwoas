@@ -1,0 +1,7 @@
+<% felt = current_look == "felt" %>
+<%# A full page load, not a Turbo visit: the look lives on <html>, which Turbo keeps. %>
+<%= button_to look_path, method: :patch, params: { look: felt ? "clean" : "felt" },
+      class: [ "btn btn-sm btn-outline-secondary app-look-toggle", ("active" if felt) ],
+      form: { data: { turbo: false } }, aria: { pressed: felt } do %>
+  Filz-Look
+<% end %>

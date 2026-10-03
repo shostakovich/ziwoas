@@ -1,6 +1,8 @@
 require "test_helper"
 
 class ReportsControllerTest < ActionDispatch::IntegrationTest
+  cover "ApplicationHelper#main_navigation"
+
   # AggregatorJobTest runs without a transaction, so its rows can reach this class.
   setup do
     Plugs::DailyTotal.delete_all
@@ -29,15 +31,16 @@ class ReportsControllerTest < ActionDispatch::IntegrationTest
     get "/reports"
 
     assert_response :success
-    assert_select ".tiles .tile", 8
-    labels = css_select(".tiles .tile .tile-label").map { |node| node.text.squish }
+    assert_select "section[aria-label='Zusammenfassung'] .stat", 8
+    labels = css_select("section[aria-label='Zusammenfassung'] .stat-label").map { |node| node.text.squish }
     assert_equal [ "Ertrag", "Verbrauch", "Gespart", "Bilanz", "Autarkie", "Eigenverbrauchsquote", "Ø Ertrag/Tag", "Ø Verbrauch/Tag" ], labels
-    assert_select ".section-label", text: "Zeitraum", count: 0
-    assert_select ".section-label", text: "Zusammenfassung", count: 0
-    assert_select ".section-label", text: "Steckdosen"
-    assert_select ".card-title", text: /\AEnergie Ertrag \/ Verbrauch/
-    assert_select ".card-title", text: /\ALeistung/
-    assert_select ".chart-card .chart-frame", minimum: 2
+    assert_select "main h2", text: "Zeitraum", count: 0
+    assert_select "main h2", text: "Zusammenfassung", count: 0
+    assert_select "main h2", text: "Steckdosen"
+    assert_select ".card-title", text: "Energie"
+    assert_select ".card-subtitle", text: "Ertrag / Verbrauch"
+    assert_select ".card-title", text: "Leistung"
+    assert_select ".card .chart-frame", minimum: 2
     assert_select ".report-ranking .report-ranking-row", minimum: 1
     assert_select "[data-energy-report-target='dailyCanvas']", 1
     assert_select "[data-energy-report-target='detailCanvas']", 1
@@ -49,7 +52,7 @@ class ReportsControllerTest < ActionDispatch::IntegrationTest
 
     get "/reports"
 
-    headings = css_select(".section-label, .card-title").map { |node| node.text.squish }
+    headings = css_select("main h2").map { |node| node.text.squish }
     assert_equal "Steckdosen", headings[0]
     assert_match(/\AEnergie/, headings[1])
     assert_match(/\ALeistung/, headings[2])
@@ -64,7 +67,8 @@ class ReportsControllerTest < ActionDispatch::IntegrationTest
     get "/reports", params: { preset: "last_30" }
 
     assert_response :success
-    assert_select ".card-title", text: /\ALeistung Tagesmittel · /
+    assert_select ".card-title", text: "Leistung"
+    assert_select ".card-subtitle", text: /\ATagesmittel · /
   end
 
   test "reports page shows empty state without data" do
@@ -79,9 +83,10 @@ class ReportsControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_no_match %r{href="/app\.css}, response.body
+    assert_select "link[rel='stylesheet'][href='https://felt-css.rocu.de/felt.css']:not([data-turbo-track])", 1
     assert_select "link[href^='/assets/application'][data-turbo-track='reload']", 1
     assert_select "header.app-header", 1
-    assert_select ".app-brand img[alt='Ziwoas — Startseite']", 1
+    assert_select ".app-header .navbar-brand img[alt='Ziwoas — Startseite']", 1
 
     expected_links = {
       root_path => [ "Home", "nav_dashboard_plush.webp" ],
@@ -92,27 +97,28 @@ class ReportsControllerTest < ActionDispatch::IntegrationTest
       sensors_path => [ "Sensoren", "nav_sensors_plush.webp" ]
     }
 
-    expected_links.each do |path, (label, icon)|
-      # Propshaft digests asset filenames (nav_dashboard_plush-<digest>.webp),
-      # so match the digest-tolerant basename rather than the literal filename.
-      icon_basename = File.basename(icon, ".webp")
-      assert_select "nav.app-nav a[href='#{path}']" do
-        assert_select ".app-nav-label", text: label, count: 1
-        assert_select "img.app-nav-icon[alt=''][aria-hidden='true'][src*='#{icon_basename}']", count: 1
+    # The same six tabs twice: header pills from lg up, the tab bar below.
+    [ "Hauptnavigation", "Tab-Leiste" ].each do |nav_label|
+      assert_select "nav[aria-label='#{nav_label}'] a.nav-link", 6
+      expected_links.each do |path, (label, icon)|
+        # Propshaft digests asset filenames (nav_dashboard_plush-<digest>.webp),
+        # so match the digest-tolerant basename rather than the literal filename.
+        icon_basename = File.basename(icon, ".webp")
+        assert_select "nav[aria-label='#{nav_label}'] a.nav-link[href='#{path}']", text: label, count: 1 do
+          assert_select "img[alt=''][aria-hidden='true'][src*='#{icon_basename}']", count: 1
+        end
       end
+      assert_select "nav[aria-label='#{nav_label}'] a.nav-link.active[aria-current='page'][href='#{reports_path}']", 1
+      assert_select "nav[aria-label='#{nav_label}'] a.nav-link[aria-current]", 1
     end
 
-    stylesheet = Rails.root.join("app/assets/stylesheets/application.css").read
-    assert_includes stylesheet, ".app-nav-icon"
-    assert_includes stylesheet, "display: none;"
-    assert_includes stylesheet, ".app-nav-label"
+    assert_select "nav.navbar.fixed-bottom.pb-safe.d-lg-none[aria-label='Tab-Leiste'] ul.nav.nav-pills.nav-fill"
+    assert_select "nav.d-none.d-lg-block[aria-label='Hauptnavigation']"
+    assert_select "a.visually-hidden-focusable[href='#main']", text: "Zum Inhalt springen"
+    assert_select "main#main.container", 1
 
-    assert_includes stylesheet, "@media (max-width: 640px)"
-    assert_includes stylesheet, "bottom: calc(14px + env(safe-area-inset-bottom));"
-    assert_includes stylesheet, "backdrop-filter: blur(40px) saturate(1.8);"
-    assert_includes stylesheet, "grid-template-columns: repeat(6, minmax(0, 1fr));"
-    assert_includes stylesheet, "width: 32px;"
-    assert_includes stylesheet, "font-weight: 500;"
+    get root_path
+    expected_links.each_key { |path| assert_select "a.nav-link[href='#{path}']", 2 }
   end
 
   test "reports page renders Autarkie & Eigenverbrauchsquote section" do

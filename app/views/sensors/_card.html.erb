@@ -1,5 +1,5 @@
 <%# app/views/sensors/_card.html.erb %>
-<article class="sensor-card chart-card">
+<article class="sensor-card card card-body">
   <h3 class="sensor-card-name"><%= sensor.name %></h3>
 
   <div class="sensor-card-body">
@@ -13,7 +13,7 @@
 
     <div class="sensor-card-content">
       <% if reading.nil? %>
-        <p class="muted-text">Keine Daten</p>
+        <p class="small text-body-secondary">Keine Daten</p>
       <% else %>
         <ul class="sensor-card-values">
           <% if reading.temperature %>
@@ -27,7 +27,7 @@
           <% end %>
         </ul>
 
-        <footer class="sensor-card-foot muted-text">
+        <footer class="sensor-card-foot small text-body-secondary">
           <%= relative_time(reading.taken_at) %>
         </footer>
       <% end %>

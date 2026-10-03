@@ -12,25 +12,25 @@ class DashboardRefreshTest < ApplicationSystemTestCase
   test "the dashboard arrives fully rendered from the server" do
     visit root_path
 
-    assert_selector "#tile_consumption_now .tile-value", text: "80 W"
+    assert_selector "#tile_consumption_now .stat-value", text: "80 W"
     assert_selector "#dashboard_plug_bar .plug-bar-meta b", text: "80 W"
     assert_selector "#dashboard_hero .hero-number", text: "420"
   end
 
   test "a Live-Bild that is no longer kept current is dimmed, not emptied" do
     visit root_path
-    assert_selector "#tile_consumption_now .tile-value", text: /\d+ W/
-    consumption = find("#tile_consumption_now .tile-value").text
+    assert_selector "#tile_consumption_now .stat-value", text: /\d+ W/
+    consumption = find("#tile_consumption_now .stat-value").text
 
     skip_ahead_ten_minutes
 
     assert_selector "[data-controller~='live-freshness'].live-stale"
-    assert_equal consumption, find("#tile_consumption_now .tile-value").text
+    assert_equal consumption, find("#tile_consumption_now .stat-value").text
   end
 
   test "a beat after a gap ends the dimming and asks the charts for a fresh Bild" do
     visit root_path
-    assert_selector "#tile_consumption_now .tile-value", text: /\d+ W/
+    assert_selector "#tile_consumption_now .stat-value", text: /\d+ W/
 
     skip_ahead_ten_minutes
     assert_selector "[data-controller~='live-freshness'].live-stale"

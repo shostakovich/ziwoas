@@ -1,8 +1,11 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="de" <%= tag.attributes(data: { look: ("felt" if current_look == "felt") }) %>>
   <head>
     <title><%= content_for(:title) || "Ziwoas" %></title>
-    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+    <% theme_colors = Look.theme_colors(current_look) %>
+    <meta name="theme-color" content="<%= theme_colors[:light] %>" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="<%= theme_colors[:dark] %>" media="(prefers-color-scheme: dark)">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="application-name" content="Ziwoas">
     <meta name="mobile-web-app-capable" content="yes">
@@ -17,48 +20,55 @@
     <link rel="icon" href="/favicon.png" type="image/png">
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 
-    <%# Includes all stylesheet files in app/assets/stylesheets %>
-    <%= stylesheet_link_tag :application, "data-turbo-track": "reload" %>
+    <%# felt-css first: our stylesheets (all of app/assets/stylesheets, application.css first) build on it. %>
+    <link rel="stylesheet" href="https://felt-css.rocu.de/felt.css">
+    <%= stylesheet_link_tag :app, "data-turbo-track": "reload" %>
     <%= javascript_importmap_tags %>
-
   </head>
 
   <body class="<%= content_for(:body_class) %>">
-    <a class="skip-link" href="#main">Zum Inhalt springen</a>
-    <header class="app-header">
-      <%= link_to root_path, class: "app-brand" do %>
-        <%= image_tag "logo.png", alt: "Ziwoas — Startseite", class: "app-logo", width: 172, height: 64 %>
-      <% end %>
-      <nav class="app-nav" aria-label="Hauptnavigation">
-        <%= link_to root_path, class: [ "app-nav-link", ("active" if current_page?(root_path)) ] do %>
-          <%= image_tag "nav_dashboard_plush.webp", alt: "", class: "app-nav-icon", aria: { hidden: true } %>
-          <span class="app-nav-label">Home</span>
-        <% end %>
-        <%= link_to solakon_path, class: [ "app-nav-link", ("active" if current_page?(solakon_path)) ] do %>
-          <%= image_tag "nav_pv_plush.webp", alt: "", class: "app-nav-icon", aria: { hidden: true } %>
-          <span class="app-nav-label">PV</span>
-        <% end %>
-        <%= link_to switches_path, class: [ "app-nav-link", ("active" if current_page?(switches_path)) ] do %>
-          <%= image_tag "nav_switches_plush.webp", alt: "", class: "app-nav-icon", aria: { hidden: true } %>
-          <span class="app-nav-label">Schalten</span>
-        <% end %>
-        <%= link_to reports_path, class: [ "app-nav-link", ("active" if current_page?(reports_path)) ] do %>
-          <%= image_tag "nav_reports_plush.webp", alt: "", class: "app-nav-icon", aria: { hidden: true } %>
-          <span class="app-nav-label">Berichte</span>
-        <% end %>
-        <%= link_to weather_path, class: [ "app-nav-link", ("active" if current_page?(weather_path)) ] do %>
-          <%= image_tag "nav_weather_plush.webp", alt: "", class: "app-nav-icon", aria: { hidden: true } %>
-          <span class="app-nav-label">Wetter</span>
-        <% end %>
-        <%= link_to sensors_path, class: [ "app-nav-link", ("active" if current_page?(sensors_path)) ] do %>
-          <%= image_tag "nav_sensors_plush.webp", alt: "", class: "app-nav-icon", aria: { hidden: true } %>
-          <span class="app-nav-label">Sensoren</span>
-        <% end %>
-      </nav>
-    </header>
+    <a class="visually-hidden-focusable btn btn-primary m-2" href="#main">Zum Inhalt springen</a>
 
-    <main class="app-main" id="main">
+    <div class="container pt-3">
+      <header class="navbar navbar-expand px-3 app-header mb-3">
+        <%= link_to root_path, class: "navbar-brand d-flex align-items-center py-0" do %>
+          <%= image_tag "logo.png", alt: "Ziwoas — Startseite", class: "app-logo", width: 172, height: 64 %>
+        <% end %>
+        <nav class="d-none d-lg-block me-auto" aria-label="Hauptnavigation">
+          <ul class="navbar-nav nav-pills flex-nowrap">
+            <% main_navigation.each do |item| %>
+              <li class="nav-item">
+                <%= link_to item.path, class: [ "nav-link d-flex align-items-center gap-2 px-2", ("active" if item.current) ],
+                                       aria: { current: ("page" if item.current) } do %>
+                  <%= image_tag item.icon, alt: "", class: "app-nav-icon", aria: { hidden: true } %>
+                  <%= item.label %>
+                <% end %>
+              </li>
+            <% end %>
+          </ul>
+        </nav>
+        <div class="d-flex align-items-center ms-auto">
+          <%= render "layouts/look_toggle" %>
+        </div>
+      </header>
+    </div>
+
+    <main class="container app-main" id="main">
       <%= yield %>
     </main>
+
+    <nav class="navbar fixed-bottom pb-safe d-lg-none" aria-label="Tab-Leiste">
+      <ul class="nav nav-pills nav-fill w-100">
+        <% main_navigation.each do |item| %>
+          <li class="nav-item">
+            <%= link_to item.path, class: [ "nav-link d-flex flex-column align-items-center", ("active" if item.current) ],
+                                   aria: { current: ("page" if item.current) } do %>
+              <%= image_tag item.icon, alt: "", class: "app-nav-icon", aria: { hidden: true } %>
+              <small><%= item.label %></small>
+            <% end %>
+          </li>
+        <% end %>
+      </ul>
+    </nav>
   </body>
 </html>

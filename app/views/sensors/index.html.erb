@@ -3,7 +3,7 @@
 <% content_for :body_class, "page-sensors" %>
 <%= turbo_stream_from "sensors" %>
 
-<h1>Sensoren</h1>
+<h1 class="h3 fw-medium text-body-secondary mb-3">Sensoren</h1>
 <div class="sensors-page">
   <%= render "dashboard", sensors: @sensors, latest: @latest %>
 </div>

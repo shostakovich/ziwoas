@@ -1,10 +1,11 @@
 module Dashboard
-  # One dashboard tile. The class methods are the catalog: each names a tile,
-  # its DOM id — which doubles as the broadcast target — and how its value is
-  # formatted, so the index view and DashboardBroadcaster can never disagree
-  # about the markup they produce.
+  # One KPI tile (a .col in a .row grid holding a felt .card with a .stat).
+  # The class methods are the dashboard catalog: each names a tile, its DOM id —
+  # which doubles as the broadcast target — and how its value is formatted, so
+  # the index view and DashboardBroadcaster can never disagree about the markup
+  # they produce. Other pages render plain tiles with new(label:, value:).
   class TileComponent < ApplicationComponent
-    def initialize(id:, label:, value:)
+    def initialize(label:, value:, id: nil)
       @id    = id
       @label = label
       @value = value

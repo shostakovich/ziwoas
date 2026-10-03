@@ -1,6 +1,6 @@
 <%= turbo_frame_tag "weather_forecast" do %>
   <% if future_weather.any? %>
-    <h2 class="section-label">Nächste Tage</h2>
+    <h2 class="h6 text-uppercase text-body-secondary mt-4 mb-2">Nächste Tage</h2>
     <section class="weather-days">
       <% future_weather.each do |day| %>
         <article class="weather-day-card"

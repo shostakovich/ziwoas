@@ -1,8 +1,8 @@
 <%# app/views/sensors/_dashboard.html.erb %>
 <%= turbo_frame_tag "sensors_dashboard" do %>
   <% if latest.empty? %>
-    <section class="chart-card empty-state">
-      <h2>Noch keine Sensordaten</h2>
+    <section class="card card-body mb-3 empty-state">
+      <h2 class="card-title">Noch keine Sensordaten</h2>
       <p>Die Sensoransicht erscheint, sobald die SwitchBot-API Daten geliefert hat.</p>
     </section>
   <% else %>

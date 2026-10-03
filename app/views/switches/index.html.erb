@@ -1,6 +1,6 @@
 <% content_for :title, "Schalten" %>
 <% content_for :body_class, "page-switches" %>
-<h1>Schalten</h1>
+<h1 class="h3 fw-medium text-body-secondary mb-3">Schalten</h1>
 
 <%# Live watt/output updates arrive as sw_head replaces from DashboardBroadcaster. %>
 <%= turbo_stream_from DashboardBroadcaster::STREAM %>
@@ -14,7 +14,7 @@
   <% end %>
 
   <% if @light_snapshots.any? %>
-    <h2 class="section-label">Lampen</h2>
+    <h2 class="h6 text-uppercase text-body-secondary mt-4 mb-2">Lampen</h2>
     <%# Live MQTT state reconciles each card via Turbo Streams (see Govees::Subscriber). %>
     <%= turbo_stream_from "lights" %>
     <div class="sw-lights">
@@ -25,7 +25,7 @@
   <% end %>
 
   <% if @rows.any? %>
-    <h2 class="section-label">Steckdosen</h2>
+    <h2 class="h6 text-uppercase text-body-secondary mt-4 mb-2">Steckdosen</h2>
   <% end %>
   <% @rows.each do |row| %>
     <%= render "switches/plug_card", row: row %>

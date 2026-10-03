@@ -1,13 +1,13 @@
 <% content_for :title, "Wirtschaftlichkeit" %>
 <% content_for :body_class, "page-economics" %>
 
-<h1>Wirtschaftlichkeit</h1>
+<h1 class="h3 fw-medium text-body-secondary mb-3">Wirtschaftlichkeit</h1>
 
 <div class="economics-page">
   <%= render Economics::OverviewCardComponent.new(result: @overview) %>
 
   <%= render CardComponent.new(title: "Kostenposten") do %>
-    <p class="muted-text">
+    <p class="small text-body-secondary">
       Alles, was die Anlage gekostet hat. Eine Förderung oder Rückerstattung wird
       als negativer Betrag erfasst.
     </p>
@@ -54,7 +54,7 @@
   <% end %>
 
   <%= render CardComponent.new(title: "Strompreise") do %>
-    <p class="muted-text">
+    <p class="small text-body-secondary">
       Was eine Kilowattstunde aus dem Netz kostet. Ein Preis gilt ab seinem Datum
       bis zum nächsten; der früheste deckt auch alle Tage davor.
     </p>

@@ -127,6 +127,6 @@ class ApiControllerTest < ActionDispatch::IntegrationTest
     get "/"
     assert_response :ok
     assert_select "h1", text: "Dashboard", count: 1
-    assert_select ".chart-card .chart-frame", minimum: 3
+    assert_select ".card .chart-frame", minimum: 3
   end
 end

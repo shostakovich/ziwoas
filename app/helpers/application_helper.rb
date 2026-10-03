@@ -12,4 +12,18 @@ module ApplicationHelper
   }.freeze
 
   DEFAULT_BATTERY_ASSET = BATTERY_ASSETS.fetch("normal")
+
+  NavItem = Data.define(:path, :label, :icon, :current)
+
+  # The six tabs of the header nav (desktop) and the tab bar (mobile).
+  def main_navigation
+    [
+      [ root_path, "Home", "nav_dashboard_plush.webp" ],
+      [ solakon_path, "PV", "nav_pv_plush.webp" ],
+      [ switches_path, "Schalten", "nav_switches_plush.webp" ],
+      [ reports_path, "Berichte", "nav_reports_plush.webp" ],
+      [ weather_path, "Wetter", "nav_weather_plush.webp" ],
+      [ sensors_path, "Sensoren", "nav_sensors_plush.webp" ]
+    ].map { |path, label, icon| NavItem.new(path:, label:, icon:, current: current_page?(path)) }
+  end
 end

@@ -46,12 +46,13 @@ class DashboardControllerTest < ActionDispatch::IntegrationTest
     assert_select "[data-ef='efDotsBatteryHome']"
   end
 
-  test "dashboard battery hero icon uses full sun height" do
-    css = Rails.root.join("app/assets/stylesheets/application.css").read
+  test "dashboard battery hero icon shares the sun icon's sizing" do
+    get "/"
 
-    assert_match(/\.hero-icon-battery \{ height: 80px; \}/, css)
-    assert_match(/@media \(max-width: 480px\).*\.hero-icon-battery \{ height: 48px; \}/m, css)
-    assert_match(/@media \(max-width: 380px\).*\.hero-icon-battery \{ height: 42px; \}/m, css)
+    # Both hero icons carry .hero-icon, so the battery always matches the
+    # sun's height; .hero-icon-battery only hooks the battery half.
+    assert_select "#dashboard_hero img.hero-icon", 2
+    assert_select "#dashboard_hero img.hero-icon.hero-icon-battery", 1
   end
 
   test "dashboard battery hero hides itself without a fresh reading and keeps the SVG asset map" do
@@ -115,10 +116,10 @@ class DashboardControllerTest < ActionDispatch::IntegrationTest
   test "dashboard renders Autarkie and Eigenverbrauch tiles" do
     get "/"
     assert_response :ok
-    labels = css_select(".tiles .tile .tile-label").map { |n| n.text.squish }
+    labels = css_select(".tiles .stat-label").map { |n| n.text.squish }
     assert_includes labels, "Autarkie heute"
     assert_includes labels, "Eigenverbrauchsquote"
-    assert_select "#tile_autarky .tile-value", 1
-    assert_select "#tile_self_consumption .tile-value", 1
+    assert_select "#tile_autarky .stat-value", 1
+    assert_select "#tile_self_consumption .stat-value", 1
   end
 end

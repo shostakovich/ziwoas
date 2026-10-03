@@ -1,0 +1,225 @@
+/* PV page (Solakon) and its server-drawn SVG charts: sun calendar, sky map,
+   monthly profiles, the four panels. */
+
+.solakon-page { width: 100%; }
+.solakon-balance {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+.solakon-balance-row {
+  display: grid;
+  grid-template-columns: minmax(9rem, 1.2fr) minmax(90px, 2fr) auto;
+  gap: 8px;
+  align-items: center;
+  font-size: 13px;
+}
+.solakon-balance-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.solakon-status-card details {
+  margin-top: 10px;
+  border-top: 1px dashed var(--border);
+  padding-top: 10px;
+}
+
+@media (max-width: 520px) {
+  .solakon-balance-row {
+    grid-template-columns: 1fr auto;
+  }
+  .solakon-balance-row .progress {
+    grid-column: 1 / -1;
+    order: 3;
+  }
+}
+
+.solakon-status-figure {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.solakon-battery-character {
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+.solakon-status-summary {
+  margin: 0;
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* Server-drawn SVG charts: sun calendar and sky map. */
+.sun-charts .sun-strip > .card-body { padding: 12px 10px 10px; }
+.sun-charts svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  font-family: inherit;
+}
+.sun-charts svg text {
+  fill: var(--muted);
+  font-size: 10px;
+}
+.sun-charts svg .grid line { stroke: var(--surface-sunk); stroke-width: 1; }
+.sun-charts svg .axis { stroke: var(--border); stroke-width: 1; }
+.sun-charts svg .nodata { fill: var(--surface-sunk); }
+.sun-charts svg .bars rect { fill: var(--viz-solar); }
+.sun-charts svg .hits rect { fill: transparent; }
+.sun-charts svg polyline.sun {
+  fill: none;
+  stroke: var(--warning-text);
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.sun-charts svg polyline.noon {
+  stroke-width: 1.2;
+  stroke-dasharray: 2 4;
+}
+.sun-charts svg .seam {
+  stroke: var(--muted);
+  stroke-width: 1.2;
+  stroke-dasharray: 3 3;
+}
+.sun-charts .label-sparse { display: none; }
+.sun-charts .legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  align-items: center;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  color: var(--muted);
+}
+.sun-charts .legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.sun-charts .legend-ramp {
+  display: inline-block;
+  width: 96px;
+  height: 10px;
+  border-radius: 2px;
+  border: 1px solid var(--border);
+}
+.sun-charts .legend-box {
+  display: inline-block;
+  width: 14px;
+  height: 10px;
+  border-radius: 2px;
+  border: 1px solid var(--border);
+}
+.sun-charts .legend-box.nodata { background: var(--surface-sunk); }
+.sun-charts .legend-box.bar { background: var(--viz-solar); border-color: var(--viz-solar); }
+.sun-charts .legend-line {
+  display: inline-block;
+  width: 18px;
+  height: 0;
+  border-top: 2px solid var(--warning-text);
+}
+.sun-charts .legend-line.noon { border-top-style: dotted; }
+.sun-charts .legend-line.seam {
+  border-top-style: dashed;
+  border-top-color: var(--muted);
+}
+.sun-charts .note {
+  margin: 18px 0 0;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+/* Sky map, monthly profiles and the four panels on the PV page. */
+.shading {
+  --panel-1: #2a78d6;
+  --panel-2: #eb6834;
+  --panel-3: #1baf7a;
+  --panel-4: #b26bd6;
+}
+.shading svg .fields rect { stroke: none; }
+.shading svg .dot { fill: var(--muted); stroke: var(--surface); stroke-width: 2; }
+/* The dates and hours lie over the fields, so they carry a halo in the card's
+   own colour to stay readable on top of a dark one. */
+.shading svg .path-label,
+.shading svg .dot-label {
+  fill: var(--muted);
+  paint-order: stroke;
+  stroke: var(--surface);
+  stroke-width: 3;
+  stroke-linejoin: round;
+}
+.shading svg .path-label { font-weight: 600; }
+.shading svg .curve {
+  fill: none;
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+.shading svg .measured { stroke: var(--viz-solar); }
+.shading svg .expected { stroke: #3987e5; stroke-dasharray: 5 4; }
+.shading svg .theory { stroke: var(--muted); stroke-width: 1.5; stroke-dasharray: 1.5 3; }
+.shading svg .measured-area { fill: var(--viz-solar); fill-opacity: 0.18; }
+.shading svg .pv1 { stroke: var(--panel-1); }
+.shading svg .pv2 { stroke: var(--panel-2); }
+.shading svg .pv3 { stroke: var(--panel-3); }
+.shading svg .pv4 { stroke: var(--panel-4); }
+.shading svg .direct-labels text {
+  font-weight: 600;
+  paint-order: stroke;
+  stroke: var(--surface);
+  stroke-width: 3;
+  stroke-linejoin: round;
+}
+.shading svg .direct-labels .pv1 { fill: var(--panel-1); }
+.shading svg .direct-labels .pv2 { fill: var(--panel-2); }
+.shading svg .direct-labels .pv3 { fill: var(--panel-3); }
+.shading svg .direct-labels .pv4 { fill: var(--panel-4); }
+.shading .legend-line.measured { border-top-color: var(--viz-solar); }
+.shading .legend-line.expected { border-top-color: #3987e5; border-top-style: dashed; }
+.shading .legend-line.theory { border-top-color: var(--muted); border-top-style: dotted; }
+.shading .legend-line.pv1 { border-top-color: var(--panel-1); }
+.shading .legend-line.pv2 { border-top-color: var(--panel-2); }
+.shading .legend-line.pv3 { border-top-color: var(--panel-3); }
+.shading .legend-line.pv4 { border-top-color: var(--panel-4); }
+.shading .multiples {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 8px 12px;
+}
+.shading .multiple { margin: 0; }
+.shading .multiple figcaption {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+.shading .multiple figcaption span {
+  font-weight: 400;
+  color: var(--muted);
+}
+
+/* The SVG scales down with the viewport, so its own units have to grow for
+   text and lines to stay legible on a phone. */
+@media (max-width: 600px) {
+  .sun-charts .label-dense { display: none; }
+  .sun-charts .label-sparse { display: block; }
+  .sun-charts .legend-ramp { width: 64px; }
+  .sun-charts svg text { font-size: 18px; }
+  .sun-charts svg .grid line { stroke-width: 2; }
+  .sun-charts svg polyline.sun { stroke-width: 3; }
+  .sun-charts svg polyline.noon { stroke-width: 2.4; stroke-dasharray: 4 7; }
+  .sun-charts svg .seam { stroke-width: 2.4; stroke-dasharray: 5 5; }
+  .shading svg .curve { stroke-width: 3; }
+  .shading svg .theory { stroke-width: 2.4; stroke-dasharray: 3 5; }
+  .shading svg .expected { stroke-dasharray: 8 6; }
+  .shading svg .dot { stroke-width: 3; }
+  .shading .multiples { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+}

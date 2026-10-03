@@ -1,6 +1,8 @@
 Rails.application.routes.draw do
   root "dashboard#index"
 
+  resource :look, only: :update
+
   get "/reports", to: "reports#index"
   get "/weather", to: "weather#index"
   get "/sensors", to: "sensors#index", as: :sensors

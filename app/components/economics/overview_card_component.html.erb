@@ -1,22 +1,10 @@
 <%= render CardComponent.new(title: "Wirtschaftlichkeit", subtitle: subtitle,
                              classes: "economics-card") do %>
-  <div class="tiles economics-tiles">
-    <div class="tile">
-      <div class="tile-label">Anschaffungskosten</div>
-      <div class="tile-value"><%= cost_value %></div>
-    </div>
-    <div class="tile">
-      <div class="tile-label">Ersparnis</div>
-      <div class="tile-value"><%= saved_value %></div>
-    </div>
-    <div class="tile">
-      <div class="tile-label">Zurückverdient</div>
-      <div class="tile-value"><%= covered_value %></div>
-    </div>
-    <div class="tile">
-      <div class="tile-label"><%= payback_label %></div>
-      <div class="tile-value"><%= payback_value %></div>
-    </div>
+  <div class="row row-cols-2 row-cols-md-4 g-2 mb-3 economics-tiles">
+    <%= render Dashboard::TileComponent.new(label: "Anschaffungskosten", value: cost_value) %>
+    <%= render Dashboard::TileComponent.new(label: "Ersparnis", value: saved_value) %>
+    <%= render Dashboard::TileComponent.new(label: "Zurückverdient", value: covered_value) %>
+    <%= render Dashboard::TileComponent.new(label: payback_label, value: payback_value) %>
   </div>
 
   <% if covered_pct %>
@@ -27,13 +15,13 @@
     </div>
   <% end %>
 
-  <p class="muted-text">
+  <p class="small text-body-secondary">
     Gerechnet wird nur mit dem Strom, den die gemessenen Verbraucher im selben
     Moment genutzt haben. Eingespeister Strom wird nicht vergütet und zählt nicht.
   </p>
 
   <% if hint %>
-    <p class="muted-text"><%= hint %></p>
+    <p class="small text-body-secondary"><%= hint %></p>
   <% end %>
 
   <p class="economics-actions">

@@ -77,8 +77,9 @@ class Solakon::PanelCurvesComponentTest < ViewComponent::TestCase
   end
 
   test "says since when the days were counted" do
-    assert_equal "Die vier Panels im Tagesverlauf seit 27.08.2026 · 16 Tage",
-                 render_panels.css(".card-title").sole.text.squish
+    rendered = render_panels
+    assert_equal "Die vier Panels im Tagesverlauf", rendered.css(".card-title").sole.text.squish
+    assert_equal "seit 27.08.2026 · 16 Tage", rendered.css(".card-subtitle").sole.text.squish
   end
 
   test "counts a single day in the singular and every other count in the plural" do

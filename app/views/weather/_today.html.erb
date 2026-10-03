@@ -1,6 +1,6 @@
 <%= turbo_frame_tag "weather_today" do %>
   <% if today_weather.any? %>
-    <h2 class="section-label">Heute</h2>
+    <h2 class="h6 text-uppercase text-body-secondary mt-4 mb-2">Heute</h2>
     <section class="weather-hour-row" aria-label="Heute">
       <% today_weather.each do |record| %>
         <%= render "weather/hour_card", record: record %>

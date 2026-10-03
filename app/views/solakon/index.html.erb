@@ -5,7 +5,7 @@
 <% reading = @latest_reading %>
 <% fmt = ->(value, precision = 0) { value.nil? ? "—" : number_with_precision(value, precision: precision, delimiter: ".", separator: ",") } %>
 
-<h1>PV</h1>
+<h1 class="h3 fw-medium text-body-secondary mb-3">PV</h1>
 
 <%= turbo_stream_from DashboardBroadcaster::STREAM %>
 
@@ -51,70 +51,86 @@
       <p class="solakon-status-summary"><%= battery_summary %></p>
     </div>
     <% status_messages.each do |message| %>
-      <p class="muted-text"><%= message %></p>
+      <p class="small text-body-secondary"><%= message %></p>
     <% end %>
     <details>
       <summary>Details</summary>
-      <p class="muted-text">Speichertemperatur (Status/Regelung) <%= fmt.call(battery_temp_c, 1) %> °C</p>
-      <p class="muted-text">Wechselrichtertemperatur <%= fmt.call(reading&.inverter_temperature_c || latest&.inverter_temperature_c, 1) %> °C</p>
-      <p class="muted-text">Außensteckdose <%= reading&.eps_enabled ? "bereit" : "aus" %></p>
+      <p class="small text-body-secondary">Speichertemperatur (Status/Regelung) <%= fmt.call(battery_temp_c, 1) %> °C</p>
+      <p class="small text-body-secondary">Wechselrichtertemperatur <%= fmt.call(reading&.inverter_temperature_c || latest&.inverter_temperature_c, 1) %> °C</p>
+      <p class="small text-body-secondary">Außensteckdose <%= reading&.eps_enabled ? "bereit" : "aus" %></p>
     </details>
   <% end %>
 
-  <h2 class="section-label">Steuerung</h2>
-  <section class="solakon-control-grid">
-    <article class="tile solakon-control-card" data-solakon-target="epsCard">
-      <div class="tile-label">Außensteckdose</div>
-      <div class="tile-value" data-solakon-target="epsState"><%= reading&.eps_enabled ? "An" : "Aus" %></div>
-      <p class="muted-text">Notstrom-Ausgang · <span data-solakon-target="epsPower"><%= fmt.call(reading&.eps_power_w) %> W</span> · <span data-solakon-target="epsVoltage"><%= fmt.call(reading&.eps_voltage_v, 1) %> V</span></p>
-      <label class="ios-toggle solakon-toggle">
-        <input type="checkbox"
-               <%= "checked" if reading&.eps_enabled %>
-               data-solakon-target="epsToggle"
-               data-action="change->solakon#toggleEps">
-        <span class="ios-toggle-track"><span class="ios-toggle-thumb"></span></span>
-        <span class="ios-toggle-label">Außensteckdose schalten</span>
-      </label>
-      <p class="solakon-control-error" data-solakon-target="epsError" hidden></p>
-    </article>
+  <h2 class="h6 text-uppercase text-body-secondary mt-4 mb-2">Steuerung</h2>
+  <section class="row row-cols-1 row-cols-sm-2 g-2 mb-3 solakon-control-grid">
+    <div class="col">
+      <article class="card h-100 solakon-control-card" data-solakon-target="epsCard">
+        <div class="card-body p-3">
+          <div class="stat">
+            <span class="stat-label">Außensteckdose</span>
+            <span class="stat-value fs-2" data-solakon-target="epsState"><%= reading&.eps_enabled ? "An" : "Aus" %></span>
+            <span class="small text-body-secondary">Notstrom-Ausgang · <span data-solakon-target="epsPower"><%= fmt.call(reading&.eps_power_w) %> W</span> · <span data-solakon-target="epsVoltage"><%= fmt.call(reading&.eps_voltage_v, 1) %> V</span></span>
+          </div>
+          <div class="form-check form-switch mt-2 mb-0">
+            <input type="checkbox" class="form-check-input" role="switch" id="solakon-eps-toggle"
+                   <%= "checked" if reading&.eps_enabled %>
+                   data-solakon-target="epsToggle"
+                   data-action="change->solakon#toggleEps">
+            <label class="form-check-label" for="solakon-eps-toggle">Außensteckdose schalten</label>
+          </div>
+          <p class="small text-danger mt-2 mb-0" data-solakon-target="epsError" hidden></p>
+        </div>
+      </article>
+    </div>
     <% control_active = @control_enabled && @runtime_state.active? %>
-    <article class="tile solakon-control-card" data-solakon-target="controlCard">
-      <div class="tile-label">Auto-Regelung</div>
-      <div class="tile-value" data-solakon-target="controlState"><%= control_active ? "Aktiv" : (@control_enabled ? "Pausiert" : "Aus") %></div>
-      <p class="muted-text" data-solakon-target="controlHelp"><%= @control_enabled ? "folgt dem gemessenen Verbrauch" : "in Konfiguration deaktiviert" %></p>
-      <label class="ios-toggle solakon-toggle <%= "is-disabled" unless @control_enabled %>">
-        <input type="checkbox"
-               <%= "checked" if control_active %>
-               <%= "disabled" unless @control_enabled %>
-               data-solakon-target="controlToggle"
-               data-action="change->solakon#toggleControl">
-        <span class="ios-toggle-track"><span class="ios-toggle-thumb"></span></span>
-        <span class="ios-toggle-label">Auto-Regelung</span>
-      </label>
-      <p class="solakon-control-error" data-solakon-target="controlError" hidden></p>
-    </article>
+    <div class="col">
+      <article class="card h-100 solakon-control-card" data-solakon-target="controlCard">
+        <div class="card-body p-3">
+          <div class="stat">
+            <span class="stat-label">Auto-Regelung</span>
+            <span class="stat-value fs-2" data-solakon-target="controlState"><%= control_active ? "Aktiv" : (@control_enabled ? "Pausiert" : "Aus") %></span>
+            <span class="small text-body-secondary" data-solakon-target="controlHelp"><%= @control_enabled ? "folgt dem gemessenen Verbrauch" : "in Konfiguration deaktiviert" %></span>
+          </div>
+          <div class="form-check form-switch mt-2 mb-0">
+            <input type="checkbox" class="form-check-input" role="switch" id="solakon-control-toggle"
+                   <%= "checked" if control_active %>
+                   <%= "disabled" unless @control_enabled %>
+                   data-solakon-target="controlToggle"
+                   data-action="change->solakon#toggleControl">
+            <label class="form-check-label" for="solakon-control-toggle">Auto-Regelung</label>
+          </div>
+          <p class="small text-danger mt-2 mb-0" data-solakon-target="controlError" hidden></p>
+        </div>
+      </article>
+    </div>
   </section>
 
-  <h2 class="section-label">Panels</h2>
-  <section class="tiles solakon-panel-grid">
+  <h2 class="h6 text-uppercase text-body-secondary mt-4 mb-2">Panels</h2>
+  <section class="row row-cols-1 row-cols-sm-2 g-2 mb-3 solakon-panel-grid">
     <% (latest&.panels || []).each do |panel| %>
-      <article class="tile solakon-panel-card">
-        <div class="tile-label"><%= panel.fetch(:label) %></div>
-        <div class="tile-value"><%= fmt.call(panel.fetch(:power_w)) %> W</div>
-        <p class="muted-text"><%= fmt.call(panel.fetch(:voltage_v), 1) %> V · <%= fmt.call(panel.fetch(:current_a), 2) %> A</p>
-      </article>
+      <div class="col">
+        <article class="card h-100 solakon-panel-card">
+          <div class="card-body p-3">
+            <div class="stat">
+              <span class="stat-label"><%= panel.fetch(:label) %></span>
+              <span class="stat-value fs-2"><%= fmt.call(panel.fetch(:power_w)) %> W</span>
+              <span class="small text-body-secondary"><%= fmt.call(panel.fetch(:voltage_v), 1) %> V · <%= fmt.call(panel.fetch(:current_a), 2) %> A</span>
+            </div>
+          </div>
+        </article>
+      </div>
     <% end %>
   </section>
 
-  <h2 class="section-label">Speicher</h2>
-  <section class="tiles solakon-storage-grid">
-    <article class="tile"><div class="tile-label">Ladestand</div><div class="tile-value"><%= reading&.battery_soc_pct || "—" %> %</div></article>
-    <article class="tile"><div class="tile-label">Batteriegesundheit</div><div class="tile-value"><%= latest&.battery_health_pct || "—" %> %</div></article>
-    <article class="tile"><div class="tile-label">Aktuelle Batterieleistung</div><div class="tile-value"><%= fmt.call(reading&.battery_display_power_w) %> W</div></article>
-    <article class="tile"><div class="tile-label">Batteriespannung</div><div class="tile-value"><%= fmt.call(reading&.battery_voltage_v || latest&.battery_voltage_v, 1) %> V</div></article>
-    <article class="tile"><div class="tile-label">Batteriestrom</div><div class="tile-value"><%= fmt.call(reading&.battery_current_a || latest&.battery_current_a, 2) %> A</div></article>
-    <article class="tile"><div class="tile-label">Speichertemperatur</div><div class="tile-value"><%= fmt.call(reading&.battery_temperature_c || latest&.battery_temperature_c, 1) %> °C</div></article>
-    <article class="tile"><div class="tile-label">Volle Kapazität</div><div class="tile-value"><%= fmt.call(latest&.full_charge_capacity_ah, 1) %> Ah</div></article>
+  <h2 class="h6 text-uppercase text-body-secondary mt-4 mb-2">Speicher</h2>
+  <section class="row row-cols-1 row-cols-sm-2 row-cols-md-3 g-2 mb-3 solakon-storage-grid">
+    <%= render Dashboard::TileComponent.new(label: "Ladestand", value: "#{reading&.battery_soc_pct || "—"} %") %>
+    <%= render Dashboard::TileComponent.new(label: "Batteriegesundheit", value: "#{latest&.battery_health_pct || "—"} %") %>
+    <%= render Dashboard::TileComponent.new(label: "Aktuelle Batterieleistung", value: "#{fmt.call(reading&.battery_display_power_w)} W") %>
+    <%= render Dashboard::TileComponent.new(label: "Batteriespannung", value: "#{fmt.call(reading&.battery_voltage_v || latest&.battery_voltage_v, 1)} V") %>
+    <%= render Dashboard::TileComponent.new(label: "Batteriestrom", value: "#{fmt.call(reading&.battery_current_a || latest&.battery_current_a, 2)} A") %>
+    <%= render Dashboard::TileComponent.new(label: "Speichertemperatur", value: "#{fmt.call(reading&.battery_temperature_c || latest&.battery_temperature_c, 1)} °C") %>
+    <%= render Dashboard::TileComponent.new(label: "Volle Kapazität", value: "#{fmt.call(latest&.full_charge_capacity_ah, 1)} Ah") %>
   </section>
 
   <%= render CardComponent.new(title: "Solakon-Verlauf") do %>
@@ -123,7 +139,7 @@
 
   <%= render Economics::OverviewCardComponent.new(result: @economics) %>
 
-  <h2 class="section-label">Sonnenkalender <%= @sun_calendar.year %></h2>
+  <h2 class="h6 text-uppercase text-body-secondary mt-4 mb-2">Sonnenkalender <%= @sun_calendar.year %></h2>
   <%= render Solakon::SunCalendarComponent.new(calendar: @sun_calendar) %>
 
   <%= render Solakon::ShadingComponent.new(report: @shading) %>

@@ -1,0 +1,116 @@
+/* Berichte: range controls, messages, plug ranking, chart toolbars. */
+
+.report-controls {
+  flex-direction: row;
+  align-items: end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.date-range-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: end;
+}
+
+.date-range-form input,
+.date-range-form input[type="submit"] {
+  min-height: 38px;
+}
+
+.date-range-form label {
+  display: grid;
+  gap: 4px;
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.date-range-form input {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px;
+  font: inherit;
+  font-size: 14px;
+  background: var(--surface);
+}
+
+.date-range-form input[type="submit"] {
+  background: var(--text);
+  color: white;
+  cursor: pointer;
+}
+
+.report-message {
+  border: 1px solid var(--warning-border-subtle);
+  background: #fff8db;
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  color: var(--warning-text);
+}
+
+.report-ranking {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 12px;
+  margin-bottom: 16px;
+}
+
+.report-ranking-row {
+  display: grid;
+  grid-template-columns: 2ch auto minmax(7ch, 1fr) minmax(80px, 1.5fr) auto;
+  gap: 8px;
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 10px;
+  min-width: 0;
+  font-size: 13px;
+}
+
+.report-ranking-rank {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.report-ranking-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .report-ranking {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 420px) {
+  .report-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .preset-actions {
+    width: 100%;
+  }
+
+  .date-range-form {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .date-range-form input {
+    width: 100%;
+  }
+
+  .date-range-form input[type="submit"] {
+    grid-column: 1 / -1;
+  }
+}

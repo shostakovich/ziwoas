@@ -1,7 +1,7 @@
 <%= turbo_frame_tag "weather_empty" do %>
   <% if current_weather.nil? && today_weather.empty? && future_weather.empty? %>
-    <section class="chart-card empty-state">
-      <h2>Noch keine Wetterdaten</h2>
+    <section class="card card-body mb-3 empty-state">
+      <h2 class="card-title">Noch keine Wetterdaten</h2>
       <p>Die Wetteransicht erscheint, sobald Bright Sky Daten geladen hat.</p>
     </section>
   <% end %>
