@@ -20,11 +20,13 @@ class EconomicsControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_select "h1", text: "Wirtschaftlichkeit"
+    assert_select ".card-title", text: "Wirtschaftlichkeit", count: 0
     assert_select ".card-title", text: /\AKostenposten/
     assert_select ".card-title", text: /\AStrompreise/
     assert_select ".economics-row", 3
     assert_match "Förderung", response.body
     assert_match "1.000,00 €", response.body
+    assert_match "−200,00 €", response.body
     assert_match "0,2902 €/kWh", response.body
     assert_match "05.01.2026", response.body
     assert_match "ab 01.01.2026", response.body

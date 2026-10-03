@@ -13,6 +13,13 @@ module Dashboard
 
     attr_reader :id, :label, :value
 
+    # The unit is set smaller, like the hero's, so "−46,83 kWh" fits a phone
+    # tile; a value without one ("—") stays whole.
+    def number = parts.first
+
+    def unit = parts.last
+
+
     class << self
       def produced(summary)
         new(id: "tile_produced", label: "Erzeugt heute", value: kwh(summary.produced.wh))
@@ -50,13 +57,13 @@ module Dashboard
       def consumption_now(live)
         flow = live.energy_flow
         any_online = flow.solakon_online || live.plugs.any?(&:online)
-        value = any_online && flow.home_w ? "#{flow.home_w.round} W" : "—"
+        value = any_online && flow.home_w ? "#{de(flow.home_w, precision: 0)} W" : "—"
         new(id: "tile_consumption_now", label: "Verbrauch jetzt", value: value)
       end
 
       def netbalance_now(live)
         grid_w = live.energy_flow.grid_w
-        value = grid_w.nil? ? "—" : "#{grid_w <= 0 ? '+' : '−'}#{grid_w.abs.round} W"
+        value = grid_w.nil? ? "—" : "#{'+' if grid_w <= 0}#{de(-grid_w, precision: 0)} W"
         new(id: "tile_netbalance_now", label: "Bilanz jetzt", value: value)
       end
 
@@ -68,11 +75,14 @@ module Dashboard
 
       def pct(ratio) = "#{de((ratio || 0) * 100, precision: 1)} %"
 
-      def de(number, precision: 2)
-        ActiveSupport::NumberHelper.number_to_rounded(
-          number, precision: precision, separator: ",", delimiter: "."
-        )
-      end
+      def de(number, precision: 2) = GermanNumber.format(number, precision: precision)
+    end
+
+    private
+
+    def parts
+      number, _, unit = value.rpartition(" ")
+      number.empty? ? [ value, nil ] : [ number, unit ]
     end
   end
 end

@@ -24,6 +24,20 @@ class Dashboard::TileComponentTest < ViewComponent::TestCase
     assert_equal "1 W", tile.css(".card .stat .stat-value").text
   end
 
+  test "a tile keeps its value at its foot, so a row's values line up under wrapped labels" do
+    rendered = render_inline(Dashboard::TileComponent.new(label: "Eigen­verbrauchs­quote", value: "80,7 %"))
+
+    assert_equal "80,7 %", rendered.css(".card.h-100 > .card-body.h-100.d-flex.flex-column > .stat.flex-grow-1 > .stat-value.mt-auto").text
+  end
+
+  test "a tile sets the unit smaller than the number, and leaves a bare value whole" do
+    value = render_inline(Dashboard::TileComponent.new(label: "Bilanz", value: "−46,83 kWh")).css(".stat-value").sole
+
+    assert_equal "−46,83 kWh", value.text
+    assert_equal "kWh", value.css("span.fs-5").sole.text
+    assert_empty render_inline(Dashboard::TileComponent.new(label: "Bilanz", value: "—")).css(".stat-value span")
+  end
+
   test "a tile outside the dashboard catalog goes without an id" do
     rendered = render_inline(Dashboard::TileComponent.new(label: "Ertrag", value: "2,00 kWh"))
 
@@ -62,7 +76,7 @@ class Dashboard::TileComponentTest < ViewComponent::TestCase
     rendered = render_inline(Dashboard::TileComponent.net_today(surplus))
     assert_equal "Bilanz heute", rendered.css(".stat-label").text
     assert_equal "+1,50 kWh", rendered.css(".stat-value").text
-    assert_equal "-0,50 kWh", render_inline(Dashboard::TileComponent.net_today(deficit)).css(".stat-value").text
+    assert_equal "−0,50 kWh", render_inline(Dashboard::TileComponent.net_today(deficit)).css(".stat-value").text
   end
 
   test "net_today carries a plus even for an exact balance" do

@@ -133,6 +133,8 @@ export default class extends Controller {
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        // Five-minute samples: thin lines keep the series apart.
+        elements: { line: { borderWidth: 1.25 } },
         scales: {
           x: {
             type: "linear",
@@ -273,7 +275,7 @@ export default class extends Controller {
       data: Array.from(pointsByTs.entries())
         .sort(([a], [b]) => a - b)
         .map(([x, y]) => ({ x, y })),
-      tone: "--primary",
+      tone: "--viz-grid",
       fillAlpha: 0.14,
       fill: true,
       pointRadius: 0,

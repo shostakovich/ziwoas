@@ -8,7 +8,7 @@
           <figcaption class="small fw-semibold mb-1"><%= multiple.label %> <span class="fw-normal text-body-secondary"><%= multiple.days %> Tage · W</span></figcaption>
           <svg viewBox="<%= plot.view_box %>" role="img" aria-label="Tagesgang <%= multiple.label %>">
             <g class="grid"><% grid_lines.each do |at| %><line x1="<%= plot.left %>" x2="<%= plot.right %>" y1="<%= at %>" y2="<%= at %>"/><% end %></g>
-            <g class="value-labels"><% value_labels.each do |label| %><text x="<%= label.x %>" y="<%= label.y %>" text-anchor="end"><%= label.text %></text><% end %></g>
+            <g class="value-labels" dominant-baseline="central"><% value_labels.each do |label| %><text x="<%= label.x %>" y="<%= label.y %>" text-anchor="end"><%= label.text %></text><% end %></g>
             <% %i[dense sparse].each do |density| %>
               <g class="hour-labels label-<%= density %>"><% hour_labels(density).each do |label| %><text x="<%= label.x %>" y="<%= label.y %>" text-anchor="middle"><%= label.text %></text><% end %></g>
             <% end %>

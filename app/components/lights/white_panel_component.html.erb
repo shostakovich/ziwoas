@@ -12,7 +12,7 @@
     </div>
     <div class="d-flex gap-2 mt-3">
       <% presets.each do |label, kelvin| %>
-        <button type="button" class="btn btn-sm btn-outline-secondary flex-fill<%= " active" if active?(kelvin) %>"
+        <button type="button" class="btn btn-sm btn-outline-primary flex-fill<%= " active" if active?(kelvin) %>"
                 data-action="light-detail#temp" data-light-detail-target="preset"
                 data-light-detail-temp-param="<%= kelvin %>"
                 aria-pressed="<%= active?(kelvin) %>"><%= label %></button>

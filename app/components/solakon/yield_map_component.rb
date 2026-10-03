@@ -3,12 +3,12 @@ module Solakon
   # its shape long before any hour has been measured there.
   class YieldMapComponent < ApplicationComponent
     WIDTH = 720
-    # Room for the elevation labels, which the phone's media query enlarges.
-    LEFT = 38
+    # Room for the elevation labels and, under the horizon, the azimuth labels
+    # at the size the phone's media query gives them.
+    LEFT = 52
     RIGHT = 10
     TOP = 16
-    # Room under the horizon for the azimuth labels.
-    BOTTOM = 30
+    BOTTOM = 36
     MARGINS = { top: TOP, right: RIGHT, bottom: BOTTOM, left: LEFT }.freeze
     # The sky is wider than it is high; stretching the elevation keeps the
     # fields close to square and the low morning sun readable.
@@ -23,8 +23,8 @@ module Solakon
     DOT_LABEL_OFFSET = 13
     PATH_LABEL_OFFSET = 9
     ELEVATION_LABEL_GAP = 5
-    LABEL_DROP = 3.5
-    AZIMUTH_LABEL_DROP = 14
+    # The azimuth labels hang from this line under the horizon.
+    AZIMUTH_LABEL_GAP = 5
     COMPASS = { 90 => "Ost", 180 => "Süd", 270 => "West" }.freeze
 
     Field = Data.define(:rect, :fill, :title)
@@ -62,7 +62,7 @@ module Solakon
       0.step(top_elevation, ELEVATION_LABEL_STEP).map do |elevation|
         at = y(elevation)
 
-        Gridline.new(at: number(at), label_at: number(at + LABEL_DROP), text: "#{elevation}°")
+        Gridline.new(at: number(at), label_at: number(at), text: "#{elevation}°")
       end
     end
 
@@ -104,7 +104,7 @@ module Solakon
 
     def bin_size = @map.bin_size
 
-    def azimuth_label_y = number(y(0) + AZIMUTH_LABEL_DROP)
+    def azimuth_label_y = number(y(0) + AZIMUTH_LABEL_GAP)
 
     def scale_x = (WIDTH - LEFT - RIGHT) / (azimuths.last - azimuths.first).to_f
 

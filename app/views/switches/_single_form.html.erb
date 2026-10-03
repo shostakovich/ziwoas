@@ -17,7 +17,7 @@
         <% { "on" => "an", "off" => "aus" }.each do |value, label| %>
           <%= f.radio_button :action, value, checked: form.action == value,
                              id: "#{id_prefix}_action_#{value}", class: "btn-check", autocomplete: "off" %>
-          <label class="btn btn-outline-secondary" for="<%= id_prefix %>_action_<%= value %>"><%= label %></label>
+          <label class="btn btn-outline-primary" for="<%= id_prefix %>_action_<%= value %>"><%= label %></label>
         <% end %>
       </div>
     </div>

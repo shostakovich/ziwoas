@@ -1,6 +1,6 @@
 import { Controller } from "@hotwired/stimulus"
 import "chart.js"
-import { chartTheme, vizToken } from "lib/chart_theme"
+import { chartTheme, vizToken, isPhone } from "lib/chart_theme"
 
 // Connects to data-controller="energy-report"
 // Renders bar/line charts plus an in-canvas weather-icon plugin that draws
@@ -138,7 +138,7 @@ export default class extends Controller {
     const labels = daily.labels || []
     const consumerDatasets = this._consumerBarDatasets(daily.consumer_series || [], { top: 5 })
     const consumedDatasets = consumerDatasets.length > 0 ? consumerDatasets : [
-      { label: "Verbrauch", data: daily.consumed_kwh || [], tone: "--primary", stack: "consumed" },
+      { label: "Verbrauch", data: daily.consumed_kwh || [], tone: "--viz-grid", stack: "consumed" },
     ]
 
     const datasets = [
@@ -284,7 +284,7 @@ export default class extends Controller {
       }
     }
     const scales = {
-      x: { ticks: { maxTicksLimit: 21, autoSkip: true, padding: hasIcons && this.detailWeatherEnabled ? detailIconsPadding : 0 }, afterFit: trimXScale },
+      x: { ticks: { maxTicksLimit: isPhone() ? 6 : 21, maxRotation: isPhone() ? 0 : 50, autoSkip: true, padding: hasIcons && this.detailWeatherEnabled ? detailIconsPadding : 0 }, afterFit: trimXScale },
       y: { beginAtZero: true, title: { display: true, text: "Watt" } },
     }
 
@@ -317,6 +317,8 @@ export default class extends Controller {
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        // Five-minute samples: thin lines keep the series apart.
+        elements: { line: { borderWidth: 1.25 } },
         scales,
         plugins: { legend: { position: "bottom", labels: { boxWidth: 12, boxHeight: 12, padding: 10, font: { size: 12 }, filter: (item, data) => !data.datasets[item.datasetIndex]?.hidden } } },
         animation: false,
@@ -403,7 +405,7 @@ export default class extends Controller {
 
     return {
       label: "Gesamtverbrauch", data,
-      tone: "--primary", fillAlpha: 0.14,
+      tone: "--viz-grid", fillAlpha: 0.14,
       fill: true, tension: 0.2, pointRadius: 0,
     }
   }

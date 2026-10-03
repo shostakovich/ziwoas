@@ -1,10 +1,12 @@
 <%# Range switches navigate the frame; the chart controller inside is rebuilt on every swap. %>
 <%= turbo_frame_tag "solakon_history" do %>
   <div data-controller="solakon-history" data-solakon-history-url-value="<%= solakon_history_path(range: history.fetch(:range)) %>">
-    <div class="d-flex flex-wrap gap-2 mb-3" role="group" aria-label="Zeitraum">
+    <%# "Letzte" gives way on a phone, so the three ranges fit side by side. %>
+    <div class="btn-group btn-group-sm d-flex d-sm-inline-flex mb-3" role="group" aria-label="Zeitraum">
       <% Solakon::History::RANGE_LABELS.each do |key, label| %>
         <% active = key == history.fetch(:range) %>
-        <%= link_to label, solakon_history_path(range: key), class: [ "btn btn-sm btn-outline-secondary", ("active" if active) ], aria: { current: (active || nil) } %>
+        <%= link_to solakon_history_path(range: key), class: [ "btn btn-outline-primary flex-fill", ("active" if active) ],
+                                                     aria: { current: (active || nil) } do %><span><span class="d-none d-sm-inline">Letzte </span><%= label.delete_prefix("Letzte ") %></span><% end %>
       <% end %>
     </div>
     <div class="chart-frame">

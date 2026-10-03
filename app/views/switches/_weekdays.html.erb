@@ -5,6 +5,6 @@
   <% SwitchesHelper::DAY_ABBR.each do |num, label| %>
     <%= check_box_tag "#{scope}[days][]", num, days.include?(num),
                       id: "#{id_prefix}_#{num}", class: "btn-check", autocomplete: "off" %>
-    <label class="btn btn-outline-secondary px-1" for="<%= id_prefix %>_<%= num %>"><%= label %></label>
+    <label class="btn btn-outline-primary px-1" for="<%= id_prefix %>_<%= num %>"><%= label %></label>
   <% end %>
 </div>

@@ -1,10 +1,9 @@
 <%# Same shape as a plug card: name and state on the left, the plush knob with
     its chip on the right. %>
-<div class="card mb-3<%= ' opacity-75' unless snapshot.on? %>"
-     id="light_card_<%= light.key %>" data-light-key="<%= light.key %>">
+<div class="card mb-3" id="light_card_<%= light.key %>" data-light-key="<%= light.key %>">
   <div class="card-body d-flex align-items-start gap-3">
     <div class="flex-grow-1">
-      <%= link_to light_path(light.key), class: "d-block link-body-emphasis text-decoration-none",
+      <%= link_to light_path(light.key), class: [ "d-block text-decoration-none", snapshot.on? ? "link-body-emphasis" : "text-body-secondary" ],
                                          "aria-label": "#{light.name} Details" do %>
         <h3 class="card-title h5 mb-1"><%= light.name %></h3>
         <div class="small text-body-secondary"><%= summary %></div>
@@ -15,10 +14,12 @@
     <div class="d-flex flex-column align-items-end gap-2">
       <%# Pure Turbo: the knob posts the opposite of the current state; the command
           response replaces this card and live MQTT reconciles via the "lights" stream. %>
-      <%= button_to "", light_command_path(light_key: light.key),
+      <%= button_to light_command_path(light_key: light.key),
             params: { command: "turn", on: (!snapshot.on?).to_s },
-            class: "sw-knob sw-lamp-knob plush-#{light.plush_type}#{' off' unless snapshot.on?}",
-            aria: { label: "#{light.name} umschalten" } %>
+            class: "btn btn-light btn-icon sw-knob sw-lamp-knob#{' off' unless snapshot.on?}",
+            aria: { label: "#{light.name} umschalten" } do %>
+        <%= helpers.image_tag plush, alt: "", class: "sw-knob-plush" %>
+      <% end %>
 
       <% if (current_chip = chip) %>
         <span class="badge border tabular-nums">

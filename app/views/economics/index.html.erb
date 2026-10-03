@@ -1,11 +1,10 @@
 <% content_for :title, "Wirtschaftlichkeit" %>
-<% content_for :body_class, "page-solakon" %>
-<% euro = ->(value, precision = 2) { number_with_precision(value, precision: precision, delimiter: ".", separator: ",") } %>
+<% euro = ->(value, precision = 2) { de_number(value, precision: precision) } %>
 <% day = ->(date) { l(date, format: "%d.%m.%Y") } %>
 
-<h1 class="h3 fw-medium text-body-secondary mb-3">Wirtschaftlichkeit</h1>
+<h1 class="h4 fw-bold mb-3">Wirtschaftlichkeit</h1>
 
-<%= render Economics::OverviewCardComponent.new(result: @overview) %>
+<%= render Economics::OverviewCardComponent.new(result: @overview, title: "Stand", link: false) %>
 
 <%= render CardComponent.new(title: "Kostenposten") do %>
   <p class="small text-body-secondary">

@@ -17,7 +17,21 @@ module WeatherHelper
     "unknown" => "Wetter"
   }.freeze
 
+  # Bright Sky's condition field, in German. Anything else, including no
+  # condition at all, says nothing.
+  CONDITION_LABELS_DE = {
+    "dry" => "trocken",
+    "fog" => "Nebel",
+    "rain" => "Regen",
+    "sleet" => "Schneeregen",
+    "snow" => "Schnee",
+    "hail" => "Hagel",
+    "thunderstorm" => "Gewitter"
+  }.freeze
+
   def weather_icon_label(icon)
     ICON_LABELS_DE.fetch(WeatherIcon.normalized_icon(icon), "Wetter")
   end
+
+  def weather_condition_label(condition) = CONDITION_LABELS_DE[condition]
 end

@@ -15,7 +15,7 @@
         <% else %>
           <ul class="list-unstyled mb-1">
             <% if reading.temperature %>
-              <li><strong class="fs-5 tabular-nums"><%= number_with_precision(reading.temperature, precision: 1, delimiter: ".", separator: ",") %></strong> °C</li>
+              <li><strong class="fs-5 tabular-nums"><%= de_number(reading.temperature, precision: 1) %></strong> °C</li>
             <% end %>
             <% if reading.humidity %>
               <li><strong class="fs-5 tabular-nums"><%= reading.humidity %></strong> % rH</li>

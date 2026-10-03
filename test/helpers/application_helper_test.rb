@@ -3,6 +3,8 @@ require "test_helper"
 class ApplicationHelperTest < ActionView::TestCase
   cover "ApplicationHelper#main_navigation"
   cover "ApplicationHelper#current_section?"
+  cover "ApplicationHelper#ui_icon"
+  cover "ApplicationHelper#de_number"
 
   test "marks the tab of the current page" do
     assert_equal [ "PV" ], current_labels("/solakon")
@@ -15,11 +17,30 @@ class ApplicationHelperTest < ActionView::TestCase
 
   test "Home is active only on the root path" do
     assert_equal [ "Home" ], current_labels("/")
-    assert_empty current_labels("/lights/UPL1")
+    assert_empty current_labels("/up")
+  end
+
+  test "a lamp's page belongs to the Schalten tab it is reached from" do
+    assert_equal [ "Schalten" ], current_labels("/lights/UPL1")
+    assert_equal [ "Schalten" ], current_labels("/lights/UPL1/edit")
+    assert_empty current_labels("/lightsx")
   end
 
   test "a path that merely starts with a tab's name is not its sub page" do
     assert_empty current_labels("/solakonx")
+  end
+
+  test "draws an action glyph in the text colour, hidden from screen readers" do
+    svg = Nokogiri::HTML5.fragment(ui_icon(:pause)).at_css("svg")
+
+    assert_equal [ "pause", "currentColor", "true", "0 0 16 16" ], [ svg["data-icon"], svg["fill"], svg["aria-hidden"], svg["viewBox"] ]
+    assert_equal ApplicationHelper::UI_ICONS.fetch(:pause), svg.at_css("path")["d"]
+    assert_raises(KeyError) { ui_icon(:unknown) }
+  end
+
+  test "formats a number the German way, whole by default" do
+    assert_equal "−1.235", de_number(-1234.5)
+    assert_equal "2,50", de_number(2.5, precision: 2)
   end
 
   private

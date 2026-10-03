@@ -1,7 +1,10 @@
 <div id="light_power" class="card mb-3">
   <div class="card-body d-flex align-items-center gap-3">
-    <%= image_tag "lamp_#{light.plush_type}_#{snapshot.on? ? 'on' : 'off'}.webp",
-                  width: 72, height: 72, alt: "", class: "flex-shrink-0 object-fit-contain" %>
+    <%# The lamp in the same ring as its knob on the Schalten tab. %>
+    <span class="sw-knob sw-lamp-knob sw-lamp-hero rounded-circle d-flex align-items-center justify-content-center flex-shrink-0<%= ' off' unless snapshot.on? %>">
+      <%= image_tag "lamp_#{light.plush_type}_#{snapshot.on? ? 'on' : 'off'}.webp",
+                    width: 112, height: 112, alt: "", class: "sw-knob-plush" %>
+    </span>
     <div class="vstack gap-2">
       <div class="d-flex gap-2" role="group" aria-label="Lampe">
         <%= button_to "An", light_command_path(light_key: light.key),

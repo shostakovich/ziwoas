@@ -1,13 +1,14 @@
 <% target = ->(name) { "data-ef=\"#{name}\"".html_safe } %>
-<svg viewBox="0 0 400 320" class="d-block w-100 h-auto">
+<svg viewBox="0 0 400 320" class="energy-flow d-block w-100 h-auto mx-auto">
   <defs>
     <clipPath id="ef-clip">
       <path fill-rule="evenodd" d="M 0,0 H 400 V 320 H 0 Z M 200,40 A 40,40 0 1,0 200,120 A 40,40 0 1,0 200,40 Z M 58,130 A 40,40 0 1,0 58,210 A 40,40 0 1,0 58,130 Z M 342,130 A 40,40 0 1,0 342,210 A 40,40 0 1,0 342,130 Z M 200,220 A 40,40 0 1,0 200,300 A 40,40 0 1,0 200,220 Z"/>
     </clipPath>
   </defs>
 
-  <%# Each channel's line and dots share one colour; the dots inherit fill from their group. %>
-  <g fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+  <%# Each channel's line and dots share one colour; the dots inherit fill from their group.
+      Lines and dots stop at the rings, which stay open so the card shows through. %>
+  <g fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" clip-path="url(#ef-clip)">
     <path d="M 200,122 C 205,150 250,166 306,170" style="stroke: var(--viz-solar)"/>
     <path d="M 200,122 C 195,150 150,166 94,170" style="stroke: var(--viz-3)"/>
     <path d="M 200,122 L 200,218" style="stroke: var(--viz-8)"/>
@@ -23,7 +24,7 @@
   <g <%= target.call("efDotsGridBattery") %> clip-path="url(#ef-clip)" style="fill: var(--viz-muted)"></g>
   <g <%= target.call("efDotsBatteryHome") %> clip-path="url(#ef-clip)" style="fill: var(--viz-battery)"></g>
 
-  <g stroke-width="2.5" style="fill: var(--surface)">
+  <g stroke-width="2.5" fill="none">
     <circle cx="200" cy="80" r="40" style="stroke: var(--viz-solar)"/>
     <circle cx="58" cy="170" r="40" style="stroke: var(--viz-grid)"/>
     <circle cx="342" cy="170" r="40" style="stroke: var(--track)"/>
@@ -46,12 +47,12 @@
     <text <%= target.call("efBatterySoc") %> x="200" y="291" text-anchor="middle" font-size="9" style="fill: var(--muted)">— %</text>
   </g>
 
-  <image href="<%= asset_path pv_asset %>" x="184" y="55" width="32" height="32" role="img" aria-label="<%= pv_alt %>"/>
-  <image href="<%= asset_path "icon_netz.webp" %>" x="42" y="145" width="32" height="32"/>
-  <image href="<%= asset_path "icon_haus.webp" %>" x="326" y="145" width="32" height="32"/>
+  <image href="<%= asset_path pv_asset %>" x="180" y="50" width="40" height="40" role="img" aria-label="<%= pv_alt %>"/>
+  <image href="<%= asset_path "icon_netz.webp" %>" x="38" y="141" width="40" height="40"/>
+  <image href="<%= asset_path "icon_haus.webp" %>" x="322" y="141" width="40" height="40"/>
   <image <%= target.call("efBatteryImage") %>
          href="<%= asset_path battery_asset %>"
-         x="184" y="235" width="32" height="32" preserveAspectRatio="xMidYMid meet"
+         x="180" y="231" width="40" height="40" preserveAspectRatio="xMidYMid meet"
          <%= tag.attributes(data: ApplicationHelper::BATTERY_ASSETS
                                      .transform_keys { |state| "battery_state_#{state}" }
                                      .transform_values { |asset| asset_path(asset) }) %>/>

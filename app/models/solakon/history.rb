@@ -175,7 +175,7 @@ module Solakon
     end
 
     def format_decimal(value)
-      format("%.2f", value).sub(".", ",")
+      GermanNumber.format(value, precision: 2)
     end
   end
 end

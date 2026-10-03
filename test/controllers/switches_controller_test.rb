@@ -20,9 +20,9 @@ class SwitchesControllerTest < ActionDispatch::IntegrationTest
     assert_match "An · Weiß · 60 %", @response.body
   end
 
-  test "lamp tile knob carries the per-SKU plush class" do
+  test "lamp tile knob shows the lamp's own plush" do
     get switches_url
-    assert_select "button.sw-lamp-knob.plush-floorlamp"
+    assert_select "button.sw-lamp-knob img.sw-knob-plush[src*='lamp_floorlamp_']"
   end
 
   test "lamp knob is a turbo button_to form and the page streams lamp updates" do
@@ -87,7 +87,7 @@ class SwitchesControllerTest < ActionDispatch::IntegrationTest
     Plugs::Sample.create!(plug_id: "fridge", ts: Time.current.to_i, apower_w: 84.4, aenergy_wh: 1)
     Plugs::State.create!(plug_id: "fridge", output: true)
     get "/switches"
-    assert_select "#sw_head_fridge button.sw-knob:not(.off)[aria-label='Kühlschrank ausschalten']"
+    assert_select "#sw_head_fridge button.btn.btn-light.btn-icon.sw-knob:not(.off)[aria-label='Kühlschrank ausschalten'] img[src*='switch_plush_on']"
     assert_select "#sw_head_fridge .badge", text: /84 W/
     assert_select "#sw_card_fridge.opacity-75", false
   end
@@ -95,7 +95,7 @@ class SwitchesControllerTest < ActionDispatch::IntegrationTest
   test "a silent plug is dimmed, its knob disabled and without watts" do
     get "/switches"
     assert_select "#sw_card_fridge.card.opacity-75"
-    assert_select "#sw_head_fridge button.sw-knob.off[disabled]"
+    assert_select "#sw_head_fridge button.sw-knob.off[disabled] img[src*='switch_plush_off']"
     assert_select "#sw_head_fridge .badge", false
   end
 

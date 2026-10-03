@@ -3,15 +3,15 @@ module Solakon
   # Geometry is computed here so the template only writes attributes.
   class SunCalendarComponent < ApplicationComponent
     WIDTH = 720
-    LEFT = 26
+    # Room for the hour labels and, above the plot, the month labels at the
+    # size the phone's media query gives them.
+    LEFT = 40
     RIGHT = 4
-    # Room above the plot for the month labels, which the phone's media query
-    # enlarges to roughly this height.
-    TOP = 22
+    TOP = 30
     BOTTOM_PAD = 4
     ROW_HEIGHT = 8
     BARS_HEIGHT = 100
-    BARS_BOTTOM = 24
+    BARS_BOTTOM = 34
     STRIP_MARGINS = { top: TOP, right: RIGHT, bottom: BOTTOM_PAD, left: LEFT }.freeze
     BARS_MARGINS = { top: TOP, right: RIGHT, bottom: BARS_BOTTOM, left: LEFT }.freeze
     # Cells snap to this many colour levels, so a run of near-equal days
@@ -26,8 +26,8 @@ module Solakon
     MONTH_LABEL_OFFSET = 2
     MONTH_LABEL_LIFT = 6
     AXIS_LABEL_GAP = 5
-    LABEL_DROP = 3.5
-    MONTH_LABEL_DROP = 18
+    # The month labels under the bars hang from this line, whatever their size.
+    MONTH_LABEL_GAP = 5
     WEEKDAYS = %w[So Mo Di Mi Do Fr Sa].freeze
 
     Cells = Data.define(:fill, :rects)
@@ -78,7 +78,7 @@ module Solakon
     # phone's media query enlarges them.
     def bar_grid_labels
       bar_grid.map do |tick|
-        Label.new(x: bars_plot.left - AXIS_LABEL_GAP, y: number(tick.at + LABEL_DROP), text: tick.value.to_s)
+        Label.new(x: bars_plot.left - AXIS_LABEL_GAP, y: tick.at, text: tick.value.to_s)
       end
     end
 
@@ -96,13 +96,13 @@ module Solakon
       end
     end
 
-    def month_label_baseline = bars_plot.bottom + MONTH_LABEL_DROP
+    def month_label_top = bars_plot.bottom + MONTH_LABEL_GAP
 
     def hour_labels(density)
       step = density == :sparse ? SPARSE_HOUR_STEP : DENSE_HOUR_STEP
 
       hours.step(step).map do |hour|
-        Label.new(x: strip_plot.left - AXIS_LABEL_GAP, y: number(strip_plot.y(hour) + LABEL_DROP), text: hour.to_s)
+        Label.new(x: strip_plot.left - AXIS_LABEL_GAP, y: number(strip_plot.y(hour)), text: hour.to_s)
       end
     end
 
@@ -206,6 +206,6 @@ module Solakon
       "#{label} #{'Ø ' if mean}#{decimal(value, precision)} #{unit}"
     end
 
-    def decimal(value, precision) = format("%.#{precision}f", value).tr(".", ",")
+    def decimal(value, precision) = GermanNumber.format(value, precision: precision)
   end
 end
