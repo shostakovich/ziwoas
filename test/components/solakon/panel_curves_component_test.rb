@@ -55,6 +55,14 @@ class Solakon::PanelCurvesComponentTest < ViewComponent::TestCase
     assert_empty narrow(rendered).css(".leaders")
   end
 
+  test "places no names in the narrow drawing, which leaves them to the legend" do
+    panels = Shading::Panels.new(curves: curves, days: 16, since: Date.new(2026, 8, 27))
+    wide_chart, narrow_chart = Solakon::PanelCurvesComponent.new(panels: panels).charts
+
+    assert_equal 4, wide_chart.labels.length
+    assert_equal [], narrow_chart.labels
+  end
+
   test "joins a name to where its line ends, even when that is before the last hour" do
     early = curves(pv4: [ [ 12, 100.0 ], [ 13, 140.0 ] ])
 
@@ -76,6 +84,12 @@ class Solakon::PanelCurvesComponentTest < ViewComponent::TestCase
 
   test "lifts a name by exactly the amount that pushed it past the axis" do
     label = wide(render_panels(curves: single(0.0))).css(".direct-labels text").sole
+
+    assert_equal "182", label["y"]
+  end
+
+  test "lifts a name that pushed past the axis by less than a unit" do
+    label = wide(render_panels(curves: single(1.3))).css(".direct-labels text").sole
 
     assert_equal "182", label["y"]
   end
@@ -212,6 +226,7 @@ class Solakon::PanelCurvesComponentTest < ViewComponent::TestCase
   test "steps the grid in round watts that leave the curves filling the plot" do
     {
       110.0 => %w[25 50 75 100],
+      125.5 => %w[50 100],
       250.0 => %w[50 100 150 200],
       410.0 => %w[100 200 300 400],
       700.5 => %w[200 400 600],

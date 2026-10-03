@@ -29,4 +29,9 @@ class GermanNumberTest < ActiveSupport::TestCase
     assert_equal "12,50", GermanNumber.format(BigDecimal("12.5"), precision: 2)
     assert_equal "7,0", GermanNumber.format(7, precision: 1)
   end
+
+  test "writes a missing value as zero" do
+    assert_equal "0", GermanNumber.format(nil)
+    assert_equal "0,0", GermanNumber.format(nil, precision: 1)
+  end
 end

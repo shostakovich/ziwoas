@@ -2,6 +2,8 @@
 require "test_helper"
 
 class Lights::ColorPanelComponentTest < ViewComponent::TestCase
+  cover "Lights::ColorPanelComponent#selected?"
+
   def panel(light:, state: nil)
     Lights::ColorPanelComponent.new(snapshot: LightSnapshot.new(light: light, state: state))
   end

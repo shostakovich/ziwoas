@@ -76,6 +76,21 @@ class EnergyReport::ChartBuilderTest < ActiveSupport::TestCase
     assert_equal [ nil, 120.0 ], series_data(detail, "desk")
   end
 
+  test "sample detail chart names each plug and its role and keeps one decimal of the watts" do
+    write_5min(plug_id: "pv",   date_s: "2026-04-10", offset_min: 0, avg_w: -240.04)
+    write_5min(plug_id: "desk", date_s: "2026-04-10", offset_min: 5, avg_w:  120.06)
+
+    detail = payload_for(
+      daily_points: [ daily_point("2026-04-10") ], rows: [],
+      start_date: Date.new(2026, 4, 10), end_date: Date.new(2026, 4, 10)
+    ).fetch(:detail)
+
+    assert_equal [
+      { plug_id: "pv", name: "Balkonkraftwerk", role: "producer", data: [ 240.0, nil ] },
+      { plug_id: "desk", name: "Schreibtisch", role: "consumer", data: [ nil, 120.1 ] }
+    ], detail.fetch(:series)
+  end
+
   test "sample detail chart drops plugs without any bucket" do
     write_5min(plug_id: "pv", date_s: "2026-04-10", offset_min: 0, avg_w: -240.0)
 
@@ -278,6 +293,25 @@ class EnergyReport::ChartBuilderTest < ActiveSupport::TestCase
     assert_equal 8, detail.fetch(:times).length
     assert_equal 100.0, series_data(detail, "pv").first
     assert_equal 10.0,  series_data(detail, "desk").first
+  end
+
+  test "daily detail chart labels each day and keeps only the plugs metered in the range" do
+    rows = [
+      Plugs::DailyTotal.create!(plug_id: "pv",   date: "2026-04-10", energy_wh: 2400.0),
+      Plugs::DailyTotal.create!(plug_id: "desk", date: "2026-04-12", energy_wh: 240.0)
+    ]
+
+    detail = payload_for(
+      daily_points: [], rows: rows,
+      start_date: Date.new(2026, 4, 4), end_date: Date.new(2026, 4, 11),
+      detail_start: Date.new(2026, 4, 10), detail_end: Date.new(2026, 4, 17)
+    ).fetch(:detail)
+
+    assert_equal %w[10.04. 11.04. 12.04. 13.04. 14.04. 15.04. 16.04. 17.04.], detail.fetch(:labels)
+    assert_equal [
+      { plug_id: "pv", name: "Balkonkraftwerk", role: "producer", data: [ 100.0 ] + [ nil ] * 7 },
+      { plug_id: "desk", name: "Schreibtisch", role: "consumer", data: [ nil, nil, 10.0 ] + [ nil ] * 5 }
+    ], detail.fetch(:series)
   end
 
   # --- daily bar chart ---

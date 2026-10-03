@@ -81,6 +81,25 @@ class Switches::ScheduleEntryComponentTest < ViewComponent::TestCase
     assert rendered.css("form[action$='/enabled'] input[name=enabled][value=true]").any?
   end
 
+  test "a running pill is drawn in the primary tone, filled for a Zeitfenster and outlined for an Einzelschaltung" do
+    filled = render_entry(window).css("span.badge").sole["class"].split
+    outlined = render_entry(single).css("span.badge").sole["class"].split
+
+    assert_includes filled, "bg-primary-subtle"
+    assert_includes filled, "text-primary-emphasis"
+    assert_not_includes filled, "border-primary"
+    assert_includes outlined, "border-primary"
+    assert_includes outlined, "text-primary-emphasis"
+    assert_not_includes outlined, "bg-primary-subtle"
+  end
+
+  test "a paused pill loses its colour" do
+    paused = render_entry(single(enabled: false)).css("span.badge").sole["class"].split
+
+    assert_includes paused, "text-body-secondary"
+    assert_empty paused.grep(/primary/)
+  end
+
   test "a running row offers to pause" do
     rendered = render_entry(single)
 

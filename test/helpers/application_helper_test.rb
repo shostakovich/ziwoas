@@ -38,6 +38,12 @@ class ApplicationHelperTest < ActionView::TestCase
     assert_raises(KeyError) { ui_icon(:unknown) }
   end
 
+  test "draws the glyph at its own 16 pixels, out of the tab order" do
+    svg = Nokogiri::HTML5.fragment(ui_icon(:edit)).at_css("svg")
+
+    assert_equal [ "16", "16", "false" ], [ svg["width"], svg["height"], svg["focusable"] ]
+  end
+
   test "formats a number the German way, whole by default" do
     assert_equal "−1.235", de_number(-1234.5)
     assert_equal "2,50", de_number(2.5, precision: 2)

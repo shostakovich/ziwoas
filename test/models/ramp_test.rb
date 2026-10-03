@@ -25,6 +25,13 @@ class RampTest < ActiveSupport::TestCase
     assert_equal "color-mix(in oklab, white 50%, red)", ramp.color(0.75)
   end
 
+  test "finds the pair in the upper half of a ramp with many stops" do
+    ramp = Ramp.new(%w[a b c d e])
+
+    assert_equal "color-mix(in oklab, e 60%, d)", ramp.color(0.9)
+    assert_equal "e", ramp.color(1.0)
+  end
+
   test "writes the share with one decimal at most" do
     ramp = Ramp.new(%w[black white])
 

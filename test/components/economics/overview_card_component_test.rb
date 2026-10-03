@@ -20,7 +20,8 @@ class Economics::OverviewCardComponentTest < ViewComponent::TestCase
     values = rendered.css(".stat-value").map { |node| node.text.squish }
     assert_equal [ "1.000,00 €", "200,00 €", "20,0 %", "09.11.2028" ], values
     assert_equal "20", rendered.css("[data-economics-covered-pct]").first["data-economics-covered-pct"]
-    assert_equal "Voraus\u00ADsichtliche Amortisation", rendered.css(".stat-label").last.text
+    assert_equal [ "Anschaffungs\u00ADkosten", "Ersparnis", "Zurückverdient", "Voraus\u00ADsichtliche Amortisation" ],
+                 rendered.css(".stat-label").map(&:text)
     assert_match "Hochrechnung aus 200 Tagen.", rendered.to_html
   end
 
