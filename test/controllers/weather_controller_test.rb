@@ -95,7 +95,7 @@ class WeatherControllerTest < ActionDispatch::IntegrationTest
     assert_select ".weather-hour-row .weather-hour-time", text: /22:00/, count: 1
   end
 
-  test "every hour card fills the same three rows, with a dash where there is nothing to tell" do
+  test "every hour card fills the same three rows, with an invisible placeholder where there is nothing to tell" do
     WeatherRecord.create!(kind: "forecast", lat: 52.52, lon: 13.405,
       timestamp: Time.zone.parse("2026-05-04 13:00"), daytime: "day",
       icon: "partly-cloudy-day", temperature: 18, precipitation: 0, solar: 0.32, wind_speed: 11)
@@ -111,7 +111,8 @@ class WeatherControllerTest < ActionDispatch::IntegrationTest
     lists = css_select(".weather-hour-card .weather-hour-extras")
     assert_equal [ 3, 3, 3 ], lists.map { |list| list.css("li").length }
     assert_equal "11 km/h", lists[0].css(".weather-hour-wind").text.squish
-    assert_equal [ "–" ], lists[0].css("li[aria-hidden]").map { |li| li.text.squish }
+    assert_equal [ "" ], lists[0].css("li.invisible[aria-hidden=true]").map { |li| li.text.squish }
+    assert_equal [ 1, 1, 1 ], lists.map { |list| list.css("li.invisible").length }
     assert_equal "40 %", lists[1].css(".weather-hour-rain").text.squish
     assert_equal "Regenwahrscheinlichkeit", lists[1].css(".weather-hour-rain img").sole["alt"]
     assert_equal "1,2 mm", lists[2].css(".weather-hour-rain").text.squish

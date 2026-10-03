@@ -147,6 +147,7 @@ class EnergyReport::ChartBuilderTest < ActiveSupport::TestCase
     ).fetch(:detail)
 
     assert_equal [ "12:00", "12:05" ], detail.fetch(:labels)
+    assert_equal [ Time.utc(2026, 5, 1, 16, 0).to_i * 1000, Time.utc(2026, 5, 1, 16, 5).to_i * 1000 ], detail.fetch(:times)
   end
 
   test "sample detail chart labels format time as DD.MM. HH:MM across multiple days, in the configured timezone" do
@@ -272,6 +273,9 @@ class EnergyReport::ChartBuilderTest < ActiveSupport::TestCase
     ).fetch(:detail)
 
     assert_equal "bar", detail.fetch(:chart_type)
+    assert_equal [ midnight_utc("2026-04-10") * 1000, midnight_utc("2026-04-11") * 1000 ], detail.fetch(:times).first(2),
+      "one instant per day: local midnight, so time axes can tick on it"
+    assert_equal 8, detail.fetch(:times).length
     assert_equal 100.0, series_data(detail, "pv").first
     assert_equal 10.0,  series_data(detail, "desk").first
   end

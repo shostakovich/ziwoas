@@ -22,9 +22,12 @@ class SunCalendarTest < ApplicationSystemTestCase
     assert_selector ".sun-calendar [data-strip='energy'] .bars rect", minimum: 30, visible: :all
 
     widths = page.evaluate_script(<<~JS)
-      Array.from(document.querySelectorAll(".sun-calendar svg")).map((svg) => svg.getBoundingClientRect().width);
+      Array.from(document.querySelectorAll(".sun-calendar svg"))
+        .filter((svg) => svg.checkVisibility())
+        .map((svg) => svg.getBoundingClientRect().width);
     JS
 
+    assert_equal 4, widths.length, "one drawing per box at this width"
     assert_equal 1, widths.uniq.length, "all four boxes share one time axis"
   end
 
@@ -35,6 +38,8 @@ class SunCalendarTest < ApplicationSystemTestCase
 
     assert_selector ".sun-calendar .month-labels.label-sparse text", visible: true, minimum: 1
     assert_no_selector ".sun-calendar .month-labels.label-dense text", visible: true
+    assert_selector ".sun-calendar svg.energy-chart-narrow", visible: true
+    assert_no_selector ".sun-calendar svg.energy-chart-wide", visible: true
 
     overflow = page.evaluate_script("document.documentElement.scrollWidth - document.documentElement.clientWidth")
     assert_operator overflow, :<=, 0, "the page must not scroll sideways"

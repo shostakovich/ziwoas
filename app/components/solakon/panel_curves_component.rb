@@ -1,15 +1,14 @@
 module Solakon
-  # The four panels over the day, each line named next to itself, so the one
-  # that falls back in the morning can be told from the one in the evening.
+  # The four panels over the day, each line named at its end, so the one that
+  # falls back in the morning can be told from the one in the evening.
   #
   # Drawn twice: wide for tablets and desktops, narrower and taller for phones,
   # where the wide drawing would shrink to a strip.
   class PanelCurvesComponent < ApplicationComponent
     FRAMES = [
       Chart::Frame.new(key: :wide, width: 720, height: 220, hour_step: 2, named: true,
-                       # Room at the right edge for the last hour's label, which
-                       # is centred on the tick sitting on the plot's edge.
-                       margins: { top: 12, right: 32, bottom: 28, left: 40 }),
+                       # Room at the right edge for the panels' names.
+                       margins: { top: 12, right: 88, bottom: 28, left: 40 }),
       Chart::Frame.new(key: :narrow, width: 360, height: 240, hour_step: 3, named: false,
                        margins: { top: 12, right: 12, bottom: 24, left: 36 })
     ].freeze

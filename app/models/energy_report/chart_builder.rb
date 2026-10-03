@@ -88,6 +88,7 @@ class EnergyReport
       {
         chart_type: "line",
         labels: timestamps.map { |ts| detail_label(ts, multi_day) },
+        times: timestamps.map { |ts| ts * 1000 },
         series: series,
         _timestamps: timestamps
       }
@@ -112,6 +113,7 @@ class EnergyReport
       {
         chart_type: "bar",
         labels: dates.map { |date| date.strftime("%d.%m.") },
+        times: dates.map { |date| local_midnight_utc(date) * 1000 },
         series: series
       }
     end

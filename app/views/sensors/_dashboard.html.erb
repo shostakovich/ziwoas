@@ -7,7 +7,8 @@
     </section>
   <% else %>
     <%= render "sensors/battery_warning", sensors: sensors, latest: latest %>
-    <section class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 g-3 mb-3" aria-label="Sensoren">
+    <%# As many columns as there are sensors, up to two on tablets and three on desktops: no empty slot. %>
+    <section class="row row-cols-1 row-cols-sm-<%= sensors.size.clamp(1, 2) %> row-cols-lg-<%= sensors.size.clamp(1, 3) %> g-3 mb-3" aria-label="Sensoren">
       <% sensors.each do |s| %>
         <div class="col"><%= render "sensors/card", sensor: s, reading: latest[s.id] %></div>
       <% end %>

@@ -43,17 +43,21 @@
 
     <%= render CardComponent.new(title: "PV-Energie je Tag", level: 3,
                                  data: { strip: "energy" }) do %>
-      <svg viewBox="<%= bars_plot.view_box %>" role="img" aria-label="PV-Energie je Tag über das Jahr <%= year %>">
-        <g class="grid"><% month_lines.each do |at| %><line x1="<%= at %>" x2="<%= at %>" y1="<%= bars_plot.top %>" y2="<%= bars_plot.bottom %>"/><% end %></g>
-        <g class="grid"><% bar_grid_lines.each do |at| %><line x1="<%= bars_plot.left %>" x2="<%= bars_plot.right %>" y1="<%= at %>" y2="<%= at %>"/><% end %></g>
-        <g class="hour-labels" dominant-baseline="central"><% bar_grid_labels.each do |label| %><text x="<%= label.x %>" y="<%= label.y %>" text-anchor="end"><%= label.text %></text><% end %></g>
-        <% %i[dense sparse].each do |density| %>
-          <g class="month-labels label-<%= density %>" dominant-baseline="hanging"><% month_labels(density).each do |label| %><text x="<%= label.x %>" y="<%= month_label_top %>"><%= label.text %></text><% end %></g>
-        <% end %>
-        <line class="axis" x1="<%= bars_plot.left %>" x2="<%= bars_plot.right %>" y1="<%= bars_plot.bottom %>" y2="<%= bars_plot.bottom %>"/>
-        <g class="bars"><% bars.each do |bar| %><rect x="<%= bar.x %>" y="<%= bar.y %>" width="<%= bar.width %>" height="<%= bar.height %>"/><% end %></g>
-        <g class="hits"><% hits(bars_plot).each do |hit| %><rect x="<%= hit.rect.x %>" y="<%= hit.rect.y %>" width="<%= hit.rect.width %>" height="<%= hit.rect.height %>"><title><%= hit.title %></title></rect><% end %></g>
-      </svg>
+      <% bars_plots.each do |key, plot| %>
+        <svg viewBox="<%= plot.view_box %>" role="img" aria-label="PV-Energie je Tag über das Jahr <%= year %>"
+             class="energy-chart-<%= key %> <%= key == :wide ? 'd-none d-sm-block' : 'd-sm-none' %>">
+          <g class="grid"><% month_lines.each do |at| %><line x1="<%= at %>" x2="<%= at %>" y1="<%= plot.top %>" y2="<%= plot.bottom %>"/><% end %></g>
+          <g class="grid"><% bar_grid_lines(plot).each do |at| %><line x1="<%= plot.left %>" x2="<%= plot.right %>" y1="<%= at %>" y2="<%= at %>"/><% end %></g>
+          <g class="hour-labels" dominant-baseline="central"><% bar_grid_labels(plot).each do |label| %><text x="<%= label.x %>" y="<%= label.y %>" text-anchor="end"><%= label.text %></text><% end %></g>
+          <% unit = bar_unit_label(plot) %><text class="unit" x="<%= unit.x %>" y="<%= unit.y %>"><%= unit.text %></text>
+          <% %i[dense sparse].each do |density| %>
+            <g class="month-labels label-<%= density %>" dominant-baseline="hanging"><% month_labels(density).each do |label| %><text x="<%= label.x %>" y="<%= month_label_top(plot) %>"><%= label.text %></text><% end %></g>
+          <% end %>
+          <line class="axis" x1="<%= plot.left %>" x2="<%= plot.right %>" y1="<%= plot.bottom %>" y2="<%= plot.bottom %>"/>
+          <g class="bars"><% bars(plot).each do |bar| %><rect x="<%= bar.x %>" y="<%= bar.y %>" width="<%= bar.width %>" height="<%= bar.height %>"/><% end %></g>
+          <g class="hits"><% hits(plot).each do |hit| %><rect x="<%= hit.rect.x %>" y="<%= hit.rect.y %>" width="<%= hit.rect.width %>" height="<%= hit.rect.height %>"><title><%= hit.title %></title></rect><% end %></g>
+        </svg>
+      <% end %>
       <ul class="legend list-unstyled d-flex flex-wrap align-items-center column-gap-3 row-gap-1 small text-body-secondary mt-2 mb-0">
         <li class="legend-item d-inline-flex align-items-center gap-2"><span class="legend-box bar"></span>PV-Energie je Tag in kWh</li>
         <li class="legend-item d-inline-flex align-items-center gap-2">Tage ohne Stundenwerte bleiben leer</li>

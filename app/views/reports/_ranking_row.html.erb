@@ -1,13 +1,14 @@
 <% share = max_kwh.positive? ? (row.fetch(:kwh).to_f / max_kwh * 100).round(1) : 0 %>
 <li class="list-group-item" data-plug-id="<%= row.fetch(:plug_id) %>">
-  <div class="row g-2 align-items-center">
+  <%# Phones put the bar on a line of its own under the name, so the name keeps its room. %>
+  <div class="row gx-2 gy-1 align-items-center">
     <span class="col-1 text-body-secondary tabular-nums"><%= yield %></span>
-    <span class="col-4 col-md-3 text-truncate"><%= row.fetch(:name) %></span>
-    <span class="col">
+    <span class="col col-sm-4 col-md-3 text-truncate"><%= row.fetch(:name) %></span>
+    <span class="col-11 offset-1 order-last col-sm offset-sm-0 order-sm-0">
       <span class="progress" style="height: .5rem" aria-hidden="true">
         <span class="progress-bar" style="width: <%= share %>%; background-color: <%= colour %>"></span>
       </span>
     </span>
-    <span class="col-3 col-md-2 text-end tabular-nums text-nowrap"><%= de_number(row.fetch(:kwh), precision: 2) %> kWh</span>
+    <span class="col-auto col-sm-3 col-md-2 text-end tabular-nums text-nowrap"><%= de_number(row.fetch(:kwh), precision: 2) %> kWh</span>
   </div>
 </li>

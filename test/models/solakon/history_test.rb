@@ -2,6 +2,8 @@ require "test_helper"
 
 class SolakonHistoryTest < ActiveSupport::TestCase
   cover "Solakon::History#chart_payload"
+  cover "Solakon::History#label_for"
+  cover "Solakon::History#empty_payload"
   cover "Solakon::Snapshot#pv_power_w"
 
   setup { Solakon::Snapshot.delete_all }
@@ -110,11 +112,34 @@ class SolakonHistoryTest < ActiveSupport::TestCase
     end
   end
 
+  test "chart_payload carries each snapshot's instant in epoch milliseconds for the time axis" do
+    travel_to Time.zone.local(2026, 6, 20, 12, 0, 0) do
+      taken_at = Time.current - 0.25
+      Solakon::Snapshot.create!(taken_at: taken_at, pv1_power_w: 100)
+
+      payload = Solakon::History.new(range_key: "24h", now: Time.current).payload
+
+      assert_equal [ (taken_at.to_i * 1000) + 750 ], payload.dig(:chart, :times)
+    end
+  end
+
+  test "multi-day ranges label each snapshot with day and time" do
+    travel_to Time.zone.local(2026, 6, 20, 12, 0, 0) do
+      Solakon::Snapshot.create!(taken_at: Time.zone.local(2026, 6, 18, 9, 30), pv1_power_w: 100)
+
+      payload = Solakon::History.new(range_key: "7d", now: Time.current).payload
+
+      assert_equal [ "18.06. 09:30" ], payload.dig(:chart, :labels)
+    end
+  end
+
   test "empty payload is stable" do
     payload = Solakon::History.new(range_key: "7d", now: Time.zone.local(2026, 6, 20, 12, 0, 0)).payload
 
     assert_equal "7d", payload.fetch(:range)
     assert_equal [], payload.dig(:chart, :labels)
+    assert_equal [], payload.dig(:chart, :times)
+    assert_equal [ "PV", "Akku", "Außensteckdose", "0 W" ], payload.dig(:chart, :datasets).map { |dataset| dataset.fetch(:label) }
     assert_equal "Keine Solakon-Historie", payload.fetch(:message)
   end
 end

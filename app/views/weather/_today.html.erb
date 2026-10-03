@@ -1,10 +1,12 @@
 <%= turbo_frame_tag "weather_today" do %>
   <% if today_weather.any? %>
     <h2 class="h6 text-uppercase text-body-secondary mt-4 mb-2">Heute</h2>
-    <section class="weather-hour-row card card-body flex-row gap-3 overflow-x-auto mb-3" aria-label="Heute">
-      <% today_weather.each do |record| %>
-        <%= render "weather/hour_card", record: record %>
-      <% end %>
+    <section class="weather-hour-row card mb-3" aria-label="Heute">
+      <div class="weather-hour-scroller card-body d-flex gap-3 overflow-x-auto">
+        <% today_weather.each do |record| %>
+          <%= render "weather/hour_card", record: record %>
+        <% end %>
+      </div>
     </section>
   <% end %>
 <% end %>

@@ -42,7 +42,7 @@ class Solakon::PanelCurvesComponentTest < ViewComponent::TestCase
     assert_equal %w[pv1 pv2 pv3 pv4], rendered.css(".legend-line").map { |node| node["class"].split.last }
   end
 
-  test "writes every panel's name next to its own line in the wide drawing only" do
+  test "writes every panel's name at the end of its own line in the wide drawing only" do
     rendered = render_panels
     labels = wide(rendered).css(".direct-labels text")
 
@@ -52,25 +52,38 @@ class Solakon::PanelCurvesComponentTest < ViewComponent::TestCase
     assert_operator by_name.fetch("Panel 1"), :<, by_name.fetch("Panel 3")
 
     assert_empty narrow(rendered).css(".direct-labels")
+    assert_empty narrow(rendered).css(".leaders")
+  end
+
+  test "joins a name to where its line ends, even when that is before the last hour" do
+    early = curves(pv4: [ [ 12, 100.0 ], [ 13, 140.0 ] ])
+
+    leader = wide(render_panels(curves: early)).css(".leaders line.pv4").sole
+
+    assert_equal %w[336 129], %w[x1 y1].map { |name| leader[name] }
+  end
+
+  test "keeps the legend for the phone drawing only" do
+    assert_includes render_panels.css("ul.legend").sole["class"].split, "d-sm-none"
   end
 
   test "lifts the names back over the axis when pushing them apart ran out of room" do
     flat = curves(pv1: [ [ 12, 5.0 ] ], pv2: [ [ 12, 4.0 ] ], pv3: [ [ 12, 3.0 ] ], pv4: [ [ 12, 2.0 ] ])
     chart = wide(render_panels(curves: flat))
 
-    assert_equal %w[128 148 168 188], chart.css(".direct-labels text").map { |label| label["y"] }
+    assert_equal %w[122 142 162 182], chart.css(".direct-labels text").map { |label| label["y"] }
   end
 
   test "lifts a name by exactly the amount that pushed it past the axis" do
     label = wide(render_panels(curves: single(0.0))).css(".direct-labels text").sole
 
-    assert_equal "188", label["y"]
+    assert_equal "182", label["y"]
   end
 
   test "leaves a name in place when it clears the axis" do
-    label = wide(render_panels(curves: single(0.6))).css(".direct-labels text").sole
+    label = wide(render_panels(curves: single(1.4))).css(".direct-labels text").sole
 
-    assert_equal "187.7", label["y"]
+    assert_equal "181.9", label["y"]
   end
 
   test "sorts the placed names by height before spreading them, skipping any panel with no reading" do
@@ -152,23 +165,28 @@ class Solakon::PanelCurvesComponentTest < ViewComponent::TestCase
     chart = wide
 
     axis = chart.css("line.axis").sole
-    assert_equal %w[40 688 192 192], %w[x1 x2 y1 y2].map { |name| axis[name] }
+    assert_equal %w[40 632 192 192], %w[x1 x2 y1 y2].map { |name| axis[name] }
 
     assert_equal [ [ "100", "35", "147" ], [ "200", "35", "102" ], [ "300", "35", "57" ], [ "W", "35", "12" ] ],
                  chart.css(".value-labels text").map { |node| [ node.text, node["x"], node["y"] ] }
 
-    assert_equal "40,57 364,12 688,34.5", chart.css("polyline.pv1").sole["points"]
-    assert_equal "40,147 364,129 688,133.5", chart.css("polyline.pv4").sole["points"]
+    assert_equal "40,57 336,12 632,34.5", chart.css("polyline.pv1").sole["points"]
+    assert_equal "40,147 336,129 632,133.5", chart.css("polyline.pv4").sole["points"]
 
     names = chart.css(".direct-labels text")
-    assert_equal %w[370 370 370 370], names.map { |node| node["x"] }
-    assert_equal %w[12 32 120 140], names.map { |node| node["y"] }
+    assert_equal %w[644 644 644 644], names.map { |node| node["x"] }
+    assert_equal %w[34.5 54.5 124.5 144.5], names.map { |node| node["y"] }
+
+    # Each leader runs from the end of its line to just before its name.
+    leaders = chart.css(".leaders line").map { |node| [ node["class"], *%w[x1 y1 x2 y2].map { |name| node[name] } ] }
+    assert_equal [ [ "pv1", "632", "34.5", "641", "34.5" ], [ "pv2", "632", "43.5", "641", "54.5" ],
+                   [ "pv3", "632", "124.5", "641", "124.5" ], [ "pv4", "632", "133.5", "641", "144.5" ] ], leaders
 
     hit = chart.css(".hits rect").first
-    assert_equal %w[40 12 324 180], %w[x y width height].map { |name| hit[name] }
-    assert_equal %w[688 0], %w[x width].map { |name| chart.css(".hits rect").last[name] }
+    assert_equal %w[40 12 296 180], %w[x y width height].map { |name| hit[name] }
+    assert_equal %w[632 0], %w[x width].map { |name| chart.css(".hits rect").last[name] }
 
-    assert_equal %w[40 688], chart.css(".hour-labels text").map { |node| node["x"] }
+    assert_equal %w[40 632], chart.css(".hour-labels text").map { |node| node["x"] }
     assert_equal %w[197 197], chart.css(".hour-labels text").map { |node| node["y"] }
   end
 
@@ -188,7 +206,7 @@ class Solakon::PanelCurvesComponentTest < ViewComponent::TestCase
     assert_equal %w[147 102 57], lines.map { |line| line["y1"] }
     assert_equal lines.map { |line| line["y1"] }, lines.map { |line| line["y2"] }
     assert_equal %w[40 40 40], lines.map { |line| line["x1"] }
-    assert_equal %w[688 688 688], lines.map { |line| line["x2"] }
+    assert_equal %w[632 632 632], lines.map { |line| line["x2"] }
   end
 
   test "steps the grid in round watts that leave the curves filling the plot" do

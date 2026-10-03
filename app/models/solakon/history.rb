@@ -46,6 +46,7 @@ module Solakon
         range: @range_key,
         chart: {
           labels: [],
+          times: [],
           datasets: [
             { label: "PV", data: [] },
             { label: "Akku", data: [] },
@@ -61,6 +62,7 @@ module Solakon
     def chart_payload(rows)
       {
         labels: rows.map { |row| label_for(row.taken_at) },
+        times: rows.map { |row| (row.taken_at.to_r * 1000).to_i },
         datasets: [
           { label: "PV", data: rows.map { |row| row.pv_power_w.round(1) } },
           { label: "Akku", data: rows.map { |row| row.battery_power_w.to_f.round(1) } },
@@ -82,7 +84,7 @@ module Solakon
     end
 
     def label_for(time)
-      @range_key == "24h" ? time.strftime("%H:%M") : time.strftime("%d.%m.")
+      @range_key == "24h" ? time.strftime("%H:%M") : time.strftime("%d.%m. %H:%M")
     end
 
     def balance_rows(rows)

@@ -1,6 +1,6 @@
 import { Controller } from "@hotwired/stimulus"
 import "chart.js"
-import { chartTheme, vizToken } from "lib/chart_theme"
+import { chartTheme, vizToken, timeScale, timeCategoryScale } from "lib/chart_theme"
 
 export default class extends Controller {
   static targets = ["powerCanvas", "energyCanvas", "deltas"]
@@ -136,20 +136,7 @@ export default class extends Controller {
         // Five-minute samples: thin lines keep the series apart.
         elements: { line: { borderWidth: 1.25 } },
         scales: {
-          x: {
-            type: "linear",
-            min: Date.now() - 86_400_000,
-            max: Date.now(),
-            title: { display: true, text: "Uhrzeit" },
-            ticks: {
-              callback: (v) => {
-                const d = new Date(v)
-                return d.getHours().toString().padStart(2, "0") + ":" +
-                       d.getMinutes().toString().padStart(2, "0")
-              },
-              stepSize: 3 * 3_600_000,
-            },
-          },
+          x: { ...timeScale(Date.now() - 86_400_000, Date.now()), title: { display: true, text: "Uhrzeit" } },
           y: { beginAtZero: true, title: { display: true, text: "Watt" } },
         },
         plugins: { legend: { position: "bottom", labels: { boxWidth: 12, boxHeight: 12, padding: 10, font: { size: 12 }, filter: (item, data) => !data.datasets[item.datasetIndex]?.hidden } } },
@@ -199,7 +186,7 @@ export default class extends Controller {
         responsive: true,
         maintainAspectRatio: false,
         scales: {
-          x: { stacked: true },
+          x: { stacked: true, ...timeCategoryScale(sorted.map((ts) => ts * 1000)) },
           y: { stacked: true, beginAtZero: true, title: { display: true, text: "kWh" } },
         },
         plugins: { legend: { position: "bottom", labels: { boxWidth: 12, boxHeight: 12, padding: 10, font: { size: 12 }, filter: (item, data) => !data.datasets[item.datasetIndex]?.hidden } } },
@@ -276,8 +263,7 @@ export default class extends Controller {
         .sort(([a], [b]) => a - b)
         .map(([x, y]) => ({ x, y })),
       tone: "--viz-grid",
-      fillAlpha: 0.14,
-      fill: true,
+      fill: false,
       pointRadius: 0,
       tension: 0.2,
       role: "consumer_total",

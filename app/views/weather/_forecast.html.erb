@@ -63,14 +63,16 @@
 
             <div class="weather-day-hours" data-weather-segments-target="hours">
               <% day.segments.each_with_index do |segment, idx| %>
-                <div class="weather-day-hour-row d-flex gap-3 overflow-x-auto bg-body-secondary rounded-3 p-3 mt-3"
+                <div class="weather-day-hour-row bg-body-secondary rounded-3 mt-3"
                      id="seg-<%= day.date.iso8601 %>-<%= idx %>"
                      data-weather-segments-target="hourRow"
                      data-segment-index="<%= idx %>"
                      hidden>
-                  <% segment.records.each do |record| %>
-                    <%= render "weather/hour_card", record: record %>
-                  <% end %>
+                  <div class="weather-hour-scroller d-flex gap-3 overflow-x-auto py-3 ps-3">
+                    <% segment.records.each do |record| %>
+                      <%= render "weather/hour_card", record: record %>
+                    <% end %>
+                  </div>
                 </div>
               <% end %>
             </div>

@@ -10,7 +10,9 @@ module Solakon
     TOP = 30
     BOTTOM_PAD = 4
     ROW_HEIGHT = 8
-    BARS_HEIGHT = 100
+    # The bars are drawn twice: flat from a small tablet up, taller for phones,
+    # where the 720-unit drawing shrinks to less than half.
+    BARS_HEIGHTS = { wide: 100, narrow: 240 }.freeze
     BARS_BOTTOM = 34
     STRIP_MARGINS = { top: TOP, right: RIGHT, bottom: BOTTOM_PAD, left: LEFT }.freeze
     BARS_MARGINS = { top: TOP, right: RIGHT, bottom: BARS_BOTTOM, left: LEFT }.freeze
@@ -28,6 +30,9 @@ module Solakon
     AXIS_LABEL_GAP = 5
     # The month labels under the bars hang from this line, whatever their size.
     MONTH_LABEL_GAP = 5
+    # Hour labels keep this many rows clear of the plot's top, where the month
+    # labels stand: at the phone's size the two would touch.
+    HOUR_LABEL_CLEAR_ROWS = 2
     WEEKDAYS = %w[So Mo Di Mi Do Fr Sa].freeze
 
     Cells = Data.define(:fill, :rects)
@@ -49,9 +54,10 @@ module Solakon
                                x: day_axis, y: (hours.last + 1)..hours.first)
     end
 
-    def bars_plot
-      @bars_plot ||= Plot.new(width: WIDTH, height: TOP + BARS_HEIGHT + BARS_BOTTOM, margins: BARS_MARGINS,
-                              x: day_axis, y: 0..bars_max)
+    def bars_plots
+      @bars_plots ||= BARS_HEIGHTS.transform_values do |height|
+        Plot.new(width: WIDTH, height: TOP + height + BARS_BOTTOM, margins: BARS_MARGINS, x: day_axis, y: 0..bars_max)
+      end
     end
 
     # Grouped by colour so the fill is written once instead of on every rectangle.
@@ -62,25 +68,28 @@ module Solakon
            .map { |fill, runs| Cells.new(fill: fill, rects: runs.map { |run| rect(run) }) }
     end
 
-    def bars
+    def bars(plot)
       @calendar.days.filter_map do |day|
         next if day.pv_kwh.nil?
 
-        bars_plot.rect(day.doy..day.doy + 1, 0..day.pv_kwh).with(width: bar_width)
+        plot.rect(day.doy..day.doy + 1, 0..day.pv_kwh).with(width: bar_width)
       end
     end
 
     def bars_max = [ @calendar.max_kwh.to_f.ceil, 1 ].max
 
-    def bar_grid_lines = bar_grid.map(&:at)
+    def bar_grid_lines(plot) = bar_grid(plot).map(&:at)
 
     # At most MAX_BAR_GRID_LINES lines, so the labels stay apart once the
     # phone's media query enlarges them.
-    def bar_grid_labels
-      bar_grid.map do |tick|
-        Label.new(x: bars_plot.left - AXIS_LABEL_GAP, y: tick.at, text: tick.value.to_s)
+    def bar_grid_labels(plot)
+      bar_grid(plot).map do |tick|
+        Label.new(x: plot.left - AXIS_LABEL_GAP, y: tick.at, text: tick.value.to_s)
       end
     end
+
+    # The unit stands above the axis labels, from the drawing's left edge.
+    def bar_unit_label(plot) = Label.new(x: 0, y: plot.top - MONTH_LABEL_LIFT, text: "kWh")
 
     # The two frames share their x axis, so one set of month lines serves both.
     def month_lines = strip_plot.x_ticks(month_doys).map(&:at)
@@ -96,12 +105,13 @@ module Solakon
       end
     end
 
-    def month_label_top = bars_plot.bottom + MONTH_LABEL_GAP
+    def month_label_top(plot) = plot.bottom + MONTH_LABEL_GAP
 
     def hour_labels(density)
       step = density == :sparse ? SPARSE_HOUR_STEP : DENSE_HOUR_STEP
 
-      hours.step(step).map do |hour|
+      labelled = hours.select { |hour| (hour % step).zero? && hour >= hours.first + HOUR_LABEL_CLEAR_ROWS }
+      labelled.map do |hour|
         Label.new(x: strip_plot.left - AXIS_LABEL_GAP, y: number(strip_plot.y(hour)), text: hour.to_s)
       end
     end
@@ -149,10 +159,11 @@ module Solakon
 
     def bar_width = number([ day_width - BAR_GAP, MIN_BAR_WIDTH ].max)
 
-    def bar_grid
+    # Below the plot's top, where the unit stands instead.
+    def bar_grid(plot)
       step = (bars_max / MAX_BAR_GRID_LINES.to_f).ceil
 
-      bars_plot.y_ticks(step.step(bars_max, step))
+      plot.y_ticks(step.step(bars_max - 1, step))
     end
 
     def month_doys = (1..12).map { |month| first_doy(month) }

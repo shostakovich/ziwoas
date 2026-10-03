@@ -101,6 +101,8 @@ class ReportsControllerTest < ActionDispatch::IntegrationTest
       assert_select ".col-1", text: "1"
       assert_select ".progress-bar[style*='width: 25.0%'][style*='var(--viz-1)']", 1
       assert_select ".text-end", text: "0,50 kWh"
+      # On phones the bar takes a line of its own below the name.
+      assert_select ".order-last.order-sm-0 > .progress", 1
     end
   end
 

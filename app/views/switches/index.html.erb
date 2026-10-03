@@ -1,5 +1,5 @@
 <% content_for :title, "Schalten" %>
-<h1 class="h4 fw-bold mb-3">Schalten</h1>
+<h1 class="h2 mb-3">Schalten</h1>
 
 <%# Live watt/output updates arrive as sw_head replaces from DashboardBroadcaster. %>
 <%= turbo_stream_from DashboardBroadcaster::STREAM %>

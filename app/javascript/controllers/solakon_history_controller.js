@@ -1,6 +1,6 @@
 import { Controller } from "@hotwired/stimulus"
 import "chart.js"
-import { chartTheme, isPhone } from "lib/chart_theme"
+import { chartTheme, timeCategoryScale } from "lib/chart_theme"
 
 const REFRESH_MS = 60_000
 const SERIES_TOKENS = { "PV": "--viz-solar", "Akku": "--viz-battery", "Außensteckdose": "--viz-grid", "0 W": "--viz-muted" }
@@ -60,11 +60,10 @@ export default class extends Controller {
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        // Five-minute samples: thin lines, and a handful of upright times
-        // instead of a rotated label for every hour.
+        // Dense samples: thin lines keep the series apart.
         elements: { line: { borderWidth: 1.25 } },
         scales: {
-          x: { ticks: { maxTicksLimit: isPhone() ? 5 : 8, maxRotation: 0 } },
+          x: timeCategoryScale(chart.times || []),
           y: { title: { display: true, text: "Watt" } },
         },
         plugins: {

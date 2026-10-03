@@ -10,7 +10,19 @@
 .legend-dot { width: .75rem; height: .75rem; padding: 0; flex: none; }
 
 /* Small enough to see whole in one desktop viewport. */
-.energy-flow { max-width: 34rem; }
+.energy-flow { width: 100%; max-width: 34rem; margin-inline: auto; }
+
+/* Phones draw the 400-unit diagram ~340px wide: larger text units keep labels at 11px and up,
+   smaller icons make room for the values inside the rings. The drawing reaches into the card padding. */
+@media (max-width: 575.98px) {
+  .energy-flow { width: calc(100% + 2 * var(--space-3)); max-width: none; margin-inline: calc(-1 * var(--space-3)); }
+  .energy-flow .ef-names { font-size: 14px; }
+  .energy-flow .ef-values text { font-size: 13.5px; transform: translateY(-11px); }
+  .energy-flow .ef-values .ef-battery { transform: translateY(-17px); }
+  .energy-flow .ef-values .ef-soc { font-size: 13px; }
+  .energy-flow .ef-icon { transform-box: fill-box; transform-origin: 50% 0; transform: translateY(-4px) scale(.75); }
+  .energy-flow .ef-icon.ef-battery { transform: translateY(-6px) scale(.7); }
+}
 
 /* live_freshness_controller sets .live-stale when broadcasts stop arriving. */
 .live-dim { transition: opacity 200ms ease-out; }

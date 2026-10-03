@@ -2,7 +2,7 @@
 <% euro = ->(value, precision = 2) { de_number(value, precision: precision) } %>
 <% day = ->(date) { l(date, format: "%d.%m.%Y") } %>
 
-<h1 class="h4 fw-bold mb-3">Wirtschaftlichkeit</h1>
+<h1 class="h2 mb-3">Wirtschaftlichkeit</h1>
 
 <%= render Economics::OverviewCardComponent.new(result: @overview, title: "Stand", link: false) %>
 

@@ -1,6 +1,6 @@
 <% content_for :title, "Berichte" %>
 <% content_for :body_class, "page-reports" %>
-<h1 class="h4 fw-bold mb-3">Berichte</h1>
+<h1 class="h2 mb-3">Berichte</h1>
 
 <%
   daily_has_weather = @report.chart_payload.dig(:daily, :weather).present?

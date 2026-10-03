@@ -1,5 +1,5 @@
 <% target = ->(name) { "data-ef=\"#{name}\"".html_safe } %>
-<svg viewBox="0 0 400 320" class="energy-flow d-block w-100 h-auto mx-auto">
+<svg viewBox="0 0 400 320" class="energy-flow d-block h-auto">
   <defs>
     <clipPath id="ef-clip">
       <path fill-rule="evenodd" d="M 0,0 H 400 V 320 H 0 Z M 200,40 A 40,40 0 1,0 200,120 A 40,40 0 1,0 200,40 Z M 58,130 A 40,40 0 1,0 58,210 A 40,40 0 1,0 58,130 Z M 342,130 A 40,40 0 1,0 342,210 A 40,40 0 1,0 342,130 Z M 200,220 A 40,40 0 1,0 200,300 A 40,40 0 1,0 200,220 Z"/>
@@ -32,25 +32,25 @@
   </g>
   <g <%= target.call("efConsumerRing") %> transform="rotate(-90 342 170)" fill="none" stroke-linecap="butt"></g>
 
-  <g text-anchor="middle" font-size="11" style="fill: var(--muted)">
+  <g class="ef-names" text-anchor="middle" font-size="11" style="fill: var(--muted)">
     <text x="200" y="22">PV-Anlage</text>
     <text x="58" y="224">Stromnetz</text>
     <text x="342" y="224">Verbraucher</text>
     <text x="200" y="315">Batterie</text>
   </g>
 
-  <g text-anchor="middle" font-size="12" font-weight="600" class="tabular-nums">
+  <g text-anchor="middle" font-size="12" font-weight="600" class="ef-values tabular-nums">
     <text <%= target.call("efPvW") %> x="200" y="102" text-anchor="middle" style="fill: var(--warning-text)">— W</text>
     <text <%= target.call("efGridW") %> x="58" y="192" text-anchor="middle" style="fill: var(--primary-text)">— W</text>
     <text <%= target.call("efConsumerW") %> x="342" y="192" text-anchor="middle" style="fill: var(--success-text)">— W</text>
-    <text <%= target.call("efBatteryW") %> x="200" y="282" text-anchor="middle" font-size="11" style="fill: var(--success-text)">— W</text>
-    <text <%= target.call("efBatterySoc") %> x="200" y="291" text-anchor="middle" font-size="9" style="fill: var(--muted)">— %</text>
+    <text <%= target.call("efBatteryW") %> class="ef-battery" x="200" y="282" text-anchor="middle" font-size="11" style="fill: var(--success-text)">— W</text>
+    <text <%= target.call("efBatterySoc") %> class="ef-soc" x="200" y="291" text-anchor="middle" font-size="9" style="fill: var(--muted)">— %</text>
   </g>
 
-  <image href="<%= asset_path pv_asset %>" x="180" y="50" width="40" height="40" role="img" aria-label="<%= pv_alt %>"/>
-  <image href="<%= asset_path "icon_netz.webp" %>" x="38" y="141" width="40" height="40"/>
-  <image href="<%= asset_path "icon_haus.webp" %>" x="322" y="141" width="40" height="40"/>
-  <image <%= target.call("efBatteryImage") %>
+  <image class="ef-icon" href="<%= asset_path pv_asset %>" x="180" y="50" width="40" height="40" role="img" aria-label="<%= pv_alt %>"/>
+  <image class="ef-icon" href="<%= asset_path "icon_netz.webp" %>" x="38" y="141" width="40" height="40"/>
+  <image class="ef-icon" href="<%= asset_path "icon_haus.webp" %>" x="322" y="141" width="40" height="40"/>
+  <image <%= target.call("efBatteryImage") %> class="ef-icon ef-battery"
          href="<%= asset_path battery_asset %>"
          x="180" y="231" width="40" height="40" preserveAspectRatio="xMidYMid meet"
          <%= tag.attributes(data: ApplicationHelper::BATTERY_ASSETS
