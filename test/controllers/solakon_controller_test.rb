@@ -304,7 +304,7 @@ class SolakonControllerTest < ActionDispatch::IntegrationTest
     assert_select ".card-title + .card-subtitle", text: /\Aseit /
     assert_select ".shading [data-chart='yield-map'] .fields rect", minimum: 1
     assert_select ".shading [data-chart='daily-profiles'] .multiple", 1
-    assert_select ".shading [data-chart='panels'] polyline", 4
+    assert_select ".shading [data-chart='panels'] .panel-chart-wide polyline", 4
   end
 
   test "page keeps an empty state for the shading section while no PV hour exists" do

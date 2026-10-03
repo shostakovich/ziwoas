@@ -80,10 +80,28 @@ class ReportsControllerTest < ActionDispatch::IntegrationTest
     assert_select ".card-subtitle", text: "Ertrag / Verbrauch"
     assert_select ".card-title", text: "Leistung"
     assert_select ".card .chart-frame", minimum: 2
-    assert_select "ol.list-group[aria-label='Rangliste'] > li.list-group-item", minimum: 1
+    assert_select "ul.list-group[aria-label='Erzeugung'] > li.list-group-item", 1
     assert_select "[data-energy-report-target='dailyCanvas']", 1
     assert_select "[data-energy-report-target='detailCanvas']", 1
     assert_select "script[data-energy-report-target='payload']", 1
+  end
+
+  test "the producer stands apart from the numbered consumers, each bar in its dashboard colour" do
+    Plugs::DailyTotal.create!(plug_id: "bkw", date: "2026-04-10", energy_wh: 2000)
+    Plugs::DailyTotal.create!(plug_id: "fridge", date: "2026-04-10", energy_wh: 500)
+
+    get "/reports"
+
+    assert_select "ul.list-group[aria-label='Erzeugung'] > li[data-plug-id='bkw']", 1 do
+      assert_select "img[alt='Erzeuger']", 1
+      assert_select ".progress-bar[style*='width: 100.0%'][style*='var(--viz-solar)']", 1
+    end
+    assert_select "ol.list-group[aria-label='Rangliste'] > li", 1
+    assert_select "ol.list-group[aria-label='Rangliste'] > li[data-plug-id='fridge']", 1 do
+      assert_select ".col-1", text: "1"
+      assert_select ".progress-bar[style*='width: 25.0%'][style*='var(--viz-1)']", 1
+      assert_select ".text-end", text: "0,50 kWh"
+    end
   end
 
   test "reports page orders widgets like the dashboard" do

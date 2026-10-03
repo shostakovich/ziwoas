@@ -6,14 +6,17 @@ class DashboardControllerTest < ActionDispatch::IntegrationTest
     get root_path
 
     assert_response :success
-    assert_select "svg[viewBox='0 0 400 320']", 1
+    assert_select "svg.energy-flow[viewBox='0 0 400 320']", 1
+    # The rings stay open and the lines stop at them, so nothing crosses a value.
+    assert_select "svg.energy-flow g[fill='none'] > circle", 4
+    assert_select "svg.energy-flow g[clip-path='url(#ef-clip)'] > path", 6
 
     assert_select "text", text: "PV-Anlage"
     assert_select "text", text: "Stromnetz"
     assert_select "text", text: "Verbraucher"
     assert_select "text", text: "Batterie"
 
-    assert_select "image[x='184'][y='55'][width='32'][height='32']", 1
+    assert_select "image[x='180'][y='50'][width='40'][height='40']", 1
     assert_select "image[href*='icon_netz']"
     assert_select "image[href*='icon_haus']"
     assert_select "image[href*='solakon_battery_normal']"
@@ -73,10 +76,10 @@ class DashboardControllerTest < ActionDispatch::IntegrationTest
 
     assert_select "text[data-ef='efPvW'][x='200'][y='102'][text-anchor='middle']", 1
 
-    assert_select "image[x='42'][y='145'][width='32'][height='32']", 1
+    assert_select "image[x='38'][y='141'][width='40'][height='40']", 1
     assert_select "text[data-ef='efGridW'][x='58'][y='192'][text-anchor='middle']", 1
 
-    assert_select "image[x='326'][y='145'][width='32'][height='32']", 1
+    assert_select "image[x='322'][y='141'][width='40'][height='40']", 1
     assert_select "text[data-ef='efConsumerW'][x='342'][y='192'][text-anchor='middle']", 1
   end
 
@@ -89,7 +92,7 @@ class DashboardControllerTest < ActionDispatch::IntegrationTest
 
     assert_select "img.hero-icon[src*='weather_cloudy_night']", 1
     assert_select "img.hero-icon[alt='cloudy']", 1
-    assert_select "image[href*='weather_cloudy_night'][x='184'][y='55'][width='32'][height='32']", 1
+    assert_select "image[href*='weather_cloudy_night'][x='180'][y='50'][width='40'][height='40']", 1
   end
 
   test "falls back to sun icon without current weather" do
@@ -100,7 +103,7 @@ class DashboardControllerTest < ActionDispatch::IntegrationTest
 
     assert_select "img.hero-icon[src*='icon_sonne']", 1
     assert_select "img.hero-icon[alt='Sonne']", 1
-    assert_select "image[href*='icon_sonne'][x='184'][y='55'][width='32'][height='32']", 1
+    assert_select "image[href*='icon_sonne'][x='180'][y='50'][width='40'][height='40']", 1
   end
 
   test "a blank icon on the current weather record falls back to the Sonne alt text" do

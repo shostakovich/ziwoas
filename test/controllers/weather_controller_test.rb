@@ -52,6 +52,8 @@ class WeatherControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select ".weather-current"
     assert_select ".weather-current", text: /16,2/
+    assert_select ".weather-current", text: /trocken · Wind 10 km\/h · DWD/
+    assert_select "h1", text: "Wetter", count: 1
     assert_select ".weather-hour-card", minimum: 1
     assert_select ".weather-day-card", minimum: 1
     assert_select ".weather-hour-card .weather-hour-solar", text: /320 W\/m²/
@@ -91,6 +93,30 @@ class WeatherControllerTest < ActionDispatch::IntegrationTest
     get "/weather"
 
     assert_select ".weather-hour-row .weather-hour-time", text: /22:00/, count: 1
+  end
+
+  test "every hour card fills the same three rows, with a dash where there is nothing to tell" do
+    WeatherRecord.create!(kind: "forecast", lat: 52.52, lon: 13.405,
+      timestamp: Time.zone.parse("2026-05-04 13:00"), daytime: "day",
+      icon: "partly-cloudy-day", temperature: 18, precipitation: 0, solar: 0.32, wind_speed: 11)
+    WeatherRecord.create!(kind: "forecast", lat: 52.52, lon: 13.405,
+      timestamp: Time.zone.parse("2026-05-04 14:00"), daytime: "day",
+      icon: "rain-day", temperature: 17, precipitation: 0, precipitation_probability: 40, solar: 0.1)
+    WeatherRecord.create!(kind: "forecast", lat: 52.52, lon: 13.405,
+      timestamp: Time.zone.parse("2026-05-04 23:00"), daytime: "night",
+      icon: "rain-night", temperature: -2, precipitation: 1.2, wind_speed: 25)
+
+    get "/weather"
+
+    lists = css_select(".weather-hour-card .weather-hour-extras")
+    assert_equal [ 3, 3, 3 ], lists.map { |list| list.css("li").length }
+    assert_equal "11 km/h", lists[0].css(".weather-hour-wind").text.squish
+    assert_equal [ "–" ], lists[0].css("li[aria-hidden]").map { |li| li.text.squish }
+    assert_equal "40 %", lists[1].css(".weather-hour-rain").text.squish
+    assert_equal "Regenwahrscheinlichkeit", lists[1].css(".weather-hour-rain img").sole["alt"]
+    assert_equal "1,2 mm", lists[2].css(".weather-hour-rain").text.squish
+    assert_equal "25 km/h", lists[2].css(".weather-hour-wind.fw-semibold").text.squish
+    assert_select ".weather-hour-card strong", text: "−2°"
   end
 
   test "hourly card omits the solar row entirely at night" do

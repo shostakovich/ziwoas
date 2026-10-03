@@ -3,13 +3,20 @@ module Economics
   # saved since the data start, and when the two meet. Every figure that cannot
   # be had honestly is shown as an em dash with the reason next to it.
   class OverviewCardComponent < ApplicationComponent
-    def initialize(result:)
+    # On the Wirtschaftlichkeit page itself the card sits under a heading of the
+    # same name and next to the forms its link would lead to: it takes another
+    # title there and leaves the link out.
+    def initialize(result:, title: "Wirtschaftlichkeit", link: true)
       @result = result
+      @title = title
+      @link = link
     end
 
     private
 
-    attr_reader :result
+    attr_reader :result, :title
+
+    def link? = @link
 
     def tiles
       [
@@ -63,10 +70,6 @@ module Economics
 
     def euro(value) = "#{number(value)} €"
 
-    def number(value, precision: 2)
-      ActiveSupport::NumberHelper.number_to_rounded(
-        value, precision: precision, separator: ",", delimiter: "."
-      )
-    end
+    def number(value, precision: 2) = GermanNumber.format(value, precision: precision)
   end
 end

@@ -12,7 +12,7 @@ class Lights::PowerComponentTest < ViewComponent::TestCase
     rendered = render_inline(Lights::PowerComponent.new(snapshot: snapshot(light: light, state: state)))
 
     assert rendered.css("div#light_power").any?
-    assert rendered.css("img[src*='lamp_floorlamp_on']").any?
+    assert rendered.css(".sw-lamp-hero:not(.off) img.sw-knob-plush[src*='lamp_floorlamp_on']").any?
     assert_equal "true", rendered.css("button.btn-warning").find { |b| b.text == "An" }["aria-pressed"]
     assert_equal "false", rendered.css("button.btn-outline-secondary").find { |b| b.text == "Aus" }["aria-pressed"]
   end
@@ -33,7 +33,7 @@ class Lights::PowerComponentTest < ViewComponent::TestCase
     light = Light.new(key: "K1", name: "Stehlampe", sku: "H607C")
     rendered = render_inline(Lights::PowerComponent.new(snapshot: snapshot(light: light)))
 
-    assert rendered.css("img[src*='lamp_floorlamp_off']").any?
+    assert rendered.css(".sw-lamp-hero.off img.sw-knob-plush[src*='lamp_floorlamp_off']").any?
     assert_equal "true", rendered.css("button.btn-secondary").find { |b| b.text == "Aus" }["aria-pressed"]
   end
 end

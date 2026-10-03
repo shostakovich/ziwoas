@@ -10,17 +10,17 @@
             <div>
               <h3 class="h6 mb-0"><%= day.weekday_label %> <span class="fw-normal text-body-secondary tabular-nums"><%= day.date_label %></span></h3>
               <div class="weather-day-summary small text-body-secondary tabular-nums">
-                <%= number_with_precision(day.temp_min, precision: 0, delimiter: ".", separator: ",") %>
-                – <%= number_with_precision(day.temp_max, precision: 0, delimiter: ".", separator: ",") %> °C
+                <%= de_number(day.temp_min, precision: 0) %>
+                – <%= de_number(day.temp_max, precision: 0) %> °C
                 <% if day.precip_sum.positive? %>
-                  · Regen <%= number_with_precision(day.precip_sum, precision: 1, delimiter: ".", separator: ",") %> mm
+                  · Regen <%= de_number(day.precip_sum, precision: 1) %> mm
                 <% end %>
               </div>
             </div>
             <% if day.solar_peak_w_per_m2 %>
               <div class="weather-day-peak small fw-semibold text-warning-emphasis tabular-nums">
                 <%= image_tag "weather_clear_day.webp", class: "weather-icon-inline", alt: "" %>
-                Spitze <%= number_with_precision(day.solar_peak_w_per_m2, precision: 0, delimiter: ".", separator: ",") %> W/m²
+                Spitze <%= de_number(day.solar_peak_w_per_m2, precision: 0) %> W/m²
               </div>
             <% end %>
           </header>
@@ -40,20 +40,20 @@
                     <%= image_tag segment.asset_name, class: "weather-segment-icon weather-icon weather-icon-md", width: 72, height: 72, loading: "lazy", alt: weather_icon_label(segment.dominant_icon) %>
                     <% if segment.temp_min && segment.temp_max %>
                       <strong class="weather-segment-temp fs-5 tabular-nums">
-                        <%= number_with_precision(segment.temp_min, precision: 0, delimiter: ".", separator: ",") %>
-                        – <%= number_with_precision(segment.temp_max, precision: 0, delimiter: ".", separator: ",") %>°
+                        <%= de_number(segment.temp_min, precision: 0) %>
+                        – <%= de_number(segment.temp_max, precision: 0) %>°
                       </strong>
                     <% end %>
                     <% if segment.precip_sum.positive? %>
                       <span class="small fw-normal tabular-nums">
-                        <%= number_with_precision(segment.precip_sum, precision: 1, delimiter: ".", separator: ",") %> mm
+                        <%= de_number(segment.precip_sum, precision: 1) %> mm
                       </span>
                     <% end %>
                     <% if segment.all_night? %>
                       <span class="weather-segment-solar small fw-normal text-body-secondary">Nacht</span>
                     <% elsif segment.avg_solar_w_per_m2 %>
                       <span class="weather-segment-solar small text-warning-emphasis tabular-nums">
-                        <%= number_with_precision(segment.avg_solar_w_per_m2, precision: 0, delimiter: ".", separator: ",") %> W/m²
+                        <%= de_number(segment.avg_solar_w_per_m2, precision: 0) %> W/m²
                       </span>
                     <% end %>
                   </button>

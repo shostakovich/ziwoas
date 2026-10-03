@@ -3,21 +3,15 @@
    Knob overrides carry .sw-knob in the selector so they win whatever order
    the files load in. */
 
-/* Plush lamp knob: per-SKU artwork, glowing while the lamp is on. */
-.sw-knob.sw-lamp-knob { border-color: var(--warning); background-color: transparent;
-                        box-shadow: 0 0 16px 3px color-mix(in oklab, var(--warning) 42%, transparent); }
-.sw-knob.sw-lamp-knob.off { border-color: var(--border-strong); background-color: var(--surface-sunk);
-                            box-shadow: none; filter: grayscale(.35); }
-.sw-knob.plush-uplighter { background-image: url(lamp_uplighter_on.webp); }
-.sw-knob.plush-uplighter.off { background-image: url(lamp_uplighter_off.webp); }
-.sw-knob.plush-floorlamp { background-image: url(lamp_floorlamp_on.webp); }
-.sw-knob.plush-floorlamp.off { background-image: url(lamp_floorlamp_off.webp); }
-.sw-knob.plush-sconce { background-image: url(lamp_sconce_on.webp); }
-.sw-knob.plush-sconce.off { background-image: url(lamp_sconce_off.webp); }
-.sw-knob.plush-ceiling { background-image: url(lamp_ceiling_on.webp); }
-.sw-knob.plush-ceiling.off { background-image: url(lamp_ceiling_off.webp); }
-.sw-knob.plush-generic { background-image: url(lamp_generic_on.webp); }
-.sw-knob.plush-generic.off { background-image: url(lamp_generic_off.webp); }
+/* Plush lamp knob: glowing while the lamp is on (a drop shadow, so felt's own
+   patch shadow stays), greyed while off. The slim lamp art fills more of it. */
+.sw-knob.sw-lamp-knob { border-color: var(--warning); --tone: var(--surface-raised);
+                        filter: drop-shadow(0 0 8px color-mix(in oklab, var(--warning) 55%, transparent)); }
+.sw-knob.sw-lamp-knob.off { border-color: var(--border-strong); filter: none; }
+.sw-lamp-knob .sw-knob-plush { width: 80%; height: 80%; }
+.sw-lamp-knob.off .sw-knob-plush { filter: grayscale(.35); }
+/* The lamp detail page shows the lamp in the knob's ring, larger. */
+.sw-knob.sw-lamp-hero { width: 112px; height: 112px; }
 
 /* The lamp's current colour inside its chip. */
 .sw-swatch { display: inline-block; width: .8rem; height: .8rem; border-radius: var(--radius-sm);

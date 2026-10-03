@@ -25,13 +25,10 @@
   --viz-10: light-dark(oklch(from var(--petrol) 0.64 0.11 calc(h + 28)), oklch(from var(--petrol) 0.66 0.11 calc(h + 28)));
 }
 
-/* Page widths: the header spans the widest page, <main> each page's own width. */
+/* Page widths: the header spans the widest page, <main> each page's own width.
+   Two widths only: single-column pages read at 760px, data pages get 1040px. */
 :root { --container-max: 1040px; }
-body { --page-max: 720px; }
-body.page-dashboard,
-body.page-switches,
-body.page-light-detail { --page-max: 760px; }
-body.page-weather { --page-max: 880px; }
+body { --page-max: 760px; }
 body.page-reports,
 body.page-sensors,
 body.page-solakon { --page-max: 1040px; }

@@ -1,6 +1,8 @@
 require "test_helper"
 
 class Switches::ScheduleEntryComponentTest < ViewComponent::TestCase
+  cover "Switches::ScheduleEntryComponent*"
+
   PLUG = ConfigLoader::PlugCfg.new(id: "fridge", name: "Kühlschrank", role: :consumer,
                                    driver: :shelly, ain: nil, room: nil, switchable: true).freeze
 
@@ -84,5 +86,14 @@ class Switches::ScheduleEntryComponentTest < ViewComponent::TestCase
 
     assert rendered.css("span.badge.text-decoration-line-through").none?
     assert rendered.css("form[action$='/enabled'] input[name=enabled][value=false]").any?
+  end
+
+  test "the buttons carry glyphs in the text colour, not emoji" do
+    running = render_entry(single)
+    paused = render_entry(single(enabled: false))
+
+    assert_equal %w[pause edit delete], running.css(".btn.btn-icon svg").map { |svg| svg["data-icon"] }
+    assert_equal "play", paused.css("form[action$='/enabled'] .btn svg").sole["data-icon"]
+    assert_equal "", running.css(".btn").map(&:text).join.strip
   end
 end

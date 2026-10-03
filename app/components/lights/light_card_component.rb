@@ -10,6 +10,8 @@ module Lights
 
     def light = snapshot.light
 
+    def plush = "lamp_#{light.plush_type}_#{snapshot.on? ? 'on' : 'off'}.webp"
+
     def summary
       return "Aus" unless snapshot.on?
       "An · #{snapshot.white? ? 'Weiß' : 'Farbe'} · #{snapshot.brightness} %"

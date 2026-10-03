@@ -199,7 +199,11 @@ class EnergyReport
     (total / days).kwh.round(3)
   end
 
+  # +position+ is the plug's place among the configured plugs of its role, the
+  # same order the dashboard and the charts colour plugs by.
   def ranking(rows, role)
+    peers = @roster.public_send(role == :producer ? :producer_ids : :consumer_ids)
+
     rows
       .select { |row| plug_role(row.plug_id) == role }
       .group_by(&:plug_id)
@@ -209,6 +213,7 @@ class EnergyReport
           plug_id: plug_id,
           name: plug.name,
           role: role.to_s,
+          position: peers.index(plug_id),
           kwh: Energy.wh(plug_rows.sum(&:energy_wh)).kwh.round(3)
         }
       end

@@ -10,21 +10,21 @@
   </div>
   <div class="d-flex justify-content-between align-items-baseline mt-2 small text-body-secondary">
     <span>Verbrauch gesamt</span>
-    <strong class="text-body tabular-nums"><%= total_w.round %> W</strong>
+    <strong class="text-body tabular-nums"><%= helpers.de_number(total_w) %> W</strong>
   </div>
   <ul class="list-unstyled d-flex flex-wrap row-gap-2 column-gap-3 small tabular-nums mt-3 mb-0" aria-label="Legende">
     <% producers.each do |plug| %>
       <li class="d-flex align-items-center gap-2">
         <span class="badge rounded-pill legend-dot" style="background-color: <%= PRODUCER_COLOR %>"></span>
         <span class="text-nowrap"><%= plug.name %></span>
-        <span class="text-body-secondary">-<%= (plug.apower_w || 0).abs.round %> W</span>
+        <span class="text-body-secondary"><%= helpers.de_number(-(plug.apower_w || 0).abs) %> W</span>
       </li>
     <% end %>
     <% consumers.each do |plug| %>
       <li class="d-flex align-items-center gap-2">
         <span class="badge rounded-pill legend-dot" style="background-color: <%= color(plug) %>"></span>
         <span class="text-nowrap"><%= plug.name %></span>
-        <span class="text-body-secondary"><%= plug.apower_w.round %> W</span>
+        <span class="text-body-secondary"><%= helpers.de_number(plug.apower_w) %> W</span>
       </li>
     <% end %>
   </ul>

@@ -1,6 +1,5 @@
 <% content_for :title, "Dashboard" %>
-<% content_for :body_class, "page-dashboard" %>
-<h1 class="h3 fw-medium text-body-secondary mb-3">Dashboard</h1>
+<h1 class="h4 fw-bold mb-3">Dashboard</h1>
 
 <%= turbo_stream_from DashboardBroadcaster::STREAM %>
 

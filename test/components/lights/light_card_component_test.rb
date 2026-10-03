@@ -2,6 +2,8 @@
 require "test_helper"
 
 class Lights::LightCardComponentTest < ViewComponent::TestCase
+  cover "Lights::LightCardComponent*"
+
   def card(attrs)
     light = Light.new(key: "K1", name: "Stehlampe", sku: "H607C")
     state = attrs.nil? ? nil : LightState.new(attrs.merge(light_key: "K1"))
@@ -10,7 +12,9 @@ class Lights::LightCardComponentTest < ViewComponent::TestCase
 
   test "off card summarises as Aus and has no chip" do
     rendered = render_inline(card(on: false))
-    assert rendered.css("div#light_card_K1.card.opacity-75").any?, "an off lamp card is dimmed"
+    assert rendered.css("div#light_card_K1.card.opacity-75").none?, "the card itself stays opaque"
+    assert rendered.css("a.text-body-secondary[aria-label='Stehlampe Details']").any?, "the name is dimmed instead"
+    assert rendered.css("button.sw-knob.sw-lamp-knob.off img.sw-knob-plush[src*='lamp_floorlamp_off']").any?
     assert_includes rendered.to_html, "Aus"
     assert rendered.css("span.badge").none?
   end
@@ -31,7 +35,8 @@ class Lights::LightCardComponentTest < ViewComponent::TestCase
   test "the card links to the detail page and carries the plush knob" do
     rendered = render_inline(card(on: true, brightness: 60))
     assert rendered.css("a[href='/lights/K1'][aria-label='Stehlampe Details']").any?
-    assert rendered.css("div#light_card_K1.opacity-75").none?
-    assert rendered.css("form[action='/lights/K1/command'] button.sw-knob.sw-lamp-knob.plush-floorlamp:not(.off)").any?
+    assert rendered.css("a.link-body-emphasis[aria-label='Stehlampe Details']").any?
+    knob = rendered.css("form[action='/lights/K1/command'] button.btn.btn-light.btn-icon.sw-knob.sw-lamp-knob:not(.off)").sole
+    assert_equal "", knob.css("img.sw-knob-plush[src*='lamp_floorlamp_on']").sole["alt"]
   end
 end

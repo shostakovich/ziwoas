@@ -1,9 +1,11 @@
+<%# Values sit at the foot of the tile, so a row lines them up even when a
+    label wraps onto a second line. %>
 <%= tag.div class: "col", id: id do %>
   <div class="card h-100">
-    <div class="card-body p-3">
-      <div class="stat">
+    <div class="card-body p-3 h-100 d-flex flex-column">
+      <div class="stat flex-grow-1">
         <span class="stat-label"><%= label %></span>
-        <span class="stat-value fs-2"><%= value %></span>
+        <span class="stat-value fs-2 mt-auto"><%= number %><% if unit %> <span class="fs-5 fw-semibold"><%= unit %></span><% end %></span>
       </div>
     </div>
   </div>

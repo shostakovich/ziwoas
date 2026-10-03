@@ -1,14 +1,11 @@
-/* Schalten tab: the round plush knob of a plug card. Cards, chips, schedules
-   and their forms are plain felt-css; lamp cards reuse the knob (lights.css). */
+/* Schalten tab: the round plush knob of a plug card. It is a felt patch
+   (.btn.btn-light.btn-icon), so wool, seam and pressed depth come from
+   felt-css; only its size, the ring saying on or off and the plush are ours.
+   Lamp cards reuse the knob (lights.css). */
 
-.sw-knob { display: block; width: 88px; height: 88px; border-radius: 50%; padding: 0; cursor: pointer;
-           border: 4px solid var(--success); background-color: var(--success-subtle);
-           background-image: url(switch_plush_on.webp);
-           background-size: 68%; background-position: center; background-repeat: no-repeat;
-           transition: transform .12s ease; }
-.sw-knob:hover { transform: scale(1.04); }
-.sw-knob:active { transform: scale(.95); }
-.sw-knob.off { border-color: var(--border-strong); background-color: var(--surface-sunk);
-               background-image: url(switch_plush_off.webp); }
-.sw-knob:disabled { cursor: not-allowed; filter: grayscale(.5); opacity: .85; }
-.sw-knob:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
+.sw-knob { width: 88px; height: 88px; border-style: solid; border-width: 4px;
+           border-color: var(--success); --tone: var(--success-subtle); background-color: var(--tone); }
+.sw-knob.off { border-color: var(--border-strong); --tone: var(--surface-raised); }
+
+/* Plush art is not square: a square box, never squashed. */
+.sw-knob-plush { width: 68%; height: 68%; object-fit: contain; pointer-events: none; }

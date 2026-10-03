@@ -9,8 +9,7 @@ module Solakon
       # Room at the right edge for the last hour's label.
       right: 14,
       bottom: 22,
-      # Wide enough for a four-digit watt label once the phone's media query
-      # enlarges the type inside the viewBox.
+      # Wide enough for a four-digit watt label.
       left: 40
     }.freeze
     GRID_STEP_W = 100
@@ -18,7 +17,6 @@ module Solakon
     DENSE_HOUR_STEP = 3
     SPARSE_HOUR_STEP = 6
     VALUE_LABEL_GAP = 4
-    VALUE_LABEL_DROP = 3.5
     HOUR_LABEL_Y = HEIGHT - 6
     KEYS = { measured: "PV gemessen", expected: "Erwartet aus Einstrahlung", theory: "Wolkenloser Himmel" }.freeze
 
@@ -54,7 +52,7 @@ module Solakon
 
     def value_labels
       grid.map do |tick|
-        Label.new(x: plot.left - VALUE_LABEL_GAP, y: number(tick.at + VALUE_LABEL_DROP), text: tick.value.to_s)
+        Label.new(x: plot.left - VALUE_LABEL_GAP, y: tick.at, text: tick.value.to_s)
       end
     end
 

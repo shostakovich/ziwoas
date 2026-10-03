@@ -1,6 +1,6 @@
 <% content_for :title, "Berichte" %>
 <% content_for :body_class, "page-reports" %>
-<h1 class="h3 fw-medium text-body-secondary mb-3">Berichte</h1>
+<h1 class="h4 fw-bold mb-3">Berichte</h1>
 
 <%
   daily_has_weather = @report.chart_payload.dig(:daily, :weather).present?
@@ -11,14 +11,15 @@
   <section class="card card-body mb-3 d-flex flex-column flex-sm-row flex-wrap align-items-stretch align-items-sm-end justify-content-between gap-3" aria-label="Zeitraum">
     <% custom = %w[last_7 last_30].exclude?(@report.preset) %>
     <div class="btn-group" role="group" aria-label="Schnellauswahl">
-      <% { "last_7" => "Letzte 7 Tage", "last_30" => "Letzte 30 Tage" }.each do |preset, label| %>
+      <%# "Letzte" gives way on a phone, so the group fits beside nothing but itself. %>
+      <% { "last_7" => "7 Tage", "last_30" => "30 Tage" }.each do |preset, label| %>
         <% current = @report.preset == preset %>
-        <%= link_to label, reports_path(preset: preset),
-                    class: [ "btn btn-outline-secondary", ("active" if current) ],
-                    aria: { current: ("page" if current) } %>
+        <%= link_to reports_path(preset: preset),
+                    class: [ "btn btn-outline-primary flex-fill", ("active" if current) ],
+                    aria: { current: ("page" if current) } do %><span><span class="d-none d-sm-inline">Letzte </span><%= label %></span><% end %>
       <% end %>
       <% if custom %>
-        <span class="btn btn-outline-secondary active" aria-current="true">Benutzerdefiniert</span>
+        <span class="btn btn-outline-primary flex-fill active" aria-current="true">Benutzerdefiniert</span>
       <% end %>
     </div>
 
@@ -47,13 +48,13 @@
       <p class="mb-0">Die Rückschau erscheint, sobald die erste Tagesaggregation vorhanden ist.</p>
     </section>
   <% else %>
-    <% kwh = ->(key) { "#{number_with_precision(@report.summary.fetch(key), precision: 2, delimiter: ".", separator: ",")} kWh" } %>
-    <% pct = ->(key) { "#{number_with_precision(@report.summary.fetch(key) * 100, precision: 1, delimiter: ".", separator: ",")} %" } %>
+    <% kwh = ->(key) { "#{de_number(@report.summary.fetch(key), precision: 2)} kWh" } %>
+    <% pct = ->(key) { "#{de_number(@report.summary.fetch(key) * 100, precision: 1)} %" } %>
     <% savings = @report.summary.fetch(:savings_eur) %>
     <section class="row row-cols-2 row-cols-md-4 g-2 mb-3" aria-label="Zusammenfassung">
       <%= render Dashboard::TileComponent.new(label: "Ertrag", value: kwh.call(:produced_kwh)) %>
       <%= render Dashboard::TileComponent.new(label: "Verbrauch", value: kwh.call(:consumed_kwh)) %>
-      <%= render Dashboard::TileComponent.new(label: "Gespart", value: savings.nil? ? "—" : "#{number_with_precision(savings, precision: 2, delimiter: ".", separator: ",")} €") %>
+      <%= render Dashboard::TileComponent.new(label: "Gespart", value: savings.nil? ? "—" : "#{de_number(savings, precision: 2)} €") %>
       <%= render Dashboard::TileComponent.new(label: "Bilanz", value: kwh.call(:balance_kwh)) %>
       <%= render Dashboard::TileComponent.new(label: "Autarkie", value: pct.call(:autarky_ratio)) %>
       <%= render Dashboard::TileComponent.new(label: "Eigen\u00ADverbrauchs\u00ADquote", value: pct.call(:self_consumption_ratio)) %>
@@ -62,7 +63,7 @@
     </section>
 
     <h2 class="h6 text-uppercase text-body-secondary mt-4 mb-2">Steckdosen</h2>
-    <%= render "ranking", rows: @report.producer_ranking + @report.consumer_ranking %>
+    <%= render "ranking", producers: @report.producer_ranking, consumers: @report.consumer_ranking %>
 
     <%= render CardComponent.new(title: "Energie", subtitle: "Ertrag / Verbrauch") do %>
       <% if daily_has_weather %>

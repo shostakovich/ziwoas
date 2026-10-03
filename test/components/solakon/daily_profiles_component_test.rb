@@ -103,7 +103,7 @@ class Solakon::DailyProfilesComponentTest < ViewComponent::TestCase
 
     labels = rendered.css(".multiple").first.css(".value-labels text")
     assert_equal %w[300 600], labels.map(&:text)
-    assert_equal %w[87.3 43], labels.map { |label| label["y"] }
+    assert_equal %w[83.8 39.5], labels.map { |label| label["y"] }
   end
 
   test "says so where the station measured nothing" do
@@ -120,7 +120,7 @@ class Solakon::DailyProfilesComponentTest < ViewComponent::TestCase
     axis = rendered.css("line.axis").sole
     assert_equal %w[40 286 128 128], %w[x1 x2 y1 y2].map { |name| axis[name] }
 
-    assert_equal [ [ "300", "36", "80.9" ], [ "600", "36", "30.4" ] ],
+    assert_equal [ [ "300", "36", "77.4" ], [ "600", "36", "26.9" ] ],
                  rendered.css(".value-labels text").map { |node| [ node.text, node["x"], node["y"] ] }
 
     assert_equal "40,128 40,77.4 163,60.6 286,43.7 286,128", rendered.css("polygon.measured-area").sole["points"]

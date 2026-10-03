@@ -1,22 +1,26 @@
+<%# Producers stand apart above the ranking: what the plant made is not a
+    place among what the house used. Bars share one scale and take each plug's
+    colour from the dashboard (config order, never its rank). %>
+<% rows = producers + consumers %>
 <% if rows.any? %>
-  <% max_kwh = rows.map { |row| row.fetch(:kwh).to_f }.max.to_f %>
-  <ol class="list-group mb-3 small" aria-label="Rangliste">
-    <% rows.each_with_index do |row, index| %>
-      <% share = max_kwh.positive? ? (row.fetch(:kwh).to_f / max_kwh * 100).round(1) : 0 %>
-      <li class="list-group-item">
-        <div class="row g-2 align-items-center">
-          <span class="col-1 text-body-secondary tabular-nums"><%= index + 1 %></span>
-          <span class="col-4 col-md-3 text-truncate"><%= row.fetch(:name) %></span>
-          <span class="col">
-            <span class="progress" style="height: .5rem" aria-hidden="true">
-              <span class="progress-bar<%= " bg-warning" if row.fetch(:role) == "producer" %>" style="width: <%= share %>%"></span>
-            </span>
-          </span>
-          <span class="col-3 col-md-2 text-end tabular-nums text-nowrap"><%= number_with_precision(row.fetch(:kwh), precision: 2, delimiter: ".", separator: ",") %> kWh</span>
-        </div>
-      </li>
-    <% end %>
-  </ol>
+  <% max_kwh = rows.map { |row| row.fetch(:kwh).to_f }.max %>
+  <% if producers.any? %>
+    <ul class="list-group mb-2 small" aria-label="Erzeugung">
+      <% producers.each do |row| %>
+        <%= render "reports/ranking_row", row: row, max_kwh: max_kwh, colour: Dashboard::PlugBarComponent::PRODUCER_COLOR do %>
+          <%= image_tag "icon_sonne.webp", alt: "Erzeuger", class: "app-nav-icon" %>
+        <% end %>
+      <% end %>
+    </ul>
+  <% end %>
+  <% if consumers.any? %>
+    <ol class="list-group mb-3 small" aria-label="Rangliste">
+      <% consumers.each_with_index do |row, index| %>
+        <% colour = Dashboard::PlugBarComponent::PLUG_COLORS[row.fetch(:position).to_i % Dashboard::PlugBarComponent::PLUG_COLORS.length] %>
+        <%= render "reports/ranking_row", row: row, max_kwh: max_kwh, colour: colour do %><%= index + 1 %><% end %>
+      <% end %>
+    </ol>
+  <% end %>
 <% else %>
   <p class="small text-body-secondary">Keine Daten</p>
 <% end %>

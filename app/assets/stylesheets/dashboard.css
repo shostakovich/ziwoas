@@ -9,7 +9,8 @@
 /* Colour key next to a chart or stacked bar (felt-css candidate). */
 .legend-dot { width: .75rem; height: .75rem; padding: 0; flex: none; }
 
-.energy-flow-card > .card-body { padding: var(--space-2); }
+/* Small enough to see whole in one desktop viewport. */
+.energy-flow { max-width: 34rem; }
 
 /* live_freshness_controller sets .live-stale when broadcasts stop arriving. */
 .live-dim { transition: opacity 200ms ease-out; }

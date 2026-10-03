@@ -73,7 +73,7 @@ class Dashboard::PlugBarComponentTest < ViewComponent::TestCase
 
     first = legend_items(rendered).first
     assert_equal "Solar", legend_name(first)
-    assert_equal "-300 W", first.css("span")[2].text
+    assert_equal "−300 W", first.css("span")[2].text
     assert_equal "var(--viz-solar)", legend_color(first)
   end
 

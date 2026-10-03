@@ -95,4 +95,19 @@ class Economics::OverviewCardComponentTest < ViewComponent::TestCase
 
     assert_empty rendered.css(".card-subtitle")
   end
+
+  test "on the PV page it is titled Wirtschaftlichkeit and leads to the costs and prices" do
+    rendered = render_inline(Economics::OverviewCardComponent.new(result: result))
+
+    link = rendered.css("a.btn").sole
+    assert_equal "Kosten und Preise pflegen", link.text.squish
+    assert_equal "/solakon/wirtschaftlichkeit", link["href"]
+  end
+
+  test "on its own page it takes the title it is given and leaves the link out" do
+    rendered = render_inline(Economics::OverviewCardComponent.new(result: result, title: "Stand", link: false))
+
+    assert_equal "Stand", rendered.css(".card-title").sole.text.squish
+    assert_empty rendered.css("a")
+  end
 end
