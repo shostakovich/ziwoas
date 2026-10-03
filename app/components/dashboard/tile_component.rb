@@ -39,7 +39,7 @@ module Dashboard
       end
 
       def self_consumption(summary)
-        new(id: "tile_self_consumption", label: "Eigenverbrauchsquote", value: pct(summary.self_consumption_ratio))
+        new(id: "tile_self_consumption", label: "Eigen\u00ADverbrauchs\u00ADquote", value: pct(summary.self_consumption_ratio))
       end
 
       def summary_tiles(summary)

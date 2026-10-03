@@ -42,7 +42,7 @@ class SolakonControllerTest < ActionDispatch::IntegrationTest
     assert_no_match(/SOH|EPS|46613|39067|Modbus/, response.body)
     assert_match(/Außensteckdose/, response.body)
     assert_match(/Auto-Regelung/, response.body)
-    assert_match(/Batteriegesundheit/, response.body)
+    assert_match(/Batterie\u00ADgesundheit/, response.body)
     assert_select "turbo-frame#solakon_history canvas[data-solakon-history-target='canvas']", 1
     assert_select "turbo-frame#solakon_history script[data-solakon-history-target='payload']", 1
     assert_select "turbo-frame#solakon_history .solakon-balance", 1
@@ -62,7 +62,7 @@ class SolakonControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select ".card-title", text: /\AWirtschaftlichkeit/
     labels = css_select(".economics-tiles .stat-label").map { |node| node.text.squish }
-    assert_equal [ "Anschaffungskosten", "Ersparnis", "Zurückverdient", "Voraussichtliche Amortisation" ], labels
+    assert_equal [ "Anschaffungs\u00ADkosten", "Ersparnis", "Zurückverdient", "Voraus\u00ADsichtliche Amortisation" ], labels
     assert_match "1.000,00 €", response.body
     assert_match "0,60 €", response.body
     assert_select "a[href=?]", economics_path
@@ -162,11 +162,11 @@ class SolakonControllerTest < ActionDispatch::IntegrationTest
     assert_select ".text-body-secondary", text: /Wechselrichtertemperatur.*34,1 °C/
 
     assert_select ".solakon-storage-grid .stat-label", text: "Ladestand"
-    assert_select ".solakon-storage-grid .stat-label", text: "Batteriegesundheit"
-    assert_select ".solakon-storage-grid .stat-label", text: "Aktuelle Batterieleistung"
-    assert_select ".solakon-storage-grid .stat-label", text: "Batteriespannung"
+    assert_select ".solakon-storage-grid .stat-label", text: "Batterie\u00ADgesundheit"
+    assert_select ".solakon-storage-grid .stat-label", text: "Aktuelle Batterie\u00ADleistung"
+    assert_select ".solakon-storage-grid .stat-label", text: "Batterie\u00ADspannung"
     assert_select ".solakon-storage-grid .stat-label", text: "Batteriestrom"
-    assert_select ".solakon-storage-grid .stat-label", text: "Speichertemperatur"
+    assert_select ".solakon-storage-grid .stat-label", text: "Speicher\u00ADtemperatur"
     assert_select ".solakon-storage-grid .stat-label", text: "Ladezyklen", count: 0
     assert_select ".solakon-balance-row", minimum: 6
     assert_no_match(/SOH|EPS|Modbus|Register|39067|46613|Fault\d|Alarm \d/, response.body)

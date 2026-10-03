@@ -129,11 +129,11 @@
   <h2 class="h6 text-uppercase text-body-secondary mt-4 mb-2">Speicher</h2>
   <section class="row row-cols-2 row-cols-md-3 g-2 mb-3 solakon-storage-grid">
     <%= render Dashboard::TileComponent.new(label: "Ladestand", value: "#{reading&.battery_soc_pct || "—"} %") %>
-    <%= render Dashboard::TileComponent.new(label: "Batteriegesundheit", value: "#{latest&.battery_health_pct || "—"} %") %>
-    <%= render Dashboard::TileComponent.new(label: "Aktuelle Batterieleistung", value: "#{fmt.call(reading&.battery_display_power_w)} W") %>
-    <%= render Dashboard::TileComponent.new(label: "Batteriespannung", value: "#{fmt.call(reading&.battery_voltage_v || latest&.battery_voltage_v, 1)} V") %>
+    <%= render Dashboard::TileComponent.new(label: "Batterie\u00ADgesundheit", value: "#{latest&.battery_health_pct || "—"} %") %>
+    <%= render Dashboard::TileComponent.new(label: "Aktuelle Batterie\u00ADleistung", value: "#{fmt.call(reading&.battery_display_power_w)} W") %>
+    <%= render Dashboard::TileComponent.new(label: "Batterie\u00ADspannung", value: "#{fmt.call(reading&.battery_voltage_v || latest&.battery_voltage_v, 1)} V") %>
     <%= render Dashboard::TileComponent.new(label: "Batteriestrom", value: "#{fmt.call(reading&.battery_current_a || latest&.battery_current_a, 2)} A") %>
-    <%= render Dashboard::TileComponent.new(label: "Speichertemperatur", value: "#{fmt.call(reading&.battery_temperature_c || latest&.battery_temperature_c, 1)} °C") %>
+    <%= render Dashboard::TileComponent.new(label: "Speicher\u00ADtemperatur", value: "#{fmt.call(reading&.battery_temperature_c || latest&.battery_temperature_c, 1)} °C") %>
     <%= render Dashboard::TileComponent.new(label: "Volle Kapazität", value: "#{fmt.call(latest&.full_charge_capacity_ah, 1)} Ah") %>
   </section>
 

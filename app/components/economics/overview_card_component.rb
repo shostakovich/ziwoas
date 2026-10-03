@@ -13,7 +13,7 @@ module Economics
 
     def tiles
       [
-        [ "Anschaffungskosten", cost_value ],
+        [ "Anschaffungs\u00ADkosten", cost_value ],
         [ "Ersparnis", saved_value ],
         [ "Zurückverdient", covered_value ],
         [ payback_label, payback_value ]
@@ -38,7 +38,7 @@ module Economics
       (result.covered_ratio * 100).round
     end
 
-    def payback_label = result.reached? ? "Amortisiert" : "Voraussichtliche Amortisation"
+    def payback_label = result.reached? ? "Amortisiert" : "Voraus\u00ADsichtliche Amortisation"
 
     def payback_value
       return date(result.reached_on) if result.reached?

@@ -24,6 +24,14 @@ module ApplicationHelper
       [ reports_path, "Berichte", "nav_reports_plush.webp" ],
       [ weather_path, "Wetter", "nav_weather_plush.webp" ],
       [ sensors_path, "Sensoren", "nav_sensors_plush.webp" ]
-    ].map { |path, label, icon| NavItem.new(path:, label:, icon:, current: current_page?(path)) }
+    ].map { |path, label, icon| NavItem.new(path:, label:, icon:, current: current_section?(path)) }
+  end
+
+  private
+
+  # A tab stays active on its sub pages (/solakon/wirtschaftlichkeit). Home's
+  # sub-page prefix would be "//", so Home is only ever active on itself.
+  def current_section?(path)
+    request.path == path || request.path.start_with?("#{path}/")
   end
 end

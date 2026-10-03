@@ -44,8 +44,11 @@ body.page-solakon { --page-max: 1040px; }
 
 .app-logo { display: block; height: 40px; width: auto; }
 
-/* German compounds (EIGENVERBRAUCHSQUOTE) outgrow a narrow tile. */
-.stat-label { hyphens: auto; overflow-wrap: anywhere; }
+/* German compounds (EIGENVERBRAUCHSQUOTE) outgrow a narrow tile. Long fixed
+   labels carry soft hyphens (U+00AD), which break at a joint in every browser;
+   hyphens: auto covers other labels where the browser has a dictionary;
+   break-word is the last resort and, unlike anywhere, keeps min-content sane. */
+.stat-label { hyphens: auto; overflow-wrap: break-word; }
 
 /* Plush nav icons are not square: a square box, never squashed. */
 .app-nav-icon { width: 1.75rem; height: 1.75rem; object-fit: contain; }

@@ -56,7 +56,7 @@
       <%= render Dashboard::TileComponent.new(label: "Gespart", value: savings.nil? ? "—" : "#{number_with_precision(savings, precision: 2, delimiter: ".", separator: ",")} €") %>
       <%= render Dashboard::TileComponent.new(label: "Bilanz", value: kwh.call(:balance_kwh)) %>
       <%= render Dashboard::TileComponent.new(label: "Autarkie", value: pct.call(:autarky_ratio)) %>
-      <%= render Dashboard::TileComponent.new(label: "Eigenverbrauchsquote", value: pct.call(:self_consumption_ratio)) %>
+      <%= render Dashboard::TileComponent.new(label: "Eigen\u00ADverbrauchs\u00ADquote", value: pct.call(:self_consumption_ratio)) %>
       <%= render Dashboard::TileComponent.new(label: "Ø Ertrag/Tag", value: kwh.call(:avg_produced_kwh)) %>
       <%= render Dashboard::TileComponent.new(label: "Ø Verbrauch/Tag", value: kwh.call(:avg_consumed_kwh)) %>
     </section>
