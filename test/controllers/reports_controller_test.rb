@@ -86,7 +86,10 @@ class ReportsControllerTest < ActionDispatch::IntegrationTest
     assert_select "link[rel='stylesheet'][href='https://felt-css.rocu.de/felt.css']:not([data-turbo-track])", 1
     assert_select "link[href^='/assets/application'][data-turbo-track='reload']", 1
     assert_select "header.app-header", 1
-    assert_select ".app-header .navbar-brand img[alt='Ziwoas — Startseite']", 1
+    assert_select ".app-header .navbar-brand picture", 1 do
+      assert_select "source[media='(prefers-color-scheme: dark)'][srcset*='logo-dark']", 1
+      assert_select "img[alt='Ziwoas — Startseite'][src*='logo']", 1
+    end
 
     expected_links = {
       root_path => [ "Home", "nav_dashboard_plush.webp" ],

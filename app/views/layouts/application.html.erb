@@ -32,7 +32,10 @@
     <div class="container pt-3">
       <header class="navbar navbar-expand px-3 app-header mb-3">
         <%= link_to root_path, class: "navbar-brand d-flex align-items-center py-0" do %>
-          <%= image_tag "logo.png", alt: "Ziwoas — Startseite", class: "app-logo", width: 172, height: 64 %>
+          <picture>
+            <source srcset="<%= image_path "logo-dark.webp" %>" media="(prefers-color-scheme: dark)">
+            <%= image_tag "logo.webp", alt: "Ziwoas — Startseite", class: "app-logo", width: 172, height: 64 %>
+          </picture>
         <% end %>
         <nav class="d-none d-lg-block me-auto" aria-label="Hauptnavigation">
           <ul class="navbar-nav nav-pills flex-nowrap">
