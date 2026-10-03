@@ -13,8 +13,8 @@ class DashboardRefreshTest < ApplicationSystemTestCase
     visit root_path
 
     assert_selector "#tile_consumption_now .stat-value", text: "80 W"
-    assert_selector "#dashboard_plug_bar .plug-bar-meta b", text: "80 W"
-    assert_selector "#dashboard_hero .hero-number", text: "420"
+    assert_selector "#dashboard_plug_bar strong", text: "80 W"
+    assert_selector "#dashboard_hero .display-4", text: "420"
   end
 
   test "a Live-Bild that is no longer kept current is dimmed, not emptied" do

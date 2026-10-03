@@ -1,126 +1,16 @@
-/* Dashboard: hero, tiles, energy flow, plug bar, live-stale fade. */
+/* Dashboard: hero plush icons, legend dots, energy-flow card, live-stale fade. */
 
-.hero {
-  background-color: var(--warning-subtle);
-  border: 1px solid var(--warning);
-  border-radius: var(--radius);
-  /* No horizontal padding: the two halves use the same 2-column grid + inset as
-     .tiles below, so the sun and battery line up with their column's text. */
-  padding: 20px 0;
-  margin-bottom: 12px;
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 10px;
-  align-items: center;
-}
-.hero-icon {
-  height: 80px;
-  width: auto;
-  flex-shrink: 0;
-}
-.hero-value {
-  flex: 0 1 auto;
-  text-align: center;
-  font-size: 56px;
-  font-weight: 700;
-  line-height: 1.1;
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
-  font-feature-settings: "tnum";
-}
-.hero-number { display: inline-block; }
-.hero-unit  { font-size: 24px; font-weight: 500; color: var(--warning-text); }
-.hero-half {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  /* Match the tile padding so each icon lines up with its column's text. */
-  padding-left: 14px;
-}
-/* Solakon-only battery half is hidden via the [hidden] attr; the flex display
-   above would otherwise override the UA default. */
-.hero-half[hidden] { display: none; }
-/* Battery icon trimmed to roughly the sun's visible height (~30% smaller). */
-.hero-icon-battery { height: 80px; }
-
-.energy-flow-card > .card-body { padding: 12px 8px; }
-
-.plug-bar-wrap { margin-bottom: 16px; }
-
-.hero, .tiles, .plug-bar-wrap, .energy-flow-card {
-  transition: opacity 200ms ease-out;
+/* Plush icons are not square: a square box, never squashed. */
+.hero-icon { width: 3rem; height: 3rem; object-fit: contain; flex: none; }
+@media (min-width: 576px) {
+  .hero-icon { width: 5rem; height: 5rem; }
 }
 
-.live-stale .hero,
-.live-stale .tiles,
-.live-stale .plug-bar-wrap,
-.live-stale .energy-flow-card {
-  opacity: 0.45;
-}
+/* Colour key next to a chart or stacked bar (felt-css candidate). */
+.legend-dot { width: .75rem; height: .75rem; padding: 0; flex: none; }
 
-.plug-bar {
-  display: flex;
-  height: 34px;
-  border-radius: var(--radius-sm);
-  overflow: hidden;
-  border: 1px solid var(--border);
-  background: var(--surface);
-}
-.plug-seg { height: 100%; transition: filter 0.12s ease; }
-.plug-seg:hover { filter: brightness(1.08); }
-.plug-bar-meta {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  margin-top: 6px;
-  font-size: 12px;
-  color: var(--muted);
-}
-.plug-bar-meta b {
-  color: var(--text);
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  font-feature-settings: "tnum";
-}
-.plug-legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px 16px;
-  margin-top: 14px;
-  font-size: 13px;
-  font-variant-numeric: tabular-nums;
-  font-feature-settings: "tnum";
-}
-.plug-legend-item { display: inline-flex; align-items: center; gap: 7px; }
-.plug-legend-swatch {
-  width: 11px;
-  height: 11px;
-  border-radius: 3px;
-  flex: none;
-}
-.plug-name { white-space: nowrap; }
-.plug-value { color: var(--muted); }
+.energy-flow-card > .card-body { padding: var(--space-2); }
 
-svg text[data-ef] {
-  font-variant-numeric: tabular-nums;
-  font-feature-settings: "tnum";
-}
-
-/* Mobile: shrink hero icons + text so a 4-digit production value (e.g. 1234 W)
-   plus the battery half still fit on one line. */
-@media (max-width: 480px) {
-  .hero { padding: 16px 0; }
-  .hero-half { gap: 8px; }
-  .hero-icon { height: 48px; }
-  .hero-icon-battery { height: 48px; }
-  .hero-value { font-size: 30px; }
-  .hero-unit { font-size: 15px; }
-}
-@media (max-width: 380px) {
-  .hero { padding: 12px 0; }
-  .hero-half { gap: 6px; }
-  .hero-icon { height: 42px; }
-  .hero-icon-battery { height: 42px; }
-  .hero-value { font-size: 26px; }
-  .hero-unit { font-size: 13px; }
-}
+/* live_freshness_controller sets .live-stale when broadcasts stop arriving. */
+.live-dim { transition: opacity 200ms ease-out; }
+.live-stale .live-dim { opacity: .45; }

@@ -29,14 +29,14 @@ class DashboardControllerTest < ActionDispatch::IntegrationTest
     assert_select "[data-ef='efBatteryW']"
 
     # The six static flow lines render as <path> elements (one per channel,
-    # identified by stroke colour). Only the animated efDots overlays below are
+    # identified by its stroke token). Only the animated efDots overlays below are
     # driven from Stimulus, so the lines carry no data-target.
-    assert_select "path[stroke='#f59f00']" # solar -> home
-    assert_select "path[stroke='#8b5cf6']" # solar -> grid
-    assert_select "path[stroke='#ec4899']" # solar -> battery
-    assert_select "path[stroke='#3b82f6']" # grid -> home
-    assert_select "path[stroke='#94a3b8']" # grid -> battery
-    assert_select "path[stroke='#14b8a6']" # battery -> home
+    assert_select "path[style='stroke: var(--viz-solar)']" # solar -> home
+    assert_select "path[style='stroke: var(--viz-3)']" # solar -> grid
+    assert_select "path[style='stroke: var(--viz-8)']" # solar -> battery
+    assert_select "path[style='stroke: var(--viz-grid)']" # grid -> home
+    assert_select "path[style='stroke: var(--viz-muted)']" # grid -> battery
+    assert_select "path[style='stroke: var(--viz-battery)']" # battery -> home
 
     assert_select "[data-ef='efDotsSolarHome']"
     assert_select "[data-ef='efDotsSolarGrid']"
@@ -49,10 +49,10 @@ class DashboardControllerTest < ActionDispatch::IntegrationTest
   test "dashboard battery hero icon shares the sun icon's sizing" do
     get "/"
 
-    # Both hero icons carry .hero-icon, so the battery always matches the
-    # sun's height; .hero-icon-battery only hooks the battery half.
+    # Both hero icons carry .hero-icon, so the battery always gets the
+    # same square box as the sun.
     assert_select "#dashboard_hero img.hero-icon", 2
-    assert_select "#dashboard_hero img.hero-icon.hero-icon-battery", 1
+    assert_select "#dashboard_hero img.hero-icon[alt='Batterie']", 1
   end
 
   test "dashboard battery hero hides itself without a fresh reading and keeps the SVG asset map" do
@@ -63,7 +63,7 @@ class DashboardControllerTest < ActionDispatch::IntegrationTest
 
     # The hero battery is server-rendered now; without a fresh reading its
     # half is hidden. The SVG keeps the client-side asset map for the flow.
-    assert_select "#dashboard_hero .hero-half[hidden] img.hero-icon-battery", 1
+    assert_select "#dashboard_hero .col[hidden] img.hero-icon[alt='Batterie']", 1
     assert_select "image[data-ef='efBatteryImage'][data-battery-state-charging*='solakon_battery_charging']", 1
   end
 
@@ -113,10 +113,28 @@ class DashboardControllerTest < ActionDispatch::IntegrationTest
     assert_select "img.hero-icon[alt='Sonne']", 1
   end
 
+  test "hero, tiles, plug bar and energy flow dim together when the live picture goes stale" do
+    get "/"
+
+    assert_select "[data-controller~='live-freshness'] .live-dim", 4
+    assert_select "#dashboard_hero.live-dim", 1
+    assert_select "#dashboard_plug_bar.live-dim", 1
+    assert_select ".energy-flow-card.live-dim", 1
+    assert_select ".live-dim > #tile_consumption_now", 1
+  end
+
+  test "the energy flow takes its colours from theme tokens" do
+    get "/"
+
+    svg = css_select(".energy-flow-card svg").sole.to_html
+    assert_no_match(/#\h{3,8}\b|"white"/, svg)
+    assert_select ".energy-flow-card [data-ef='efDotsSolarHome'][style*='var(--viz-solar)']", 1
+  end
+
   test "dashboard renders Autarkie and Eigenverbrauch tiles" do
     get "/"
     assert_response :ok
-    labels = css_select(".tiles .stat-label").map { |n| n.text.squish }
+    labels = css_select("[id^='tile_'] .stat-label").map { |n| n.text.squish }
     assert_includes labels, "Autarkie heute"
     assert_includes labels, "Eigenverbrauchsquote"
     assert_select "#tile_autarky .stat-value", 1

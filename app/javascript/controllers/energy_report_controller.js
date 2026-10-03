@@ -1,5 +1,6 @@
 import { Controller } from "@hotwired/stimulus"
 import "chart.js"
+import { chartTheme, vizToken } from "lib/chart_theme"
 
 // Connects to data-controller="energy-report"
 // Renders bar/line charts plus an in-canvas weather-icon plugin that draws
@@ -16,6 +17,10 @@ export default class extends Controller {
     this.ratiosChart = null
     this.detailChart = null
     this.payload = this._readPayload()
+    // Every consumer in config order: colours stay with the plug across charts.
+    this.consumerIndex = new Map(
+      (this.payload.daily?.consumer_series || []).map((series, index) => [ series.plug_id, index ])
+    )
     this.assetMap = this._readAssetMap()
     this.imageCache = {}
     this.dailyWeatherEnabled = !this.hasDailyWeatherCheckboxTarget || this.dailyWeatherCheckboxTarget.checked
@@ -133,11 +138,11 @@ export default class extends Controller {
     const labels = daily.labels || []
     const consumerDatasets = this._consumerBarDatasets(daily.consumer_series || [], { top: 5 })
     const consumedDatasets = consumerDatasets.length > 0 ? consumerDatasets : [
-      { label: "Verbrauch", data: daily.consumed_kwh || [], backgroundColor: "#3b82f6", stack: "consumed" },
+      { label: "Verbrauch", data: daily.consumed_kwh || [], tone: "--primary", stack: "consumed" },
     ]
 
     const datasets = [
-      { label: "Ertrag", data: daily.produced_kwh || [], backgroundColor: "#f59f00", stack: "produced" },
+      { label: "Ertrag", data: daily.produced_kwh || [], tone: "--viz-solar", stack: "produced" },
       ...consumedDatasets,
     ]
 
@@ -169,8 +174,7 @@ export default class extends Controller {
         label: "Sonnenstrahlung",
         data: w.solar_kwh_per_m2,
         yAxisID: "ySolar",
-        borderColor: "#fbbf24",
-        backgroundColor: "#fbbf24",
+        tone: "--warning-emphasis",
         pointRadius: 3,
         tension: 0.2,
         spanGaps: true,
@@ -223,8 +227,8 @@ export default class extends Controller {
       data: {
         labels,
         datasets: [
-          { label: "Autarkie", data: autarky, backgroundColor: "#10b981" },
-          { label: "Eigenverbrauch", data: selfCons, backgroundColor: "#f59f00" },
+          { label: "Autarkie", data: autarky, tone: "--viz-2" },
+          { label: "Eigenverbrauch", data: selfCons, tone: "--viz-solar" },
         ],
       },
       options: {
@@ -251,15 +255,12 @@ export default class extends Controller {
 
   _buildPowerLineChart(detail) {
     const labels = detail.labels || []
-    const colors = ["#f59f00", "#3b82f6", "#10b981", "#8b5cf6", "#ef4444", "#06b6d4", "#ec4899"]
 
-    const datasets = (detail.series || []).map((series, index) => {
-      const color = series.role === "producer" ? "#f59f00" : colors[index % colors.length]
+    const datasets = (detail.series || []).map((series) => {
       return {
         label: series.name,
         data: series.data,
-        borderColor: color,
-        backgroundColor: color,
+        tone: series.role === "producer" ? "--viz-solar" : this._consumerTone(series),
         fill: false,
         tension: 0.2,
         pointRadius: 0,
@@ -292,8 +293,8 @@ export default class extends Controller {
         label: "Sonnenstrahlung",
         data: w.solar_w_per_m2,
         yAxisID: "ySolar",
-        borderColor: "#fbbf24",
-        backgroundColor: "rgba(251,191,36,0.18)",
+        tone: "--warning-emphasis",
+        fillAlpha: 0.18,
         stepped: "before",
         fill: true,
         pointRadius: 0,
@@ -331,7 +332,7 @@ export default class extends Controller {
       .filter((series) => series.role === "producer")
       .map((series) => ({
         label: series.name, data: series.data || [],
-        backgroundColor: "#f59f00", stack: "produced",
+        tone: "--viz-solar", stack: "produced",
       }))
     const consumerDatasets = this._consumerBarDatasets(
       (detail.series || []).filter((series) => series.role === "consumer")
@@ -355,11 +356,14 @@ export default class extends Controller {
 
   _replaceChart(canvas, config) {
     Chart.getChart(canvas)?.destroy()
-    return new Chart(canvas, config)
+    return new Chart(canvas, { ...config, plugins: [ ...(config.plugins || []), chartTheme ] })
+  }
+
+  _consumerTone(series) {
+    return vizToken(this.consumerIndex.get(series.plug_id) ?? this.consumerIndex.size)
   }
 
   _consumerBarDatasets(series, options = {}) {
-    const colors = ["#3b82f6", "#10b981", "#8b5cf6", "#ef4444", "#06b6d4", "#ec4899", "#84cc16", "#6366f1"]
     const rows = series.map((row) => ({
       ...row,
       total: (row.data || []).reduce((sum, value) => sum + Number(value || 0), 0),
@@ -368,9 +372,9 @@ export default class extends Controller {
     const limit = options.top || rows.length
     const visible = rows.slice(0, limit)
     const rest = rows.slice(limit)
-    const datasets = visible.map((row, index) => ({
+    const datasets = visible.map((row) => ({
       label: row.name, data: row.data || [],
-      backgroundColor: colors[index % colors.length], stack: "consumed",
+      tone: this._consumerTone(row), stack: "consumed",
     }))
 
     if (rest.length > 0) {
@@ -380,7 +384,7 @@ export default class extends Controller {
         data: Array.from({ length }, (_, index) => {
           return +rest.reduce((sum, row) => sum + Number(row.data?.[index] || 0), 0).toFixed(3)
         }),
-        backgroundColor: "#94a3b8",
+        tone: "--viz-muted",
         stack: "consumed",
       })
     }
@@ -399,7 +403,7 @@ export default class extends Controller {
 
     return {
       label: "Gesamtverbrauch", data,
-      borderColor: "#1d4ed8", backgroundColor: "rgba(59, 130, 246, 0.14)",
+      tone: "--primary", fillAlpha: 0.14,
       fill: true, tension: 0.2, pointRadius: 0,
     }
   }

@@ -1,5 +1,6 @@
 import { Controller } from "@hotwired/stimulus"
 import "chart.js"
+import { chartTheme } from "lib/chart_theme"
 
 export default class extends Controller {
   static targets = ["canvas"]
@@ -43,7 +44,7 @@ export default class extends Controller {
       type: "bar",
       data: {
         labels,
-        datasets: [{ label: "kWh/Tag", data: values, backgroundColor: "#f59f00" }],
+        datasets: [{ label: "kWh/Tag", data: values, tone: "--viz-solar" }],
       },
       options: {
         responsive: true,
@@ -52,6 +53,7 @@ export default class extends Controller {
         plugins: { legend: { display: false } },
         animation: false,
       },
+      plugins: [ chartTheme ],
     })
   }
 }

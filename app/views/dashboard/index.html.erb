@@ -10,7 +10,7 @@
                                           weather_asset: @weather_asset,
                                           weather_alt: @weather_alt) %>
 
-  <div class="row row-cols-2 row-cols-md-4 g-2 mb-3 tiles">
+  <div class="row row-cols-2 row-cols-md-4 g-2 mb-3 live-dim">
     <%= render Dashboard::TileComponent.produced(@summary) %>
     <%= render Dashboard::TileComponent.consumed(@summary) %>
     <%= render Dashboard::TileComponent.savings(@summary) %>
@@ -21,7 +21,7 @@
     <%= render Dashboard::TileComponent.self_consumption(@summary) %>
   </div>
 
-  <%= render CardComponent.new(title: "Energiefluss", classes: "energy-flow-card",
+  <%= render CardComponent.new(title: "Energiefluss", classes: "energy-flow-card live-dim",
                                data: { controller: "energy-flow" }) do %>
     <%= render Dashboard::EnergyFlowStateComponent.new(live: @live) %>
     <%= render "shared/energy_flow",
