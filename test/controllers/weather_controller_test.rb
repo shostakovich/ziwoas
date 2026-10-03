@@ -95,7 +95,7 @@ class WeatherControllerTest < ActionDispatch::IntegrationTest
     assert_select ".weather-hour-row .weather-hour-time", text: /22:00/, count: 1
   end
 
-  test "every hour card fills the same three rows, with an invisible placeholder where there is nothing to tell" do
+  test "every hour card of a strip fills the rows the strip has, with an invisible placeholder where there is nothing to tell" do
     WeatherRecord.create!(kind: "forecast", lat: 52.52, lon: 13.405,
       timestamp: Time.zone.parse("2026-05-04 13:00"), daytime: "day",
       icon: "partly-cloudy-day", temperature: 18, precipitation: 0, solar: 0.32, wind_speed: 11)
@@ -111,6 +111,8 @@ class WeatherControllerTest < ActionDispatch::IntegrationTest
     lists = css_select(".weather-hour-card .weather-hour-extras")
     assert_equal [ 3, 3, 3 ], lists.map { |list| list.css("li").length }
     assert_equal "11 km/h", lists[0].css(".weather-hour-wind").text.squish
+    assert_equal %w[weather-hour-solar weather-hour-solar invisible],
+      lists.map { |list| list.css("li").last["class"].split.first }
     assert_equal [ "" ], lists[0].css("li.invisible[aria-hidden=true]").map { |li| li.text.squish }
     assert_equal [ 1, 1, 1 ], lists.map { |list| list.css("li.invisible").length }
     assert_equal "40 %", lists[1].css(".weather-hour-rain").text.squish
@@ -118,6 +120,34 @@ class WeatherControllerTest < ActionDispatch::IntegrationTest
     assert_equal "1,2 mm", lists[2].css(".weather-hour-rain").text.squish
     assert_equal "25 km/h", lists[2].css(".weather-hour-wind.fw-semibold").text.squish
     assert_select ".weather-hour-card strong", text: "−2°"
+  end
+
+  test "a strip of night hours has no sun row and no rows nothing fills" do
+    WeatherRecord.create!(kind: "forecast", lat: 52.52, lon: 13.405,
+      timestamp: Time.zone.parse("2026-05-05 01:00"), daytime: "night",
+      icon: "clear-night", temperature: 9, wind_speed: 5)
+    WeatherRecord.create!(kind: "forecast", lat: 52.52, lon: 13.405,
+      timestamp: Time.zone.parse("2026-05-05 02:00"), daytime: "night",
+      icon: "clear-night", temperature: 8)
+
+    get "/weather"
+
+    night_strip = css_select("#seg-2026-05-05-0 .weather-hour-extras")
+    assert_equal [ 1, 1 ], night_strip.map { |list| list.css("li").length }
+    assert_equal "5 km/h", night_strip[0].css(".weather-hour-wind").text.squish
+    assert_equal 1, night_strip[1].css("li.invisible").length
+    assert_select "#seg-2026-05-05-0 .weather-hour-solar, #seg-2026-05-05-0 .weather-hour-rain", count: 0
+  end
+
+  test "an hour card in a strip without optional rows has no extras list" do
+    WeatherRecord.create!(kind: "forecast", lat: 52.52, lon: 13.405,
+      timestamp: Time.zone.parse("2026-05-05 02:00"), daytime: "night",
+      icon: "clear-night", temperature: 8)
+
+    get "/weather"
+
+    assert_select "#seg-2026-05-05-0 .weather-hour-card", count: 1
+    assert_select "#seg-2026-05-05-0 .weather-hour-extras", count: 0
   end
 
   test "hourly card omits the solar row entirely at night" do

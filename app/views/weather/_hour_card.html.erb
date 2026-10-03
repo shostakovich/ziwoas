@@ -1,40 +1,50 @@
+<%# locals: (record:, rows:) -%>
 <%
   wind = record.wind_speed
   windy = wind && wind >= 20
-  precip_mm = record.precipitation if record.precipitation&.positive?
-  precip_prob = record.precipitation_probability if record.precipitation_probability && record.precipitation_probability >= 30
+  rain_text, rain_alt = weather_hour_rain(record)
   empty_row = tag.li(tag.span(class: "weather-icon-inline d-inline-block"), class: "invisible", "aria-hidden": "true")
 %>
-<%# Every card keeps the same three rows — sun, wind, rain — with an invisible
-    placeholder where there is nothing to tell, so the cards line up. %>
+<%# The strip decides which rows exist (weather_hour_rows); a card with nothing
+    to tell in one of them keeps an invisible placeholder, so the cards line up.
+    The sun row comes last: night hours lack it, and their cards end early
+    instead of leaving a gap under the temperature. %>
 <article class="weather-hour-card flex-shrink-0 text-center small">
   <div class="weather-hour-time fw-semibold tabular-nums"><%= record.timestamp.strftime("%H:%M") %></div>
   <%= image_tag record.asset_name, class: "weather-icon weather-icon-sm d-block mx-auto my-2", width: 42, height: 42, loading: "lazy", alt: weather_icon_label(record.icon) %>
   <strong class="d-block fs-4 tabular-nums"><%= de_number(record.temperature) %>°</strong>
-  <ul class="weather-hour-extras list-unstyled mt-1 mb-0 text-body-secondary tabular-nums text-nowrap">
-    <% if record.daytime != "night" %>
-      <li class="weather-hour-solar fw-semibold text-warning-emphasis">
-        <%= image_tag "weather_clear_day.webp", class: "weather-icon-inline", alt: "" %>
-        <%= record.solar_w_per_m2 ? de_number(record.solar_w_per_m2) : "—" %> W/m²
-      </li>
-    <% else %>
-      <%= empty_row %>
-    <% end %>
-    <% if wind %>
-      <li class="weather-hour-wind<%= ' fw-semibold text-body' if windy %>">
-        <%= image_tag "weather_wind_day.webp", class: "weather-icon-inline", alt: "Wind" %>
-        <%= de_number(wind) %> km/h
-      </li>
-    <% else %>
-      <%= empty_row %>
-    <% end %>
-    <% if precip_mm || precip_prob %>
-      <li class="weather-hour-rain">
-        <%= image_tag "weather_rain_day.webp", class: "weather-icon-inline", alt: precip_mm ? "Regen" : "Regenwahrscheinlichkeit" %>
-        <%= precip_mm ? "#{de_number(precip_mm, precision: 1)} mm" : "#{precip_prob} %" %>
-      </li>
-    <% else %>
-      <%= empty_row %>
-    <% end %>
-  </ul>
+  <% if rows.any? %>
+    <ul class="weather-hour-extras list-unstyled mt-1 mb-0 text-body-secondary tabular-nums text-nowrap">
+      <% if rows.include?(:wind) %>
+        <% if wind %>
+          <li class="weather-hour-wind<%= ' fw-semibold text-body' if windy %>">
+            <%= image_tag "weather_wind_day.webp", class: "weather-icon-inline", alt: "Wind" %>
+            <%= de_number(wind) %> km/h
+          </li>
+        <% else %>
+          <%= empty_row %>
+        <% end %>
+      <% end %>
+      <% if rows.include?(:rain) %>
+        <% if rain_text %>
+          <li class="weather-hour-rain">
+            <%= image_tag "weather_rain_day.webp", class: "weather-icon-inline", alt: rain_alt %>
+            <%= rain_text %>
+          </li>
+        <% else %>
+          <%= empty_row %>
+        <% end %>
+      <% end %>
+      <% if rows.include?(:solar) %>
+        <% if record.daytime != "night" %>
+          <li class="weather-hour-solar fw-semibold text-warning-emphasis">
+            <%= image_tag "weather_clear_day.webp", class: "weather-icon-inline", alt: "" %>
+            <%= record.solar_w_per_m2 ? de_number(record.solar_w_per_m2) : "—" %> W/m²
+          </li>
+        <% else %>
+          <%= empty_row %>
+        <% end %>
+      <% end %>
+    </ul>
+  <% end %>
 </article>
