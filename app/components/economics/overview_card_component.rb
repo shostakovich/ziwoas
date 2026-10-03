@@ -11,6 +11,15 @@ module Economics
 
     attr_reader :result
 
+    def tiles
+      [
+        [ "Anschaffungskosten", cost_value ],
+        [ "Ersparnis", saved_value ],
+        [ "Zurückverdient", covered_value ],
+        [ payback_label, payback_value ]
+      ]
+    end
+
     def subtitle = result.data_start && "seit #{date(result.data_start)}"
 
     def cost_value = euro(result.acquisition_cost_eur)

@@ -1,7 +1,7 @@
 <%= render CardComponent.new(title: "Die vier Panels im Tagesverlauf", subtitle: period,
-                             classes: "sun-chart", data: { chart: "panels" }) do %>
+                             data: { chart: "panels" }) do %>
   <% if empty? %>
-    <p class="note">Der Vergleich erscheint, sobald alle vier Panels einen Tag lang geliefert haben.</p>
+    <p class="note small text-body-secondary mb-0">Der Vergleich erscheint, sobald alle vier Panels einen Tag lang geliefert haben.</p>
   <% else %>
     <svg viewBox="<%= plot.view_box %>" role="img" aria-label="Stundenmittel je Panel über den Tag">
       <g class="grid"><% grid_lines.each do |at| %><line x1="<%= plot.left %>" x2="<%= plot.right %>" y1="<%= at %>" y2="<%= at %>"/><% end %></g>
@@ -14,11 +14,11 @@
       <g class="direct-labels"><% labels.each do |label| %><text class="<%= label.key %>" x="<%= label.x %>" y="<%= label.y %>"><%= label.text %></text><% end %></g>
       <g class="hits"><% hits.each do |hit| %><rect x="<%= hit.rect.x %>" y="<%= hit.rect.y %>" width="<%= hit.rect.width %>" height="<%= hit.rect.height %>"><title><%= hit.title %></title></rect><% end %></g>
     </svg>
-    <ul class="legend">
+    <ul class="legend list-unstyled d-flex flex-wrap align-items-center column-gap-3 row-gap-1 small text-body-secondary mt-2 mb-0">
       <% series.each do |panel| %>
-        <li class="legend-item"><span class="legend-line <%= panel.key %>"></span><%= panel.label %></li>
+        <li class="legend-item d-inline-flex align-items-center gap-2"><span class="legend-line <%= panel.key %>"></span><%= panel.label %></li>
       <% end %>
     </ul>
-    <p class="note"><%= note %></p>
+    <p class="note small text-body-secondary mt-3 mb-0"><%= note %></p>
   <% end %>
 <% end %>

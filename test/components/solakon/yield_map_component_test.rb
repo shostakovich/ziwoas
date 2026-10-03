@@ -25,8 +25,8 @@ class Solakon::YieldMapComponentTest < ViewComponent::TestCase
   test "colours a field from the diverging ramp and clamps above the best hour" do
     full = render_map(bins: [ bin(share: 1.4) ]).css(".fields rect").sole
 
-    assert_equal Ramp.fetch(:diverging).color(1.0), full["fill"]
-    assert_equal Ramp.fetch(:diverging).color(0.8), render_map.css(".fields rect").sole["fill"]
+    assert_equal "fill: #{Ramp.fetch(:diverging).color(1.0)}", full["style"]
+    assert_equal "fill: #{Ramp.fetch(:diverging).color(0.8)}", render_map.css(".fields rect").sole["style"]
   end
 
   test "says what a field holds" do
