@@ -1,6 +1,6 @@
 import { Controller } from "@hotwired/stimulus"
 import "chart.js"
-import { themeColor, withAlpha, onThemeChange } from "lib/theme_colors"
+import { chartTheme } from "lib/chart_theme"
 
 const REFRESH_MS = 60_000
 const SERIES_TOKENS = { "PV": "--viz-solar", "Akku": "--viz-battery", "Außensteckdose": "--viz-grid", "0 W": "--viz-muted" }
@@ -18,11 +18,9 @@ export default class extends Controller {
     this._onResync = () => this.reload()
     document.addEventListener("live-freshness:resync", this._onResync)
     this.timer = setInterval(() => this.reload(), REFRESH_MS)
-    this._offTheme = onThemeChange(() => this._rebuild())
   }
 
   disconnect() {
-    this._offTheme?.()
     document.removeEventListener("live-freshness:resync", this._onResync)
     clearInterval(this.timer)
     this.chart?.destroy()
@@ -41,20 +39,14 @@ export default class extends Controller {
     }
   }
 
-  // Colours are resolved once per build; a theme change rebuilds the chart.
   _buildChart(chart) {
-    const text = themeColor("--muted")
-    const grid = withAlpha(themeColor("--border"), 0.6)
-    const axis = () => ({ ticks: { color: text }, grid: { color: grid }, border: { color: grid } })
-
     const datasets = (chart.datasets || []).map((dataset) => {
-      const color = themeColor(SERIES_TOKENS[dataset.label] || "--viz-muted")
       const fill = dataset.label === "PV"
       return {
         label: dataset.label,
         data: dataset.data,
-        borderColor: color,
-        backgroundColor: fill ? withAlpha(color, 0.14) : "transparent",
+        tone: SERIES_TOKENS[dataset.label] || "--viz-muted",
+        fillAlpha: fill ? 0.14 : 0,
         borderDash: dataset.label === "0 W" ? [4, 4] : [],
         fill,
         pointRadius: 0,
@@ -68,24 +60,13 @@ export default class extends Controller {
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        scales: { x: axis(), y: { ...axis(), title: { display: true, text: "Watt", color: text } } },
+        scales: { y: { title: { display: true, text: "Watt" } } },
         plugins: {
-          legend: { position: "bottom", labels: { color: text, boxWidth: 12, boxHeight: 12, padding: 10, font: { size: 12 } } },
-          tooltip: {
-            backgroundColor: themeColor("--surface-raised"),
-            titleColor: themeColor("--text"),
-            bodyColor: themeColor("--text"),
-            borderColor: themeColor("--border"),
-            borderWidth: 1,
-          },
+          legend: { position: "bottom", labels: { boxWidth: 12, boxHeight: 12, padding: 10, font: { size: 12 } } },
         },
         animation: false,
       },
+      plugins: [ chartTheme ],
     })
-  }
-
-  _rebuild() {
-    this.chart?.destroy()
-    this.chart = this._buildChart(this._readPayload())
   }
 }

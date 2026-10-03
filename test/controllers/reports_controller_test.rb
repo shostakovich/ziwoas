@@ -72,7 +72,7 @@ class ReportsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select "section[aria-label='Zusammenfassung'] .stat", 8
     labels = css_select("section[aria-label='Zusammenfassung'] .stat-label").map { |node| node.text.squish }
-    assert_equal [ "Ertrag", "Verbrauch", "Gespart", "Bilanz", "Autarkie", "Eigenverbrauchsquote", "Ø Ertrag/Tag", "Ø Verbrauch/Tag" ], labels
+    assert_equal [ "Ertrag", "Verbrauch", "Gespart", "Bilanz", "Autarkie", "Eigen\u00ADverbrauchs\u00ADquote", "Ø Ertrag/Tag", "Ø Verbrauch/Tag" ], labels
     assert_select "main h2", text: "Zeitraum", count: 0
     assert_select "main h2", text: "Zusammenfassung", count: 0
     assert_select "main h2", text: "Steckdosen"

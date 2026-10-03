@@ -17,7 +17,7 @@ class SolakonOverviewTest < ApplicationSystemTestCase
     assert_text(/Energiefluss/i)
     assert_text "Außensteckdose"
     assert_text "Auto-Regelung"
-    assert_text(/Batteriegesundheit/i)
+    assert_text(/Batterie\u00ADgesundheit/i)
     assert_selector "canvas[data-solakon-history-target='canvas']"
     assert_no_text "SOH"
     assert_no_text "Modbus"

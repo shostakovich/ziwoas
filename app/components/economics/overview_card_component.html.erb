@@ -1,9 +1,11 @@
 <%= render CardComponent.new(title: "Wirtschaftlichkeit", subtitle: subtitle) do %>
-  <div class="row row-cols-2 row-cols-md-4 g-3 pt-2 mb-3 economics-tiles">
+  <div class="row row-cols-2 row-cols-md-4 g-3 mb-3 economics-tiles">
     <% tiles.each do |label, value| %>
-      <div class="col stat">
-        <span class="stat-label"><%= label %></span>
-        <span class="stat-value fs-4"><%= value %></span>
+      <div class="col">
+        <div class="stat">
+          <span class="stat-label"><%= label %></span>
+          <span class="stat-value fs-4"><%= value %></span>
+        </div>
       </div>
     <% end %>
   </div>

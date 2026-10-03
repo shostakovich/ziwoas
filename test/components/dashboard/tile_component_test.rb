@@ -79,7 +79,7 @@ class Dashboard::TileComponentTest < ViewComponent::TestCase
     assert_equal "37,5 %", autarky.css(".stat-value").text
 
     self_consumption = render_inline(Dashboard::TileComponent.self_consumption(s))
-    assert_equal "Eigenverbrauchsquote", self_consumption.css(".stat-label").text
+    assert_equal "Eigen\u00ADverbrauchs\u00ADquote", self_consumption.css(".stat-label").text
     assert_equal "50,0 %", self_consumption.css(".stat-value").text
   end
 
