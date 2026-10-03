@@ -1,29 +1,31 @@
-<div class="plug-bar-wrap" id="dashboard_plug_bar">
-  <div class="plug-bar">
+<div id="dashboard_plug_bar" class="card card-body mb-3 live-dim">
+  <div class="progress-stacked" style="height: 1.5rem">
     <% consumers.each do |plug| %>
-      <span class="plug-seg"
-            style="width: <%= width_pct(plug) %>%; background: <%= color(plug) %>"
-            title="<%= plug.name %> · <%= plug.apower_w.round %> W"></span>
+      <div class="progress h-100" role="progressbar" style="width: <%= width_pct(plug) %>%"
+           aria-label="<%= plug.name %>" aria-valuenow="<%= width_pct(plug).round %>" aria-valuemin="0" aria-valuemax="100"
+           title="<%= plug.name %> · <%= plug.apower_w.round %> W">
+        <div class="progress-bar" style="background-color: <%= color(plug) %>"></div>
+      </div>
     <% end %>
   </div>
-  <div class="plug-bar-meta">
+  <div class="d-flex justify-content-between align-items-baseline mt-2 small text-body-secondary">
     <span>Verbrauch gesamt</span>
-    <b><%= total_w.round %> W</b>
+    <strong class="text-body tabular-nums"><%= total_w.round %> W</strong>
   </div>
-  <div class="plug-legend">
+  <ul class="list-unstyled d-flex flex-wrap row-gap-2 column-gap-3 small tabular-nums mt-3 mb-0" aria-label="Legende">
     <% producers.each do |plug| %>
-      <span class="plug-legend-item">
-        <span class="plug-legend-swatch" style="background: <%= PRODUCER_COLOR %>"></span>
-        <span class="plug-name"><%= plug.name %></span>
-        <span class="plug-value">-<%= (plug.apower_w || 0).abs.round %> W</span>
-      </span>
+      <li class="d-flex align-items-center gap-2">
+        <span class="badge rounded-pill legend-dot" style="background-color: <%= PRODUCER_COLOR %>"></span>
+        <span class="text-nowrap"><%= plug.name %></span>
+        <span class="text-body-secondary">-<%= (plug.apower_w || 0).abs.round %> W</span>
+      </li>
     <% end %>
     <% consumers.each do |plug| %>
-      <span class="plug-legend-item">
-        <span class="plug-legend-swatch" style="background: <%= color(plug) %>"></span>
-        <span class="plug-name"><%= plug.name %></span>
-        <span class="plug-value"><%= plug.apower_w.round %> W</span>
-      </span>
+      <li class="d-flex align-items-center gap-2">
+        <span class="badge rounded-pill legend-dot" style="background-color: <%= color(plug) %>"></span>
+        <span class="text-nowrap"><%= plug.name %></span>
+        <span class="text-body-secondary"><%= plug.apower_w.round %> W</span>
+      </li>
     <% end %>
-  </div>
+  </ul>
 </div>

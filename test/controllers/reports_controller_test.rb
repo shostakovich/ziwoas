@@ -14,7 +14,7 @@ class ReportsControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_select "h1", text: "Berichte", count: 1
-    assert_select "section.report-controls[aria-label='Zeitraum']", 1
+    assert_select "section[aria-label='Zeitraum']", 1
   end
 
   test "reports page accepts custom range params" do
@@ -23,6 +23,45 @@ class ReportsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select "input[name='start_date'][value='2026-04-01']"
     assert_select "input[name='end_date'][value='2026-04-07']"
+  end
+
+  test "a custom range marks Benutzerdefiniert, not a preset, as active" do
+    Plugs::DailyTotal.create!(plug_id: "bkw", date: "2026-04-10", energy_wh: 2000)
+
+    get "/reports", params: { start_date: "2026-04-01", end_date: "2026-04-07" }
+
+    assert_select ".btn-group[aria-label='Schnellauswahl'] .btn.active", text: "Benutzerdefiniert", count: 1
+    assert_select ".btn-group[aria-label='Schnellauswahl'] a[aria-current]", 0
+  end
+
+  test "the active preset is marked as the current page" do
+    Plugs::DailyTotal.create!(plug_id: "bkw", date: "2026-04-10", energy_wh: 2000)
+
+    get "/reports", params: { preset: "last_30" }
+
+    assert_select ".btn-group[aria-label='Schnellauswahl'] a.btn", 2
+    assert_select ".btn-group[aria-label='Schnellauswahl'] a.btn.active[aria-current='page']", text: "Letzte 30 Tage", count: 1
+    assert_select ".btn-group[aria-label='Schnellauswahl'] .btn.active", 1
+  end
+
+  test "the date form labels its fields and submits without a commit param" do
+    get "/reports"
+
+    assert_select "form[action='/reports'][method='get']" do
+      assert_select "label.form-label[for='start_date']", text: "Von"
+      assert_select "label.form-label[for='end_date']", text: "Bis"
+      assert_select "input.form-control#start_date[type='date']", 1
+      assert_select "input.form-control#end_date[type='date']", 1
+      assert_select "input[type='submit'][value='Anwenden']:not([name])", 1
+    end
+  end
+
+  test "an invalid range is reported as a warning" do
+    Plugs::DailyTotal.create!(plug_id: "bkw", date: "2026-04-10", energy_wh: 2000)
+
+    get "/reports", params: { start_date: "2026-04-07", end_date: "2026-04-01" }
+
+    assert_select ".alert.alert-warning", text: /ungueltig/
   end
 
   test "reports page renders summary ranking and chart payload" do
@@ -41,7 +80,7 @@ class ReportsControllerTest < ActionDispatch::IntegrationTest
     assert_select ".card-subtitle", text: "Ertrag / Verbrauch"
     assert_select ".card-title", text: "Leistung"
     assert_select ".card .chart-frame", minimum: 2
-    assert_select ".report-ranking .report-ranking-row", minimum: 1
+    assert_select "ol.list-group[aria-label='Rangliste'] > li.list-group-item", minimum: 1
     assert_select "[data-energy-report-target='dailyCanvas']", 1
     assert_select "[data-energy-report-target='detailCanvas']", 1
     assert_select "script[data-energy-report-target='payload']", 1

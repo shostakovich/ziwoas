@@ -1,5 +1,6 @@
 import { Controller } from "@hotwired/stimulus"
 import "chart.js"
+import { chartTheme, vizToken } from "lib/chart_theme"
 
 export default class extends Controller {
   static targets = ["powerCanvas", "energyCanvas", "deltas"]
@@ -96,11 +97,7 @@ export default class extends Controller {
 
   _buildPowerChart(data) {
     this.datasetIndex = {}
-    const CONSUMER_COLORS = [
-      "#3b82f6", "#10b981", "#8b5cf6", "#ef4444", "#06b6d4",
-      "#ec4899", "#84cc16", "#6366f1", "#14b8a6", "#f43f5e",
-    ]
-    let consumerIdx = 0
+    const consumerIndex = this._consumerIndex(data.series)
 
     const datasets = data.series.map((s, i) => {
       this.datasetIndex[s.plug_id] = i
@@ -118,12 +115,10 @@ export default class extends Controller {
         hidden: !isProducer,
       }
       if (isProducer) {
-        dataset.borderColor      = "#f59f00"
-        dataset.backgroundColor  = "rgba(245,159,0,0.12)"
+        dataset.tone = "--viz-solar"
+        dataset.fillAlpha = 0.12
       } else {
-        const color = CONSUMER_COLORS[consumerIdx++ % CONSUMER_COLORS.length]
-        dataset.borderColor     = color
-        dataset.backgroundColor = color
+        dataset.tone = vizToken(consumerIndex.get(s.plug_id))
       }
       return dataset
     })
@@ -158,14 +153,11 @@ export default class extends Controller {
         plugins: { legend: { position: "bottom", labels: { boxWidth: 12, boxHeight: 12, padding: 10, font: { size: 12 }, filter: (item, data) => !data.datasets[item.datasetIndex]?.hidden } } },
         animation: false,
       },
+      plugins: [ chartTheme ],
     })
   }
 
   _buildEnergyChart(data) {
-    const CONSUMER_COLORS = [
-      "#3b82f6", "#10b981", "#8b5cf6", "#ef4444", "#06b6d4",
-      "#ec4899", "#84cc16", "#6366f1", "#14b8a6", "#f43f5e",
-    ]
     const consumers = data.series.filter((series) => series.role === "consumer")
     const buckets = {}
     for (const series of data.series) {
@@ -188,7 +180,7 @@ export default class extends Controller {
       const wh = Object.values(buckets[ts].consumers).reduce((sum, value) => sum + value, 0)
       return +(wh / 1000).toFixed(3)
     })
-    const consumerDatasets = this._topConsumerEnergyDatasets(consumers, sorted, buckets, CONSUMER_COLORS, 5)
+    const consumerDatasets = this._topConsumerEnergyDatasets(consumers, sorted, buckets, 5)
 
     this.energyChart?.destroy()
     if (!this.hasEnergyCanvasTarget) return
@@ -197,7 +189,7 @@ export default class extends Controller {
       data: {
         labels,
         datasets: [
-          { label: "Erzeugt", data: produced, backgroundColor: "#f59f00", stack: "produced" },
+          { label: "Erzeugt", data: produced, tone: "--viz-solar", stack: "produced" },
           ...consumerDatasets,
         ],
       },
@@ -211,7 +203,14 @@ export default class extends Controller {
         plugins: { legend: { position: "bottom", labels: { boxWidth: 12, boxHeight: 12, padding: 10, font: { size: 12 }, filter: (item, data) => !data.datasets[item.datasetIndex]?.hidden } } },
         animation: false,
       },
+      plugins: [ chartTheme ],
     })
+  }
+
+  // Colour follows a consumer's place in the config, as in the plug bar.
+  _consumerIndex(series) {
+    const consumers = series.filter((s) => s.role === "consumer")
+    return new Map(consumers.map((s, index) => [ s.plug_id, index ]))
   }
 
   _replaceTotalConsumptionDataset() {
@@ -231,18 +230,18 @@ export default class extends Controller {
     }
   }
 
-  _topConsumerEnergyDatasets(consumers, sorted, buckets, colors, limit) {
-    const rows = consumers.map((series) => {
+  _topConsumerEnergyDatasets(consumers, sorted, buckets, limit) {
+    const rows = consumers.map((series, index) => {
       const data = sorted.map(ts => +((buckets[ts].consumers[series.plug_id] || 0) / 1000).toFixed(3))
-      return { label: series.name, data, total: data.reduce((sum, value) => sum + value, 0) }
+      return { label: series.name, data, tone: vizToken(index), total: data.reduce((sum, value) => sum + value, 0) }
     }).sort((a, b) => b.total - a.total)
 
     const visible = rows.slice(0, limit)
     const rest = rows.slice(limit)
-    const datasets = visible.map((row, index) => ({
+    const datasets = visible.map((row) => ({
       label: row.label,
       data: row.data,
-      backgroundColor: colors[index % colors.length],
+      tone: row.tone,
       stack: "consumed",
     }))
 
@@ -250,7 +249,7 @@ export default class extends Controller {
       datasets.push({
         label: "Weitere Verbraucher",
         data: sorted.map((_, index) => +rest.reduce((sum, row) => sum + row.data[index], 0).toFixed(3)),
-        backgroundColor: "#94a3b8",
+        tone: "--viz-muted",
         stack: "consumed",
       })
     }
@@ -274,8 +273,8 @@ export default class extends Controller {
       data: Array.from(pointsByTs.entries())
         .sort(([a], [b]) => a - b)
         .map(([x, y]) => ({ x, y })),
-      borderColor: "#1d4ed8",
-      backgroundColor: "rgba(59, 130, 246, 0.14)",
+      tone: "--primary",
+      fillAlpha: 0.14,
       fill: true,
       pointRadius: 0,
       tension: 0.2,

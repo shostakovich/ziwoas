@@ -16,19 +16,20 @@ const LENS = {
   batteryHome: 123,
 }
 
+// Dot colours come from each channel's group in the SVG (shared/_energy_flow).
 const CHANNELS = [
-  { key: "solarHome",    flow: "solar_to_home_w",    dots: "efDotsSolarHome",    color: "#f59f00" },
-  { key: "solarGrid",    flow: "solar_to_grid_w",    dots: "efDotsSolarGrid",    color: "#8b5cf6" },
-  { key: "solarBattery", flow: "solar_to_battery_w", dots: "efDotsSolarBattery", color: "#ec4899" },
-  { key: "gridHome",     flow: "grid_to_home_w",     dots: "efDotsGridHome",     color: "#3b82f6" },
-  { key: "gridBattery",  flow: "grid_to_battery_w",  dots: "efDotsGridBattery",  color: "#94a3b8" },
-  { key: "batteryHome",  flow: "battery_to_home_w",  dots: "efDotsBatteryHome",  color: "#14b8a6" },
+  { key: "solarHome",    flow: "solar_to_home_w",    dots: "efDotsSolarHome" },
+  { key: "solarGrid",    flow: "solar_to_grid_w",    dots: "efDotsSolarGrid" },
+  { key: "solarBattery", flow: "solar_to_battery_w", dots: "efDotsSolarBattery" },
+  { key: "gridHome",     flow: "grid_to_home_w",     dots: "efDotsGridHome" },
+  { key: "gridBattery",  flow: "grid_to_battery_w",  dots: "efDotsGridBattery" },
+  { key: "batteryHome",  flow: "battery_to_home_w",  dots: "efDotsBatteryHome" },
 ]
 
 const CONSUMER_SOURCES = [
-  { flow: "solar_to_home_w",   color: "#f59f00" },
-  { flow: "grid_to_home_w",    color: "#3b82f6" },
-  { flow: "battery_to_home_w", color: "#14b8a6" },
+  { flow: "solar_to_home_w",   color: "var(--viz-solar)" },
+  { flow: "grid_to_home_w",    color: "var(--viz-grid)" },
+  { flow: "battery_to_home_w", color: "var(--viz-battery)" },
 ]
 
 const SVG_NS = "http://www.w3.org/2000/svg"
@@ -93,7 +94,7 @@ export class EnergyFlowView {
   // Watts set the pace, not the dots' identity. A channel that keeps flowing
   // keeps its circles and only changes playback rate, so a dot mid-path speeds
   // up where it is instead of snapping back to the start on every new reading.
-  setDots({ key, dots, color }, w) {
+  setDots({ key, dots }, w) {
     const target = this.find(dots)
     if (!target) return
 
@@ -120,7 +121,6 @@ export class EnergyFlowView {
     for (let i = 0; i < 3; i++) {
       const dot = document.createElementNS(SVG_NS, "circle")
       dot.setAttribute("r", "4.5")
-      dot.setAttribute("fill", color)
       if (reduceMotion) {
         dot.style.cssText = `offset-path:path("${PATHS[key]}");offset-distance:${25 + i * 25}%`
         target.appendChild(dot)
@@ -153,7 +153,7 @@ export class EnergyFlowView {
       arc.setAttribute("cy", "170")
       arc.setAttribute("r", "40")
       arc.setAttribute("fill", "none")
-      arc.setAttribute("stroke", segment.color)
+      arc.style.stroke = segment.color
       arc.setAttribute("stroke-width", "2.5")
       arc.setAttribute("pathLength", "100")
       arc.setAttribute("stroke-dasharray", `${pct} ${100 - pct}`)

@@ -7,37 +7,44 @@
   detail_has_weather = @report.chart_payload.dig(:detail, :weather).present?
 %>
 
-<div class="reports-page" data-controller="energy-report">
-  <section class="card card-body mb-3 report-controls" aria-label="Zeitraum">
-    <div class="preset-actions d-flex flex-wrap gap-2 align-items-end" role="group" aria-label="Schnellauswahl">
-      <%= link_to "Letzte 7 Tage", reports_path(preset: "last_7"), class: [ "btn btn-outline-secondary", ("active" if @report.preset == "last_7") ] %>
-      <%= link_to "Letzte 30 Tage", reports_path(preset: "last_30"), class: [ "btn btn-outline-secondary", ("active" if @report.preset == "last_30") ] %>
-      <% unless %w[last_7 last_30].include?(@report.preset) %>
+<div data-controller="energy-report">
+  <section class="card card-body mb-3 d-flex flex-column flex-sm-row flex-wrap align-items-stretch align-items-sm-end justify-content-between gap-3" aria-label="Zeitraum">
+    <% custom = %w[last_7 last_30].exclude?(@report.preset) %>
+    <div class="btn-group" role="group" aria-label="Schnellauswahl">
+      <% { "last_7" => "Letzte 7 Tage", "last_30" => "Letzte 30 Tage" }.each do |preset, label| %>
+        <% current = @report.preset == preset %>
+        <%= link_to label, reports_path(preset: preset),
+                    class: [ "btn btn-outline-secondary", ("active" if current) ],
+                    aria: { current: ("page" if current) } %>
+      <% end %>
+      <% if custom %>
         <span class="btn btn-outline-secondary active" aria-current="true">Benutzerdefiniert</span>
       <% end %>
     </div>
 
-    <%= form_with url: reports_path, method: :get, local: true, class: "date-range-form" do %>
-      <label>
-        <span>Von</span>
-        <%= date_field_tag :start_date, params[:start_date].presence || @report.start_date, max: @report.end_date %>
-      </label>
-      <label>
-        <span>Bis</span>
-        <%= date_field_tag :end_date, params[:end_date].presence || @report.end_date, min: @report.start_date, max: @report.end_date %>
-      </label>
-      <%= submit_tag "Anwenden" %>
+    <%= form_with url: reports_path, method: :get, local: true, class: "row g-2 align-items-end" do %>
+      <div class="col-6 col-sm-auto">
+        <%= label_tag :start_date, "Von", class: "form-label small text-body-secondary mb-1" %>
+        <%= date_field_tag :start_date, params[:start_date].presence || @report.start_date, max: @report.end_date, class: "form-control" %>
+      </div>
+      <div class="col-6 col-sm-auto">
+        <%= label_tag :end_date, "Bis", class: "form-label small text-body-secondary mb-1" %>
+        <%= date_field_tag :end_date, params[:end_date].presence || @report.end_date, min: @report.start_date, max: @report.end_date, class: "form-control" %>
+      </div>
+      <div class="col-12 col-sm-auto">
+        <%= submit_tag "Anwenden", name: nil, class: "btn btn-primary w-100" %>
+      </div>
     <% end %>
   </section>
 
   <% @report.messages.each do |message| %>
-    <p class="report-message"><%= message %></p>
+    <p class="alert alert-warning mb-3" role="status"><%= message %></p>
   <% end %>
 
   <% if @report.empty? %>
     <section class="card card-body mb-3 empty-state">
       <h2 class="card-title">Noch keine Berichtsdaten</h2>
-      <p>Die Rückschau erscheint, sobald die erste Tagesaggregation vorhanden ist.</p>
+      <p class="mb-0">Die Rückschau erscheint, sobald die erste Tagesaggregation vorhanden ist.</p>
     </section>
   <% else %>
     <% kwh = ->(key) { "#{number_with_precision(@report.summary.fetch(key), precision: 2, delimiter: ".", separator: ",")} kWh" } %>
