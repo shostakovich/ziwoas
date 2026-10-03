@@ -15,12 +15,14 @@
         <line class="axis" x1="<%= chart.plot.left %>" x2="<%= chart.plot.right %>" y1="<%= chart.plot.bottom %>" y2="<%= chart.plot.bottom %>"/>
         <% chart.series.each do |panel| %><% panel.segments.each do |points| %><polyline class="curve <%= panel.key %>" points="<%= points %>"/><% end %><% end %>
         <% if chart.named? %>
-          <g class="direct-labels"><% chart.labels.each do |label| %><text class="<%= label.key %>" x="<%= label.x %>" y="<%= label.y %>"><%= label.text %></text><% end %></g>
+          <g class="leaders"><% chart.labels.each do |label| %><% x1, y1, x2, y2 = label.leader %><line class="<%= label.key %>" x1="<%= x1 %>" y1="<%= y1 %>" x2="<%= x2 %>" y2="<%= y2 %>"/><% end %></g>
+          <g class="direct-labels" dominant-baseline="central"><% chart.labels.each do |label| %><text class="<%= label.key %>" x="<%= label.x %>" y="<%= label.y %>"><%= label.text %></text><% end %></g>
         <% end %>
         <g class="hits"><% chart.hits.each do |hit| %><rect x="<%= hit.rect.x %>" y="<%= hit.rect.y %>" width="<%= hit.rect.width %>" height="<%= hit.rect.height %>"><title><%= hit.title %></title></rect><% end %></g>
       </svg>
     <% end %>
-    <ul class="legend list-unstyled d-flex flex-wrap align-items-center column-gap-3 row-gap-1 small text-body-secondary mt-2 mb-0">
+    <%# The wide drawing names its lines itself; only the phone's needs a legend. %>
+    <ul class="legend d-sm-none list-unstyled d-flex flex-wrap align-items-center column-gap-3 row-gap-1 small text-body-secondary mt-2 mb-0">
       <% legend.each do |entry| %>
         <li class="legend-item d-inline-flex align-items-center gap-2"><span class="legend-line <%= entry.key %>"></span><%= entry.label %></li>
       <% end %>

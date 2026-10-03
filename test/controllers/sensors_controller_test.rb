@@ -24,6 +24,8 @@ class SensorsControllerTest < ActionDispatch::IntegrationTest
       assert_select "img[alt^=?]", "CO₂-Ampel", count: 0
     end
     assert_select ".alert", count: 0
+    assert_select "section[aria-label=Sensoren].row-cols-sm-2.row-cols-lg-2", 1,
+      "two sensors fill a row of two on desktops instead of leaving a third slot empty"
     assert_select "[data-controller=sensors-chart] canvas", count: 3
   end
 

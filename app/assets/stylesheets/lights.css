@@ -4,10 +4,15 @@
    the files load in. */
 
 /* Plush lamp knob: glowing while the lamp is on (a drop shadow, so felt's own
-   patch shadow stays), greyed while off. The slim lamp art fills more of it. */
-.sw-knob.sw-lamp-knob { border-color: var(--warning); --tone: var(--surface-raised);
-                        filter: drop-shadow(0 0 8px color-mix(in oklab, var(--warning) 55%, transparent)); }
-.sw-knob.sw-lamp-knob.off { border-color: var(--border-strong); filter: none; }
+   patch shadow stays), greyed while off. The lamp art is dark, so the disc stays
+   light in dark mode too, warm while on. The slim lamp art fills more of it. */
+.sw-knob.sw-lamp-knob {
+  --lamp-disc: light-dark(var(--surface-raised), color-mix(in oklab, var(--light-fixed) 70%, var(--surface-raised)));
+  --tone: color-mix(in oklab, var(--warning) 12%, var(--lamp-disc));
+  border-color: var(--warning);
+  filter: drop-shadow(0 0 8px color-mix(in oklab, var(--warning) 55%, transparent));
+}
+.sw-knob.sw-lamp-knob.off { border-color: var(--border-strong); filter: none; --tone: var(--lamp-disc); }
 .sw-lamp-knob .sw-knob-plush { width: 80%; height: 80%; }
 .sw-lamp-knob.off .sw-knob-plush { filter: grayscale(.35); }
 /* The lamp detail page shows the lamp in the knob's ring, larger. */

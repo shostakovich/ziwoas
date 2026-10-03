@@ -1,7 +1,7 @@
 // app/javascript/controllers/sensors_chart_controller.js
 import { Controller } from "@hotwired/stimulus"
 import "chart.js"
-import { chartTheme, vizToken } from "lib/chart_theme"
+import { chartTheme, vizToken, timeScale } from "lib/chart_theme"
 
 // CO₂ thresholds drawn as dashed lines, coloured like the traffic light.
 const CO2_THRESHOLDS = [ [ 1000, "--warning" ], [ 1400, "--danger" ] ]
@@ -112,20 +112,7 @@ export default class extends Controller {
   }
 
   _opts(unit, xBounds) {
-    const xScale = {
-      type: "linear",
-      ticks: {
-        maxTicksLimit: 8,
-        callback: (value) => {
-          const d = new Date(value)
-          return d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })
-        },
-      },
-    }
-    if (xBounds) {
-      xScale.min = xBounds.min
-      xScale.max = xBounds.max
-    }
+    const xScale = xBounds ? timeScale(xBounds.min, xBounds.max) : { type: "linear" }
 
     return {
       responsive: true,

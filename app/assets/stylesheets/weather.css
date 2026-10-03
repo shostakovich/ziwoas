@@ -11,13 +11,20 @@
 .weather-icon-lg { --weather-icon-size: 82px; }
 
 .weather-icon-inline {
-  width: 1.1em;
-  height: 1.1em;
+  width: 1.5em;
+  height: 1.5em;
   object-fit: contain;
-  vertical-align: -0.2em;
+  vertical-align: -0.45em;
 }
 
 .weather-hour-card { min-width: 5.5rem; }
+
+/* Hour rows scroll sideways; the right edge fades into the hours that follow.
+   The end padding keeps the last card clear of the fade. */
+.weather-hour-scroller {
+  padding-inline-end: 2rem;
+  mask-image: linear-gradient(to right, black calc(100% - 2rem), transparent);
+}
 
 .weather-segment.active {
   background-color: var(--warning-subtle);

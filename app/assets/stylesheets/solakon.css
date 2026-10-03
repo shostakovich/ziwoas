@@ -114,6 +114,7 @@
 .shading svg .pv2 { stroke: var(--panel-2); }
 .shading svg .pv3 { stroke: var(--panel-3); }
 .shading svg .pv4 { stroke: var(--panel-4); }
+.shading svg .leaders line { stroke-width: 1; }
 .shading svg .direct-labels .pv1 { fill: var(--panel-1); }
 .shading svg .direct-labels .pv2 { fill: var(--panel-2); }
 .shading svg .direct-labels .pv3 { fill: var(--panel-3); }

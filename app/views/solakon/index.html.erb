@@ -5,7 +5,7 @@
 <% reading = @latest_reading %>
 <% fmt = ->(value, precision = 0) { value.nil? ? "—" : de_number(value, precision: precision) } %>
 
-<h1 class="h4 fw-bold mb-3">PV</h1>
+<h1 class="h2 mb-3">PV</h1>
 
 <%= turbo_stream_from DashboardBroadcaster::STREAM %>
 

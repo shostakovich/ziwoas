@@ -1,18 +1,19 @@
 module Solakon
   class PanelCurvesComponent
     # One drawing of the four panels inside a frame. The wide frame names each
-    # line next to itself; the narrow one leaves the names to the legend,
-    # because on a phone they would sit on top of each other.
+    # line at its right end, in the margin, with a short leader where the names
+    # had to move apart; the narrow one leaves the names to the legend, because
+    # on a phone they would sit on top of each other.
     class Chart
       Frame = Data.define(:key, :width, :height, :margins, :hour_step, :named)
 
-      # Where the names are written: the middle of the day, where the lines are
-      # furthest from the axis.
-      LABEL_HOUR = 13
       # At least the names' line height at their largest, so two never overlap.
       LABEL_GAP = 20
-      LABEL_OFFSET = 6
-      LABEL_MARGIN = 4
+      # Names start this far right of the plot; their leaders stop short of them.
+      LABEL_OFFSET = 12
+      LEADER_GAP = 3
+      # Half the names' line height at their largest: centred names stay clear of the hours.
+      LABEL_MARGIN = 10
       VALUE_LABEL_GAP = 5
       # The hour labels hang from this line under the axis.
       HOUR_LABEL_GAP = 5
@@ -20,6 +21,10 @@ module Solakon
       Series = Data.define(:key, :segments)
       Hit = Data.define(:rect, :title)
       Label = Data.define(:x, :y, :text, :key)
+      # A name at the right edge and the end of its own line, which the leader joins.
+      EndLabel = Data.define(:x, :y, :text, :key, :line_x, :line_y) do
+        def leader = [ line_x, line_y, x - LEADER_GAP, y ]
+      end
 
       def initialize(frame:, curves:, hours:, max_w:, grid_step:)
         @frame = frame
@@ -43,7 +48,7 @@ module Solakon
       def labels
         return [] unless named?
 
-        placed = spread(@curves.filter_map { |curve| starting_label(curve) }.sort_by(&:y))
+        placed = spread(@curves.filter_map { |curve| end_label(curve) }.sort_by(&:y))
         overflow = placed.map(&:y).max.to_f - (plot.bottom - LABEL_MARGIN)
         return placed if placed.empty? || overflow <= 0
 
@@ -91,17 +96,13 @@ module Solakon
         end
       end
 
-      def starting_label(curve)
+      def end_label(curve)
         return nil if curve.empty?
 
-        hour = label_hour(curve)
-        watts = curve.points.to_h.fetch(hour)
-        Label.new(x: number(plot.x(hour) + LABEL_OFFSET), y: number(y(watts)), text: self.class.name_of(curve.key),
-                  key: curve.key)
-      end
-
-      def label_hour(curve)
-        curve.points.map(&:first).min_by { |hour| (hour - LABEL_HOUR).abs }
+        hour, watts = curve.points.max_by(&:first)
+        line_y = number(y(watts))
+        EndLabel.new(x: number(plot.right + LABEL_OFFSET), y: line_y, text: self.class.name_of(curve.key),
+                     key: curve.key, line_x: number(plot.x(hour)), line_y: line_y)
       end
 
       def title_for(hour, values)

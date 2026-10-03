@@ -13,6 +13,10 @@ class Lights::PowerComponentTest < ViewComponent::TestCase
 
     assert rendered.css("div#light_power").any?
     assert rendered.css(".sw-lamp-hero:not(.off) img.sw-knob-plush[src*='lamp_floorlamp_on']").any?
+    hero = rendered.css(".sw-lamp-hero").sole
+    assert_equal "span", hero.name, "the hero shows the knob; only the buttons switch"
+    assert_equal %w[btn btn-light btn-icon sw-knob sw-lamp-knob], hero["class"].split & %w[btn btn-light btn-icon sw-knob sw-lamp-knob]
+    assert_equal "true", hero["aria-hidden"]
     assert_equal "true", rendered.css("button.btn-warning").find { |b| b.text == "An" }["aria-pressed"]
     assert_equal "false", rendered.css("button.btn-outline-secondary").find { |b| b.text == "Aus" }["aria-pressed"]
   end

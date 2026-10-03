@@ -1,6 +1,6 @@
 import { Controller } from "@hotwired/stimulus"
 import "chart.js"
-import { chartTheme, vizToken, isPhone } from "lib/chart_theme"
+import { chartTheme, vizToken, timeCategoryScale, localMidnight } from "lib/chart_theme"
 
 // Connects to data-controller="energy-report"
 // Renders bar/line charts plus an in-canvas weather-icon plugin that draws
@@ -159,10 +159,12 @@ export default class extends Controller {
         if (scale.paddingBottom != null) scale.paddingBottom = Math.max(0, scale.paddingBottom - pad)
       }
     }
+    const timeAxis = timeCategoryScale((daily.ratios || []).map((r) => localMidnight(r.date)))
     const scales = {
       x: {
         stacked: true,
-        ticks: { padding: hasIcons && this.dailyWeatherEnabled ? dailyIconsPadding : 0 },
+        ...timeAxis,
+        ticks: { ...timeAxis.ticks, padding: hasIcons && this.dailyWeatherEnabled ? dailyIconsPadding : 0 },
         afterFit: trimXScale,
       },
       y: { stacked: true, beginAtZero: true, title: { display: true, text: "kWh" } },
@@ -234,7 +236,10 @@ export default class extends Controller {
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        scales: { y: { min: 0, max: 100, title: { display: true, text: "%" } } },
+        scales: {
+          x: timeCategoryScale(ratios.map((r) => localMidnight(r.date))),
+          y: { min: 0, max: 100, title: { display: true, text: "%" } },
+        },
         plugins: { legend: { position: "bottom", labels: { boxWidth: 12, boxHeight: 12, padding: 10, font: { size: 12 }, filter: (item, data) => !data.datasets[item.datasetIndex]?.hidden } } },
         animation: false,
       },
@@ -256,12 +261,15 @@ export default class extends Controller {
   _buildPowerLineChart(detail) {
     const labels = detail.labels || []
 
+    // As on the dashboard: PV filled, consumers and their total as plain lines.
     const datasets = (detail.series || []).map((series) => {
+      const producer = series.role === "producer"
       return {
         label: series.name,
         data: series.data,
-        tone: series.role === "producer" ? "--viz-solar" : this._consumerTone(series),
-        fill: false,
+        tone: producer ? "--viz-solar" : this._consumerTone(series),
+        fill: producer,
+        fillAlpha: producer ? 0.12 : undefined,
         tension: 0.2,
         pointRadius: 0,
         hidden: series.role === "consumer",
@@ -274,6 +282,7 @@ export default class extends Controller {
     const hasIcons = w && Array.isArray(w.icons) && w.icons.length > 0
     const hasSolar = w && Array.isArray(w.solar_w_per_m2)
 
+    const timeAxis = timeCategoryScale(detail.times || [])
     const detailIconsPadding = 38
     const trimXScale = function(scale) {
       const pad = scale.options.ticks?.padding || 0
@@ -284,7 +293,7 @@ export default class extends Controller {
       }
     }
     const scales = {
-      x: { ticks: { maxTicksLimit: isPhone() ? 6 : 21, maxRotation: isPhone() ? 0 : 50, autoSkip: true, padding: hasIcons && this.detailWeatherEnabled ? detailIconsPadding : 0 }, afterFit: trimXScale },
+      x: { ...timeAxis, ticks: { ...timeAxis.ticks, padding: hasIcons && this.detailWeatherEnabled ? detailIconsPadding : 0 }, afterFit: trimXScale },
       y: { beginAtZero: true, title: { display: true, text: "Watt" } },
     }
 
@@ -347,7 +356,7 @@ export default class extends Controller {
         responsive: true,
         maintainAspectRatio: false,
         scales: {
-          x: { stacked: true },
+          x: { stacked: true, ...timeCategoryScale(detail.times || []) },
           y: { stacked: true, beginAtZero: true, title: { display: true, text: "Watt" } },
         },
         plugins: { legend: { position: "bottom", labels: { boxWidth: 12, boxHeight: 12, padding: 10, font: { size: 12 }, filter: (item, data) => !data.datasets[item.datasetIndex]?.hidden } } },
@@ -405,8 +414,8 @@ export default class extends Controller {
 
     return {
       label: "Gesamtverbrauch", data,
-      tone: "--viz-grid", fillAlpha: 0.14,
-      fill: true, tension: 0.2, pointRadius: 0,
+      tone: "--viz-grid",
+      fill: false, tension: 0.2, pointRadius: 0,
     }
   }
 }

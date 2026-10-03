@@ -8,7 +8,7 @@
 
   <div class="d-flex align-items-center gap-2 mb-3">
     <%= link_to "←", switches_path, class: "btn btn-icon btn-light flex-shrink-0", "aria-label": "Zurück" %>
-    <h1 class="h4 fw-bold mb-0 me-auto"><%= @light.name %></h1>
+    <h1 class="h2 mb-0 me-auto"><%= @light.name %></h1>
     <%= link_to edit_light_path(@light.key), class: "btn btn-icon flex-shrink-0",
                 data: { turbo_stream: true }, "aria-label": "Einstellungen" do %>
       <%= image_tag "settings_plush.webp", width: 28, height: 28, alt: "", aria: { hidden: true } %>

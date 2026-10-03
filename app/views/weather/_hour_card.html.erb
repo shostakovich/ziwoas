@@ -3,9 +3,10 @@
   windy = wind && wind >= 20
   precip_mm = record.precipitation if record.precipitation&.positive?
   precip_prob = record.precipitation_probability if record.precipitation_probability && record.precipitation_probability >= 30
+  empty_row = tag.li(tag.span(class: "weather-icon-inline d-inline-block"), class: "invisible", "aria-hidden": "true")
 %>
-<%# Every card fills the same three rows — sun, wind, rain — with a dash where
-    there is nothing to tell, so the row of cards has no ragged empty band. %>
+<%# Every card keeps the same three rows — sun, wind, rain — with an invisible
+    placeholder where there is nothing to tell, so the cards line up. %>
 <article class="weather-hour-card flex-shrink-0 text-center small">
   <div class="weather-hour-time fw-semibold tabular-nums"><%= record.timestamp.strftime("%H:%M") %></div>
   <%= image_tag record.asset_name, class: "weather-icon weather-icon-sm d-block mx-auto my-2", width: 42, height: 42, loading: "lazy", alt: weather_icon_label(record.icon) %>
@@ -17,7 +18,7 @@
         <%= record.solar_w_per_m2 ? de_number(record.solar_w_per_m2) : "—" %> W/m²
       </li>
     <% else %>
-      <li class="text-body-tertiary" aria-hidden="true">–</li>
+      <%= empty_row %>
     <% end %>
     <% if wind %>
       <li class="weather-hour-wind<%= ' fw-semibold text-body' if windy %>">
@@ -25,7 +26,7 @@
         <%= de_number(wind) %> km/h
       </li>
     <% else %>
-      <li class="text-body-tertiary" aria-hidden="true">–</li>
+      <%= empty_row %>
     <% end %>
     <% if precip_mm || precip_prob %>
       <li class="weather-hour-rain">
@@ -33,7 +34,7 @@
         <%= precip_mm ? "#{de_number(precip_mm, precision: 1)} mm" : "#{precip_prob} %" %>
       </li>
     <% else %>
-      <li class="text-body-tertiary" aria-hidden="true">–</li>
+      <%= empty_row %>
     <% end %>
   </ul>
 </article>
