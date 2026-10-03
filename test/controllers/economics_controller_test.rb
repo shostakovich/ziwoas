@@ -86,7 +86,7 @@ class EconomicsControllerTest < ActionDispatch::IntegrationTest
     end
 
     assert_response :unprocessable_entity
-    assert_select ".sw-form-errors", 1
+    assert_select ".alert-danger", 1
     assert_match "Bezeichnung angeben", response.body
     assert_match "Betrag als Zahl angeben", response.body
   end

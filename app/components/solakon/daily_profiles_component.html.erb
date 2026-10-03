@@ -1,12 +1,11 @@
-<%= render CardComponent.new(title: "Tagesgang je Monat", classes: "sun-chart",
-                             data: { chart: "daily-profiles" }) do %>
+<%= render CardComponent.new(title: "Tagesgang je Monat", data: { chart: "daily-profiles" }) do %>
   <% if empty? %>
-    <p class="note">Der Tagesgang erscheint, sobald ein Monat Stundenwerte hat.</p>
+    <p class="note small text-body-secondary mb-0">Der Tagesgang erscheint, sobald ein Monat Stundenwerte hat.</p>
   <% else %>
-    <div class="multiples">
+    <div class="row row-cols-1 row-cols-sm-2 row-cols-lg-3 g-3">
       <% multiples.each do |multiple| %>
-        <figure class="multiple" data-month="<%= multiple.month %>">
-          <figcaption><%= multiple.label %> <span><%= multiple.days %> Tage · W</span></figcaption>
+        <figure class="multiple col mb-0" data-month="<%= multiple.month %>">
+          <figcaption class="small fw-semibold mb-1"><%= multiple.label %> <span class="fw-normal text-body-secondary"><%= multiple.days %> Tage · W</span></figcaption>
           <svg viewBox="<%= plot.view_box %>" role="img" aria-label="Tagesgang <%= multiple.label %>">
             <g class="grid"><% grid_lines.each do |at| %><line x1="<%= plot.left %>" x2="<%= plot.right %>" y1="<%= at %>" y2="<%= at %>"/><% end %></g>
             <g class="value-labels"><% value_labels.each do |label| %><text x="<%= label.x %>" y="<%= label.y %>" text-anchor="end"><%= label.text %></text><% end %></g>
@@ -21,11 +20,11 @@
         </figure>
       <% end %>
     </div>
-    <ul class="legend">
+    <ul class="legend list-unstyled d-flex flex-wrap align-items-center column-gap-3 row-gap-1 small text-body-secondary mt-2 mb-0">
       <% legend.each do |key, label| %>
-        <li class="legend-item"><span class="legend-line <%= key %>"></span><%= label %></li>
+        <li class="legend-item d-inline-flex align-items-center gap-2"><span class="legend-line <%= key %>"></span><%= label %></li>
       <% end %>
     </ul>
-    <p class="note"><%= note %></p>
+    <p class="note small text-body-secondary mt-3 mb-0"><%= note %></p>
   <% end %>
 <% end %>

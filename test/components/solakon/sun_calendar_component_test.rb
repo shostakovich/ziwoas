@@ -59,7 +59,7 @@ class Solakon::SunCalendarComponentTest < ViewComponent::TestCase
   test "paints a cell in the ramp colour of its value" do
     rendered = render_calendar(pv: { [ 100, 12 ] => 800.0 })
 
-    assert_equal "#a85300", rendered.css("[data-strip='pv'] .cells g").first["fill"]
+    assert_equal "fill: var(--ramp-amber-2)", rendered.css("[data-strip='pv'] .cells g").first["style"]
   end
 
   test "merges neighbouring days of equal colour into one rectangle" do
@@ -368,9 +368,9 @@ class Solakon::SunCalendarComponentTest < ViewComponent::TestCase
   test "colours a cell by its share of the strip's maximum, not by the raw value" do
     rendered = render_calendar(pv: { [ 10, 12 ] => 400.0 })
 
-    fill = rendered.css("[data-strip='pv'] .cells g").first["fill"]
+    fill = rendered.css("[data-strip='pv'] .cells g").first["style"]
 
-    assert_equal Ramp.fetch(:amber).color(0.5), fill
+    assert_equal "fill: #{Ramp.fetch(:amber).color(0.5)}", fill
   end
 
   test "rounds the colour share to the nearest level instead of using the raw fraction" do
@@ -378,9 +378,9 @@ class Solakon::SunCalendarComponentTest < ViewComponent::TestCase
     # different stop than dividing the unrounded fraction straight through.
     rendered = render_calendar(pv: { [ 10, 12 ] => 390.0 })
 
-    fill = rendered.css("[data-strip='pv'] .cells g").first["fill"]
+    fill = rendered.css("[data-strip='pv'] .cells g").first["style"]
 
-    assert_equal "#f8b938", fill
+    assert_equal "fill: color-mix(in oklab, var(--ramp-amber-1) 96.9%, var(--ramp-amber-0))", fill
   end
 
   test "includes both the year's first and last day in the heat strip" do

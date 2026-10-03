@@ -1,17 +1,19 @@
-<%= render CardComponent.new(title: "Wirtschaftlichkeit", subtitle: subtitle,
-                             classes: "economics-card") do %>
-  <div class="row row-cols-2 row-cols-md-4 g-2 mb-3 economics-tiles">
-    <%= render Dashboard::TileComponent.new(label: "Anschaffungskosten", value: cost_value) %>
-    <%= render Dashboard::TileComponent.new(label: "Ersparnis", value: saved_value) %>
-    <%= render Dashboard::TileComponent.new(label: "Zurückverdient", value: covered_value) %>
-    <%= render Dashboard::TileComponent.new(label: payback_label, value: payback_value) %>
+<%= render CardComponent.new(title: "Wirtschaftlichkeit", subtitle: subtitle) do %>
+  <div class="row row-cols-2 row-cols-md-4 g-3 pt-2 mb-3 economics-tiles">
+    <% tiles.each do |label, value| %>
+      <div class="col stat">
+        <span class="stat-label"><%= label %></span>
+        <span class="stat-value fs-4"><%= value %></span>
+      </div>
+    <% end %>
   </div>
 
   <% if covered_pct %>
-    <div class="economics-bar" role="img"
+    <div class="progress mb-3" role="progressbar"
          aria-label="<%= covered_value %> der Anschaffungskosten zurückverdient"
+         aria-valuenow="<%= covered_pct %>" aria-valuemin="0" aria-valuemax="100"
          data-economics-covered-pct="<%= covered_pct %>">
-      <span style="width: <%= covered_pct %>%"></span>
+      <div class="progress-bar bg-warning" style="width: <%= covered_pct %>%"></div>
     </div>
   <% end %>
 
@@ -24,8 +26,6 @@
     <p class="small text-body-secondary"><%= hint %></p>
   <% end %>
 
-  <p class="economics-actions">
-    <%= link_to (result.costed? ? "Kosten und Preise pflegen" : "Kosten erfassen"),
-                economics_path, class: "sw-btn ghost" %>
-  </p>
+  <%= link_to (result.costed? ? "Kosten und Preise pflegen" : "Kosten erfassen"),
+              economics_path, class: "btn btn-sm btn-outline-secondary" %>
 <% end %>
