@@ -1,32 +1,33 @@
 <%= turbo_frame_tag "weather_current" do %>
   <% if current_weather %>
-    <section class="weather-current card card-body mb-3">
-      <div class="weather-current-head">
-        <%= image_tag current_weather.asset_name, class: "weather-current-icon", width: 82, height: 82, alt: weather_icon_label(current_weather.icon) %>
-        <div class="weather-current-main">
-          <div class="stat-label">Jetzt</div>
-          <% sensor = local_assigns[:outdoor_sensor_reading] %>
-          <% if sensor %>
-            <div class="weather-current-temp"><%= number_with_precision(sensor.temperature, precision: 1, delimiter: ".", separator: ",") %> °C</div>
-            <div class="small text-body-secondary"><%= current_weather.condition || "Wetter" %> · Wind <%= number_with_precision(current_weather.wind_speed || 0, precision: 0, delimiter: ".", separator: ",") %> km/h · <span class="weather-source">eigener Sensor</span></div>
-          <% else %>
-            <div class="weather-current-temp"><%= number_with_precision(current_weather.temperature, precision: 1, delimiter: ".", separator: ",") %> °C</div>
-            <div class="small text-body-secondary"><%= current_weather.condition || "Wetter" %> · Wind <%= number_with_precision(current_weather.wind_speed || 0, precision: 0, delimiter: ".", separator: ",") %> km/h · <span class="weather-source">DWD</span></div>
-          <% end %>
-        </div>
-        <div class="weather-current-facts">
-          <div><strong><%= current_weather.relative_humidity || "—" %>%</strong><br>Luft</div>
-          <div><strong><%= current_weather.cloud_cover || "—" %>%</strong><br>Wolken</div>
-          <div><strong><%= number_with_precision(current_weather.precipitation || 0, precision: 1, delimiter: ".", separator: ",") %> mm</strong><br>Regen</div>
-          <div><strong><%= number_with_precision(current_weather.pressure_msl || 0, precision: 0, delimiter: ".", separator: ",") %></strong><br>hPa</div>
+    <% sensor = local_assigns[:outdoor_sensor_reading] %>
+    <section class="weather-current card mb-3">
+      <div class="card-body">
+        <div class="row g-3 align-items-center">
+          <div class="col-12 col-md d-flex align-items-center gap-3">
+            <%= image_tag current_weather.asset_name, class: "weather-icon weather-icon-lg", width: 82, height: 82, alt: weather_icon_label(current_weather.icon) %>
+            <div class="stat">
+              <span class="stat-label">Jetzt</span>
+              <span class="stat-value fs-1"><%= number_with_precision((sensor || current_weather).temperature, precision: 1, delimiter: ".", separator: ",") %> °C</span>
+              <span class="small text-body-secondary"><%= current_weather.condition || "Wetter" %> · Wind <%= number_with_precision(current_weather.wind_speed || 0, precision: 0, delimiter: ".", separator: ",") %> km/h · <%= sensor ? "eigener Sensor" : "DWD" %></span>
+            </div>
+          </div>
+          <div class="col-12 col-md-auto">
+            <ul class="list-unstyled row row-cols-4 row-cols-md-auto g-3 small text-body-secondary text-nowrap text-center text-md-start mb-0">
+              <li class="col"><strong class="d-block text-body tabular-nums"><%= current_weather.relative_humidity || "—" %>%</strong>Luft</li>
+              <li class="col"><strong class="d-block text-body tabular-nums"><%= current_weather.cloud_cover || "—" %>%</strong>Wolken</li>
+              <li class="col"><strong class="d-block text-body tabular-nums"><%= number_with_precision(current_weather.precipitation || 0, precision: 1, delimiter: ".", separator: ",") %> mm</strong>Regen</li>
+              <li class="col"><strong class="d-block text-body tabular-nums"><%= number_with_precision(current_weather.pressure_msl || 0, precision: 0, delimiter: ".", separator: ",") %></strong>hPa</li>
+            </ul>
+          </div>
         </div>
       </div>
-      <div class="weather-current-solar">
-        <span class="weather-solar-label">
-          <%= image_tag "weather_clear_day.webp", class: "weather-inline-icon", alt: "" %>
+      <div class="weather-current-solar card-footer d-flex align-items-baseline gap-2">
+        <span class="small fw-semibold text-uppercase text-warning-emphasis">
+          <%= image_tag "weather_clear_day.webp", class: "weather-icon-inline", alt: "" %>
           Solar
         </span>
-        <span class="weather-solar-value">
+        <span class="fw-semibold tabular-nums">
           <% if current_weather.daytime == "night" %>
             Nacht
           <% elsif current_weather.solar_w_per_m2 %>

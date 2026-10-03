@@ -22,7 +22,7 @@ export default class extends Controller {
     this.tileTargets.forEach((tile) => {
       const idx = Number(tile.dataset.segmentIndex)
       const open = idx === this.selectedIndex
-      tile.classList.toggle("is-selected", open)
+      tile.classList.toggle("active", open)
       tile.setAttribute("aria-expanded", open ? "true" : "false")
     })
     this.hourRowTargets.forEach((row) => {
