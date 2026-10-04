@@ -1,6 +1,6 @@
 import { Controller } from "@hotwired/stimulus"
 import "chart.js"
-import { chartTheme, vizToken, timeScale, timeCategoryScale } from "lib/chart_theme"
+import { chartTheme, vizToken, timeScale, timeCategoryScale, formatTime } from "lib/chart_theme"
 
 export default class extends Controller {
   static targets = ["powerCanvas", "energyCanvas", "deltas"]
@@ -139,7 +139,10 @@ export default class extends Controller {
           x: { ...timeScale(Date.now() - 86_400_000, Date.now()), title: { display: true, text: "Uhrzeit" } },
           y: { beginAtZero: true, title: { display: true, text: "Watt" } },
         },
-        plugins: { legend: { position: "bottom", labels: { boxWidth: 12, boxHeight: 12, padding: 10, font: { size: 12 }, filter: (item, data) => !data.datasets[item.datasetIndex]?.hidden } } },
+        plugins: {
+          legend: { position: "bottom", labels: { boxWidth: 12, boxHeight: 12, padding: 10, font: { size: 12 }, filter: (item, data) => !data.datasets[item.datasetIndex]?.hidden } },
+          tooltip: { callbacks: { title: (items) => items.length ? formatTime(items[0].parsed.x, { hour: "2-digit", minute: "2-digit" }) : "" } },
+        },
         animation: false,
       },
       plugins: [ chartTheme ],
@@ -163,7 +166,7 @@ export default class extends Controller {
       }
     }
     const sorted   = Object.keys(buckets).map(Number).sort((a, b) => a - b)
-    const labels   = sorted.map(ts => new Date(ts * 1000).getHours().toString().padStart(2, "0") + ":00")
+    const labels   = sorted.map(ts => formatTime(ts * 1000, { hour: "2-digit", minute: "2-digit" }))
     const produced = sorted.map(ts => +(buckets[ts].produced / 1000).toFixed(3))
     const consumed = sorted.map(ts => {
       const wh = Object.values(buckets[ts].consumers).reduce((sum, value) => sum + value, 0)

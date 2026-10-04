@@ -28,44 +28,89 @@ export function isPhone() {
 
 // Time axes, one rule for every chart: a day ticks on full hours every three
 // hours ("21:00"), phones name every second one; longer spans tick once per
-// day at local midnight ("Sa 26.09."), at most four on phones and eight on
-// wider screens. Labels never rotate.
+// day at midnight ("Sa 26.09."), at most four on phones and eight on wider
+// screens. Labels never rotate.
+//
+// Hours and days are the household's (the layout's ziwoas-time-zone meta), not
+// the browser's: a traveller sees the same axis as at home. Without the meta,
+// the browser's zone.
 const HOUR_MS = 3_600_000
 const WEEKDAYS = [ "So", "Mo", "Di", "Mi", "Do", "Fr", "Sa" ]
 const pad2 = (n) => String(n).padStart(2, "0")
+
+function householdZone() {
+  const zone = document.querySelector("meta[name='ziwoas-time-zone']")?.content
+  try {
+    return new Intl.DateTimeFormat("en-US", { timeZone: zone || undefined }).resolvedOptions().timeZone
+  } catch {
+    return undefined
+  }
+}
+
+export const timeZone = householdZone()
+
+const WALL_CLOCK = new Intl.DateTimeFormat("en-US", {
+  timeZone, hourCycle: "h23",
+  year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", second: "numeric",
+})
+
+// The household's wall-clock time at `ms`, encoded as if it were UTC: read its
+// fields with getUTC*().
+function wallClock(ms) {
+  const part = {}
+  for (const { type, value } of WALL_CLOCK.formatToParts(ms)) part[type] = Number(value)
+  return Date.UTC(part.year, part.month - 1, part.day, part.hour % 24, part.minute, part.second) + (ms % 1000)
+}
+
+// The instant at which the household's clocks show `wall` (as from wallClock).
+function instantOf(wall) {
+  let ms = wall - (wallClock(wall) - wall)
+  ms = wall - (wallClock(ms) - ms)
+  return ms
+}
+
+// German date and time in the household's zone, for tooltips and labels.
+export function formatTime(ms, options) {
+  return new Date(ms).toLocaleString("de-DE", { ...options, timeZone })
+}
 
 function spansDays(min, max) {
   return max - min > 36 * HOUR_MS
 }
 
 function timeLabel(ms, days) {
-  const d = new Date(ms)
-  if (days) return `${WEEKDAYS[d.getDay()]} ${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}.`
-  return isPhone() && d.getHours() % 6 !== 0 ? "" : `${pad2(d.getHours())}:00`
+  const wall = new Date(wallClock(ms))
+  if (days) return `${WEEKDAYS[wall.getUTCDay()]} ${pad2(wall.getUTCDate())}.${pad2(wall.getUTCMonth() + 1)}.`
+  return isPhone() && wall.getUTCHours() % 6 !== 0 ? "" : `${pad2(wall.getUTCHours())}:00`
 }
 
-// Tick instants (epoch ms) between min and max, in the browser's local time.
+// Tick instants (epoch ms) between min and max, on the household's clock. A
+// day with a clock change has 23 or 25 hours; its ticks stay on the clock.
 export function timeTicks(min, max) {
-  const t = new Date(min)
   const ticks = []
+  const start = new Date(wallClock(min))
   if (!spansDays(min, max)) {
-    t.setMinutes(0, 0, 0)
-    if (t.getTime() < min) t.setHours(t.getHours() + 1)
-    while (t.getHours() % 3 !== 0) t.setHours(t.getHours() + 1)
-    for (; t.getTime() <= max; t.setHours(t.getHours() + 3)) ticks.push(t.getTime())
+    let t = min - (start.getUTCMinutes() * 60_000 + start.getUTCSeconds() * 1000 + start.getUTCMilliseconds())
+    if (t < min) t += HOUR_MS
+    for (; t <= max; t += HOUR_MS) {
+      if (new Date(wallClock(t)).getUTCHours() % 3 === 0) ticks.push(t)
+    }
     return ticks
   }
-  t.setHours(0, 0, 0, 0)
-  if (t.getTime() < min) t.setDate(t.getDate() + 1)
-  for (; t.getTime() <= max; t.setDate(t.getDate() + 1)) ticks.push(t.getTime())
+  const year = start.getUTCFullYear(), month = start.getUTCMonth()
+  for (let day = start.getUTCDate(); ; day++) {
+    const t = instantOf(Date.UTC(year, month, day))
+    if (t > max) break
+    if (t >= min) ticks.push(t)
+  }
   const step = Math.ceil(ticks.length / (isPhone() ? 4 : 8))
   return ticks.filter((_, index) => index % step === 0)
 }
 
-// Local midnight (epoch ms) of an ISO date ("2026-09-26").
+// The household's midnight (epoch ms) of an ISO date ("2026-09-26").
 export function localMidnight(isoDate) {
   const [ year, month, day ] = isoDate.split("-").map(Number)
-  return new Date(year, month - 1, day).getTime()
+  return instantOf(Date.UTC(year, month - 1, day))
 }
 
 // x scale for points whose x is epoch ms.
