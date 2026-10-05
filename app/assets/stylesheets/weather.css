@@ -1,4 +1,4 @@
-/* Wetter: plush weather icons in square boxes, the selected day segment. */
+/* Wetter: plush weather icons in square boxes, the hour rows' scroller. */
 
 .weather-icon {
   flex-shrink: 0;
@@ -24,11 +24,6 @@
 .weather-hour-scroller {
   padding-inline-end: 2rem;
   mask-image: linear-gradient(to right, black calc(100% - 2rem), transparent);
-}
-
-.weather-segment.active {
-  background-color: var(--warning-subtle);
-  border-color: var(--warning);
 }
 
 @media (max-width: 575.98px) {

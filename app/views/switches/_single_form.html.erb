@@ -9,7 +9,7 @@
       <div class="small text-danger-emphasis"><%= form.errors.join(", ") %></div>
     <% end %>
     <% id_prefix = "sw_#{plug.id}_#{form.id || 'new'}" %>
-    <div class="d-flex align-items-center gap-2">
+    <div class="d-flex flex-wrap align-items-center gap-2">
       <%= f.time_field :at_minute_time, value: form.at_minute_time, class: "form-control form-control-sm tabular-nums",
                        "aria-label": "Uhrzeit" %>
       <%# Radios, not a checkbox: the direction can never end up neither. %>

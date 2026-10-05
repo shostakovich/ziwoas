@@ -6,6 +6,7 @@ import { Controller } from "@hotwired/stimulus"
 // collapse; click another to switch.
 export default class extends Controller {
   static targets = ["tile", "hourRow"]
+  static classes = ["selected"]
 
   connect() {
     this.selectedIndex = null
@@ -22,7 +23,7 @@ export default class extends Controller {
     this.tileTargets.forEach((tile) => {
       const idx = Number(tile.dataset.segmentIndex)
       const open = idx === this.selectedIndex
-      tile.classList.toggle("active", open)
+      this.selectedClasses.forEach((name) => tile.classList.toggle(name, open))
       tile.setAttribute("aria-expanded", open ? "true" : "false")
     })
     this.hourRowTargets.forEach((row) => {

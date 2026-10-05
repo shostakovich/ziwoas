@@ -5,7 +5,8 @@
       <% future_weather.each do |day| %>
         <article class="weather-day-card card"
                  data-controller="weather-segments"
-                 data-weather-segments-day-value="<%= day.date.iso8601 %>">
+                 data-weather-segments-day-value="<%= day.date.iso8601 %>"
+                 data-weather-segments-selected-class="active border-warning bg-warning-subtle">
           <header class="card-header d-flex flex-wrap justify-content-between align-items-baseline gap-2">
             <div>
               <h3 class="h6 mb-0"><%= day.weekday_label %> <span class="fw-normal text-body-secondary tabular-nums"><%= day.date_label %></span></h3>

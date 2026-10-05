@@ -9,11 +9,11 @@
         <input type="radio" class="btn-check" name="light_color" id="light_color_<%= i %>" autocomplete="off"
                <%= "checked" if selected?(hex) %>
                data-action="light-detail#swatch" data-light-detail-color-param="<%= hex %>">
-        <label class="btn btn-icon ld-swatch" for="light_color_<%= i %>" style="background-color: <%= hex %>">
+        <label class="btn btn-icon border ld-swatch" for="light_color_<%= i %>" style="background-color: <%= hex %>">
           <span class="visually-hidden">Farbe <%= hex %></span>
         </label>
       <% end %>
-      <label class="btn btn-icon ld-swatch ld-swatch-wheel" title="Weitere Farbe">
+      <label class="btn btn-icon border ld-swatch ld-swatch-wheel" title="Weitere Farbe">
         <span class="visually-hidden">Weitere Farbe</span>
         <input type="color" data-action="light-detail#wheel" value="<%= snapshot.color_hex || '#ff7a3d' %>">
       </label>

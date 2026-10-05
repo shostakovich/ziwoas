@@ -1,6 +1,8 @@
 /* Schalten tab: the round plush knob of a plug card. It is a felt patch
    (.btn.btn-light.btn-icon), so wool, seam and pressed depth come from
    felt-css; only its size, the ring saying on or off and the plush are ours.
+   The ring stays a plain border, not .border-{tone}: felt sews that as a thin
+   thread in a rounded square on a disc this size (felt-css #28).
    Lamp cards reuse the knob (lights.css). */
 
 .sw-knob { width: 88px; height: 88px; border-style: solid; border-width: 4px;

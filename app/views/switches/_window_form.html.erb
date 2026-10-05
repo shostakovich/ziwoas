@@ -8,11 +8,11 @@
     <% if form.errors.any? %>
       <div class="small text-danger-emphasis"><%= form.errors.join(", ") %></div>
     <% end %>
-    <div class="d-flex align-items-center gap-2">
-      <%= f.time_field :on_at_time, value: form.on_at_time, class: "form-control form-control-sm tabular-nums",
+    <div class="input-group input-group-sm">
+      <%= f.time_field :on_at_time, value: form.on_at_time, class: "form-control tabular-nums",
                        "aria-label": "Einschalten um" %>
-      <span class="small text-body-secondary">bis</span>
-      <%= f.time_field :off_at_time, value: form.off_at_time, class: "form-control form-control-sm tabular-nums",
+      <span class="input-group-text">bis</span>
+      <%= f.time_field :off_at_time, value: form.off_at_time, class: "form-control tabular-nums",
                        "aria-label": "Ausschalten um" %>
     </div>
     <%= render "switches/weekdays", scope: :switch_window, days: form.days,

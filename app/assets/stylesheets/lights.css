@@ -45,9 +45,8 @@
                                color-mix(in oklab, var(--primary) 50%, var(--light-fixed)));
 }
 
-/* Colour swatches: the label carries its colour inline; a ring marks the
-   chosen one. */
-.ld-swatch { border-color: color-mix(in oklab, var(--text) 15%, transparent); }
+/* Colour swatches: the label carries its colour inline (in felt, .border sews
+   it on); a ring marks the chosen one. */
 .btn-check:checked + .ld-swatch { outline: 3px solid var(--text); outline-offset: 2px; }
 .ld-swatch-wheel { position: relative; overflow: hidden;
                    background-image: conic-gradient(in hsl longer hue, hsl(0 90% 60%), hsl(0 90% 60%)); }
