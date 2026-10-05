@@ -1,6 +1,4 @@
-# A colour ramp whose stops are CSS colours, usually custom properties that
-# solakon.css defines per theme. Colours between two stops are written as
-# color-mix() so the browser resolves them, and dark mode follows by itself.
+# Colours between stops are color-mix() so the browser resolves them and dark mode follows.
 class Ramp
   STOPS = {
     amber: %w[var(--ramp-amber-0) var(--ramp-amber-1) var(--ramp-amber-2)],
@@ -9,7 +7,12 @@ class Ramp
     diverging: %w[var(--ramp-low) var(--ramp-neutral) var(--ramp-high)]
   }.freeze
 
+  # Snapping to levels lets near-equal values share one fill; a step is below what the eye tells apart.
+  LEVELS = 64
+
   def self.fetch(name) = new(STOPS.fetch(name))
+
+  def self.level(fraction) = (fraction * LEVELS).round / LEVELS.to_f
 
   def initialize(stops)
     @stops = stops

@@ -6,8 +6,6 @@ class Switches::ScheduleEntryComponentTest < ViewComponent::TestCase
   PLUG = ConfigLoader::PlugCfg.new(id: "fridge", name: "Kühlschrank", role: :consumer,
                                    driver: :shelly, ain: nil, room: nil, switchable: true).freeze
 
-  # Rules built in memory, with the ids the row and the button targets are made
-  # of — nothing here needs a database.
   def rule(id:, action:, at_minute:, days: [ 1, 2, 3, 4, 5 ], enabled: true, group_id: nil)
     Switching::Rule.new(id: id, plug_id: "fridge", action: action, at_minute: at_minute,
                    days: days, enabled: enabled, group_id: group_id)

@@ -53,7 +53,7 @@ class DashboardRefreshTest < ApplicationSystemTestCase
     mark_dots
     rate_before = dot_playback_rate
 
-    # Well beyond the 5% guard: the old code tore the dots down here.
+    # Well beyond the 5% guard.
     inject_stream(beat_stream(flow_state(solar_to_home_w: 400)))
     assert_selector "#energy_flow_state[data-state*='400']", visible: :all
 
@@ -72,7 +72,7 @@ class DashboardRefreshTest < ApplicationSystemTestCase
     assert_no_selector "[data-ef='efDotsSolarHome'] circle", visible: :all
   end
 
-  test "the energy flow says directions in words and colours only the channels that flow" do
+  test "the energy flow says directions in words, colours only the channels that flow and shows the battery's state" do
     visit root_path
 
     inject_stream(beat_stream({
@@ -88,6 +88,11 @@ class DashboardRefreshTest < ApplicationSystemTestCase
     }, ef_texts("efPvW", "efConsumerW", "efGridW", "efBatteryW", "efBatteryName", "efBatterySoc"))
     assert_equal %w[efLineBatteryHome efLineSolarGrid efLineSolarHome],
                  page.evaluate_script("[...document.querySelectorAll('.ef-link[data-flowing]')].map((l) => l.dataset.ef).sort()")
+    arcs = page.evaluate_script(<<~JS)
+      [...document.querySelectorAll("[data-ef='efConsumerRing'] circle")].map((arc) => ["cx", "cy", "r"].map((a) => arc.getAttribute(a)))
+    JS
+    ring = page.evaluate_script(%(["cx", "cy", "r"].map((a) => document.querySelector('circle[data-ring="consumer"]').getAttribute(a))))
+    assert_equal [ ring ] * 3, arcs
 
     inject_stream(beat_stream({
       solakon_online: true, home_w: 2000, solar_w: 0, battery_soc_pct: nil,
@@ -97,6 +102,7 @@ class DashboardRefreshTest < ApplicationSystemTestCase
     assert_selector "[data-ef='efGridName']", text: "Netzbezug"
     assert_equal({ "efGridW" => "2.150 W", "efBatteryName" => "Batterie lädt", "efBatterySoc" => "" },
                  ef_texts("efGridW", "efBatteryName", "efBatterySoc"))
+    assert_selector "img[data-ef='efBatteryImage'][src*='solakon_battery_charging']"
 
     inject_stream(beat_stream({ solakon_online: false, home_w: nil, battery_w: 0.4, grid_w: nil, flows: {} }.to_json))
 
@@ -104,6 +110,7 @@ class DashboardRefreshTest < ApplicationSystemTestCase
     assert_equal({ "efPvW" => "— W", "efGridW" => "— W", "efBatteryW" => "0 W", "efBatteryName" => "Batterie" },
                  ef_texts("efPvW", "efGridW", "efBatteryW", "efBatteryName"))
     assert_no_selector ".ef-link[data-flowing]", visible: :all
+    assert_selector "img[data-ef='efBatteryImage'][src*='solakon_battery_normal']"
   end
 
   private
@@ -129,8 +136,7 @@ class DashboardRefreshTest < ApplicationSystemTestCase
     HTML
   end
 
-  # A <turbo-stream> element executes on DOM insertion — the same path a cable
-  # delivery takes, without needing a live broadcast in the test.
+  # A <turbo-stream> executes on DOM insertion, the same path a cable delivery takes.
   def inject_stream(html)
     page.execute_script("document.body.insertAdjacentHTML('beforeend', arguments[0])", html)
   end

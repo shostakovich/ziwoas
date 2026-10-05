@@ -1,11 +1,6 @@
 require "test_helper"
 
-# module_function gives DashboardBroadcaster.broadcast_live etc. a *snapshot*
-# singleton method, taken once when the file first loads. Mutant's killfork
-# monkeypatches only the instance-method-table entry (undef + redefine), so a
-# call through the module method never runs the mutated body — every mutation
-# looks alive no matter what the test asserts. Routing calls through an
-# includer reaches the entry mutant actually rewrites.
+# Through an includer: mutant rewrites the instance method, never module_function's singleton copy.
 class DashboardBroadcasterCaller
   include DashboardBroadcaster
 end

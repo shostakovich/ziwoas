@@ -1,13 +1,10 @@
 <div id="light_power" class="card mb-3">
   <div class="card-body">
     <div class="d-flex align-items-center gap-3">
-      <%# The lamp's knob from the Schalten tab, larger and only for show: the buttons beside it switch. %>
       <span class="btn btn-light btn-icon sw-knob sw-lamp-knob sw-lamp-hero pe-none flex-shrink-0<%= ' off' unless snapshot.on? %>" aria-hidden="true">
-        <%= image_tag "lamp_#{light.plush_type}_#{snapshot.on? ? 'on' : 'off'}.webp",
+        <%= image_tag light.plush_image(on: snapshot.on?),
                       width: 112, height: 112, alt: "", class: "sw-knob-plush" %>
       </span>
-      <%# One segmented toggle; the current choice is denim like every other selection,
-          the warm tone belongs to the lamp's ring. The pressed button carries the state. %>
       <%= form_with url: light_command_path(light_key: light.key), class: "flex-grow-1" do %>
         <%= hidden_field_tag :command, "turn", id: nil %>
         <div class="btn-group w-100" role="group" aria-label="Lampe">
@@ -19,7 +16,6 @@
       <% end %>
     </div>
     <% if snapshot.zone_lamp? %>
-      <%# Zones belong to the lamp's power: hidden while off, shown while on. %>
       <div class="mt-3" role="group" aria-label="Zonen"<%= " hidden".html_safe unless snapshot.on? %>>
         <p class="mb-2 small text-uppercase text-body-secondary" aria-hidden="true">Zonen</p>
         <div class="row row-cols-<%= [ snapshot.zones.size, 3 ].min %> g-2 ld-choices ld-zones">

@@ -1,5 +1,4 @@
-<%# Stays .show: whether it is visible is the hidden attribute's job, which the
-    server sets for an empty toast and the toast controller after 5 s. %>
+<%# Stays .show: visibility is the hidden attribute's job (server and toast controller). %>
 <div id="light_toast" class="toast show" role="status" aria-live="polite"
      data-controller="toast"<%= " hidden".html_safe unless message %>>
   <% if message %>

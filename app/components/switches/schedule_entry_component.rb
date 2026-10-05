@@ -1,9 +1,4 @@
 module Switches
-  # One row of a plug's schedule. Whether the row is a Zeitfenster or an
-  # Einzelschaltung decides three things at once — which resource the buttons
-  # address, which word the aria labels use, and how the pill looks. Those
-  # answers belong together, hence a component rather than two near-identical
-  # partials.
   class ScheduleEntryComponent < ApplicationComponent
     def initialize(entry:, plug:)
       @entry = entry
@@ -16,13 +11,10 @@ module Switches
 
     def window? = entry.is_a?(Switching::Rules::Schedule::Window)
 
-    # +entry.id+ is the group of a Zeitfenster and the rule id of an
-    # Einzelschaltung, so one expression serves both.
+    # +entry.id+ is a Zeitfenster's group and an Einzelschaltung's rule id.
     def row_id = "sw_entry_#{plug.id}_#{entry.id}"
 
-    # A Zeitfenster is a filled pill; an Einzelschaltung is the same pill drawn
-    # open, because its counter-direction is missing. A paused entry of either
-    # kind is struck through and loses its colour.
+    # An Einzelschaltung's pill is drawn open: its counter-direction is missing.
     def pill_class
       [ "badge rounded-pill fw-normal",
         ("border" unless window?),

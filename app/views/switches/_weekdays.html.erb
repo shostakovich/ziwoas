@@ -1,5 +1,4 @@
-<%# The blank value goes first and outside the group, so that unticking every
-    day still sends the key and the group's segment corners stay intact. %>
+<%# The blank value goes outside the group, so unticking every day still sends the key. %>
 <input type="hidden" name="<%= scope %>[days][]" value="">
 <div class="btn-group btn-group-sm w-100" role="group" aria-label="Wochentage">
   <% SwitchesHelper::DAY_ABBR.each do |num, label| %>

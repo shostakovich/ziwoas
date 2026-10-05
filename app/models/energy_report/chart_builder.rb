@@ -1,5 +1,4 @@
 class EnergyReport
-  # Chart payload builders (daily + detail) including weather overlay.
   class ChartBuilder
     def initialize(plugs:, timezone:, store:, weather_loader: nil)
       @roster = Plugs::Roster.wrap(plugs)

@@ -13,7 +13,6 @@
           <span class="visually-hidden">Farbe <%= hex %></span>
         </label>
       <% end %>
-      <%# A colour no swatch has shows inside the wheel, marked like a chosen swatch. %>
       <label class="btn btn-icon border ld-swatch ld-swatch-wheel<%= " ld-swatch-custom" if custom? %>" title="Weitere Farbe"
              data-light-detail-target="wheel"<% if custom? %> style="--ld-custom: <%= snapshot.color_hex %>"<% end %>>
         <span class="visually-hidden">Weitere Farbe</span>

@@ -1,8 +1,6 @@
 module Lights
   class ScenesComponent < ApplicationComponent
-    # The bridge gives us only the scene NAME, not real colours. Names that say
-    # what they look like get a matching palette (English Govee names and their
-    # German forms); the first keyword that matches wins.
+    # The bridge only gives scene names, so names that say what they look like get a matching palette.
     PALETTES = [
       [ /aurora|nordlicht|northern/, [ "hsl(150 70% 45%)", "hsl(175 70% 42%)", "hsl(270 55% 55%)" ] ],
       [ /party|disco|rainbow|regenbogen|dance/, [ "hsl(0 85% 58%)", "hsl(48 95% 55%)", "hsl(140 65% 45%)", "hsl(210 85% 55%)", "hsl(285 70% 58%)" ] ],
@@ -37,7 +35,6 @@ module Lights
       hashed_colours(key)
     end
 
-    # Names without a known keyword still get a stable two-stop gradient.
     def hashed_colours(key)
       sum = key.each_char.sum(&:ord)
       [ "hsl(#{sum % 360} 70% 55%)", "hsl(#{(sum * 7) % 360} 65% 45%)" ]

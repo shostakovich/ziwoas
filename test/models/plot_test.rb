@@ -3,8 +3,7 @@ require "test_helper"
 class PlotTest < ActiveSupport::TestCase
   cover "Plot*"
 
-  # Seventy pixels wide, seventy high, so a tenth of either scale is seven
-  # pixels and every expected number below can be read off by hand.
+  # A 70 × 70 plot: a tenth of either scale is seven pixels, so results read off by hand.
   def plot(width: 100, height: 100, margins: { top: 10, right: 10, bottom: 20, left: 20 }, x: 0..10, y: 0..100)
     Plot.new(width: width, height: height, margins: margins, x: x, y: y)
   end
@@ -87,6 +86,56 @@ class PlotTest < ActiveSupport::TestCase
     assert_equal 0, Plot.round_up(0, to: 100)
     assert_equal 60, Plot.round_down(63.7, to: 10)
     assert_equal 60, Plot.round_down(60, to: 10)
+  end
+
+  test "steps a value axis in the first round step that reaches the peak in few enough steps" do
+    steps = [ 100, 200, 250, 500 ]
+
+    assert_equal Plot::Scale.new(step: 100, top: 100), Plot.nice_scale(90.0, steps: steps, max_steps: 3)
+    assert_equal Plot::Scale.new(step: 100, top: 300), Plot.nice_scale(300.0, steps: steps, max_steps: 3)
+    assert_equal Plot::Scale.new(step: 200, top: 400), Plot.nice_scale(300.5, steps: steps, max_steps: 3)
+    assert_equal Plot::Scale.new(step: 250, top: 750), Plot.nice_scale(620.0, steps: steps, max_steps: 3)
+  end
+
+  test "steps beyond the round steps in multiples of the largest, dividing the peak exactly" do
+    steps = [ 100, 500 ]
+
+    assert_equal Plot::Scale.new(step: 1500, top: 3000), Plot.nice_scale(3000, steps: steps, max_steps: 2)
+    assert_equal Plot::Scale.new(step: 2000, top: 4000), Plot.nice_scale(3001, steps: steps, max_steps: 2),
+                 "3.001 / 2 is 1.500,5, not 1.500"
+  end
+
+  test "keeps one step of axis for a peak of nothing" do
+    assert_equal Plot::Scale.new(step: 25, top: 25), Plot.nice_scale(0.0, steps: [ 25, 50 ], max_steps: 5)
+  end
+
+  test "spans the values from the smallest to the largest, and nothing as zero" do
+    assert_equal 6..18, Plot.extent([ 12, 6, 18, 9 ])
+    assert_equal 7..7, Plot.extent([ 7 ])
+    assert_equal 0..0, Plot.extent([])
+  end
+
+  test "draws a grid line at every value but zero, where the axis stands" do
+    assert_equal [ 45, 10 ], plot.grid_lines([ 0, 50, 100 ])
+    assert_equal [ 45 ], plot.grid_lines([ 50 ])
+  end
+
+  test "labels every value left of the plot, the zero standing on its axis" do
+    assert_equal [
+      Plot::Label.new(x: 16, y: 80, text: "0", zero: true),
+      Plot::Label.new(x: 16, y: 45, text: "50", zero: false)
+    ], plot.value_labels([ 0, 50 ], gap: 4)
+  end
+
+  test "is no zero label unless it says so" do
+    assert_equal false, Plot::Label.new(x: 1, y: 2, text: "Jan").zero
+  end
+
+  test "lays a tooltip over each value's column" do
+    assert_equal [
+      Plot::Hit.new(rect: Plot::Rect.new(x: 20, y: 10, width: 7, height: 70), title: "null"),
+      Plot::Hit.new(rect: Plot::Rect.new(x: 27, y: 10, width: 7, height: 70), title: "eins")
+    ], plot.hits([ 0, 1 ], %w[null eins])
   end
 
   test "gives a tick the value it stands for and the coordinate it sits at" do

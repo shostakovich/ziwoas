@@ -21,8 +21,6 @@
   </div>
 
   <div class="d-flex justify-content-end gap-2">
-    <%# Inside the settings dialog Abbrechen just closes it; on the plain edit
-        page it leads back to the lamp. %>
     <%= link_to "Abbrechen", light_path(light.key), class: "btn btn-outline-secondary",
                 data: { action: "settings-dialog#close" } %>
     <%= f.submit "Speichern", class: "btn btn-primary" %>

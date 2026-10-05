@@ -100,8 +100,7 @@ class Dashboard::PlugBarComponentTest < ViewComponent::TestCase
       row(id: "fridge", role: :consumer, apower_w: 300.0)
     ])
 
-    # fridge outranks washer in wattage and renders first in the bar, but
-    # washer is the first *consumer* in roster order and must own color 0.
+    # fridge renders first by wattage, but washer is the first consumer in roster order and owns color 0.
     fridge_seg = segments(rendered).find { |seg| seg["title"].include?("Fridge") }
     legend_washer = legend_items(rendered).find { |item| legend_name(item) == "Washer" }
 
@@ -121,6 +120,12 @@ class Dashboard::PlugBarComponentTest < ViewComponent::TestCase
     assert_equal 10, palette_size
     assert_equal "var(--viz-10)", bar_color(segments(rendered)[palette_size - 1])
     assert_equal first_color, wrapped_color
+  end
+
+  test "color_at gives a config position its palette colour, wrapping after ten" do
+    assert_equal [ "var(--viz-1)", "var(--viz-10)", "var(--viz-1)", "var(--viz-3)" ],
+      [ 0, 9, 10, 12 ].map { |position| Dashboard::PlugBarComponent.color_at(position) }
+    assert_equal "var(--viz-1)", Dashboard::PlugBarComponent.color_at(nil)
   end
 
   test "consumers excludes an online producer even if it reports positive wattage" do

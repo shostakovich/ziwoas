@@ -15,28 +15,28 @@
 
     <%= yield :head %>
 
-    <%# Enable PWA manifest for installable apps (make sure to enable in config/routes.rb too!) %>
-    <%#= tag.link rel: "manifest", href: pwa_manifest_path(format: :json) %>
-
     <link rel="icon" href="/favicon.png" type="image/png">
     <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 
-    <%# felt-css first: our stylesheets (all of app/assets/stylesheets, application.css first) build on it. %>
+    <%# felt-css first: our stylesheets build on it. %>
+    <link rel="preconnect" href="https://felt-css.rocu.de">
     <link rel="stylesheet" href="https://felt-css.rocu.de/felt.css">
     <%= stylesheet_link_tag :app, "data-turbo-track": "reload" %>
     <%= javascript_importmap_tags %>
   </head>
 
-  <body class="<%= content_for(:body_class) %>">
+  <body>
     <a class="visually-hidden-focusable btn btn-primary m-2" href="#main">Zum Inhalt springen</a>
 
     <div class="container pt-3">
       <header class="navbar navbar-expand px-3 app-header mb-3">
-        <%= link_to root_path, class: "navbar-brand d-flex align-items-center py-0" do %>
-          <picture>
-            <source srcset="<%= image_path "logo-dark.webp" %>" media="(prefers-color-scheme: dark)">
-            <%= image_tag "logo.webp", alt: "Ziwoas — Startseite", class: "app-logo", width: 172, height: 64 %>
-          </picture>
+        <%= link_to root_path, class: "navbar-brand app-brand d-flex align-items-center py-0",
+                               aria: { label: "Zipfelmaus — Startseite" } do %>
+          <%= image_tag "zipfelmaus.webp", alt: "", class: "app-brand-mascot", width: 42, height: 40 %>
+          <span class="app-brand-text" aria-hidden="true">
+            <span class="app-brand-name">Zipfelmaus</span>
+            <span class="app-brand-tagline">Wohnungs&shy;automatisierung</span>
+          </span>
         <% end %>
         <nav class="d-none d-lg-block me-auto" aria-label="Hauptnavigation">
           <ul class="navbar-nav nav-pills flex-nowrap">
@@ -57,7 +57,7 @@
       </header>
     </div>
 
-    <main class="container app-main" id="main">
+    <main class="<%= class_names("container app-main", content_for(:main_class)) %>" id="main">
       <%= yield %>
     </main>
 

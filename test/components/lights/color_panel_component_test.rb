@@ -1,4 +1,3 @@
-# test/components/lights/color_panel_component_test.rb
 require "test_helper"
 
 class Lights::ColorPanelComponentTest < ViewComponent::TestCase

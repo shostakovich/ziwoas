@@ -36,7 +36,6 @@ class SwitchRulesControllerTest < ActionDispatch::IntegrationTest
     assert_nil rule.group_id
     assert_match "sw_rules_fridge", @response.body
     assert_match "sw_head_fridge", @response.body
-    # The count sits outside the rules container and is streamed on its own.
     assert_match "sw_count_fridge", @response.body
     assert_match "Schaltzeiten (1)", @response.body
   end
@@ -149,8 +148,7 @@ class SwitchRulesControllerTest < ActionDispatch::IntegrationTest
     )
   end
 
-  # Addressing one half of a window through the single-rule routes would pause or
-  # delete that half alone, while the card keeps folding the group into one row.
+  # Pausing one half of a window via the single-rule routes would split it from its folded row.
   test "one half of an intact Zeitfenster is not addressable as an Einzelschaltung" do
     a_window
     half = Switching::Rule.find_by(action: "off")

@@ -1,4 +1,3 @@
-# Switches the page look between Clean and Felt for this browser, for good.
 class LooksController < ApplicationController
   def update
     look = params[:look]

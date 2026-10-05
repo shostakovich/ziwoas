@@ -50,11 +50,11 @@ class MobileNavigationTest < ApplicationSystemTestCase
     assert_operator overlap, :<=, 0
   end
 
-  test "the header with the logo and the look toggle stays on top" do
+  test "the header with the brand and the look toggle stays on top" do
     visit root_path
 
     within "header.app-header" do
-      assert_selector "img[alt='Ziwoas — Startseite']"
+      assert_selector "a[aria-label='Zipfelmaus — Startseite'] .app-brand-name", text: "ZIPFELMAUS"
       assert_button "Filz-Look"
     end
   end

@@ -1,12 +1,9 @@
-<%# app/views/sensors/_card.html.erb %>
 <article class="card h-100">
   <div class="card-body">
     <h3 class="card-title h6"><%= sensor.name %></h3>
     <div class="d-flex align-items-center gap-3">
       <% if sensor.type == :meter_pro_co2 && reading&.co2 %>
-        <%= image_tag co2_icon_path(co2_level(reading.co2)),
-                      class: "sensor-ampel-icon", width: 99, height: 192,
-                      alt: "CO₂-Ampel #{co2_level(reading.co2)}" %>
+        <%= render Sensors::Co2GaugeComponent.new(ppm: reading.co2) %>
       <% end %>
 
       <div class="flex-grow-1">
@@ -21,7 +18,7 @@
               <li><strong class="fs-5 tabular-nums"><%= reading.humidity %></strong> % rH</li>
             <% end %>
             <% if sensor.type == :meter_pro_co2 && reading.co2 %>
-              <li><strong class="fs-5 tabular-nums"><%= reading.co2 %></strong> ppm</li>
+              <li><strong class="fs-5 tabular-nums"><%= de_number(reading.co2) %></strong> ppm</li>
             <% end %>
           </ul>
           <div class="small text-body-secondary"><%= relative_time(reading.taken_at) %></div>

@@ -1,7 +1,6 @@
 require_relative "application_system_test_case"
 
-# A browser abroad still labels chart axes on the household's clock
-# (Europe/Berlin in config/ziwoas.test.yml).
+# The household is in Europe/Berlin (config/ziwoas.test.yml), the browser in New York.
 class ChartTimeZoneTest < ApplicationSystemTestCase
   setup do
     page.driver.browser.page.command("Emulation.setTimezoneOverride", timezoneId: "America/New_York")
@@ -72,7 +71,28 @@ class ChartTimeZoneTest < ApplicationSystemTestCase
                  chart_theme('m.formatTime(Date.UTC(2026, 9, 4, 12, 5), { weekday: "short", hour: "2-digit", minute: "2-digit" })')
   end
 
+  test "the PV history names a snapshot's instant in its tooltip on the household clock" do
+    Solakon::Snapshot.delete_all
+    taken_at = 3.hours.ago.change(sec: 0)
+    Solakon::Snapshot.create!(taken_at: taken_at, pv1_power_w: 100, battery_power_w: 0, active_power_w: 0)
+    household = taken_at.in_time_zone("Europe/Berlin")
+
+    visit solakon_path
+    assert_equal household.strftime("%H:%M"), history_tooltip_title
+
+    within("turbo-frame#solakon_history") { click_link "Letzte 7 Tage" }
+    assert_selector "[data-solakon-history-range-value='7d']"
+    assert_equal household.strftime("%d.%m. %H:%M"), history_tooltip_title
+  end
+
   private
+
+  def history_tooltip_title
+    page.evaluate_script(<<~JS)
+      Chart.getChart(document.querySelector("canvas[data-solakon-history-target='canvas']"))
+        .config.options.plugins.tooltip.callbacks.title([ { dataIndex: 0 } ])
+    JS
+  end
 
   def chart_theme(expression)
     page.evaluate_async_script(<<~JS)

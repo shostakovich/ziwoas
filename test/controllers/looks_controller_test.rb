@@ -31,7 +31,7 @@ class LooksControllerTest < ActionDispatch::IntegrationTest
     get "/reports"
 
     assert_select "html[data-look='felt']", 1
-    assert_select "meta[name='theme-color'][media='(prefers-color-scheme: light)'][content='#e7dccb']", 1
+    assert_select "meta[name='theme-color'][media='(prefers-color-scheme: light)'][content='#dbcdb7']", 1
     assert_select "meta[name='theme-color'][media='(prefers-color-scheme: dark)'][content='#242220']", 1
     assert_select "button.app-look-toggle.active[aria-pressed='true']", 1
     assert_select "form[action='/look'] input[name='look'][value='clean']", 1

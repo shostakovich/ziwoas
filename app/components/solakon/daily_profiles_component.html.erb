@@ -2,26 +2,25 @@
   <% if empty? %>
     <p class="note small text-body-secondary mb-0">Der Tagesgang erscheint, sobald ein Monat Stundenwerte hat.</p>
   <% else %>
-    <ul class="legend list-unstyled d-flex flex-wrap align-items-center column-gap-3 row-gap-1 small text-body-secondary mb-3">
+    <%= legend_list("mb-3") do %>
       <% legend.each do |key, label| %>
-        <li class="legend-item d-inline-flex align-items-center gap-2"><span class="legend-line <%= key %>"></span><%= label %></li>
+        <%= legend_item do %><span class="legend-line <%= key %>"></span><%= label %><% end %>
       <% end %>
-    </ul>
+    <% end %>
     <div class="row row-cols-2 row-cols-lg-3 g-3">
       <% multiples.each do |multiple| %>
-        <%# A month still running is drawn quieter: its few days are no match for a whole one. %>
         <figure class="multiple col mb-0<%= ' partial' if multiple.partial? %>" data-month="<%= multiple.month %>">
           <figcaption class="small fw-semibold mb-1<%= ' text-body-secondary' if multiple.partial? %>"><%= multiple.label %> <span class="fw-normal text-body-secondary"><%= multiple.days %> <%= multiple.days == 1 ? "Tag" : "Tage" %></span></figcaption>
           <svg viewBox="<%= plot.view_box %>" role="img" aria-label="Tagesgang <%= multiple.label %>" <%= tag.attributes(class: ("opacity-50" if multiple.partial?)) %>>
             <g class="grid"><% grid_lines.each do |at| %><line x1="<%= plot.left %>" x2="<%= plot.right %>" y1="<%= at %>" y2="<%= at %>"/><% end %></g>
-            <g class="value-labels" dominant-baseline="central"><% value_labels.each do |label| %><text x="<%= label.x %>" y="<%= label.y %>" text-anchor="end" <%= tag.attributes(class: ("zero" if label.zero)) %>><%= label.text %></text><% end %></g>
+            <g class="value-labels" dominant-baseline="central"><%= value_texts(value_labels) %></g>
             <% %i[dense sparse].each do |density| %>
               <g class="hour-labels label-<%= density %>" dominant-baseline="hanging"><% hour_labels(density).each do |label| %><text x="<%= label.x %>" y="<%= label.y %>" text-anchor="middle"><%= label.text %></text><% end %></g>
             <% end %>
             <line class="axis" x1="<%= plot.left %>" x2="<%= plot.right %>" y1="<%= plot.bottom %>" y2="<%= plot.bottom %>"/>
             <% multiple.areas.each do |area| %><polygon class="measured-area" points="<%= area %>"/><% end %>
             <% multiple.series.each do |series| %><% series.segments.each do |points| %><polyline class="curve <%= series.key %>" points="<%= points %>"/><% end %><% end %>
-            <g class="hits"><% multiple.hits.each do |hit| %><rect x="<%= hit.rect.x %>" y="<%= hit.rect.y %>" width="<%= hit.rect.width %>" height="<%= hit.rect.height %>"><title><%= hit.title %></title></rect><% end %></g>
+            <%= hit_areas(multiple.hits) %>
           </svg>
         </figure>
       <% end %>

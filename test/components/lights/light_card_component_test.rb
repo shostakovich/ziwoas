@@ -1,4 +1,3 @@
-# test/components/lights/light_card_component_test.rb
 require "test_helper"
 
 class Lights::LightCardComponentTest < ViewComponent::TestCase

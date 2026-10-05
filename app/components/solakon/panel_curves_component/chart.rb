@@ -1,42 +1,29 @@
 module Solakon
   class PanelCurvesComponent
-    # One drawing of the four panels inside a frame. The wide frame names each
-    # line at its right end, in the margin, with a short leader where the names
-    # had to move apart; the narrow one leaves the names to the legend, because
-    # on a phone they would sit on top of each other.
+    # Only the wide frame names the lines at their ends; on a phone the names would overlap.
     class Chart
       Frame = Data.define(:key, :width, :height, :margins, :hour_step, :named)
 
-      # At least the names' line height at their largest, so two never overlap.
+      # The names' line height at their largest, so two never overlap.
       LABEL_GAP = 20
-      # Names start this far right of the plot; their leaders stop short of them.
       LABEL_OFFSET = 12
       LEADER_GAP = 3
-      # Half the names' line height at their largest: centred names stay clear of the hours.
+      # Half that line height: centred names stay clear of the hours.
       LABEL_MARGIN = 10
       VALUE_LABEL_GAP = 5
-      # The unit follows the top value across the axis, with a little air.
       UNIT_GAP = 3
-      # The hour labels hang from this line under the axis.
       HOUR_LABEL_GAP = 5
 
       Series = Data.define(:key, :segments)
-      Hit = Data.define(:rect, :title)
-      # A zero stands on the axis rather than across it, clear of the hours.
-      Label = Data.define(:x, :y, :text, :key, :zero) do
-        def initialize(x:, y:, text:, key:, zero: false) = super
-      end
-      # A name at the right edge and the end of its own line, which the leader joins.
       EndLabel = Data.define(:x, :y, :text, :key, :line_x, :line_y) do
         def leader = [ line_x, line_y, x - LEADER_GAP, y ]
       end
 
-      def initialize(frame:, curves:, hours:, max_w:, grid_step:)
+      def initialize(frame:, curves:, hours:, scale:)
         @frame = frame
         @curves = curves
         @hours = hours
-        @max_w = max_w
-        @grid_step = grid_step
+        @scale = scale
       end
 
       def key = @frame.key
@@ -45,7 +32,7 @@ module Solakon
 
       def plot
         @plot ||= Plot.new(width: @frame.width, height: @frame.height, margins: @frame.margins,
-                           x: @hours, y: 0..@max_w)
+                           x: @hours, y: 0..@scale.top)
       end
 
       def series = @curves.map { |curve| Series.new(key: curve.key, segments: plot.polylines(curve.points)) }
@@ -60,30 +47,24 @@ module Solakon
         placed.map { |label| label.with(y: number(label.y - overflow)) }
       end
 
-      # The axis stands for zero.
-      def grid_lines = grid.reject { |tick| tick.value.zero? }.map(&:at)
+      def grid_lines = plot.grid_lines(grid_values)
 
-      def value_labels
-        grid.map { |tick| Label.new(x: value_label_x, y: tick.at, text: tick.value.to_s, key: nil, zero: tick.value.zero?) }
-      end
+      def value_labels = plot.value_labels(grid_values, gap: VALUE_LABEL_GAP)
 
-      # The unit reads on from the top value, which stands at the top of the plot.
-      def unit_label = Label.new(x: value_label_x + UNIT_GAP, y: plot.top, text: "W", key: nil)
+      def unit_label = Plot::Label.new(x: plot.left - VALUE_LABEL_GAP + UNIT_GAP, y: plot.top, text: "W")
 
-      # On the clock's step: the wide frame has room for the full time, the
-      # narrow one only for the hour.
       def hour_labels
         pattern = named? ? "%02d:00" : "%02d"
 
         plot.x_ticks(@hours.select { |hour| (hour % @frame.hour_step).zero? }).map do |tick|
-          Label.new(x: tick.at, y: plot.bottom + HOUR_LABEL_GAP, text: format(pattern, tick.value), key: nil)
+          Plot::Label.new(x: tick.at, y: plot.bottom + HOUR_LABEL_GAP, text: format(pattern, tick.value))
         end
       end
 
       def hits
         values = @curves.to_h { |curve| [ curve.key, curve.points.to_h ] }
 
-        @hours.zip(plot.columns(@hours)).map { |hour, column| Hit.new(rect: column, title: title_for(hour, values)) }
+        plot.hits(@hours, @hours.map { |hour| title_for(hour, values) })
       end
 
       def self.name_of(key) = "Panel #{key.to_s.delete_prefix('pv')}"
@@ -92,9 +73,7 @@ module Solakon
 
       delegate :y, :number, to: :plot, private: true
 
-      def value_label_x = plot.left - VALUE_LABEL_GAP
-
-      def grid = plot.y_ticks(0.step(@max_w, @grid_step))
+      def grid_values = 0.step(@scale.top, @scale.step)
 
       def spread(labels)
         labels.each_with_object([]) do |label, placed|
@@ -120,7 +99,7 @@ module Solakon
         ].join(" · ")
       end
 
-      def watts(value) = value.nil? ? "keine Daten" : "Ø #{value.round} W"
+      def watts(value) = value.nil? ? "keine Daten" : "Ø #{GermanNumber.format(value, unit: "W")}"
     end
   end
 end

@@ -143,10 +143,23 @@ class Solakon::PanelCurvesComponentTest < ViewComponent::TestCase
                  render_panels.css(".note").sole.text
   end
 
+  test "leaves the tooltips to the wide drawing, which a pointer reaches" do
+    rendered = render_panels
+
+    assert_equal 3, wide(rendered).css(".hits rect title").length
+    assert_empty narrow(rendered).css(".hits")
+  end
+
   test "tells all four numbers of an hour" do
     title = wide.css(".hits rect title").first.text
 
     assert_equal "12–13 Uhr · Panel 1 Ø 300 W · Panel 2 Ø 280 W · Panel 3 Ø 120 W · Panel 4 Ø 100 W", title
+  end
+
+  test "writes a panel's mean from a thousand watts on with a thousands dot" do
+    title = wide(render_panels(curves: curves(pv1: [ [ 12, 1234.6 ], [ 13, 400.0 ] ]))).css(".hits rect title").first.text
+
+    assert_includes title, "Panel 1 Ø 1.235 W"
   end
 
   test "says so where a panel has no reading for an hour the others do" do
@@ -212,7 +225,6 @@ class Solakon::PanelCurvesComponentTest < ViewComponent::TestCase
     assert_equal %w[644 644 644 644], names.map { |node| node["x"] }
     assert_equal %w[34.5 54.5 124.5 144.5], names.map { |node| node["y"] }
 
-    # Each leader runs from the end of its line to just before its name.
     leaders = chart.css(".leaders line").map { |node| [ node["class"], *%w[x1 y1 x2 y2].map { |name| node[name] } ] }
     assert_equal [ [ "pv1", "632", "34.5", "641", "34.5" ], [ "pv2", "632", "43.5", "641", "54.5" ],
                    [ "pv3", "632", "124.5", "641", "124.5" ], [ "pv4", "632", "133.5", "641", "144.5" ] ], leaders
@@ -264,7 +276,6 @@ class Solakon::PanelCurvesComponentTest < ViewComponent::TestCase
   test "tops the axis at the peak rounded up to the step, where the unit follows the top value" do
     chart = wide(render_panels(curves: single(110.0)))
 
-    # 110 W of 125 W: the line ends 22.4 units under the top of the plot.
     assert_equal "40,33.6", chart.css("polyline.pv1").sole["points"]
     top = chart.css(".value-labels text:not(.unit)").last
     unit = chart.css(".value-labels text.unit").sole

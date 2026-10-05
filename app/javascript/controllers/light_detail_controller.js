@@ -1,9 +1,6 @@
-// Connects to data-controller="light-detail". Slim: tab switching + debounced
-// fire-and-forget sliders/swatches/wheel. Zone/power/toast state is
-// server-rendered via Turbo Streams (see app/components/lights/*).
+// Zone/power/toast state is server-rendered via Turbo Streams, not managed here.
 import { Controller } from "@hotwired/stimulus"
-
-const kelvinFormat = new Intl.NumberFormat("de-DE")
+import { formatNumber, formatPercent } from "lib/format"
 
 export default class extends Controller {
   static values = { key: String, tab: String }
@@ -28,7 +25,7 @@ export default class extends Controller {
 
   brightness(event) {
     this.fill(event.target)
-    if (this.hasRangeValueTarget) this.rangeValueTarget.textContent = `${event.target.value} %`
+    if (this.hasRangeValueTarget) this.rangeValueTarget.textContent = formatPercent(event.target.value)
     this.debounce(() => this.send({ command: "brightness", value: event.target.value }))
   }
 
@@ -41,7 +38,7 @@ export default class extends Controller {
   temp(event) {
     const k = event.params.temp ?? event.target.value
     if (this.hasTempTarget && event.params.temp) this.tempTarget.value = k
-    if (this.hasTempValueTarget) this.tempValueTarget.textContent = `${kelvinFormat.format(k)} K`
+    if (this.hasTempValueTarget) this.tempValueTarget.textContent = formatNumber(k, { unit: "K" })
     this.markActivePreset(k)
     this.debounce(() => this.send({ command: "color_temp", temp_k: k }))
   }
@@ -65,7 +62,6 @@ export default class extends Controller {
     this.applyHex(event.target.value)
   }
 
-  // The wheel shows a picked colour inside itself, marked like a chosen swatch.
   markCustom(hex) {
     if (!this.hasWheelTarget) return
     this.wheelTarget.classList.toggle("ld-swatch-custom", !!hex)

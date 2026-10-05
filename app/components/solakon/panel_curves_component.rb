@@ -1,19 +1,14 @@
 module Solakon
-  # The four panels over the day, each line named at its end, so the one that
-  # falls back in the morning can be told from the one in the evening.
-  #
-  # Drawn twice: wide for tablets and desktops, narrower and taller for phones,
-  # where the wide drawing would shrink to a strip.
+  # Drawn twice: on a phone the wide drawing would shrink to a strip.
   class PanelCurvesComponent < ApplicationComponent
+    include ChartParts
+
     FRAMES = [
       Chart::Frame.new(key: :wide, width: 720, height: 220, hour_step: 2, named: true,
-                       # Room at the right edge for the panels' names.
                        margins: { top: 12, right: 88, bottom: 28, left: 40 }),
       Chart::Frame.new(key: :narrow, width: 360, height: 240, hour_step: 3, named: false,
                        margins: { top: 12, right: 12, bottom: 24, left: 36 })
     ].freeze
-    # Grid steps a reader can count in; the first that splits the peak into at
-    # most MAX_STEPS parts wins, so the curves fill the plot.
     NICE_STEPS_W = [ 25, 50, 100, 200, 250, 500 ].freeze
     MAX_STEPS = 5
 
@@ -27,7 +22,7 @@ module Solakon
 
     def charts
       FRAMES.map do |frame|
-        Chart.new(frame: frame, curves: curves, hours: hours, max_w: max_w, grid_step: grid_step)
+        Chart.new(frame: frame, curves: curves, hours: hours, scale: scale)
       end
     end
 
@@ -48,20 +43,8 @@ module Solakon
 
     def curves = @panels.curves
 
-    def hours
-      @hours ||= begin
-        all = @panels.hours
-        all.empty? ? (0..0) : (all.min..all.max)
-      end
-    end
+    def hours = @hours ||= Plot.extent(@panels.hours)
 
-    def peak_w = @panels.max.to_f
-
-    def grid_step
-      @grid_step ||= NICE_STEPS_W.find { |step| peak_w <= step * MAX_STEPS } ||
-                     Plot.round_up(peak_w / MAX_STEPS, to: NICE_STEPS_W.last)
-    end
-
-    def max_w = [ Plot.round_up(peak_w, to: grid_step), grid_step ].max
+    def scale = @scale ||= Plot.nice_scale(@panels.max, steps: NICE_STEPS_W, max_steps: MAX_STEPS)
   end
 end

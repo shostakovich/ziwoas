@@ -1,4 +1,3 @@
-<%# app/views/sensors/_battery_warning.html.erb %>
 <% low = sensors.filter_map { |s| latest[s.id] }.select { |r| battery_low?(r.battery_pct) } %>
 <% if low.any? %>
   <% names = low.map { |r| sensors.find { |s| s.id == r.device_id }&.name }.compact.join(", ") %>

@@ -1,5 +1,5 @@
 <% content_for :title, "Berichte" %>
-<% content_for :body_class, "page-reports" %>
+<% content_for :main_class, "app-main-wide" %>
 <h1 class="h2 mb-3">Berichte</h1>
 
 <%
@@ -11,7 +11,6 @@
   <section class="card card-body mb-3 d-flex flex-column flex-sm-row flex-wrap align-items-stretch align-items-sm-end justify-content-between gap-3" aria-label="Zeitraum">
     <% custom = %w[last_7 last_30].exclude?(@report.preset) %>
     <div class="btn-group" role="group" aria-label="Schnellauswahl">
-      <%# "Letzte" gives way on a phone, so the group fits beside nothing but itself. %>
       <% { "last_7" => "7 Tage", "last_30" => "30 Tage" }.each do |preset, label| %>
         <% current = @report.preset == preset %>
         <%= link_to reports_path(preset: preset),
@@ -43,60 +42,38 @@
   <% end %>
 
   <% if @report.empty? %>
-    <section class="card card-body mb-3 empty-state">
-      <h2 class="card-title">Noch keine Berichtsdaten</h2>
+    <%= render CardComponent.new(title: "Noch keine Berichtsdaten") do %>
       <p class="mb-0">Die Rückschau erscheint, sobald die erste Tagesaggregation vorhanden ist.</p>
-    </section>
+    <% end %>
   <% else %>
-    <% kwh = ->(key) { "#{de_number(@report.summary.fetch(key), precision: 2)} kWh" } %>
-    <% pct = ->(key) { "#{de_number(@report.summary.fetch(key) * 100, precision: 1)} %" } %>
-    <% savings = @report.summary.fetch(:savings_eur) %>
+    <% summary = @report.summary %>
     <section class="row row-cols-2 row-cols-md-4 g-2 mb-3" aria-label="Zusammenfassung">
-      <%= render Dashboard::TileComponent.new(label: "Ertrag", value: kwh.call(:produced_kwh)) %>
-      <%= render Dashboard::TileComponent.new(label: "Verbrauch", value: kwh.call(:consumed_kwh)) %>
-      <%= render Dashboard::TileComponent.new(label: "Gespart", value: savings.nil? ? "—" : "#{de_number(savings, precision: 2)} €") %>
-      <%= render Dashboard::TileComponent.new(label: "Bilanz", value: kwh.call(:balance_kwh)) %>
-      <%= render Dashboard::TileComponent.new(label: "Autarkie", value: pct.call(:autarky_ratio)) %>
-      <%= render Dashboard::TileComponent.new(label: "Eigen\u00ADverbrauchs\u00ADquote", value: pct.call(:self_consumption_ratio)) %>
-      <%= render Dashboard::TileComponent.new(label: "Ø Ertrag/Tag", value: kwh.call(:avg_produced_kwh)) %>
-      <%= render Dashboard::TileComponent.new(label: "Ø Verbrauch/Tag", value: kwh.call(:avg_consumed_kwh)) %>
+      <%= render Dashboard::TileComponent.energy(label: "Ertrag", kwh: summary.fetch(:produced_kwh)) %>
+      <%= render Dashboard::TileComponent.energy(label: "Verbrauch", kwh: summary.fetch(:consumed_kwh)) %>
+      <%= render Dashboard::TileComponent.money(label: "Gespart", eur: summary.fetch(:savings_eur)) %>
+      <%= render Dashboard::TileComponent.energy(label: "Bilanz", kwh: summary.fetch(:balance_kwh), signed: true) %>
+      <%= render Dashboard::TileComponent.share(label: "Autarkie", ratio: summary.fetch(:autarky_ratio)) %>
+      <%= render Dashboard::TileComponent.share(label: "Eigen\u00ADverbrauchs\u00ADquote", ratio: summary.fetch(:self_consumption_ratio)) %>
+      <%= render Dashboard::TileComponent.energy(label: "Ø Ertrag/Tag", kwh: summary.fetch(:avg_produced_kwh)) %>
+      <%= render Dashboard::TileComponent.energy(label: "Ø Verbrauch/Tag", kwh: summary.fetch(:avg_consumed_kwh)) %>
     </section>
 
     <h2 class="h6 text-uppercase text-body-secondary mt-4 mb-2">Steckdosen</h2>
     <%= render "ranking", producers: @report.producer_ranking, consumers: @report.consumer_ranking %>
 
     <%= render CardComponent.new(title: "Energie", subtitle: "kWh je Tag · Ertrag und Verbrauch") do %>
-      <% if daily_has_weather %>
-        <div class="d-flex align-items-center mb-2">
-          <div class="form-check form-switch mb-0">
-            <input type="checkbox" class="form-check-input" role="switch" id="report-daily-weather"
-                   data-energy-report-target="dailyWeatherCheckbox"
-                   data-action="change->energy-report#toggleDailyWeather">
-            <label class="form-check-label" for="report-daily-weather">Wetter einblenden</label>
-          </div>
-        </div>
-      <% end %>
+      <%= render "weather_switch", chart: "daily" if daily_has_weather %>
       <div class="chart-frame">
         <canvas data-energy-report-target="dailyCanvas"></canvas>
       </div>
     <% end %>
 
     <% power_resolution = (@report.detail_end_date - @report.detail_start_date).to_i > 6 ? "Tagesmittel" : "5-Min-Werte" %>
-    <%# Short enough for one phone line: the year only when it isn't this one. %>
     <% day = ->(date) { date.strftime(date.year == Date.current.year ? "%d.%m." : "%d.%m.%Y") } %>
     <% detail_from, detail_to = @report.detail_start_date, @report.detail_end_date %>
     <% detail_range = detail_from == detail_to ? day.call(detail_from) : "#{day.call(detail_from)}–#{day.call(detail_to)}" %>
     <%= render CardComponent.new(title: "Leistung", subtitle: "Watt · #{power_resolution} · #{detail_range}") do %>
-      <% if detail_has_weather %>
-        <div class="d-flex align-items-center mb-2">
-          <div class="form-check form-switch mb-0">
-            <input type="checkbox" class="form-check-input" role="switch" id="report-detail-weather"
-                   data-energy-report-target="detailWeatherCheckbox"
-                   data-action="change->energy-report#toggleDetailWeather">
-            <label class="form-check-label" for="report-detail-weather">Wetter einblenden</label>
-          </div>
-        </div>
-      <% end %>
+      <%= render "weather_switch", chart: "detail" if detail_has_weather %>
       <div class="chart-frame">
         <canvas data-energy-report-target="detailCanvas"></canvas>
       </div>

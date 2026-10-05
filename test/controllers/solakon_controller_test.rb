@@ -89,11 +89,13 @@ class SolakonControllerTest < ActionDispatch::IntegrationTest
     assert_select "[data-ef='efBatterySoc']", 1
     assert_select "[data-ef='efBatteryW']", 1
     assert_select "[data-ef='efDotsSolarHome']", 1
-    assert_select "image[href*='solakon_battery_normal']", minimum: 1
-    assert_select "image[data-ef='efBatteryImage'][data-battery-state-normal*='solakon_battery_normal']", 1
-    assert_select "image[data-ef='efBatteryImage'][data-battery-state-charging*='solakon_battery_charging']", 1
-    assert_select "image[data-ef='efBatteryImage'][data-battery-state-low*='solakon_battery_low']", 1
-    assert_select "image[data-ef='efBatteryImage'][data-battery-state-fault*='solakon_battery_fault']", 1
+    assert_select ".ef-ring[data-ring='pv'] > img.ef-icon[src*='icon_sonne'][alt='PV']", 1
+    battery = "img.ef-icon[data-ef='efBatteryImage']"
+    assert_select "#{battery}[src*='solakon_battery_normal']", 1
+    assert_select "#{battery}[data-battery-state-normal*='solakon_battery_normal']", 1
+    assert_select "#{battery}[data-battery-state-charging*='solakon_battery_charging']", 1
+    assert_select "#{battery}[data-battery-state-low*='solakon_battery_low']", 1
+    assert_select "#{battery}[data-battery-state-fault*='solakon_battery_fault']", 1
   end
 
   test "history frame renders the selected range with its switch active" do
@@ -108,8 +110,8 @@ class SolakonControllerTest < ActionDispatch::IntegrationTest
     assert_select "a.btn.active", 1
     assert_select "a.btn[href=?]", "/solakon/history?range=30d"
     assert_select "[data-controller='solakon-history'][data-solakon-history-url-value=?]", "/solakon/history?range=7d"
+    assert_select "[data-controller='solakon-history'][data-solakon-history-range-value=?]", "7d"
     assert_select ".solakon-balance-row", 5
-    # Bars in the chart's series colours; the mean outlet power is a plain figure.
     assert_select ".solakon-balance-row[data-role='solar'] .progress-bar[style*='background-color: var(--viz-solar)']", 1
     assert_select ".solakon-balance-row[data-role='battery'] .progress-bar[style*='background-color: var(--viz-battery)']", 2
     assert_select ".solakon-balance-row[data-role='grid'] .progress-bar[style*='background-color: var(--viz-grid)']", 2
@@ -160,10 +162,10 @@ class SolakonControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_select ".solakon-control-card", 2
-    assert_select ".solakon-panel-card", 4
-    assert_select ".solakon-panel-card .stat-label", text: "Panel 3"
-    assert_select ".solakon-panel-card .stat-label", text: "Panel 4"
-    assert_select ".solakon-panel-card .text-body-secondary", text: "41,7 V · 5,12 A"
+    assert_select ".solakon-panel-grid .card", 4
+    assert_select ".solakon-panel-grid .stat-label", text: "Panel 3"
+    assert_select ".solakon-panel-grid .stat-label", text: "Panel 4"
+    assert_select ".solakon-panel-grid .text-body-secondary", text: "41,7 V · 5,12 A"
     assert_select ".text-body-secondary", text: /Speichertemperatur.*24,8\u00A0°C/
     assert_select ".text-body-secondary", text: /Wechselrichtertemperatur.*34,1\u00A0°C/
 
@@ -190,8 +192,8 @@ class SolakonControllerTest < ActionDispatch::IntegrationTest
     get "/solakon"
 
     assert_response :success
-    assert_select ".solakon-panel-card", 4
-    assert_select ".solakon-panel-card", text: /Panel 4\s*0 W/
+    assert_select ".solakon-panel-grid .card", 4
+    assert_select ".solakon-panel-grid .card", text: /Panel 4\s*0 W/
   end
 
   test "a snapshot predating panels three and four shows zero, not a blank dash" do
@@ -204,9 +206,9 @@ class SolakonControllerTest < ActionDispatch::IntegrationTest
     get "/solakon"
 
     assert_response :success
-    assert_select ".solakon-panel-card", 4
-    assert_select ".solakon-panel-card", text: /Panel 3\s*0 W\s*0,0 V · 0,00 A/
-    assert_select ".solakon-panel-card", text: /Panel 4\s*0 W\s*0,0 V · 0,00 A/
+    assert_select ".solakon-panel-grid .card", 4
+    assert_select ".solakon-panel-grid .card", text: /Panel 3\s*0 W\s*0,0 V · 0,00 A/
+    assert_select ".solakon-panel-grid .card", text: /Panel 4\s*0 W\s*0,0 V · 0,00 A/
   end
 
   test "panel power rounds to the nearest watt instead of truncating" do
@@ -222,7 +224,7 @@ class SolakonControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     # 210.6 rounds to 211; a truncating cast would show 210.
-    assert_select ".solakon-panel-card", text: /Panel 1\s*211 W/
+    assert_select ".solakon-panel-grid .card", text: /Panel 1\s*211 W/
   end
 
   test "status renders one relevant battery character with short description" do

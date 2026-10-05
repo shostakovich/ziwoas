@@ -2,10 +2,8 @@ require "test_helper"
 
 class SolakonHistoryTest < ActiveSupport::TestCase
   cover "Solakon::History#chart_payload"
-  cover "Solakon::History#label_for"
+  cover "Solakon::History#epoch_ms"
   cover "Solakon::History#empty_payload"
-  cover "Solakon::History#format_decimal"
-  cover "Solakon::History#outlet_average"
   cover "Solakon::History#balance_rows"
   cover "Solakon::History#payload"
   cover "Solakon::Snapshot#pv_power_w"
@@ -14,13 +12,7 @@ class SolakonHistoryTest < ActiveSupport::TestCase
 
   test "payload builds signed chart series and balance rows from snapshots" do
     travel_to Time.zone.local(2026, 6, 20, 12, 0, 0) do
-      # Four snapshots, 2 min apart, so the Außensteckdose integration runs over
-      # three intervals. active_power_w: +1200, +1200, -1200, -1200.
-      #   1200→1200  (120 s, both +): +40 Wh delivered
-      #   1200→-1200 (120 s, straddles 0): split at the crossing into two
-      #               triangles → +10 Wh delivered AND +10 Wh drawn
-      #   -1200→-1200(120 s, both -): +40 Wh drawn
-      # ⇒ delivered 0,05 kWh, drawn 0,05 kWh, time-weighted mean 0 W.
+      # 40 + 10 Wh each way: the middle interval straddles zero and splits into two triangles.
       Solakon::Snapshot.create!(
         taken_at: 6.minutes.ago,
         pv1_power_w: 100, pv2_power_w: 50, pv3_power_w: 30, pv4_power_w: 20,
@@ -161,15 +153,13 @@ class SolakonHistoryTest < ActiveSupport::TestCase
       delivered = rows.find { |row| row.fetch(:label) == "Ins Hausnetz geliefert" }
       drawn = rows.find { |row| row.fetch(:label) == "Aus Hausnetz gezogen" }
 
-      # +1200 W → -1200 W over 120 s crosses zero at the midpoint: each half is a
-      # triangle of 0.5 * 1200 W * 60 s = 10 Wh. Averaging the endpoints first
-      # would report 0,00 kWh for both directions.
+      # Averaging the endpoints first would report 0,00 kWh both ways.
       assert_equal "0,01 kWh", delivered.fetch(:value)
       assert_equal "0,01 kWh", drawn.fetch(:value)
     end
   end
 
-  test "chart_payload rounds series precisely and formats labels" do
+  test "chart_payload rounds series precisely and leaves the labels to the chart" do
     travel_to Time.zone.local(2026, 6, 20, 12, 0, 0) do
       Solakon::Snapshot.create!(
         taken_at: Time.current,
@@ -181,10 +171,8 @@ class SolakonHistoryTest < ActiveSupport::TestCase
       payload = Solakon::History.new(range_key: "24h", now: Time.current).payload
       datasets = payload.dig(:chart, :datasets)
 
-      # Fractional inputs so truncation (to_i) and coarser/finer rounding
-      # (round(0), round(2), bare round) would each produce a different
-      # number than the intended round(1) result.
-      assert_equal [ "12:00" ], payload.dig(:chart, :labels)
+      # Fractional inputs tell round(1) apart from truncation and every other rounding.
+      assert_not payload.fetch(:chart).key?(:labels), "the chart names the instants itself"
       assert_equal [ 123.5 ], datasets[0].fetch(:data)
       assert_equal [ 45.7 ], datasets[1].fetch(:data)
       assert_equal [ 12.3 ], datasets[2].fetch(:data)
@@ -213,21 +201,11 @@ class SolakonHistoryTest < ActiveSupport::TestCase
     end
   end
 
-  test "multi-day ranges label each snapshot with day and time" do
-    travel_to Time.zone.local(2026, 6, 20, 12, 0, 0) do
-      Solakon::Snapshot.create!(taken_at: Time.zone.local(2026, 6, 18, 9, 30), pv1_power_w: 100)
-
-      payload = Solakon::History.new(range_key: "7d", now: Time.current).payload
-
-      assert_equal [ "18.06. 09:30" ], payload.dig(:chart, :labels)
-    end
-  end
-
   test "empty payload is stable" do
     payload = Solakon::History.new(range_key: "7d", now: Time.zone.local(2026, 6, 20, 12, 0, 0)).payload
 
     assert_equal "7d", payload.fetch(:range)
-    assert_equal [], payload.dig(:chart, :labels)
+    assert_equal [ :times, :datasets ], payload.fetch(:chart).keys
     assert_equal [], payload.dig(:chart, :times)
     assert_equal [ "PV", "Akku", "Außensteckdose", "0 W" ], payload.dig(:chart, :datasets).map { |dataset| dataset.fetch(:label) }
     assert_equal [ [], [], [], [] ], payload.dig(:chart, :datasets).map { |dataset| dataset.fetch(:data) }

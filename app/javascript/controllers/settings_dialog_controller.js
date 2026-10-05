@@ -1,12 +1,7 @@
-// Connects to data-controller="settings-dialog" on a streamed-in
-// <dialog class="modal">: opens it as a modal and removes it once it closes,
-// so the gear can stream a fresh one in again. Esc and closedby="any" close it
-// natively; the backdrop action covers browsers without closedby.
 import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
-  // Removed right away before Turbo caches the page: a dialog left in the
-  // snapshot would open itself again on a back navigation.
+  // Removed before Turbo caches the page, or the snapshot would reopen it on a back navigation.
   connect() {
     this.beforeCache = () => this.remove()
     document.addEventListener("turbo:before-cache", this.beforeCache)
@@ -23,8 +18,7 @@ export default class extends Controller {
     else this.remove()
   }
 
-  // .modal-dialog lets clicks through, so a click that lands on the dialog
-  // element itself is a click on the backdrop.
+  // .modal-dialog lets clicks through, so a click on the dialog element itself is on the backdrop.
   backdrop(event) {
     if (event.target === this.element) this.close()
   }

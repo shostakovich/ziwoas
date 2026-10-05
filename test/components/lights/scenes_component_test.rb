@@ -1,4 +1,3 @@
-# test/components/lights/scenes_component_test.rb
 require "test_helper"
 
 class Lights::ScenesComponentTest < ViewComponent::TestCase

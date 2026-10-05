@@ -1,14 +1,13 @@
 import { formatWatts, formatPercent } from "lib/format"
 
-// Each channel's line and dot group in the SVG (shared/_energy_flow); the dots
-// ride the line's own path and take their colour from their group.
+// Keyed as in EnergyFlowHelper::CHANNELS; the SVG ids are efLine<key> and efDots<key>.
 const CHANNELS = [
-  { key: "solarHome",    flow: "solar_to_home_w",    line: "efLineSolarHome",    dots: "efDotsSolarHome" },
-  { key: "solarGrid",    flow: "solar_to_grid_w",    line: "efLineSolarGrid",    dots: "efDotsSolarGrid" },
-  { key: "solarBattery", flow: "solar_to_battery_w", line: "efLineSolarBattery", dots: "efDotsSolarBattery" },
-  { key: "gridHome",     flow: "grid_to_home_w",     line: "efLineGridHome",     dots: "efDotsGridHome" },
-  { key: "gridBattery",  flow: "grid_to_battery_w",  line: "efLineGridBattery",  dots: "efDotsGridBattery" },
-  { key: "batteryHome",  flow: "battery_to_home_w",  line: "efLineBatteryHome",  dots: "efDotsBatteryHome" },
+  { key: "SolarHome",    flow: "solar_to_home_w" },
+  { key: "SolarGrid",    flow: "solar_to_grid_w" },
+  { key: "SolarBattery", flow: "solar_to_battery_w" },
+  { key: "GridHome",     flow: "grid_to_home_w" },
+  { key: "GridBattery",  flow: "grid_to_battery_w" },
+  { key: "BatteryHome",  flow: "battery_to_home_w" },
 ]
 
 const CONSUMER_SOURCES = [
@@ -17,13 +16,11 @@ const CONSUMER_SOURCES = [
   { flow: "battery_to_home_w", color: "var(--viz-battery)" },
 ]
 
-// Below a watt a channel is idle: no colour, no dots.
 const IDLE_W = 1
 
 const SVG_NS = "http://www.w3.org/2000/svg"
 
-// Every dot animation runs one second per lap; the channel's real pace comes
-// from playbackRate, which can change without restarting the animation.
+// One second per lap; playbackRate sets the real pace without restarting the animation.
 const BASE_S = 1
 
 function duration(w, len) {
@@ -52,7 +49,7 @@ export class EnergyFlowView {
     const flows = flow?.flows || {}
     for (const channel of CHANNELS) {
       const w = Number(flows[channel.flow] || 0)
-      this.find(channel.line)?.toggleAttribute("data-flowing", w >= IDLE_W)
+      this.find(`efLine${channel.key}`)?.toggleAttribute("data-flowing", w >= IDLE_W)
       this.setDots(channel, w)
     }
     this.setConsumerRing(
@@ -67,15 +64,14 @@ export class EnergyFlowView {
     if (node) node.textContent = text
   }
 
-  // Watts set the pace, not the dots' identity. A channel that keeps flowing
-  // keeps its circles and only changes playback rate, so a dot mid-path speeds
-  // up where it is instead of snapping back to the start on every new reading.
-  setDots({ key, line, dots }, w) {
-    const target = this.find(dots)
-    const path = this.find(line)
+  // A flowing channel keeps its circles and only changes playbackRate, so dots don't snap back on a new reading.
+  setDots({ key }, w) {
+    const target = this.find(`efDots${key}`)
+    const path = this.find(`efLine${key}`)
     if (!target || !path) return
 
-    const dur = duration(w, path.getTotalLength())
+    this.lengths ??= {}
+    const dur = duration(w, this.lengths[key] ??= path.getTotalLength())
 
     if (!dur) {
       if (this.lastDur[key] == null) return
@@ -122,13 +118,12 @@ export class EnergyFlowView {
     ring.innerHTML = ""
     if (total <= 0) return
 
+    const base = this.element.querySelector('circle[data-ring="consumer"]')
     let acc = 0
     for (const segment of segments) {
       const pct = (segment.w / total) * 100
       const arc = document.createElementNS(SVG_NS, "circle")
-      arc.setAttribute("cx", "342")
-      arc.setAttribute("cy", "170")
-      arc.setAttribute("r", "40")
+      for (const attribute of ["cx", "cy", "r"]) arc.setAttribute(attribute, base.getAttribute(attribute))
       arc.setAttribute("fill", "none")
       arc.style.stroke = segment.color
       arc.setAttribute("stroke-width", "3")
@@ -141,12 +136,10 @@ export class EnergyFlowView {
   }
 }
 
-// The amount without a sign; the label says the direction.
 function magnitude(w) {
   return w == null ? formatWatts(null) : formatWatts(Math.abs(w))
 }
 
-// Positive and negative in words; under a watt, or unknown, the plain name.
 function direction(w, positive, negative, idle) {
   if (w == null || Math.abs(w) < IDLE_W) return idle
   return w > 0 ? positive : negative
@@ -156,7 +149,5 @@ export function setBatteryImage(image, state) {
   if (!image) return
   const key = state || "normal"
   const src = image.dataset[`batteryState${key.charAt(0).toUpperCase()}${key.slice(1)}`]
-  if (!src) return
-  if (image.tagName.toLowerCase() === "img") image.src = src
-  else image.setAttribute("href", src)
+  if (src) image.src = src
 }

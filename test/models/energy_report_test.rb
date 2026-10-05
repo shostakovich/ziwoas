@@ -323,8 +323,7 @@ class EnergyReportTest < ActiveSupport::TestCase
   end
 
   test "totals are summed in watt-hours, not from rounded kilowatt-hours" do
-    # Each day rounds down to 0.100 kWh on its own; summing the rounded days would
-    # lose 3.5 Wh and drop the savings a whole cent.
+    # Each day rounds down to 0.100 kWh; summing rounded days would lose a cent of savings.
     7.times do |i|
       seed_daily((Date.new(2026, 4, 1) + i).to_s, pv: 100.4999, desk: 0.0, washer: 0.0,
                  self_consumed: 100.4999)

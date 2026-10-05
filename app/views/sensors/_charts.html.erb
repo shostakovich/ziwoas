@@ -1,5 +1,3 @@
-<%# app/views/sensors/_charts.html.erb %>
-<%# A chart of a single sensor names its room here; the chart then shows no legend. %>
 <% subtitle = ->(unit, charted) { [ unit, (charted.sole.name if charted.one?), "letzte 24 h" ].compact.join(" · ") } %>
 <% co2_sensors = sensors.select { |s| s.type == :meter_pro_co2 } %>
 <div data-controller="sensors-chart"

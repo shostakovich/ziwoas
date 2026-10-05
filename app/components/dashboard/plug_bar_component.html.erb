@@ -3,19 +3,19 @@
     <% consumers.each do |plug| %>
       <div class="progress h-100" role="progressbar" style="width: <%= width_pct(plug) %>%"
            aria-label="<%= plug.name %>" aria-valuenow="<%= width_pct(plug).round %>" aria-valuemin="0" aria-valuemax="100"
-           title="<%= plug.name %> · <%= helpers.de_number(plug.apower_w) %> W">
+           title="<%= plug.name %> · <%= GermanNumber.format(plug.apower_w, unit: "W") %>">
         <div class="progress-bar" style="background-color: <%= color(plug) %>"></div>
       </div>
     <% end %>
   </div>
   <div class="d-flex justify-content-between align-items-baseline gap-3 mt-2 small text-body-secondary">
     <span>Verbrauch gesamt</span>
-    <strong class="text-body tabular-nums" data-role="total"><%= helpers.de_number(total_w) %> W</strong>
+    <strong class="text-body tabular-nums" data-role="total"><%= GermanNumber.format(total_w, unit: "W") %></strong>
   </div>
   <% producers.each do |plug| %>
     <div class="d-flex justify-content-between align-items-baseline gap-3 small text-body-secondary" data-role="producer">
       <span><%= plug.name %></span>
-      <span class="text-body tabular-nums text-nowrap">erzeugt <%= helpers.de_number(plug.apower_w.to_f.abs) %> W</span>
+      <span class="text-body tabular-nums text-nowrap">erzeugt <%= GermanNumber.format(plug.apower_w.to_f.abs, unit: "W") %></span>
     </div>
   <% end %>
   <%# One plug per line on a phone: German plug names leave no room for two columns. %>
@@ -24,7 +24,7 @@
       <li class="col d-flex align-items-center gap-2">
         <span class="badge rounded-pill legend-dot" style="background-color: <%= color(plug) %>"></span>
         <span class="plug-bar-name"><%= plug.name %></span>
-        <span class="ms-auto text-body-secondary text-nowrap"><%= helpers.de_number(plug.apower_w) %> W</span>
+        <span class="ms-auto text-body-secondary text-nowrap"><%= GermanNumber.format(plug.apower_w, unit: "W") %></span>
       </li>
     <% end %>
   </ul>

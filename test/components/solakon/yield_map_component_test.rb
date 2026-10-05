@@ -31,17 +31,36 @@ class Solakon::YieldMapComponentTest < ViewComponent::TestCase
     assert_equal 2, wide(rendered).css(".fields rect").length
   end
 
+  def fill_of(field) = field.parent["style"]
+
   test "colours a field from the diverging ramp and clamps above the best hour" do
     full = wide(render_map(bins: [ bin(share: 1.4) ])).css(".fields rect").sole
 
-    assert_equal "fill: #{Ramp.fetch(:diverging).color(1.0)}", full["style"]
-    assert_equal "fill: #{Ramp.fetch(:diverging).color(0.8)}", wide(render_map).css(".fields rect").sole["style"]
+    assert_equal "fill: var(--ramp-high)", fill_of(full)
+    assert_equal "fill: #{Ramp.fetch(:diverging).color(0.796875)}", fill_of(wide(render_map).css(".fields rect").sole),
+                 "0,8 snaps to the nearest of the ramp's 64 levels, 51/64"
   end
 
-  test "says what a field holds" do
-    title = wide(render_map).css(".fields rect title").sole.text
+  test "writes a colour once for every field that snaps to it, in both drawings" do
+    bins = [ bin(share: 0.8), bin(azimuth: 200, share: 0.2), bin(azimuth: 160, share: 0.801) ]
+
+    [ wide(render_map(bins: bins)), narrow(render_map(bins: bins)) ].each do |svg|
+      groups = svg.css(".fields > g")
+
+      assert_equal [ 2, 1 ], groups.map { |group| group.css("rect").length }
+      assert_equal %w[271.3 326.2], groups.first.css("rect").map { |rect| rect["x"] }
+      assert_equal [ "fill: #{Ramp.fetch(:diverging).color(0.203125)}" ], groups.drop(1).map { |group| group["style"] }
+      assert_empty svg.css(".fields rect[style]")
+    end
+  end
+
+  test "says what a field holds where a pointer can ask, and not on the phone" do
+    rendered = render_map
+    title = wide(rendered).css(".fields rect title").sole.text
 
     assert_equal "Azimut 140–145° · Höhe 45–50° · Ausbeute 80 % · 12 Stunden · 11–13 Uhr", title
+    assert_equal 1, narrow(rendered).css(".fields rect").length
+    assert_empty narrow(rendered).css(".fields title")
   end
 
   test "names the compass points on both densities and the degrees only on the wide one" do
@@ -120,7 +139,6 @@ class Solakon::YieldMapComponentTest < ViewComponent::TestCase
 
       labels = svg.css("text.path-label").to_h { |node| [ node.text, node ] }
       assert_equal [ "21.6.", "21.3. / 23.9.", "21.12." ], labels.keys
-      # All sit at the arc's apex at 180°, which is the same x on every path.
       assert_equal [ "381" ], labels.values.map { |node| node["x"] }.uniq
       assert_equal %w[auto auto hanging], labels.values.map { |node| node["dominant-baseline"] }
       over_anchor = svg["class"].include?("narrow") ? "start" : "middle"
@@ -149,7 +167,6 @@ class Solakon::YieldMapComponentTest < ViewComponent::TestCase
     assert_equal %w[yield-map-wide d-none d-sm-block], wide(rendered)["class"].split
     assert_equal %w[yield-map-narrow d-sm-none], narrow(rendered)["class"].split
     assert_equal "0 0 720 290.5", wide(rendered)["viewBox"]
-    # The same sky, its height stretched 2.1 instead of 1.45 times.
     assert_equal "0 0 720 397.5", narrow(rendered)["viewBox"]
     assert_equal 1, narrow(rendered).css(".fields rect").length
     assert_empty narrow(rendered).css(".label-dense")
@@ -209,7 +226,6 @@ class Solakon::YieldMapComponentTest < ViewComponent::TestCase
     dots = [ Shading::Dot.new(hour: 15, azimuth: 240.0, elevation: 40.0) ]
     hour = wide(render_map(paths: [ path(dots: dots) ])).css("text.dot-label").sole
 
-    # The dot sits at 545.5, 95.5; the arc's foot at 381, 254.5.
     assert_equal [ "552.7", "88.6", "start" ], [ hour["x"], hour["y"], hour["text-anchor"] ]
   end
 
@@ -224,7 +240,6 @@ class Solakon::YieldMapComponentTest < ViewComponent::TestCase
   test "keeps a sideways label beside its dot only while the plot leaves it the room" do
     component = sky
 
-    # The plot runs from 52 to 710; a label needs 90 units beside its dot.
     assert_equal [ -0.9, -0.4 ], component.send(:room_for, 142.0, -0.9, -0.4)
     assert_equal [ 0, -1 ], component.send(:room_for, 141.9, -0.9, -0.4)
     assert_equal [ 0, -1 ], component.send(:room_for, 100.0, -0.9, -0.4)
@@ -291,7 +306,6 @@ class Solakon::YieldMapComponentTest < ViewComponent::TestCase
     rough = path(points: [ [ 63.7, 5.0 ], [ 180.0, 57.3 ], [ 291.4, 4.0 ] ])
     rendered = render_map(paths: [ rough ])
 
-    # 63.7° snaps down to 60°, 291.4° up to 300°, and 57.3° of height up to 60°.
     assert_equal "0 0 720 290.5", wide(rendered)["viewBox"]
     heights = wide(rendered).css(".hour-labels.label-dense text")
     assert_equal %w[0° 60°], [ heights.first.text, heights.last.text ]

@@ -1,4 +1,3 @@
-# test/components/lights/white_panel_component_test.rb
 require "test_helper"
 
 class Lights::WhitePanelComponentTest < ViewComponent::TestCase
@@ -44,7 +43,6 @@ class Lights::WhitePanelComponentTest < ViewComponent::TestCase
     assert_equal "2200", preset_param(rendered, "Gemütlich")
     assert_equal "3100", preset_param(rendered, "Neutral")
     assert_equal "4000", preset_param(rendered, "Arbeiten")
-    # no preset may exceed the slider's own max
     rendered.css("button[data-light-detail-temp-param]").each do |b|
       assert_operator b["data-light-detail-temp-param"].to_i, :<=, 4000
     end

@@ -1,5 +1,3 @@
-<%# The hint spells out what the missing partner means, so that "bleibt aus"
-    reads as a decision rather than an omission. %>
 <%= tag.div id: (form.persisted? ? "sw_entry_#{plug.id}_#{form.id}" : nil) do %>
   <%= form_with url: (form.persisted? ? switch_rule_path(plug_id: plug.id, id: form.id)
                                       : switch_rules_path(plug_id: plug.id)),

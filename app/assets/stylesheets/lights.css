@@ -1,61 +1,20 @@
-/* Lamps: the plush lamp knob on the Schalten tab and the ZiWoAS-specific
-   widgets of the lamp detail page. Everything else there is plain felt-css.
-   Knob overrides carry .sw-knob in the selector so they win whatever order
-   the files load in. */
-
-/* Plush lamp knob: glowing while the lamp is on (a drop shadow, so felt's own
-   patch shadow stays), greyed while off. The lamp art is dark, so in dark mode
-   the disc is lifted towards light: amber with a glowing centre while on,
-   dimmed while off so an off lamp recedes like an off plug. The slim lamp art
-   fills more of it. */
-.sw-knob.sw-lamp-knob {
-  --tone: light-dark(color-mix(in oklab, var(--warning) 12%, var(--surface-raised)),
-                     color-mix(in oklab, var(--warning) 50%, color-mix(in oklab, var(--light-fixed) 30%, var(--surface-raised))));
-  border-color: var(--warning);
-  filter: drop-shadow(0 0 8px color-mix(in oklab, var(--warning) 55%, transparent));
-}
-.sw-knob.sw-lamp-knob.off {
-  --tone: light-dark(var(--surface-raised), color-mix(in oklab, var(--light-fixed) 28%, var(--surface-raised)));
-  border-color: var(--border-strong);
-  filter: none;
-}
-/* In the dark a lit lamp emits light: a lighter, warmer centre fading into the
-   disc, drawn under the plush. In light mode the warm disc is enough. */
-.sw-knob.sw-lamp-knob::before {
-  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
-  background-image: radial-gradient(circle at 50% 42%,
-    light-dark(transparent, color-mix(in oklab, var(--light-fixed) 80%, var(--warning))) 0, transparent 72%);
-}
-.sw-knob.sw-lamp-knob.off::before { content: none; }
-.sw-lamp-knob .sw-knob-plush { position: relative; width: 80%; height: 80%; }
-.sw-lamp-knob.off .sw-knob-plush { filter: grayscale(.35); }
-/* The lamp detail page shows the lamp in the knob's ring, larger. */
-.sw-knob.sw-lamp-hero { width: 112px; height: 112px; }
-
-/* felt presses an .active button down by 1px; in a row of choices the chosen
-   one would sit lower than its neighbours (felt-css finding). */
+/* felt presses an .active button down by 1px, which would misalign a row of choices. */
 .ld-choices .btn.active { transform: none; }
 
-/* Three zones share a phone's width: a size smaller, on the same 20px line,
-   so a long name like "Leselicht" clears its seam and the row keeps the
-   height of An/Aus. */
+/* A size smaller on the same 20px line, so "Leselicht" clears its seam on a phone. */
 @media (max-width: 575.98px) {
   .ld-zones .btn { font-size: .875rem; line-height: 1.25rem; }
 }
 
-/* Lamp names are long: on phones the title shrinks and balances its lines
-   between the back button and the settings gear. */
 .ld-title { text-wrap: balance; }
 @media (max-width: 575.98px) {
-  .ld-title.h2 { font-size: 1.125rem; }
+  .ld-title { font-size: 1.125rem; }
 }
 
-/* The lamp's current colour inside its chip. */
 .sw-swatch { display: inline-block; width: .8rem; height: .8rem; border-radius: var(--radius-sm);
              border: 1px solid color-mix(in oklab, var(--text) 15%, transparent); }
 
-/* Brightness and white temperature share one track height and a neutral
-   thumb, so the thumb never reads as a colour on the scale. */
+/* A neutral thumb, so it never reads as a colour on the scale. */
 .form-range.ld-range::-webkit-slider-runnable-track { height: .75rem; }
 .form-range.ld-range::-moz-range-track { height: .75rem; }
 .form-range.ld-range::-webkit-slider-thumb { margin-top: -.25rem; background-color: var(--surface-raised); border-color: var(--border-strong); }
@@ -64,30 +23,24 @@
   --thumb-shadow: 0 1px 1px var(--felt-inset), 0 3px 5px var(--felt-shadow-far);
 }
 
-/* White temperature: the track itself is the scale from warm to cold, edged
-   so its white middle doesn't vanish on a light card. */
-.form-range.ld-white {
+/* Edged so the white middle doesn't vanish on a light card. */
+.ld-white {
   --ld-kelvin: linear-gradient(to right, var(--warning), color-mix(in oklab, var(--warning) 30%, var(--light-fixed)),
                                var(--light-fixed), color-mix(in oklab, var(--primary) 25%, var(--light-fixed)),
                                color-mix(in oklab, var(--primary) 50%, var(--light-fixed)));
   --ld-edge: inset 0 0 0 1px color-mix(in oklab, var(--text) 18%, transparent);
 }
-:where([data-look="felt"]) .form-range.ld-white {
+:where([data-look="felt"]) .ld-white {
   --ld-edge: inset 0 0 0 1px color-mix(in oklab, var(--text) 18%, transparent), inset 0 1px 3px var(--felt-inset);
 }
-.form-range.ld-white::-webkit-slider-runnable-track { background-image: var(--ld-kelvin); box-shadow: var(--ld-edge); }
-.form-range.ld-white::-moz-range-track { background-image: var(--ld-kelvin); box-shadow: var(--ld-edge); }
+.ld-white::-webkit-slider-runnable-track { background-image: var(--ld-kelvin); box-shadow: var(--ld-edge); }
+.ld-white::-moz-range-track { background-image: var(--ld-kelvin); box-shadow: var(--ld-edge); }
 
-/* Notches under the Kelvin track where the presets sit; --at is the share of
-   the range, mapped onto the thumb's travel (thumb 1.25rem wide). */
+/* --at is the preset's share of the range, mapped onto the thumb's travel (thumb 1.25rem wide). */
 .ld-ticks { position: relative; height: .375rem; }
 .ld-tick { position: absolute; top: 0; left: calc(.625rem + (100% - 1.25rem) * var(--at)); width: 2px; height: 100%;
            margin-left: -1px; border-radius: 1px; background-color: var(--border-strong); }
 
-/* Colour swatches: five a row on phones (5 + 4), one row from sm. The label
-   carries its colour inline (in felt, .border sews it on); a ring in the
-   selection tone marks the chosen one, the wheel included when the lamp shows
-   a colour no swatch has. */
 .ld-swatches { display: grid; grid-template-columns: repeat(5, max-content); gap: var(--space-2); }
 @media (min-width: 576px) {
   .ld-swatches { grid-template-columns: repeat(9, max-content); }
@@ -95,19 +48,14 @@
 :is(.btn-check:checked + .ld-swatch, .ld-swatch-custom) {
   outline: 3px solid light-dark(var(--primary), var(--primary-text)); outline-offset: 2px;
 }
-/* The wheel (and a custom colour inside it) is painted on a layer of its own
-   over the border, so the label stays a felt piece and felt sews its seam on
-   top like on every other swatch. */
+/* Painted on a layer of its own, so felt still sews its seam on top of the label. */
 .ld-swatch-wheel { --ld-wheel: conic-gradient(in hsl longer hue, hsl(0 90% 60%), hsl(0 90% 60%)); }
 .ld-swatch-wheel::before { content: ""; position: absolute; inset: -1px; border-radius: inherit; pointer-events: none;
                            background-image: var(--ld-wheel); }
 .ld-swatch-wheel.ld-swatch-custom::before { background-image: radial-gradient(closest-side, var(--ld-custom) 64%, transparent 67%), var(--ld-wheel); }
 .ld-swatch-wheel input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
 
-/* Scene list scrolls inside its card and fades out at the bottom like the
-   weather hours; the padding keeps the patches' shadows unclipped and lets the
-   last row scroll clear of the fade. The height cuts through a preview strip,
-   never through a name. */
+/* The padding keeps the patches' shadows unclipped; the height cuts through a preview strip, never a name. */
 .ld-scenes {
   max-height: 12.25rem; overflow: hidden auto;
   margin: -.5rem; padding: .5rem .5rem 2rem;
@@ -115,9 +63,8 @@
 }
 .ld-scene-preview { display: block; height: 2.75rem; }
 
-/* Toast above the page end — and above the tab bar where there is one. */
 .ld-toast-container { position: fixed; inset-inline: 0; bottom: var(--space-3); margin-inline: auto;
                       padding-inline: var(--space-3); }
 @media (max-width: 991.98px) {
-  .ld-toast-container { bottom: calc(5.5rem + env(safe-area-inset-bottom)); }
+  .ld-toast-container { bottom: calc(var(--tabbar-height) + .875rem); }
 }

@@ -111,7 +111,6 @@ class ReportsControllerTest < ActionDispatch::IntegrationTest
       assert_select ".col-1", text: "1"
       assert_select ".progress-bar[style*='width: 25.0%'][style*='var(--viz-1)']", 1
       assert_select ".text-end", text: "0,50 kWh"
-      # On phones the bar takes a line of its own below the name.
       assert_select ".order-last.order-sm-0 > .progress", 1
     end
   end
@@ -158,7 +157,8 @@ class ReportsControllerTest < ActionDispatch::IntegrationTest
     get "/reports"
 
     assert_response :success
-    assert_select ".empty-state", text: /Noch keine Berichtsdaten/
+    assert_select ".card .card-title", text: "Noch keine Berichtsdaten"
+    assert_select ".card p", text: /sobald die erste Tagesaggregation vorhanden ist/
   end
 
   test "layout includes accessible navigation labels and decorative plush icons" do
@@ -169,9 +169,10 @@ class ReportsControllerTest < ActionDispatch::IntegrationTest
     assert_select "link[rel='stylesheet'][href='https://felt-css.rocu.de/felt.css']:not([data-turbo-track])", 1
     assert_select "link[href^='/assets/application'][data-turbo-track='reload']", 1
     assert_select "header.app-header", 1
-    assert_select ".app-header .navbar-brand picture", 1 do
-      assert_select "source[media='(prefers-color-scheme: dark)'][srcset*='logo-dark']", 1
-      assert_select "img[alt='Ziwoas — Startseite'][src*='logo']", 1
+    assert_select ".app-header a.navbar-brand[aria-label='Zipfelmaus — Startseite']", 1 do
+      assert_select "img[alt=''][src*='zipfelmaus']", 1
+      assert_select ".app-brand-name", text: "Zipfelmaus"
+      assert_select ".app-brand-tagline", text: "Wohnungs\u00ADautomatisierung"
     end
 
     expected_links = {
@@ -183,12 +184,10 @@ class ReportsControllerTest < ActionDispatch::IntegrationTest
       sensors_path => [ "Sensoren", "nav_sensors_plush.webp" ]
     }
 
-    # The same six tabs twice: header pills from lg up, the tab bar below.
     [ "Hauptnavigation", "Tab-Leiste" ].each do |nav_label|
       assert_select "nav[aria-label='#{nav_label}'] a.nav-link", 6
       expected_links.each do |path, (label, icon)|
-        # Propshaft digests asset filenames (nav_dashboard_plush-<digest>.webp),
-        # so match the digest-tolerant basename rather than the literal filename.
+        # Propshaft digests asset filenames, so match the digest-tolerant basename.
         icon_basename = File.basename(icon, ".webp")
         assert_select "nav[aria-label='#{nav_label}'] a.nav-link[href='#{path}']", text: label, count: 1 do
           assert_select "img[alt=''][aria-hidden='true'][src*='#{icon_basename}']", count: 1

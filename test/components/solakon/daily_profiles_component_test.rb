@@ -126,6 +126,12 @@ class Solakon::DailyProfilesComponentTest < ViewComponent::TestCase
                  "Wolkenloser Himmel Ø 500 W", title
   end
 
+  test "writes an hour's mean from a thousand watts on with a thousands dot" do
+    title = render_profiles([ profile(measured: [ [ 10, 1234.6 ] ]) ]).css(".hits rect title").first.text
+
+    assert_includes title, "PV gemessen Ø 1.235 W"
+  end
+
   test "tells every distinct hour once, in ascending order, even when a curve's hours run out of step" do
     rendered = render_profiles([ profile(
       measured: [ [ 10, 300.0 ], [ 11, 400.0 ] ],
@@ -208,8 +214,7 @@ class Solakon::DailyProfilesComponentTest < ViewComponent::TestCase
 
     dense = rendered.css(".multiple[data-month='6'] .hour-labels.label-dense text")
 
-    # June has no hour six of its own; the axis it is drawn on starts there
-    # because March does.
+    # June has no hour six of its own; March sets the shared axis.
     assert_equal %w[06 09 12], dense.map(&:text)
   end
 

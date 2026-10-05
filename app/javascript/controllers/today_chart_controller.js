@@ -1,9 +1,8 @@
 import { Controller } from "@hotwired/stimulus"
 import "chart.js"
-import { chartTheme, vizToken, timeScale, timeCategoryScale, formatTime, isPhone } from "lib/chart_theme"
+import { chartTheme, tonesByOrder, timeScale, timeCategoryScale, timeTooltipTitle, formatTime, lineElements } from "lib/chart_theme"
 
-// An hour's yield below this is the inverter's night-time noise, not
-// production: it reads 0 instead of a stub bar.
+// Below this an hour's yield is the inverter's night-time noise, not production.
 const MIN_PRODUCED_KWH = 0.02
 
 export default class extends Controller {
@@ -34,8 +33,6 @@ export default class extends Controller {
     this.energyChart?.destroy()
   }
 
-  // Each live broadcast replaces the carrier div, re-connecting this target
-  // with a fresh per-plug delta payload.
   deltasTargetConnected(element) {
     this.handleUpdates(JSON.parse(element.dataset.payload))
   }
@@ -92,16 +89,16 @@ export default class extends Controller {
       const response = await fetch("/api/today")
       if (!response.ok) return
       const data = await response.json()
-      this._buildPowerChart(data)
-      this._buildEnergyChart(data)
+      const tones = tonesByOrder(data.series.filter((s) => s.role === "consumer").map((s) => s.plug_id))
+      this._buildPowerChart(data, tones)
+      this._buildEnergyChart(data, tones)
     } catch (e) {
       console.error("loadCharts failed:", e)
     }
   }
 
-  _buildPowerChart(data) {
+  _buildPowerChart(data, tones) {
     this.datasetIndex = {}
-    const consumerIndex = this._consumerIndex(data.series)
 
     const datasets = data.series.map((s, i) => {
       this.datasetIndex[s.plug_id] = i
@@ -122,7 +119,7 @@ export default class extends Controller {
         dataset.tone = "--viz-solar"
         dataset.fillAlpha = 0.12
       } else {
-        dataset.tone = vizToken(consumerIndex.get(s.plug_id))
+        dataset.tone = tones.get(s.plug_id)
       }
       return dataset
     })
@@ -137,15 +134,14 @@ export default class extends Controller {
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        // Minute samples: thin lines keep the series apart, thinner on a phone.
-        elements: { line: { borderWidth: isPhone() ? 0.75 : 1.25 } },
+        elements: lineElements(),
         scales: {
           x: timeScale(Date.now() - 86_400_000, Date.now()),
           y: { beginAtZero: true, unit: "W" },
         },
         plugins: {
           legend: { position: "bottom" },
-          tooltip: { callbacks: { title: (items) => items.length ? formatTime(items[0].parsed.x, { hour: "2-digit", minute: "2-digit" }) : "" } },
+          tooltip: { callbacks: { title: timeTooltipTitle({ hour: "2-digit", minute: "2-digit" }) } },
         },
         animation: false,
       },
@@ -153,7 +149,7 @@ export default class extends Controller {
     })
   }
 
-  _buildEnergyChart(data) {
+  _buildEnergyChart(data, tones) {
     const consumers = data.series.filter((series) => series.role === "consumer")
     const buckets = {}
     for (const series of data.series) {
@@ -179,7 +175,7 @@ export default class extends Controller {
       const wh = Object.values(buckets[ts].consumers).reduce((sum, value) => sum + value, 0)
       return +(wh / 1000).toFixed(3)
     })
-    const consumerDatasets = this._topConsumerEnergyDatasets(consumers, sorted, buckets, 5)
+    const consumerDatasets = this._topConsumerEnergyDatasets(consumers, sorted, buckets, tones, 5)
 
     this.energyChart?.destroy()
     if (!this.hasEnergyCanvasTarget) return
@@ -206,12 +202,6 @@ export default class extends Controller {
     })
   }
 
-  // Colour follows a consumer's place in the config, as in the plug bar.
-  _consumerIndex(series) {
-    const consumers = series.filter((s) => s.role === "consumer")
-    return new Map(consumers.map((s, index) => [ s.plug_id, index ]))
-  }
-
   _replaceTotalConsumptionDataset() {
     if (!this.powerChart) return
 
@@ -229,10 +219,10 @@ export default class extends Controller {
     }
   }
 
-  _topConsumerEnergyDatasets(consumers, sorted, buckets, limit) {
-    const rows = consumers.map((series, index) => {
+  _topConsumerEnergyDatasets(consumers, sorted, buckets, tones, limit) {
+    const rows = consumers.map((series) => {
       const data = sorted.map(ts => +((buckets[ts].consumers[series.plug_id] || 0) / 1000).toFixed(3))
-      return { label: series.name, data, tone: vizToken(index), total: data.reduce((sum, value) => sum + value, 0) }
+      return { label: series.name, data, tone: tones.get(series.plug_id), total: data.reduce((sum, value) => sum + value, 0) }
     }).sort((a, b) => b.total - a.total)
 
     const visible = rows.slice(0, limit)

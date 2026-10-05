@@ -49,6 +49,11 @@ class ApplicationHelperTest < ActionView::TestCase
     assert_equal "2,50", de_number(2.5, precision: 2)
   end
 
+  test "passes the unit through, and writes a missing value as a dash" do
+    assert_equal "2,5 kWh", de_number(2.5, precision: 1, unit: "kWh")
+    assert_equal "— W", de_number(nil, unit: "W")
+  end
+
   private
 
   def current_labels(path)

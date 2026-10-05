@@ -184,8 +184,7 @@ class EnergyReport
     }
   end
 
-  # Every day carries the price that was in force on it, so a range spanning a
-  # price change is not levelled to one of the two.
+  # Each day carries the price in force on it, so a range spanning a price change isn't levelled.
   def savings_eur(covered_points)
     total = @savings_calculator.total_eur(
       covered_points.map { |point| [ Date.iso8601(point.date), point.self_consumed ] }
@@ -199,8 +198,7 @@ class EnergyReport
     (total / days).kwh.round(3)
   end
 
-  # +position+ is the plug's place among the configured plugs of its role, the
-  # same order the dashboard and the charts colour plugs by.
+  # +position+ follows config order, the order the dashboard and charts colour plugs by.
   def ranking(rows, role)
     peers = @roster.public_send(role == :producer ? :producer_ids : :consumer_ids)
 

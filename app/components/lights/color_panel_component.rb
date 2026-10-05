@@ -10,10 +10,8 @@ module Lights
 
     attr_reader :snapshot
 
-    # The swatch the lamp shows right now, if it shows a colour at all.
     def selected?(hex) = !snapshot.white? && snapshot.color_hex == hex
 
-    # A colour the lamp shows that none of the swatches has, picked on the wheel.
     def custom? = !snapshot.white? && !SWATCHES.include?(snapshot.color_hex)
   end
 end

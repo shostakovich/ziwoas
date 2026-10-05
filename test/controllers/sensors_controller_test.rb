@@ -1,4 +1,3 @@
-# test/controllers/sensors_controller_test.rb
 require "test_helper"
 
 class SensorsControllerTest < ActionDispatch::IntegrationTest
@@ -7,7 +6,7 @@ class SensorsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
-  test "GET /sensors shows a card per sensor with the CO₂ traffic light" do
+  test "GET /sensors shows a card per sensor with the CO₂ gauge" do
     SensorReading.delete_all
     SensorReading.create!(device_id: "TEST_INDOOR",  taken_at: 5.minutes.ago,
                           temperature: 21.0, humidity: 50, co2: 1200, battery_pct: 90)
@@ -17,17 +16,16 @@ class SensorsControllerTest < ActionDispatch::IntegrationTest
     get "/sensors"
 
     assert_select "turbo-frame#sensors_dashboard .card", text: /Test Wohnzimmer/ do
-      assert_select "img[alt=?][src*=?]", "CO₂-Ampel warn", "co2_warn"
-      assert_select "li", text: /1200\s*ppm/
+      assert_select "svg.co2-gauge[aria-label=?]", "CO₂ 1.200 ppm, erhöht"
+      assert_select "li", text: /1\.200\s*ppm/
     end
     assert_select "turbo-frame#sensors_dashboard .card", text: /Test Balkon/ do
-      assert_select "img[alt^=?]", "CO₂-Ampel", count: 0
+      assert_select "svg.co2-gauge", count: 0
     end
     assert_select ".alert", count: 0
     assert_select "section[aria-label=Sensoren].row-cols-sm-2.row-cols-lg-2", 1,
       "two sensors fill a row of two on desktops instead of leaving a third slot empty"
     assert_select "[data-controller=sensors-chart] canvas", count: 3
-    # Only the living room measures CO₂: its chart names the room instead of a legend.
     assert_select "[data-controller=sensors-chart] .card-subtitle", text: "ppm · Test Wohnzimmer · letzte 24 h"
     assert_select "[data-controller=sensors-chart] .card-subtitle", text: "°C · letzte 24 h"
     assert_select "[data-controller=sensors-chart] .card-subtitle", text: "Prozent · letzte 24 h"
@@ -51,7 +49,8 @@ class SensorsControllerTest < ActionDispatch::IntegrationTest
 
     get "/sensors"
 
-    assert_select ".empty-state", text: /Noch keine Sensordaten/
+    assert_select ".card .card-title", text: "Noch keine Sensordaten"
+    assert_select ".card p", text: /sobald die SwitchBot-API Daten geliefert hat/
     assert_select "[data-controller=sensors-chart]", count: 0
   end
 

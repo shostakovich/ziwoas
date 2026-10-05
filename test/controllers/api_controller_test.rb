@@ -9,8 +9,6 @@ class ApiControllerTest < ActionDispatch::IntegrationTest
     Economics::ElectricityPrice.create!(valid_from: "2020-01-01", eur_per_kwh: 0.2902)
   end
 
-  # --- /api/today ---
-
   test "GET /api/today returns series per plug" do
     now = Time.now.to_i
     Plugs::Sample.create!(plug_id: "bkw", ts: now - 3600, apower_w: 200.0, aenergy_wh: 100.0)
@@ -51,8 +49,6 @@ class ApiControllerTest < ActionDispatch::IntegrationTest
     timestamps = response.parsed_body["series"].find { |s| s["plug_id"] == "bkw" }["points"].map { |p| p["ts"] }
     assert_equal timestamps.sort, timestamps
   end
-
-  # --- /api/today/summary ---
 
   test "GET /api/today/summary saves nothing from energy no consumer took at the time" do
     tz       = TZInfo::Timezone.get("Europe/Berlin")
@@ -103,8 +99,6 @@ class ApiControllerTest < ActionDispatch::IntegrationTest
     assert_nil response.parsed_body["savings_eur_today"]
   end
 
-  # --- /api/history ---
-
   test "GET /api/history returns requested number of days" do
     today = Date.today
     7.times do |i|
@@ -117,11 +111,8 @@ class ApiControllerTest < ActionDispatch::IntegrationTest
     data = response.parsed_body
     bkw = data["series"].find { |s| s["plug_id"] == "bkw" }
     assert_equal 5, bkw["points"].length
-    # sorted ascending
     assert bkw["points"].first["date"] < bkw["points"].last["date"]
   end
-
-  # --- / ---
 
   test "GET / serves dashboard HTML" do
     get "/"

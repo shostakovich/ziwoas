@@ -30,8 +30,37 @@ class GermanNumberTest < ActiveSupport::TestCase
     assert_equal "7,0", GermanNumber.format(7, precision: 1)
   end
 
-  test "writes a missing value as zero" do
-    assert_equal "0", GermanNumber.format(nil)
-    assert_equal "0,0", GermanNumber.format(nil, precision: 1)
+  test "writes a missing value as a dash, not as a measured zero" do
+    assert_equal "—", GermanNumber.format(nil)
+    assert_equal "—", GermanNumber.format(nil, precision: 1)
+    assert_equal "—", GermanNumber.format(Float::NAN, precision: 2)
+    assert_equal "—", GermanNumber.format(BigDecimal("NaN"))
+  end
+
+  test "puts the unit after a space, behind a missing value too" do
+    assert_equal "1.980 W", GermanNumber.format(1980.4, unit: "W")
+    assert_equal "−0,25 kWh", GermanNumber.format(-0.25, precision: 2, unit: "kWh")
+    assert_equal "0 W", GermanNumber.format(-0.4, unit: "W")
+    assert_equal "— W", GermanNumber.format(nil, unit: "W")
+    assert_equal "— %", GermanNumber.format(Float::NAN, precision: 1, unit: "%")
+  end
+
+  test "a flow says its direction in words instead of a sign" do
+    words = { positive: "lädt", negative: "entlädt" }
+
+    assert_equal "lädt 180 W", GermanNumber.flow(180.2, **words)
+    assert_equal "entlädt 1.941 W", GermanNumber.flow(-1941, **words)
+    assert_equal "lädt 0,25 kWh", GermanNumber.flow(0.25, **words, unit: "kWh", precision: 2)
+    assert_equal "entlädt 1 W", GermanNumber.flow(-0.5, **words)
+  end
+
+  test "a flow that rounds to zero is no flow, and a missing one a dash" do
+    words = { positive: "liefert", negative: "zieht" }
+
+    assert_equal "0 W", GermanNumber.flow(-0.3, **words)
+    assert_equal "0 W", GermanNumber.flow(0.49, **words)
+    assert_equal "0,00 kWh", GermanNumber.flow(0.004, **words, unit: "kWh", precision: 2)
+    assert_equal "— W", GermanNumber.flow(nil, **words)
+    assert_equal "— W", GermanNumber.flow(Float::NAN, **words)
   end
 end

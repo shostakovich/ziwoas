@@ -17,7 +17,7 @@ class Dashboard::TileComponentTest < ViewComponent::TestCase
   end
 
   test "a tile carries its id, label and value" do
-    rendered = render_inline(Dashboard::TileComponent.new(id: "tile_x", label: "Label", value: "1 W"))
+    rendered = render_inline(Dashboard::TileComponent.new(id: "tile_x", label: "Label", number: "1", unit: "W"))
 
     tile = rendered.css("div.col#tile_x").sole
     assert_equal "Label", tile.css(".card .stat .stat-label").text
@@ -25,24 +25,42 @@ class Dashboard::TileComponentTest < ViewComponent::TestCase
   end
 
   test "a tile keeps its value at its foot, so a row's values line up under wrapped labels" do
-    rendered = render_inline(Dashboard::TileComponent.new(label: "Eigen­verbrauchs­quote", value: "80,7 %"))
+    rendered = render_inline(Dashboard::TileComponent.new(label: "Eigen­verbrauchs­quote", number: "80,7", unit: "%"))
 
     assert_equal "80,7 %", rendered.css(".card.h-100 > .card-body.h-100.d-flex.flex-column > .stat.flex-grow-1 > .stat-value.mt-auto").text
   end
 
   test "a tile sets the unit smaller than the number, and leaves a bare value whole" do
-    value = render_inline(Dashboard::TileComponent.new(label: "Bilanz", value: "−46,83 kWh")).css(".stat-value").sole
+    value = render_inline(Dashboard::TileComponent.new(label: "Bilanz", number: "−46,83", unit: "kWh")).css(".stat-value").sole
 
     assert_equal "−46,83 kWh", value.text
     assert_equal "kWh", value.css("span.fs-5").sole.text
-    assert_empty render_inline(Dashboard::TileComponent.new(label: "Bilanz", value: "—")).css(".stat-value span")
+    assert_empty render_inline(Dashboard::TileComponent.new(label: "Bilanz", number: "—")).css(".stat-value span")
+  end
+
+  test "a caption reads under the value, and a tile without one has none" do
+    stat = render_inline(Dashboard::TileComponent.new(label: "Panel 1", number: "211 W", caption: "41,0 V · 5,12 A")).css(".stat").sole
+
+    assert_equal "41,0 V · 5,12 A", stat.css(".stat-value + span.small.text-body-secondary").sole.text
+    assert_empty render_inline(Dashboard::TileComponent.new(label: "Panel 1", number: "211 W")).css(".stat-value + span")
   end
 
   test "a tile outside the dashboard catalog goes without an id" do
-    rendered = render_inline(Dashboard::TileComponent.new(label: "Ertrag", value: "2,00 kWh"))
+    rendered = render_inline(Dashboard::TileComponent.energy(label: "Ertrag", kwh: 2))
 
     assert_nil rendered.css("div.col").sole["id"]
     assert_equal "2,00 kWh", rendered.css(".stat-value").text
+  end
+
+  test "the measures build tiles for other pages too, without an id" do
+    tiles = [ Dashboard::TileComponent.money(label: "Gespart", eur: 6.019),
+              Dashboard::TileComponent.share(label: "Autarkie", ratio: 0.4751),
+              Dashboard::TileComponent.power(label: "Leistung", watts: 1980.4) ]
+
+    rendered = tiles.map { |tile| render_inline(tile).css("div.col").sole }
+    assert_equal [ nil, nil, nil ], rendered.map { |tile| tile["id"] }
+    assert_equal [ "Gespart", "Autarkie", "Leistung" ], rendered.map { |tile| tile.css(".stat-label").text }
+    assert_equal [ "6,02 €", "47,5 %", "1.980 W" ], rendered.map { |tile| tile.css(".stat-value").text }
   end
 
   test "produced formats Wh as German kWh with thousands separator" do
@@ -56,6 +74,7 @@ class Dashboard::TileComponentTest < ViewComponent::TestCase
   test "savings without a price on record show an em dash, not a free kilowatt-hour" do
     rendered = render_inline(Dashboard::TileComponent.savings(summary(savings_eur: nil)))
 
+    assert_equal "Gespart heute", rendered.css(".stat-label").text
     assert_equal "—", rendered.css(".stat-value").text
   end
 

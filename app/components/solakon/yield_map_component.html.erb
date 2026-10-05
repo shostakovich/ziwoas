@@ -5,12 +5,12 @@
     <% skies.each do |sky| %>
       <% plot = sky.plot %>
       <svg viewBox="<%= plot.view_box %>" role="img" aria-label="Ausbeute nach Sonnenstand, Azimut über Sonnenhöhe"
-           class="yield-map-<%= sky.key %> <%= frame_classes(sky) %>">
+           class="yield-map-<%= sky.key %> <%= frame_classes(sky.key) %>">
         <g class="grid"><% sky.elevation_lines(:dense).each do |line| %><line x1="<%= plot.left %>" x2="<%= plot.right %>" y1="<%= line.at %>" y2="<%= line.at %>"/><% end %></g>
         <g class="hour-labels label-<%= sky.density %>" dominant-baseline="central"><% sky.elevation_lines.each do |line| %><text x="<%= sky.elevation_label_x %>" y="<%= line.label_at %>" text-anchor="end"><%= line.text %></text><% end %></g>
         <g class="grid"><% sky.azimuth_lines.each do |line| %><line x1="<%= line.at %>" x2="<%= line.at %>" y1="<%= plot.top %>" y2="<%= plot.bottom %>"/><% end %></g>
         <g class="month-labels label-<%= sky.density %>" dominant-baseline="hanging"><% sky.azimuth_lines.each do |line| %><text x="<%= line.at %>" y="<%= line.label_at %>" text-anchor="middle"><%= line.text %></text><% end %></g>
-        <g class="fields"><% sky.fields.each do |field| %><rect x="<%= field.rect.x %>" y="<%= field.rect.y %>" width="<%= field.rect.width %>" height="<%= field.rect.height %>" rx="1" style="fill: <%= field.fill %>"><title><%= field.title %></title></rect><% end %></g>
+        <g class="fields"><% sky.fills.each do |fill| %><g style="fill: <%= fill.color %>"><% fill.fields.each do |field| %><% rect = field.rect %><% if tooltips?(sky.key) %><rect x="<%= rect.x %>" y="<%= rect.y %>" width="<%= rect.width %>" height="<%= rect.height %>" rx="1"><title><%= sky.title(field) %></title></rect><% else %><rect x="<%= rect.x %>" y="<%= rect.y %>" width="<%= rect.width %>" height="<%= rect.height %>" rx="1"/><% end %><% end %></g><% end %></g>
         <% sky.paths.each do |path| %>
           <g>
             <polyline class="sun" points="<%= path.points %>"/>
@@ -20,10 +20,10 @@
         <% end %>
       </svg>
     <% end %>
-    <ul class="legend list-unstyled d-flex flex-wrap align-items-center column-gap-3 row-gap-1 small text-body-secondary mt-2 mb-0">
-      <li class="legend-item d-inline-flex align-items-center gap-2">Ausbeute 0 %<span class="legend-ramp" style="background: <%= legend_gradient %>"></span>100 %</li>
-      <li class="legend-item d-inline-flex align-items-center gap-2"><span class="legend-line"></span>Sonnenbahn, Punkte alle drei Stunden</li>
-    </ul>
+    <%= legend_list("mt-2 mb-0") do %>
+      <%= legend_item do %>Ausbeute 0 %<span class="legend-ramp" style="background: <%= legend_gradient %>"></span>100 %<% end %>
+      <%= legend_item do %><span class="legend-line"></span>Sonnenbahn, Punkte alle drei Stunden<% end %>
+    <% end %>
     <details class="solakon-details small text-body-secondary mt-3">
       <summary>Wie wird gerechnet?</summary>
       <p class="note mt-2 mb-0"><%= note %></p>

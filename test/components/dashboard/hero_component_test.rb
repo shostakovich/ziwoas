@@ -22,6 +22,12 @@ class Dashboard::HeroComponentTest < ViewComponent::TestCase
     assert rendered.css("img.hero-icon[alt='Batterie'][src*='solakon_battery_charging']").any?
   end
 
+  test "solar watts from a thousand on carry a thousands dot" do
+    rendered = render_hero(live(flow: { solakon_online: true, solar_w: 1234.6 }))
+
+    assert_equal "1.235", rendered.css("#dashboard_hero .col:first-child .display-4").text
+  end
+
   test "negative solar watts clamp to zero" do
     rendered = render_hero(live(flow: { solakon_online: true, solar_w: -3.0 }))
 

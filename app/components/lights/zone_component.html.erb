@@ -1,5 +1,4 @@
-<%# Standalone toggle in the hero's zone row, one equal column each. Form id stays
-    "zone_<key>" so the per-zone Turbo Stream replace keeps targeting the outermost element. %>
+<%# Form id stays "zone_<key>" so the per-zone Turbo Stream replace targets the outermost element. %>
 <%= button_to zone.label, light_command_path(light_key: light_key),
       params: { command: "zone", zone: zone.key, on: (!zone.on).to_s },
       class: "btn btn-outline-primary w-100 px-2#{' active' if zone.on}",

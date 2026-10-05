@@ -1,19 +1,5 @@
-// Concrete colours for canvas charts from CSS custom properties.
-//
-// felt-css and the --viz-* tokens are light-dark()/color-mix()/oklch() values,
-// which getPropertyValue() returns unresolved and getComputedStyle() may return
-// as oklab()/oklch(). Chart.js needs plain sRGB, so each token is painted into a
-// 1×1 canvas and read back.
-//
-//   import { themeColor, themeColors, withAlpha, onThemeChange } from "lib/theme_colors"
-//
-//   themeColor("--viz-solar")                 // "rgb(221, 158, 20)"
-//   themeColors(["--viz-1", "--viz-2"])       // ["rgb(…)", "rgb(…)"]
-//   withAlpha(themeColor("--viz-grid"), 0.14) // "rgba(49, 98, 172, 0.14)"
-//   const off = onThemeChange(() => chart.update())  // call off() in disconnect()
-//
-// Results are cached; the cache clears and subscribers run when the system
-// colour scheme flips or <html> changes data-look / data-bs-theme.
+// Chart.js needs plain sRGB, but the tokens are light-dark()/color-mix()/oklch() values,
+// so each is painted into a 1×1 canvas and read back.
 
 const cache = new Map()
 const subscribers = new Set()
@@ -61,15 +47,13 @@ export function themeColor(name) {
   return cache.get(name)
 }
 
-export function themeColors(names) {
-  return names.map(themeColor)
-}
-
-// Any CSS colour (including themeColor() output) with the given opacity.
 export function withAlpha(color, alpha) {
-  const match = toRgb(color).match(/\d+(\.\d+)?/g)
-  const [r, g, b] = match.map(Number)
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`
+  const key = `${color}|${alpha}`
+  if (!cache.has(key)) {
+    const [r, g, b] = toRgb(color).match(/\d+(\.\d+)?/g).map(Number)
+    cache.set(key, `rgba(${r}, ${g}, ${b}, ${alpha})`)
+  }
+  return cache.get(key)
 }
 
 export function onThemeChange(callback) {

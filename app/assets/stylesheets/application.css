@@ -1,7 +1,4 @@
-/* Global layer on top of felt-css (loaded before this file): data-viz tokens,
-   the page shell and the building blocks more than one area uses. Area styles
-   live in their own files (dashboard.css, switches.css, …), all loaded on every
-   page; never rely on their order — raise specificity instead. */
+/* Global layer on top of felt-css: data-viz tokens, the page shell and blocks shared across areas. */
 
 /* Data-viz colours: the only place colour values are defined. Every series
    colour takes its hue from the felt palette and sets lightness/chroma per
@@ -25,23 +22,31 @@
   --viz-8:  light-dark(oklch(from var(--tomato) 0.66 0.15 calc(h - 35)), oklch(from var(--tomato) 0.67 0.13 calc(h - 35)));
   --viz-9:  light-dark(oklch(from var(--taupe) 0.48 0.105 calc(h - 20)), oklch(from var(--taupe) 0.55 0.11 calc(h - 20)));
   --viz-10: light-dark(oklch(from var(--petrol) 0.64 0.11 calc(h + 28)), oklch(from var(--petrol) 0.66 0.11 calc(h + 28)));
+
+  /* Shared by SVG and Chart.js charts; translucent so the felt shows through. */
+  --chart-grid: color-mix(in oklab, var(--border) 55%, transparent);
+  --chart-halo: color-mix(in oklab, var(--surface) 60%, transparent);
 }
 
-/* Page widths: the header spans the widest page, <main> each page's own width.
-   Two widths only: single-column pages read at 760px, data pages get 1040px. */
+/* The header spans the widest page; single-column pages read at 760px, data pages go wide. */
 :root { --container-max: 1040px; }
-body { --page-max: 760px; }
-body.page-reports,
-body.page-sensors,
-body.page-solakon { --page-max: 1040px; }
-.app-main { max-width: var(--page-max); padding-bottom: var(--space-4); }
+.app-main { max-width: 760px; padding-bottom: var(--space-4); }
+.app-main-wide { max-width: var(--container-max); }
 
-/* The mobile tab bar is fixed over the page end; keep the last content above it. */
+/* felt-css publishes no height for the fixed tab bar, so the app measures its own (pb-safe included). */
+:root { --tabbar-height: calc(4.625rem + env(safe-area-inset-bottom)); }
 @media (max-width: 991.98px) {
-  .app-main { padding-bottom: calc(6rem + env(safe-area-inset-bottom)); }
+  .app-main { padding-bottom: calc(var(--tabbar-height) + 1.375rem); }
 }
 
-.app-logo { display: block; height: 40px; width: auto; }
+/* On a narrow phone the name shrinks with the viewport and the tagline breaks
+   at its soft hyphen instead of running into the look toggle (.navbar-brand
+   would keep it on one line). */
+.app-brand { gap: .5rem; min-width: 0; color: var(--text); }
+.app-brand-mascot { display: block; flex-shrink: 0; height: 40px; width: auto; }
+.app-brand-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.1; }
+.app-brand-name { font-size: clamp(.8rem, 4vw, 1.05rem); font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+.app-brand-tagline { font-size: .7rem; font-weight: 400; letter-spacing: .02em; white-space: normal; color: var(--muted); }
 
 /* German compounds (EIGENVERBRAUCHSQUOTE) outgrow a narrow tile. Long fixed
    labels carry soft hyphens (U+00AD), which break at a joint in every browser;

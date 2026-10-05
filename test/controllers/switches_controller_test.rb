@@ -29,11 +29,8 @@ class SwitchesControllerTest < ActionDispatch::IntegrationTest
   test "lamp knob is a turbo button_to form and the page streams lamp updates" do
     get switches_url
     assert_response :success
-    # Knob posts the toggle as a real form (Turbo-driven), no Stimulus needed.
     assert_select "form[action=?] button.sw-knob", light_command_path(light_key: @light.key)
-    # @light is on -> the knob posts the opposite (off).
     assert_select "form[action=?] input[name=on][value=false]", light_command_path(light_key: @light.key)
-    # Live MQTT reconcile arrives via a Turbo Stream subscription, not ActionCable JS.
     assert_select "turbo-cable-stream-source"
   end
 
@@ -44,8 +41,6 @@ class SwitchesControllerTest < ActionDispatch::IntegrationTest
     assert_no_match(/Balkonkraftwerk/, @response.body)  # bkw: producer, not switchable
   end
 
-  # One string hit as a smoke probe that the row really reaches the page; what a
-  # row is made of is the component's own test.
   test "shows the plug's schedule" do
     Switching::Rules::SaveWindow.call(
       plug_id: "fridge",
@@ -111,6 +106,6 @@ class SwitchesControllerTest < ActionDispatch::IntegrationTest
     ConfigLoader.stub :app_config, Struct.new(:plugs).new([]) do
       get "/switches"
     end
-    assert_select ".empty-state h2", text: "Keine schaltbaren Steckdosen"
+    assert_select ".card h2.card-title", text: "Keine schaltbaren Steckdosen"
   end
 end

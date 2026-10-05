@@ -12,10 +12,7 @@ module Solakon
       "30d" => "Letzte 30 Tage"
     }.freeze
 
-    # Longest gap between two snapshots we still integrate over. Snapshots arrive
-    # every 2 min; capping at 5 min keeps monitoring downtime from inflating the
-    # Außensteckdose energy totals (trapezoidal integration would otherwise treat
-    # a multi-hour gap as one giant interval).
+    # Snapshots arrive every 2 min; a gap past this is downtime and must not inflate the outlet energy.
     OUTLET_MAX_GAP_S = 300
 
     def initialize(range_key:, now: Time.current)
@@ -32,7 +29,7 @@ module Solakon
         range: @range_key,
         chart: chart_payload(rows),
         balance_rows: balance_rows(rows, outlet),
-        outlet_average: outlet_average(outlet.fetch(:avg_w)),
+        outlet_average: GermanNumber.flow(outlet.fetch(:avg_w), positive: "liefert", negative: "zieht"),
         message: nil
       }
     end
@@ -47,7 +44,6 @@ module Solakon
       {
         range: @range_key,
         chart: {
-          labels: [],
           times: [],
           datasets: [
             { label: "PV", data: [] },
@@ -62,10 +58,10 @@ module Solakon
       }
     end
 
+    # The client labels axis and tooltips on the household's clock from the instants alone.
     def chart_payload(rows)
       {
-        labels: rows.map { |row| label_for(row.taken_at) },
-        times: rows.map { |row| (row.taken_at.to_r * 1000).to_i },
+        times: rows.map { |row| epoch_ms(row.taken_at) },
         datasets: [
           { label: "PV", data: rows.map { |row| row.pv_power_w.round(1) } },
           { label: "Akku", data: rows.map { |row| row.battery_power_w.to_f.round(1) } },
@@ -75,6 +71,7 @@ module Solakon
       }
     end
 
+    def epoch_ms(time) = (time.to_i * 1000) + (time.usec / 1000)
 
     def outlet_power_w(row)
       return row.active_power_w.to_f if row.active_power_w.present?
@@ -86,10 +83,6 @@ module Solakon
       nearest&.active_power_w.to_f
     end
 
-    def label_for(time)
-      @range_key == "24h" ? time.strftime("%H:%M") : time.strftime("%d.%m. %H:%M")
-    end
-
     def balance_rows(rows, outlet)
       first = rows.first
       last = rows.last
@@ -98,11 +91,8 @@ module Solakon
         charge: delta(first.battery_charge_total_kwh, last.battery_charge_total_kwh),
         discharge: delta(first.battery_discharge_total_kwh, last.battery_discharge_total_kwh)
       }
-      # No grid meter on this unit, so 39613/39617/grid_power read 0. We reconstruct
-      # the inverter's AC-port exchange instead, by integrating the signed
-      # Außensteckdose power (active_power_w) over the snapshots — the same series
-      # that draws the blue chart line. This is the inverter's feed/draw at the
-      # outdoor socket, NOT whole-house grid flow (household consumption is unmeasured).
+      # No grid meter on this unit (grid_power reads 0): the outlet's integrated power stands in,
+      # which is the inverter's feed/draw at the socket, not whole-house grid flow.
       max = [ deltas.values.max, outlet.fetch(:delivered_kwh), outlet.fetch(:drawn_kwh), 0.001 ].max
 
       [
@@ -114,18 +104,6 @@ module Solakon
       ]
     end
 
-    # The mean power at the outlet is no energy and no share of one: a plain
-    # figure, its sign said in words ("liefert 177 W", "zieht 40 W").
-    def outlet_average(avg_w)
-      watts = "#{GermanNumber.format(avg_w.abs)} W"
-      return watts if avg_w.round.zero?
-
-      "#{avg_w.positive? ? 'liefert' : 'zieht'} #{watts}"
-    end
-
-    # Trapezoidal integration of the signed Außensteckdose power across snapshots.
-    # delivered_kwh = energy fed into the house net (P > 0), drawn_kwh = energy
-    # pulled from it (P < 0), avg_w = time-weighted mean power (signed).
     def outlet_energy(rows)
       delivered_ws = 0.0
       drawn_ws = 0.0
@@ -149,18 +127,14 @@ module Solakon
       }
     end
 
-    # Energy (W·s) of a linearly-ramping power segment from pa to pb over dt
-    # seconds, split into the part above zero (delivered) and below zero (drawn).
-    # When the segment straddles zero, averaging the endpoints first would cancel
-    # them out and drop both directions — so we split at the zero crossing and sum
-    # the two triangles instead.
+    # A segment straddling zero splits at the crossing: averaging its ends would cancel both directions.
     def segment_energy_ws(pa, pb, dt)
       if pa >= 0 && pb >= 0
         [ (pa + pb) / 2.0 * dt, 0.0 ]
       elsif pa <= 0 && pb <= 0
         [ 0.0, -(pa + pb) / 2.0 * dt ]
       else
-        f = pa / (pa - pb) # fraction of the interval until P crosses zero
+        f = pa / (pa - pb)
         pos_peak, pos_t, neg_peak, neg_t =
           pa > 0 ? [ pa, f * dt, -pb, (1 - f) * dt ] : [ pb, (1 - f) * dt, -pa, f * dt ]
         [ 0.5 * pos_peak * pos_t, 0.5 * neg_peak * neg_t ]
@@ -172,11 +146,7 @@ module Solakon
     end
 
     def row(label, kwh, max, role)
-      { label: label, value: "#{format_decimal(kwh)} kWh", share: (kwh / max * 100).round(1), role: role.to_s }
-    end
-
-    def format_decimal(value)
-      GermanNumber.format(value, precision: 2)
+      { label: label, value: GermanNumber.format(kwh, precision: 2, unit: "kWh"), share: (kwh / max * 100).round(1), role: role.to_s }
     end
   end
 end

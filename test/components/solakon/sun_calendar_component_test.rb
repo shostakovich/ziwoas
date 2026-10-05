@@ -7,7 +7,8 @@ class Solakon::SunCalendarComponentTest < ViewComponent::TestCase
     SunCalendar::Strip.new(key: key, title: title, unit: unit, ramp: ramp, max: max, values: values)
   end
 
-  def calendar(pv: { [ 100, 12 ] => 600.0 }, irradiance: {}, cloud: {}, days: nil, lines: nil, hours: (3..22), seam: nil)
+  def calendar(pv: { [ 100, 12 ] => 600.0 }, irradiance: {}, cloud: {}, days: nil, lines: nil, hours: (3..22), seam: nil,
+               pv_max: 800.0)
     days ||= (Date.new(2026, 1, 1)..Date.new(2026, 12, 31)).map do |date|
       SunCalendar::Day.new(doy: date.yday, date: date, pv_kwh: nil, irradiance_kwh_per_m2: nil, cloud_avg: nil)
     end
@@ -16,7 +17,7 @@ class Solakon::SunCalendarComponentTest < ViewComponent::TestCase
       days: days,
       hours: hours,
       strips: {
-        pv: strip(:pv, "PV-Leistung", "W", :amber, 800.0, pv),
+        pv: strip(:pv, "PV-Leistung", "W", :amber, pv_max, pv),
         irradiance: strip(:irradiance, "Einstrahlung", "W/m²", :blue, 900.0, irradiance),
         cloud: strip(:cloud, "Bewölkung", "%", :grey, 100.0, cloud)
       },
@@ -45,7 +46,6 @@ class Solakon::SunCalendarComponentTest < ViewComponent::TestCase
 
   def nodata_cells(rendered, strip = "pv") = rendered.css("[data-strip='#{strip}'] .cells g.nodata rect")
 
-  # The outline of a run of bars as [x, top] per day, read from its path.
   def steps(path)
     path["d"].scan(/V([\d.]+)H([\d.]+)/).map { |top, right| [ right.to_f, top.to_f ] }
   end
@@ -88,7 +88,6 @@ class Solakon::SunCalendarComponentTest < ViewComponent::TestCase
     assert_empty narrow(rendered).css("g.cells rect")
     use = narrow(rendered).css("use.cells").sole
     assert_equal "#sun-cells-pv", use["href"]
-    # 25 units a row instead of 8, with the plot's top kept at 30.
     assert_equal "matrix(1 0 0 3.125 0 -63.8)", use["transform"]
     assert_equal %w[sun-cells-pv sun-cells-irradiance sun-cells-cloud], rendered.css("g.cells").map { |node| node["id"] }
   end
@@ -131,7 +130,6 @@ class Solakon::SunCalendarComponentTest < ViewComponent::TestCase
 
     assert_empty rendered.css("rect.nodata"), "no ground under the whole plot"
     assert_equal 1, coloured_cells(rendered).length
-    # Nineteen empty rows in one piece each; noon's row is split around day 100.
     assert_equal 21, nodata_cells(rendered).length
     assert_equal 1, rendered.css("[data-strip='pv'] .cells g.nodata").length
     assert_nil rendered.css("[data-strip='pv'] .cells g.nodata").sole["style"]
@@ -154,10 +152,25 @@ class Solakon::SunCalendarComponentTest < ViewComponent::TestCase
 
     assert_equal 3, wide(rendered).css("polyline.sun").length
     assert_equal 3, narrow(rendered).css("polyline.sun").length
-    assert_equal 3, wide(rendered, "cloud").css("polyline.sun").length
-    assert_equal 0, rendered.css("[data-strip='energy'] polyline.sun").length
+    assert_equal 0, rendered.css("[data-strip='energy'] polyline.sun, [data-strip='energy'] use").length
 
     assert_equal 365, wide(rendered).css("polyline.rise").first["points"].split.length
+  end
+
+  test "draws the sun lines once per frame and lets the other strips reuse them" do
+    rendered = render_calendar(lines: year_lines((1..365).to_a))
+
+    assert_equal %w[sun-lines-wide sun-lines-narrow], rendered.css("polyline.sun").map { |line| line.parent["id"] }.uniq
+    assert_equal 6, rendered.css("polyline.sun").length, "three lines in each frame of the first strip, none elsewhere"
+    %w[irradiance cloud].each do |strip|
+      assert_empty wide(rendered, strip).css("polyline")
+      assert_equal "#sun-lines-wide", wide(rendered, strip).css("use:not(.cells)").sole["href"]
+      assert_equal "#sun-lines-narrow", narrow(rendered, strip).css("use:not(.cells)").sole["href"]
+    end
+  end
+
+  test "reuses no sun lines without a location" do
+    assert_empty render_calendar.css("use:not(.cells)")
   end
 
   test "lays a halo under every sun line, along the same points" do
@@ -326,6 +339,12 @@ class Solakon::SunCalendarComponentTest < ViewComponent::TestCase
     assert_includes render_calendar.css("[data-strip='energy']").text, "Tage ohne Stundenwerte bleiben leer."
   end
 
+  test "writes a legend's maximum from a thousand on with a thousands dot" do
+    legend = render_calendar(pv_max: 1200.0).css("[data-strip='pv'] .legend-item").first.text
+
+    assert_equal "01.200 W", legend, "the ramp runs from 0 to 1.200 W"
+  end
+
   test "widens the strip when data sits outside the base hours" do
     rendered = render_calendar(hours: (1..23))
 
@@ -422,7 +441,6 @@ class Solakon::SunCalendarComponentTest < ViewComponent::TestCase
 
     area = bars(render_calendar(days: days)).css(".bars path").sole
 
-    # bars_max ceils 3.3 to 4, so the bar reaches only 3.3 / 4 of the chart height.
     assert_in_delta 130 - (3.3 / 4.0 * 100), steps(area).sole.last, 0.05
   end
 
@@ -481,8 +499,7 @@ class Solakon::SunCalendarComponentTest < ViewComponent::TestCase
   end
 
   test "rounds the colour share to the nearest level instead of using the raw fraction" do
-    # 390 / 800 lands between two colour levels; rounding first picks a visibly
-    # different stop than dividing the unrounded fraction straight through.
+    # 390 / 800 falls between two levels: rounding first picks a different stop.
     rendered = render_calendar(pv: { [ 10, 12 ] => 390.0 })
 
     fill = coloured(rendered).sole["style"]
@@ -537,7 +554,6 @@ class Solakon::SunCalendarComponentTest < ViewComponent::TestCase
 
     assert_equal %w[Jan Feb Mär Apr Mai Jun Jul Aug Sep Okt Nov Dez], dense.map(&:text)
     assert_equal %w[Jan Mär Mai Jul Sep Nov], sparse.map(&:text)
-    # June's column sits at its first day of year (152), not at the month number (6).
     assert_equal "331", dense[5]["x"]
   end
 

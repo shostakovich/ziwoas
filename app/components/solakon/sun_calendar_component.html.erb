@@ -20,27 +20,29 @@
               <use class="cells" href="#<%= cells_id(strip) %>" transform="<%= cells_transform %>"/>
             <% end %>
             <% if lines? %>
-              <% %i[rise set noon].each do |event| %><% sun_segments(plot, event).each do |points| %><polyline class="sun-halo" points="<%= points %>"/><polyline class="sun <%= event %>" points="<%= points %>"/><% end %><% end %>
+              <% if draws_sun_lines?(strip) %>
+                <g class="sun-lines" id="<%= sun_lines_id(frame) %>"><% %i[rise set noon].each do |event| %><% sun_segments(plot, event).each do |points| %><polyline class="sun-halo" points="<%= points %>"/><polyline class="sun <%= event %>" points="<%= points %>"/><% end %><% end %></g>
+              <% else %>
+                <use class="sun-lines" href="#<%= sun_lines_id(frame) %>"/>
+              <% end %>
             <% end %>
             <% if seam? && strip.key == :pv %>
               <line class="seam" x1="<%= seam_x(plot) %>" x2="<%= seam_x(plot) %>" y1="<%= plot.top %>" y2="<%= plot.bottom %>"/>
             <% end %>
-            <% if hits?(frame) %>
-              <g class="hits"><% hits(plot).each do |hit| %><rect x="<%= hit.rect.x %>" y="<%= hit.rect.y %>" width="<%= hit.rect.width %>" height="<%= hit.rect.height %>"><title><%= hit.title %></title></rect><% end %></g>
-            <% end %>
+            <%= hit_areas(hits(plot)) if tooltips?(frame) %>
           </svg>
         <% end %>
-        <ul class="legend list-unstyled d-flex flex-wrap align-items-center column-gap-3 row-gap-1 small text-body-secondary mt-2 mb-0">
-          <li class="legend-item d-inline-flex align-items-center gap-2">0<span class="legend-ramp" style="background: <%= legend_gradient(strip) %>"></span><%= legend_max(strip) %> <%= strip.unit %></li>
-          <li class="legend-item d-inline-flex align-items-center gap-2"><span class="legend-box nodata"></span>keine Daten</li>
+        <%= legend_list("mt-2 mb-0") do %>
+          <%= legend_item do %>0<span class="legend-ramp" style="background: <%= legend_gradient(strip) %>"></span><%= GermanNumber.format(strip.max, unit: strip.unit) %><% end %>
+          <%= legend_item do %><span class="legend-box nodata"></span>keine Daten<% end %>
           <% if seam? && strip.key == :pv %>
-            <li class="legend-item d-inline-flex align-items-center gap-2"><span class="legend-line seam"></span>Wechsel der Quelle</li>
+            <%= legend_item do %><span class="legend-line seam"></span>Wechsel der Quelle<% end %>
           <% end %>
           <% if lines? %>
-            <li class="legend-item d-inline-flex align-items-center gap-2"><span class="legend-line"></span>Sonnenaufgang und Sonnenuntergang</li>
-            <li class="legend-item d-inline-flex align-items-center gap-2"><span class="legend-line noon"></span>Sonnenhöchststand</li>
+            <%= legend_item do %><span class="legend-line"></span>Sonnenaufgang und Sonnenuntergang<% end %>
+            <%= legend_item do %><span class="legend-line noon"></span>Sonnenhöchststand<% end %>
           <% end %>
-        </ul>
+        <% end %>
         <% if seam? && strip.key == :pv %>
           <p class="note small text-body-secondary mt-3 mb-0"><%= seam_note %></p>
         <% end %>
@@ -54,14 +56,12 @@
              class="energy-chart-<%= frame %> <%= frame_classes(frame) %>">
           <g class="grid"><% month_lines(plot).each do |at| %><line x1="<%= at %>" x2="<%= at %>" y1="<%= plot.top %>" y2="<%= plot.bottom %>"/><% end %></g>
           <g class="grid"><% bar_grid_lines(plot).each do |at| %><line x1="<%= plot.left %>" x2="<%= plot.right %>" y1="<%= at %>" y2="<%= at %>"/><% end %></g>
-          <g class="hour-labels" dominant-baseline="central"><% bar_grid_labels(plot).each do |label| %><text x="<%= label.x %>" y="<%= label.y %>" text-anchor="end" <%= tag.attributes(class: ("zero" if label.zero)) %>><%= label.text %></text><% end %></g>
+          <g class="hour-labels" dominant-baseline="central"><%= value_texts(bar_grid_labels(plot)) %></g>
           <% unit = bar_unit_label(plot) %><text class="unit" x="<%= unit.x %>" y="<%= unit.y %>"><%= unit.text %></text>
           <g class="month-labels label-<%= density(frame) %>" dominant-baseline="hanging"><% month_labels(plot, density(frame)).each do |label| %><text x="<%= label.x %>" y="<%= month_label_top(plot) %>"><%= label.text %></text><% end %></g>
           <g class="bars" shape-rendering="crispEdges"><% bar_areas(plot).each do |area| %><path d="<%= area %>"/><% end %></g>
           <line class="axis" x1="<%= plot.left %>" x2="<%= plot.right %>" y1="<%= plot.bottom %>" y2="<%= plot.bottom %>"/>
-          <% if hits?(frame) %>
-            <g class="hits"><% hits(plot).each do |hit| %><rect x="<%= hit.rect.x %>" y="<%= hit.rect.y %>" width="<%= hit.rect.width %>" height="<%= hit.rect.height %>"><title><%= hit.title %></title></rect><% end %></g>
-          <% end %>
+          <%= hit_areas(hits(plot)) if tooltips?(frame) %>
         </svg>
       <% end %>
       <p class="small text-body-secondary mt-2 mb-0">Tage ohne Stundenwerte bleiben leer.</p>

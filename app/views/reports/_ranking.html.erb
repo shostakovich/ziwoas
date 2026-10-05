@@ -1,6 +1,4 @@
-<%# Producers stand apart above the ranking: what the plant made is not a
-    place among what the house used. Bars share one scale and take each plug's
-    colour from the dashboard (config order, never its rank). %>
+<%# Bars take each plug's dashboard colour (config order, never its rank). %>
 <% rows = producers + consumers %>
 <% if rows.any? %>
   <% max_kwh = rows.map { |row| row.fetch(:kwh).to_f }.max %>
@@ -16,8 +14,8 @@
   <% if consumers.any? %>
     <ol class="list-group mb-3 small" aria-label="Rangliste">
       <% consumers.each_with_index do |row, index| %>
-        <% colour = Dashboard::PlugBarComponent::PLUG_COLORS[row.fetch(:position).to_i % Dashboard::PlugBarComponent::PLUG_COLORS.length] %>
-        <%= render "reports/ranking_row", row: row, max_kwh: max_kwh, colour: colour do %><%= index + 1 %><% end %>
+        <%= render "reports/ranking_row", row: row, max_kwh: max_kwh,
+                                          colour: Dashboard::PlugBarComponent.color_at(row.fetch(:position)) do %><%= index + 1 %><% end %>
       <% end %>
     </ol>
   <% end %>

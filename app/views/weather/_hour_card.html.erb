@@ -1,48 +1,16 @@
 <%# locals: (record:, rows:) -%>
-<%
-  wind = record.wind_speed
-  solar = record.solar_w_per_m2
-  rain_text, rain_alt = weather_hour_rain(record)
-  empty_row = tag.li(tag.span(class: "weather-icon-inline d-inline-block"), class: "invisible", "aria-hidden": "true")
-%>
-<%# The strip decides which rows exist (weather_hour_rows); a card with nothing
-    to tell in one of them keeps an invisible placeholder, so the cards line up.
-    Rain comes last: an hour without it then ends early instead of leaving a
-    gap. Wind, sun and rain carry no unit here; the strip's key names it once. %>
-<article class="weather-hour-card flex-shrink-0 text-center small">
+<article class="weather-hour-card text-center small">
   <div class="weather-hour-time fw-semibold tabular-nums"><%= record.timestamp.strftime("%H:%M") %></div>
   <%= image_tag record.asset_name, class: "weather-icon weather-icon-sm d-block mx-auto my-2", width: 42, height: 42, loading: "lazy", alt: weather_icon_label(record.icon) %>
   <strong class="d-block fs-4 tabular-nums"><%= de_number(record.temperature) %>°</strong>
   <% if rows.any? %>
     <ul class="weather-hour-extras list-unstyled mt-1 mb-0 text-body-secondary tabular-nums text-nowrap">
-      <% if rows.include?(:wind) %>
-        <% if wind %>
-          <li class="weather-hour-wind<%= ' fw-semibold text-body' if weather_windy?(wind) %>">
-            <%= image_tag "weather_wind_day.webp", class: "weather-icon-inline", alt: "Wind in km/h" %>
-            <%= de_number(wind) %>
-          </li>
-        <% else %>
-          <%= empty_row %>
-        <% end %>
-      <% end %>
-      <% if rows.include?(:solar) %>
-        <% if record.daytime != "night" %>
-          <li class="weather-hour-solar text-warning-emphasis<%= ' fw-semibold' if weather_sunny?(solar) %>">
-            <%= image_tag "weather_clear_day.webp", class: "weather-icon-inline", alt: "Sonne in W/m²" %>
-            <%= solar ? de_number(solar) : "—" %>
-          </li>
-        <% else %>
-          <%= empty_row %>
-        <% end %>
-      <% end %>
-      <% if rows.include?(:rain) %>
-        <% if rain_text %>
-          <li class="weather-hour-rain">
-            <%= image_tag "weather_rain_day.webp", class: "weather-icon-inline", alt: rain_alt %>
-            <%= rain_text %>
-          </li>
-        <% else %>
-          <%= empty_row %>
+      <% rows.each do |row| %>
+        <% if (cell = weather_hour_cell(record, row)) %>
+          <%= tag.li class: [ "weather-hour-#{row}", cell.classes, ("fw-semibold" if cell.emphasis) ] do %>
+            <%= image_tag cell.icon, class: "weather-icon-inline", alt: cell.alt %>
+            <%= cell.text %>
+          <% end %>
         <% end %>
       <% end %>
     </ul>

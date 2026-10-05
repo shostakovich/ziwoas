@@ -3,6 +3,15 @@ require "test_helper"
 class RampTest < ActiveSupport::TestCase
   cover "Ramp*"
 
+  test "snaps a fraction to the nearest of 64 levels" do
+    assert_equal 0.5, Ramp.level(0.5)
+    assert_equal 51 / 64.0, Ramp.level(0.8)
+    assert_equal 52 / 64.0, Ramp.level(0.805)
+    assert_equal 0.0, Ramp.level(0.007)
+    assert_equal 1 / 64.0, Ramp.level(0.008)
+    assert_equal 90 / 64.0, Ramp.level(1.4), "past the end; the colour clamps it"
+  end
+
   test "ends of the ramp are the outer stops" do
     ramp = Ramp.fetch(:amber)
 

@@ -7,70 +7,44 @@
                  data-controller="weather-segments"
                  data-weather-segments-day-value="<%= day.date.iso8601 %>"
                  data-weather-segments-selected-class="active border-primary bg-primary-subtle">
-          <%# The sun's peak shares the title's line, so a phone header keeps two lines. %>
           <header class="card-header">
             <div class="d-flex justify-content-between align-items-baseline gap-2">
               <h3 class="h6 mb-0 text-nowrap"><%= day.weekday_label %> <span class="fw-normal text-body-secondary tabular-nums"><%= day.date_label %></span></h3>
               <% if day.solar_peak_w_per_m2 %>
                 <div class="weather-day-peak small fw-semibold text-warning-emphasis tabular-nums text-nowrap">
                   <%= image_tag "weather_clear_day.webp", class: "weather-icon-inline", alt: "" %>
-                  Spitze <%= de_number(day.solar_peak_w_per_m2, precision: 0) %> W/m²
+                  Spitze <%= de_number(day.solar_peak_w_per_m2, unit: "W/m²") %>
                 </div>
               <% end %>
             </div>
             <div class="weather-day-summary small text-body-secondary tabular-nums">
-              <%= de_number(day.temp_min, precision: 0) %>
-              – <%= de_number(day.temp_max, precision: 0) %> °C
+              <%= de_number(day.temp_min) %>
+              – <%= de_number(day.temp_max, unit: "°C") %>
               <% if day.precip_sum.positive? %>
-                · Regen <%= de_number(day.precip_sum, precision: 1) %> mm
+                · Regen <%= de_number(day.precip_sum, precision: 1, unit: "mm") %>
               <% end %>
             </div>
           </header>
           <div class="card-body">
             <% rows = weather_segment_rows(day.segments) %>
-            <%# Every tile of the day has the same rows, an invisible placeholder
-                standing in where a tile has nothing to tell, so they line up. %>
-            <div class="weather-day-segments row row-cols-2 row-cols-sm-4 g-2">
+            <div class="weather-day-segments">
               <% day.segments.each_with_index do |segment, idx| %>
-                <div class="col">
-                  <button type="button"
-                          class="weather-segment btn btn-light w-100 h-100 flex-column justify-content-start"
-                          data-weather-segments-target="tile"
-                          data-action="click->weather-segments#toggle"
-                          data-segment-index="<%= idx %>"
-                          data-segment-complete="<%= segment.complete? %>"
-                          aria-expanded="false"
-                          aria-controls="seg-<%= day.date.iso8601 %>-<%= idx %>">
-                    <span class="weather-segment-label small"><%= segment.label %></span>
-                    <%= image_tag segment.asset_name, class: "weather-segment-icon weather-icon weather-icon-md", width: 72, height: 72, loading: "lazy", alt: weather_icon_label(segment.dominant_icon) %>
-                    <% if segment.temp_min && segment.temp_max %>
-                      <strong class="weather-segment-temp fs-5 tabular-nums">
-                        <%= de_number(segment.temp_min, precision: 0) %>
-                        – <%= de_number(segment.temp_max, precision: 0) %>°
-                      </strong>
-                    <% else %>
-                      <strong class="fs-5 invisible" aria-hidden="true">–</strong>
+                <button type="button"
+                        class="weather-segment btn btn-light w-100"
+                        data-weather-segments-target="tile"
+                        data-action="click->weather-segments#toggle"
+                        data-segment-index="<%= idx %>"
+                        data-segment-complete="<%= segment.complete? %>"
+                        aria-expanded="false"
+                        aria-controls="seg-<%= day.date.iso8601 %>-<%= idx %>">
+                  <span class="weather-segment-label small"><%= segment.label %></span>
+                  <%= image_tag segment.asset_name, class: "weather-segment-icon weather-icon weather-icon-md", width: 72, height: 72, loading: "lazy", alt: weather_icon_label(segment.dominant_icon) %>
+                  <% rows.each do |row| %>
+                    <% if (cell = weather_segment_cell(segment, row)) %>
+                      <%= content_tag cell.emphasis ? :strong : :span, cell.text, class: [ "weather-segment-#{row}", "tabular-nums", cell.classes ] %>
                     <% end %>
-                    <% if rows.include?(:rain) %>
-                      <% if segment.precip_sum.positive? %>
-                        <span class="weather-segment-rain small fw-normal tabular-nums">
-                          <%= de_number(segment.precip_sum, precision: 1) %> mm
-                        </span>
-                      <% else %>
-                        <span class="small invisible" aria-hidden="true">–</span>
-                      <% end %>
-                    <% end %>
-                    <% if rows.include?(:solar) %>
-                      <% if !segment.all_night? && segment.avg_solar_w_per_m2 %>
-                        <span class="weather-segment-solar small text-warning-emphasis tabular-nums">
-                          <%= de_number(segment.avg_solar_w_per_m2, precision: 0) %> W/m²
-                        </span>
-                      <% else %>
-                        <span class="small invisible" aria-hidden="true">–</span>
-                      <% end %>
-                    <% end %>
-                  </button>
-                </div>
+                  <% end %>
+                </button>
               <% end %>
             </div>
 
@@ -82,12 +56,12 @@
                      data-segment-index="<%= idx %>"
                      hidden>
                   <% hour_rows = weather_hour_rows(segment.records) %>
-                  <div class="weather-hour-scroller d-flex gap-2 overflow-x-auto py-3 ps-3">
+                  <div class="weather-hour-scroller overflow-x-auto py-3 ps-3">
                     <% segment.records.each do |record| %>
                       <%= render "weather/hour_card", record: record, rows: hour_rows %>
                     <% end %>
                   </div>
-                  <%= render "weather/hour_key", records: segment.records, classes: "px-3 pb-3" %>
+                  <%= render "weather/hour_key", units: weather_hour_units(segment.records), classes: "px-3 pb-3" %>
                 </div>
               <% end %>
             </div>

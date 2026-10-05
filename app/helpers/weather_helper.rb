@@ -1,8 +1,6 @@
 require "weather_icon"
 
 module WeatherHelper
-  # Human-readable German labels for the normalized weather icons,
-  # used as informative alt text instead of raw enum strings.
   ICON_LABELS_DE = {
     "clear" => "klar",
     "partly-cloudy" => "teils bewölkt",
@@ -17,8 +15,6 @@ module WeatherHelper
     "unknown" => "Wetter"
   }.freeze
 
-  # Bright Sky's condition field, in German. Anything else, including no
-  # condition at all, says nothing.
   CONDITION_LABELS_DE = {
     "dry" => "trocken",
     "fog" => "Nebel",
@@ -29,10 +25,17 @@ module WeatherHelper
     "thunderstorm" => "Gewitter"
   }.freeze
 
-  # The units an hour strip's rows leave out, named once in its key.
-  HOUR_UNITS = { wind: "Wind in km/h", solar: "Sonne in W/m²", rain: "Regen in mm" }.freeze
+  Cell = Data.define(:text, :icon, :alt, :emphasis, :classes) do
+    def initialize(text:, icon: nil, alt: nil, emphasis: false, classes: nil) = super
+  end
 
-  # From here on a value is worth a second look and is set in bold.
+  # weather.css places the rows in this order; rain, the rarest, comes last.
+  HOUR_UNITS = { wind: "Wind in km/h", solar: "Sonne in W/m²", rain: "Regen in mm" }.freeze
+  HOUR_ROWS = HOUR_UNITS.keys.freeze
+
+  # weather.css places the rows in this order.
+  SEGMENT_ROWS = %i[temp rain solar].freeze
+
   WINDY_KM_PER_H = 20
   SUNNY_W_PER_M2 = 400
 
@@ -42,46 +45,64 @@ module WeatherHelper
 
   def weather_condition_label(condition) = CONDITION_LABELS_DE[condition]
 
-  # The optional rows of an hour strip. A row is there when any hour of the
-  # strip has something to tell, so the cards of one strip line up without a
-  # strip of night hours carrying empty sun rows. Rain, the rarest, comes last.
   def weather_hour_rows(records)
-    {
-      wind: records.any?(&:wind_speed),
-      solar: records.any? { |record| record.daytime != "night" },
-      rain: records.any? { |record| weather_hour_rain(record) }
-    }.select { |_row, needed| needed }.keys
+    HOUR_ROWS.select { |row| records.any? { |record| weather_hour_cell(record, row) } }
   end
 
-  # The key under an hour strip. Rain needs it only for an amount; a chance
-  # of rain carries its own "%".
+  # A chance of rain carries its own "%" and needs no key.
   def weather_hour_units(records)
-    rows = weather_hour_rows(records)
-    rows -= [ :rain ] unless records.any? { |record| record.precipitation&.positive? }
-    rows.map { |row| HOUR_UNITS.fetch(row) }
+    HOUR_UNITS.filter_map do |row, unit|
+      unit if records.any? { |record| weather_hour_cell(record, row)&.alt == unit }
+    end
   end
 
-  # The optional rows of a day's four segment tiles, decided for the day so
-  # the tiles' rows line up side by side.
+  def weather_hour_cell(record, row)
+    case row
+    when :wind
+      wind = record.wind_speed
+      return if wind.nil?
+
+      windy = weather_windy?(wind)
+      Cell.new(text: de_number(wind), icon: "weather_wind_day.webp", alt: HOUR_UNITS.fetch(:wind),
+               emphasis: windy, classes: ("text-body" if windy))
+    when :solar
+      return if record.daytime == "night"
+
+      solar = record.solar_w_per_m2
+      Cell.new(text: de_number(solar), icon: "weather_clear_day.webp", alt: HOUR_UNITS.fetch(:solar),
+               emphasis: weather_sunny?(solar), classes: "text-warning-emphasis")
+    when :rain
+      if record.precipitation&.positive?
+        Cell.new(text: de_number(record.precipitation, precision: 1), icon: "weather_rain_day.webp", alt: HOUR_UNITS.fetch(:rain))
+      elsif record.precipitation_probability.to_i >= 30
+        Cell.new(text: de_number(record.precipitation_probability, unit: "%"), icon: "weather_rain_day.webp", alt: "Regenwahrscheinlichkeit")
+      end
+    end
+  end
+
   def weather_segment_rows(segments)
-    {
-      rain: segments.any? { |segment| segment.precip_sum.positive? },
-      solar: segments.any? { |segment| !segment.all_night? && segment.avg_solar_w_per_m2 }
-    }.select { |_row, needed| needed }.keys
+    SEGMENT_ROWS.select { |row| segments.any? { |segment| weather_segment_cell(segment, row) } }
+  end
+
+  def weather_segment_cell(segment, row)
+    case row
+    when :temp
+      return if segment.temp_min.nil?
+
+      Cell.new(text: "#{de_number(segment.temp_min)} – #{de_number(segment.temp_max)}°", emphasis: true, classes: "fs-5")
+    when :rain
+      return unless segment.precip_sum.positive?
+
+      Cell.new(text: de_number(segment.precip_sum, precision: 1, unit: "mm"), classes: "small fw-normal")
+    when :solar
+      solar = segment.avg_solar_w_per_m2
+      return if solar.nil? || segment.all_night?
+
+      Cell.new(text: de_number(solar, unit: "W/m²"), classes: "small text-warning-emphasis")
+    end
   end
 
   def weather_windy?(km_per_h) = km_per_h.to_i >= WINDY_KM_PER_H
 
   def weather_sunny?(w_per_m2) = w_per_m2.to_i >= SUNNY_W_PER_M2
-
-  # The rain line of an hour card as [text, icon alt]: the amount when it
-  # rains, its unit left to the strip's key, otherwise a likely chance of
-  # rain, otherwise nothing.
-  def weather_hour_rain(record)
-    if record.precipitation&.positive?
-      [ de_number(record.precipitation, precision: 1), HOUR_UNITS.fetch(:rain) ]
-    elsif record.precipitation_probability.to_i >= 30
-      [ "#{record.precipitation_probability} %", "Regenwahrscheinlichkeit" ]
-    end
-  end
 end

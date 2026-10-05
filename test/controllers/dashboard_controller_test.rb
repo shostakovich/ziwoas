@@ -6,22 +6,22 @@ class DashboardControllerTest < ActionDispatch::IntegrationTest
     get root_path
 
     assert_response :success
-    assert_select "svg.energy-flow[viewBox='0 0 400 320']", 1
-    # The rings stay open and the lines stop at them, so nothing crosses a value.
-    assert_select "svg.energy-flow g[fill='none'] > circle", 4
-    assert_select "svg.energy-flow g[clip-path='url(#ef-clip)'] > path", 6
+    assert_select ".energy-flow > svg[viewBox='0 0 400 320']", 1
+    assert_select ".energy-flow svg g[fill='none'] > circle", 4
+    assert_select ".energy-flow svg g[clip-path='url(#ef-clip)'] > path", 6
+    assert_select ".energy-flow svg g[clip-path='url(#ef-clip)'] > g[data-ef^='efDots']", 6
 
     assert_select "text", text: "PV-Anlage"
     assert_select "text", text: "Verbraucher"
 
-    assert_select "image[x='180'][y='50'][width='40'][height='40']", 1
-    assert_select "image[href*='icon_netz']"
-    assert_select "image[href*='icon_haus']"
-    assert_select "image[href*='solakon_battery_normal']"
-    assert_select "image[data-ef='efBatteryImage'][data-battery-state-normal*='solakon_battery_normal']", 1
-    assert_select "image[data-ef='efBatteryImage'][data-battery-state-charging*='solakon_battery_charging']", 1
-    assert_select "image[data-ef='efBatteryImage'][data-battery-state-low*='solakon_battery_low']", 1
-    assert_select "image[data-ef='efBatteryImage'][data-battery-state-fault*='solakon_battery_fault']", 1
+    assert_select ".ef-ring[data-ring='grid'] > img.ef-icon[src*='icon_netz'][alt='']", 1
+    assert_select ".ef-ring[data-ring='consumer'] > img.ef-icon[src*='icon_haus'][alt='']", 1
+    battery = ".ef-ring[data-ring='battery'] > img.ef-icon[data-ef='efBatteryImage'][alt='']"
+    assert_select "#{battery}[src*='solakon_battery_normal']", 1
+    assert_select "#{battery}[data-battery-state-normal*='solakon_battery_normal']", 1
+    assert_select "#{battery}[data-battery-state-charging*='solakon_battery_charging']", 1
+    assert_select "#{battery}[data-battery-state-low*='solakon_battery_low']", 1
+    assert_select "#{battery}[data-battery-state-fault*='solakon_battery_fault']", 1
 
     assert_select "[data-ef='efPvW']"
     assert_select "[data-ef='efGridW']"
@@ -29,8 +29,6 @@ class DashboardControllerTest < ActionDispatch::IntegrationTest
     assert_select "[data-ef='efBatterySoc']"
     assert_select "[data-ef='efBatteryW']"
 
-    # One line per channel in its source's colour, dots alike; the controller
-    # marks a line flowing, so every line is a target and none is flowing before it runs.
     {
       "SolarHome" => "--viz-solar", "SolarGrid" => "--viz-solar", "SolarBattery" => "--viz-solar",
       "GridHome" => "--viz-grid", "GridBattery" => "--viz-grid", "BatteryHome" => "--viz-battery"
@@ -40,8 +38,6 @@ class DashboardControllerTest < ActionDispatch::IntegrationTest
     end
     assert_select "path.ef-link[data-flowing]", 0
 
-    # Grid and battery name their direction next to the ring (set by the
-    # controller); the consumers' ring has a one-line key.
     assert_select "text[data-ef='efGridName']", text: "Stromnetz"
     assert_select "text > tspan[data-ef='efBatteryName']", text: "Batterie"
     assert_select "p", text: "Verbraucher-Ring: Herkunft des Stroms"
@@ -50,8 +46,6 @@ class DashboardControllerTest < ActionDispatch::IntegrationTest
   test "dashboard battery hero icon shares the sun icon's sizing" do
     get "/"
 
-    # Both hero icons carry .hero-icon, so the battery always gets the
-    # same square box as the sun.
     assert_select "#dashboard_hero img.hero-icon", 2
     assert_select "#dashboard_hero img.hero-icon[alt='Batterie']", 1
   end
@@ -62,35 +56,41 @@ class DashboardControllerTest < ActionDispatch::IntegrationTest
     get "/"
     assert_response :ok
 
-    # The hero battery is server-rendered now; without a fresh reading its
-    # half is hidden. The SVG keeps the client-side asset map for the flow.
     assert_select "#dashboard_hero .col[hidden] img.hero-icon[alt='Batterie']", 1
-    assert_select "image[data-ef='efBatteryImage'][data-battery-state-charging*='solakon_battery_charging']", 1
+    assert_select "img[data-ef='efBatteryImage'][data-battery-state-charging*='solakon_battery_charging']", 1
   end
 
-  test "energy flow node contents are vertically centered in circles" do
+  test "each ring's icon and value sit in a box placed over that ring" do
     get "/"
     assert_response :ok
 
-    values = "g.ef-values[text-anchor='middle']"
-    assert_select "#{values} > text[data-ef='efPvW'][x='200'][y='102']", 1
+    rings = css_select(".energy-flow svg circle[data-ring]")
+    boxes = css_select(".energy-flow > .ef-ring")
+    assert_equal %w[pv grid consumer battery], rings.map { |ring| ring["data-ring"] }
+    assert_equal %w[pv grid consumer battery], boxes.map { |box| box["data-ring"] }
 
-    assert_select "image[x='38'][y='141'][width='40'][height='40']", 1
-    assert_select "#{values} > text[data-ef='efGridW'][x='58'][y='192']", 1
+    width, height = css_select(".energy-flow > svg").sole["viewBox"].split.last(2).map(&:to_f)
+    percent = ->(units, extent) { format("%g%%", units * 100 / extent) }
+    rings.zip(boxes).each do |ring, box|
+      cx, cy, r = %w[cx cy r].map { |name| ring[name].to_f }
+      assert_equal "left: #{percent[cx, width]}; top: #{percent[cy, height]}; " \
+                   "width: #{percent[2 * r, width]}; height: #{percent[2 * r, height]}", box["style"]
+    end
 
-    assert_select "image[x='322'][y='141'][width='40'][height='40']", 1
-    assert_select "#{values} > text[data-ef='efConsumerW'][x='342'][y='192']", 1
-
-    assert_select "image[x='180'][y='231'][width='40'][height='40']", 1
-    assert_select "#{values} > text[data-ef='efBatteryW'][x='200'][y='282']", 1
+    { "pv" => "efPvW", "grid" => "efGridW", "consumer" => "efConsumerW", "battery" => "efBatteryW" }.each do |ring, value|
+      assert_select ".ef-ring[data-ring='#{ring}'] > img.ef-icon:first-child + span.ef-value[data-ef='#{value}']", 1
+    end
   end
 
   test "energy flow values share the text ink; the rings carry the hue" do
     get "/"
     assert_response :ok
 
-    assert_select "g.ef-values[style='fill: var(--text)'] > text", 4
-    assert_select "g.ef-values > text[style]", 0
+    assert_select "span.ef-value.tabular-nums.fw-semibold", 4
+    assert_select "span.ef-value[style]", 0
+    %w[--viz-solar --viz-grid --ef-groove --viz-battery].each do |token|
+      assert_select ".energy-flow svg circle[data-ring][style='stroke: var(#{token})']", 1
+    end
   end
 
   test "uses current weather icon in hero and pv energy flow node" do
@@ -102,7 +102,7 @@ class DashboardControllerTest < ActionDispatch::IntegrationTest
 
     assert_select "img.hero-icon[src*='weather_cloudy_night']", 1
     assert_select "img.hero-icon[alt='cloudy']", 1
-    assert_select "image[href*='weather_cloudy_night'][x='180'][y='50'][width='40'][height='40']", 1
+    assert_select ".ef-ring[data-ring='pv'] > img.ef-icon[src*='weather_cloudy_night'][alt='cloudy']", 1
   end
 
   test "falls back to sun icon without current weather" do
@@ -113,7 +113,7 @@ class DashboardControllerTest < ActionDispatch::IntegrationTest
 
     assert_select "img.hero-icon[src*='icon_sonne']", 1
     assert_select "img.hero-icon[alt='Sonne']", 1
-    assert_select "image[href*='icon_sonne'][x='180'][y='50'][width='40'][height='40']", 1
+    assert_select ".ef-ring[data-ring='pv'] > img.ef-icon[src*='icon_sonne'][alt='Sonne']", 1
   end
 
   test "a blank icon on the current weather record falls back to the Sonne alt text" do

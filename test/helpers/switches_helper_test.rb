@@ -43,8 +43,7 @@ class SwitchesHelperTest < ActionView::TestCase
     assert_equal "Mo–Fr · 18:00–23:00", entry_label(entry)
   end
 
-  # The off half of a window past midnight carries Di–Sa; the label has to show
-  # the Mo–Fr a human typed.
+  # The off half of a window past midnight carries Di–Sa; the label must show Mo–Fr.
   test "entry_label reads a Zeitfenster past midnight back to the days that were typed" do
     entry = Switching::Rules::Schedule::Window.new(
       on:  rule(action: "on",  at_minute: 1320, days: [ 1, 2, 3, 4, 5 ]),

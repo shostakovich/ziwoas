@@ -5,10 +5,10 @@
   <% else %>
     <% charts.each do |chart| %>
       <svg viewBox="<%= chart.plot.view_box %>" role="img" aria-label="Stundenmittel je Panel über den Tag"
-           class="panel-chart panel-chart-<%= chart.key %> <%= chart.named? ? 'd-none d-sm-block' : 'd-sm-none' %>">
+           class="panel-chart panel-chart-<%= chart.key %> <%= frame_classes(chart.key) %>">
         <g class="grid"><% chart.grid_lines.each do |at| %><line x1="<%= chart.plot.left %>" x2="<%= chart.plot.right %>" y1="<%= at %>" y2="<%= at %>"/><% end %></g>
         <g class="value-labels" dominant-baseline="central">
-          <% chart.value_labels.each do |label| %><text x="<%= label.x %>" y="<%= label.y %>" text-anchor="end" <%= tag.attributes(class: ("zero" if label.zero)) %>><%= label.text %></text><% end %>
+          <%= value_texts(chart.value_labels) %>
           <% unit = chart.unit_label %><text class="unit" x="<%= unit.x %>" y="<%= unit.y %>"><%= unit.text %></text>
         </g>
         <g class="hour-labels" dominant-baseline="hanging"><% chart.hour_labels.each do |label| %><text x="<%= label.x %>" y="<%= label.y %>" text-anchor="middle"><%= label.text %></text><% end %></g>
@@ -18,10 +18,9 @@
           <g class="leaders"><% chart.labels.each do |label| %><% x1, y1, x2, y2 = label.leader %><line class="<%= label.key %>" x1="<%= x1 %>" y1="<%= y1 %>" x2="<%= x2 %>" y2="<%= y2 %>"/><% end %></g>
           <g class="direct-labels" dominant-baseline="central"><% chart.labels.each do |label| %><text class="<%= label.key %>" x="<%= label.x %>" y="<%= label.y %>"><%= label.text %></text><% end %></g>
         <% end %>
-        <g class="hits"><% chart.hits.each do |hit| %><rect x="<%= hit.rect.x %>" y="<%= hit.rect.y %>" width="<%= hit.rect.width %>" height="<%= hit.rect.height %>"><title><%= hit.title %></title></rect><% end %></g>
+        <%= hit_areas(chart.hits) if tooltips?(chart.key) %>
       </svg>
     <% end %>
-    <%# The wide drawing names its lines itself; only the phone's needs a legend. %>
     <ul class="legend d-sm-none list-unstyled row row-cols-2 g-1 small text-body-secondary mt-2 mb-0">
       <% legend.each do |entry| %>
         <li class="legend-item col d-flex align-items-center gap-2"><span class="legend-line <%= entry.key %>"></span><%= entry.label %></li>

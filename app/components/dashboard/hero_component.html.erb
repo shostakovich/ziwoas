@@ -5,14 +5,14 @@
         <%= image_tag weather_asset, class: "hero-icon", alt: weather_alt %>
         <div class="stat">
           <span class="stat-label">PV jetzt</span>
-          <span class="text-nowrap"><span class="display-4"><%= pv_watt || "—" %></span> <span class="fs-3 fw-semibold">W</span></span>
+          <span class="text-nowrap"><span class="display-4"><%= GermanNumber.format(pv_watt) %></span> <span class="fs-3 fw-semibold">W</span></span>
         </div>
       </div>
       <div class="col d-flex align-items-center gap-2 gap-sm-3" <%= "hidden" unless battery? %>>
         <%= image_tag battery_asset, class: "hero-icon", alt: "Batterie" %>
         <div class="stat">
           <span class="stat-label">Batterie</span>
-          <span class="text-nowrap"><span class="display-4"><%= soc %></span> <span class="fs-3 fw-semibold">%</span></span>
+          <span class="text-nowrap"><span class="display-4"><%= GermanNumber.format(soc) %></span> <span class="fs-3 fw-semibold">%</span></span>
         </div>
       </div>
     </div>

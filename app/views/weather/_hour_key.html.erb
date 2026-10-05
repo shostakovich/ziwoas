@@ -1,7 +1,5 @@
-<%# locals: (records:, classes:) -%>
-<%# The units the hour cards leave out, named once for the whole strip. The gap
-    separates them, so a narrow key breaks between units without a stray dot. %>
-<% units = weather_hour_units(records) %>
+<%# locals: (units:, classes:) -%>
+<%# The gap separates the units, so a narrow key breaks between them without a stray dot. %>
 <% if units.any? %>
   <ul class="weather-hour-key list-unstyled d-flex flex-wrap column-gap-3 row-gap-0 small text-body-secondary mb-0 <%= classes %>">
     <% units.each do |unit| %>

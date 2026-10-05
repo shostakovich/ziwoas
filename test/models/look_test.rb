@@ -12,6 +12,6 @@ class LookTest < ActiveSupport::TestCase
 
   test "gives each look the page background of both colour schemes" do
     assert_equal({ light: "#f6f7f9", dark: "#212529" }, Look.theme_colors("clean"))
-    assert_equal({ light: "#e7dccb", dark: "#242220" }, Look.theme_colors("felt"))
+    assert_equal({ light: "#dbcdb7", dark: "#242220" }, Look.theme_colors("felt"))
   end
 end

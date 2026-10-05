@@ -1,7 +1,5 @@
 require_relative "application_system_test_case"
 
-# Numbers in charts and live widgets read German (lib/format), and the chart
-# theme applies them to value axes, tooltips, legends and threshold labels.
 class ChartNumbersTest < ApplicationSystemTestCase
   setup { visit root_path }
 
@@ -169,6 +167,13 @@ class ChartNumbersTest < ApplicationSystemTestCase
     page.current_window.resize_to(1400, 1400)
   end
 
+  test "entities take their viz tone by config order, wrapping after ten" do
+    ids = (1..11).map { |n| "plug#{n}" }
+    tones = chart("return [ ...m.tonesByOrder(#{ids.to_json}) ]").to_h
+
+    assert_equal [ "--viz-1", "--viz-10", "--viz-1" ], tones.values_at("plug1", "plug10", "plug11")
+  end
+
   test "a threshold names itself where the series keeps clear of it" do
     result = chart(<<~JS)
       const area = { left: 0, right: 600, top: 0, bottom: 300 }
@@ -208,6 +213,13 @@ class ChartNumbersTest < ApplicationSystemTestCase
         const canvas = document.createElement("canvas")
         canvas.style.cssText = "width:600px;height:300px"
         document.body.appendChild(canvas)
+        const context = canvas.getContext("2d")
+        const fillText = context.fillText.bind(context)
+        const spots = []
+        context.fillText = (text, x, y) => {
+          if (/Lüften|Grenzwert/.test(text)) spots.push([ context.textAlign, text ])
+          fillText(text, x, y)
+        }
         const chart = new Chart(canvas, {
           type: "line",
           data: {
@@ -225,7 +237,7 @@ class ChartNumbersTest < ApplicationSystemTestCase
         })
         const result = {
           ticks: chart.scales.y.ticks.map((tick) => tick.value),
-          spots: chart.data.datasets.slice(1).map(({ endLabelSpot }) => [ endLabelSpot.textAlign, endLabelSpot.text ]),
+          spots,
         }
         chart.destroy()
         canvas.remove()

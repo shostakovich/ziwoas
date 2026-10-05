@@ -1,5 +1,4 @@
 <% content_for :title, "Wirtschaftlichkeit" %>
-<% euro = ->(value, precision = 2) { de_number(value, precision: precision) } %>
 <% day = ->(date) { l(date, format: "%d.%m.%Y") } %>
 
 <h1 class="h2 mb-3">Wirtschaftlichkeit</h1>
@@ -22,7 +21,7 @@
               <%= day.call(item.date) %><% if item.note.present? %> · <%= item.note %><% end %>
             </div>
           </div>
-          <span class="fw-semibold tabular-nums text-nowrap"><%= euro.call(item.amount_eur) %> €</span>
+          <span class="fw-semibold tabular-nums text-nowrap"><%= de_number(item.amount_eur, precision: 2, unit: "€") %></span>
           <%= button_to "", cost_item_path(item), method: :delete, class: "btn-close",
                         title: "Löschen", aria: { label: "#{item.label} löschen" },
                         form: { data: { turbo_confirm: "#{item.label} wirklich löschen?" } } %>
@@ -30,7 +29,7 @@
       <% end %>
     </ul>
     <p class="d-flex justify-content-between">
-      Summe <strong class="tabular-nums"><%= euro.call(@overview.acquisition_cost_eur) %> €</strong>
+      Summe <strong class="tabular-nums"><%= de_number(@overview.acquisition_cost_eur, precision: 2, unit: "€") %></strong>
     </p>
   <% else %>
     <p class="small text-body-secondary">Noch keine Kostenposten erfasst.</p>
@@ -73,7 +72,7 @@
       <% @prices.each do |price| %>
         <li class="list-group-item economics-row d-flex align-items-center gap-3 px-0">
           <span class="me-auto tabular-nums">ab <%= day.call(price.date) %></span>
-          <span class="fw-semibold tabular-nums text-nowrap"><%= euro.call(price.eur_per_kwh, 4) %> €/kWh</span>
+          <span class="fw-semibold tabular-nums text-nowrap"><%= de_number(price.eur_per_kwh, precision: 4, unit: "€/kWh") %></span>
           <%= button_to "", electricity_price_path(price), method: :delete, class: "btn-close",
                         title: "Löschen", aria: { label: "Preis ab #{day.call(price.date)} löschen" },
                         form: { data: { turbo_confirm: "Preis ab #{day.call(price.date)} wirklich löschen?" } } %>

@@ -1,6 +1,5 @@
 <% share = max_kwh.positive? ? (row.fetch(:kwh).to_f / max_kwh * 100).round(1) : 0 %>
 <li class="list-group-item" data-plug-id="<%= row.fetch(:plug_id) %>">
-  <%# Phones put the bar on a line of its own under the name, so the name keeps its room. %>
   <div class="row gx-2 gy-1 align-items-center">
     <span class="col-1 text-body-secondary tabular-nums"><%= yield %></span>
     <span class="col col-sm-4 col-md-3 text-truncate"><%= row.fetch(:name) %></span>

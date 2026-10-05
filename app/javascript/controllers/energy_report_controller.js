@@ -1,10 +1,7 @@
 import { Controller } from "@hotwired/stimulus"
 import "chart.js"
-import { chartTheme, vizToken, timeCategoryScale, localMidnight, isPhone, snugTop } from "lib/chart_theme"
+import { chartTheme, vizToken, tonesByOrder, timeCategoryScale, localMidnight, isPhone, snugTop, lineElements } from "lib/chart_theme"
 
-// Connects to data-controller="energy-report"
-// Renders bar/line charts plus an in-canvas weather-icon plugin that draws
-// icons inside the chart, just below the bars/lines (above the tick labels).
 export default class extends Controller {
   static targets = [
     "payload", "weatherAssets",
@@ -17,10 +14,7 @@ export default class extends Controller {
     this.ratiosChart = null
     this.detailChart = null
     this.payload = this._readPayload()
-    // Every consumer in config order: colours stay with the plug across charts.
-    this.consumerIndex = new Map(
-      (this.payload.daily?.consumer_series || []).map((series, index) => [ series.plug_id, index ])
-    )
+    this.consumerTones = tonesByOrder((this.payload.daily?.consumer_series || []).map((series) => series.plug_id))
     this.assetMap = this._readAssetMap()
     this.imageCache = {}
     this.dailyWeatherEnabled = !this.hasDailyWeatherCheckboxTarget || this.dailyWeatherCheckboxTarget.checked
@@ -113,9 +107,7 @@ export default class extends Controller {
         if (!xScale) return
         const { ctx, chartArea } = chart
         const size = cfg.size || 22
-        // Draw icons in the gap between the chart area and the tick labels.
-        // We open that gap via scales.x.ticks.padding. Extra breathing room
-        // between the axis line and the icons keeps things from feeling cramped.
+        // The icons sit in the gap opened by scales.x.ticks.padding.
         const gap = cfg.gap ?? 14
         const y = chartArea.bottom + gap + (size / 2)
         ctx.save()
@@ -263,7 +255,6 @@ export default class extends Controller {
   _buildPowerLineChart(detail) {
     const labels = detail.labels || []
 
-    // As on the dashboard: PV filled, consumers and their total as plain lines.
     const datasets = (detail.series || []).map((series) => {
       const producer = series.role === "producer"
       return {
@@ -330,8 +321,7 @@ export default class extends Controller {
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        // Five-minute samples: thin lines keep the series apart, thinner on a phone.
-        elements: { line: { borderWidth: isPhone() ? 0.75 : 1.25 } },
+        elements: lineElements(),
         scales,
         plugins: { legend: { position: "bottom" } },
         animation: false,
@@ -375,7 +365,7 @@ export default class extends Controller {
   }
 
   _consumerTone(series) {
-    return vizToken(this.consumerIndex.get(series.plug_id) ?? this.consumerIndex.size)
+    return this.consumerTones.get(series.plug_id) ?? vizToken(this.consumerTones.size)
   }
 
   _consumerBarDatasets(series, options = {}) {

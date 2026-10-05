@@ -47,8 +47,6 @@ class EnergyReport::ChartBuilderTest < ActiveSupport::TestCase
     )
   end
 
-  # --- detail chart from 5-min buckets (range of at most seven days) ---
-
   test "sample detail chart reports producer power as a positive magnitude" do
     write_5min(plug_id: "pv",   date_s: "2026-04-10", offset_min: 0, avg_w: -240.0)
     write_5min(plug_id: "desk", date_s: "2026-04-10", offset_min: 0, avg_w:  120.0)
@@ -104,7 +102,7 @@ class EnergyReport::ChartBuilderTest < ActiveSupport::TestCase
 
   test "sample detail chart excludes buckets from outside the requested day" do
     write_5min(plug_id: "pv", date_s: "2026-04-10", offset_min: 0, avg_w: -240.0)
-    # Adjacent day noise — must not leak into a single-day detail window.
+    # Adjacent day noise.
     write_5min(plug_id: "pv", date_s: "2026-04-11", offset_min: 0, avg_w: -999.0)
 
     detail = payload_for(
@@ -115,15 +113,11 @@ class EnergyReport::ChartBuilderTest < ActiveSupport::TestCase
     assert_equal [ 240.0 ], series_data(detail, "pv")
   end
 
-  # `local_midnight_utc` window boundaries must come from the ChartBuilder's
-  # own configured zone, not the suite's Europe/Berlin Time.zone default.
   test "sample detail chart window boundaries use the configured timezone, not the global default" do
     builder = EnergyReport::ChartBuilder.new(
       plugs: @plugs, timezone: TZInfo::Timezone.get("America/New_York"), store: EnergyReport::Store.new
     )
-    # America/New_York midnight on May 1st is 04:00 UTC. A bucket one hour
-    # earlier must stay outside that day's window, but would fall inside it
-    # under the suite's Europe/Berlin default (starts 22:00 UTC April 30th).
+    # New York's May 1st starts 04:00 UTC; under Europe/Berlin this 03:00 bucket would fall inside.
     Plugs::Sample5min.create!(
       plug_id: "pv", bucket_ts: Time.utc(2026, 5, 1, 3).to_i,
       avg_power_w: -240.0, energy_delta_wh: 20.0, sample_count: 1
@@ -138,9 +132,6 @@ class EnergyReport::ChartBuilderTest < ActiveSupport::TestCase
     assert_equal [], detail.fetch(:series)
   end
 
-  # `detail_label` must format timestamps in the ChartBuilder's own
-  # configured zone (America/New_York here), not the suite's Europe/Berlin
-  # Time.zone default — the two would otherwise silently agree.
   test "sample detail chart labels format time as HH:MM within a single day, in the configured timezone" do
     builder = EnergyReport::ChartBuilder.new(
       plugs: @plugs, timezone: TZInfo::Timezone.get("America/New_York"), store: EnergyReport::Store.new
@@ -188,18 +179,15 @@ class EnergyReport::ChartBuilderTest < ActiveSupport::TestCase
     assert_equal [ "01.05. 12:00", "02.05. 12:00" ], detail.fetch(:labels)
   end
 
-  # `detail_icons_one_per_day` picks the icon for exactly the bucket that
-  # lands on local noon, in the ChartBuilder's own configured zone — and
-  # only when a matching weather hour actually exists.
   test "multi-day detail weather overlay places one icon only at local noon, only where weather exists" do
     weather_loader = Struct.new(:hourly_points) do
       def hourly(_start_date, _end_date) = hourly_points
       def daily(_start_date, _end_date) = {}
     end.new(
       [
-        # 11:00 EDT — must be ignored: not noon, even though weather exists for it.
+        # 11:00 EDT: weather, but not noon.
         { ts: Time.utc(2026, 5, 1, 15).to_i, solar_w_per_m2: 100.0, asset_name: "eleven.webp", alt: "cloudy" },
-        # 12:00 EDT on day 1 — the one bucket that should get an icon.
+        # 12:00 EDT on day 1.
         { ts: Time.utc(2026, 5, 1, 16).to_i, solar_w_per_m2: 400.0, asset_name: "day1.webp",   alt: "clear-day" }
         # Day 2's noon hour is deliberately missing weather data.
       ]
@@ -208,22 +196,22 @@ class EnergyReport::ChartBuilderTest < ActiveSupport::TestCase
       plugs: @plugs, timezone: TZInfo::Timezone.get("America/New_York"),
       store: EnergyReport::Store.new, weather_loader: weather_loader
     )
-    # index 0: 11:00 EDT, not noon.
+    # 11:00 EDT, not noon.
     Plugs::Sample5min.create!(
       plug_id: "pv", bucket_ts: Time.utc(2026, 5, 1, 15, 0).to_i,
       avg_power_w: -240.0, energy_delta_wh: 20.0, sample_count: 1
     )
-    # index 1: 12:00 EDT, noon — the one that should carry an icon.
+    # 12:00 EDT, noon.
     Plugs::Sample5min.create!(
       plug_id: "pv", bucket_ts: Time.utc(2026, 5, 1, 16, 0).to_i,
       avg_power_w: -240.0, energy_delta_wh: 20.0, sample_count: 1
     )
-    # index 2: 12:05 EDT, noon hour but wrong minute.
+    # 12:05 EDT, wrong minute.
     Plugs::Sample5min.create!(
       plug_id: "pv", bucket_ts: Time.utc(2026, 5, 1, 16, 5).to_i,
       avg_power_w: -240.0, energy_delta_wh: 20.0, sample_count: 1
     )
-    # index 3: day 2, 12:00 EDT, noon — but no weather data for this hour.
+    # Day 2, 12:00 EDT, no weather.
     Plugs::Sample5min.create!(
       plug_id: "pv", bucket_ts: Time.utc(2026, 5, 2, 16, 0).to_i,
       avg_power_w: -240.0, energy_delta_wh: 20.0, sample_count: 1
@@ -241,9 +229,6 @@ class EnergyReport::ChartBuilderTest < ActiveSupport::TestCase
     )
   end
 
-  # The weather point must be looked up by its containing hour bucket, not
-  # by the exact bucket timestamp — otherwise a half-hour-offset zone (whose
-  # local noon does not land on a UTC hour boundary) would never match.
   test "multi-day detail weather overlay looks up the containing hour, not the exact timestamp" do
     weather_loader = Struct.new(:hourly_points) do
       def hourly(_start_date, _end_date) = hourly_points
@@ -272,8 +257,6 @@ class EnergyReport::ChartBuilderTest < ActiveSupport::TestCase
       detail.fetch(:weather).fetch(:icons)
     )
   end
-
-  # --- detail chart from daily totals (range longer than seven days) ---
 
   test "daily detail chart averages the metered day over 24 hours" do
     rows = [
@@ -313,8 +296,6 @@ class EnergyReport::ChartBuilderTest < ActiveSupport::TestCase
       { plug_id: "desk", name: "Schreibtisch", role: "consumer", data: [ nil, nil, 10.0 ] + [ nil ] * 5 }
     ], detail.fetch(:series)
   end
-
-  # --- daily bar chart ---
 
   test "daily chart carries per-day ratios and nils the uncovered days" do
     daily = payload_for(

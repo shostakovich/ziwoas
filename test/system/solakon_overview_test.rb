@@ -12,8 +12,7 @@ class SolakonOverviewTest < ApplicationSystemTestCase
     visit solakon_path
 
     assert_text "PV"
-    # Section/tile labels are uppercased via CSS (text-transform), so the
-    # browser reports e.g. "ENERGIEFLUSS" — match case-insensitively.
+    # Labels are uppercased via CSS, so the browser reports them in caps.
     assert_text(/Energiefluss/i)
     assert_text "Außensteckdose"
     assert_text "Auto-Regelung"

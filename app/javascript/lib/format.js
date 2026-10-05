@@ -1,17 +1,4 @@
-// Numbers the way German readers write them, matching GermanNumber in Ruby:
-// a decimal comma, a dot between thousands, a true minus (U+2212) and a space
-// before the unit or the percent sign.
-//
-//   import { formatNumber, formatWatts, formatPercent, formatFlow } from "lib/format"
-//
-//   formatNumber(1234.5)                       // "1.235"
-//   formatNumber(-0.25, { decimals: 2 })       // "−0,25"
-//   formatNumber(0.8, { unit: "kWh", decimals: 1 }) // "0,8 kWh"
-//   formatWatts(1980.4)                        // "1.980 W"
-//   formatPercent(76)                          // "76 %"
-//   formatFlow(-180, { positive: "lädt", negative: "entlädt" }) // "entlädt 180 W"
-//
-// A missing value (null, undefined, NaN) reads "—", with its unit if any.
+// The twin of GermanNumber in Ruby: decimal comma, dot between thousands, true minus (U+2212).
 
 const MINUS = "−"
 const DASH = "—"
@@ -53,8 +40,6 @@ export function formatPercent(value, { decimals = 0 } = {}) {
   return formatNumber(value, { decimals, unit: "%" })
 }
 
-// A signed power flow in words instead of a sign: "lädt 180 W", "entlädt 180 W".
-// What rounds to zero is no flow: "0 W".
 export function formatFlow(value, { positive, negative, unit = "W", decimals = 0 }) {
   if (missing(value)) return withUnit(DASH, unit)
   const magnitude = formatNumber(Math.abs(Number(value)), { decimals, unit })

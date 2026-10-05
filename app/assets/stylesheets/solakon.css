@@ -1,10 +1,4 @@
-/* Server-drawn SVG charts on the PV page: sun calendar, sky map, monthly
-   profiles, the four panels. Layout, legends and notes use felt utilities. */
-
-/* Ramp stops for app/models/ramp.rb: each runs away from the card surface, so
-   low values stay quiet and high ones stand out in light and dark alike. The
-   low ends are translucent, so the felt shows through quiet hours as it does
-   through hours without data. */
+/* Ramp stops (app/models/ramp.rb) run away from the card surface; low ends are translucent. */
 .sun-charts {
   --ramp-amber-0: color-mix(in oklab, var(--viz-solar) 14%, transparent);
   --ramp-amber-1: var(--viz-solar);
@@ -18,13 +12,9 @@
   /* Strong enough to stand apart from the card, felt and dark included. */
   --ramp-neutral: color-mix(in oklab, var(--text) 19%, var(--surface));
   --ramp-high: var(--viz-solar);
-  --panel-1: var(--viz-1);
-  --panel-2: var(--viz-4);
-  --panel-3: var(--viz-2);
-  --panel-4: var(--viz-3);
-  --expected: var(--viz-1);
-  /* Label halos let the felt through, so they don't print flat patches (C8). */
-  --chart-halo: color-mix(in oklab, var(--surface) 60%, transparent);
+  --nodata: color-mix(in oklab, var(--surface-sunk) 55%, transparent);
+  /* Amber on the amber ramp vanishes in the dark. */
+  --sun-line: light-dark(var(--warning-text), var(--text));
 }
 
 .sun-charts svg {
@@ -33,9 +23,8 @@
   height: auto;
   font-family: inherit;
 }
-/* Type is set in viewBox units and scales with the drawing: a 720-unit chart
-   shrinks to ~0.43 on a phone, the 300-unit monthly profiles hardly at all.
-   Each size below lands at roughly 11–13px on screen. */
+/* Lines keep their screen width (non-scaling-stroke); type cannot, so this ladder per
+   breakpoint is the accepted approximation of 11–13px on screen. */
 .sun-charts { --chart-text: 9.5px; }
 .sun-charts .multiple { --chart-text: 11.5px; }
 .sun-charts .panel-chart-narrow { --chart-text: 13px; }
@@ -51,36 +40,28 @@
   .sun-charts { --chart-text: 13px; }
 }
 .sun-charts svg text { fill: var(--muted); font-size: var(--chart-text); }
-/* One grid colour for SVG and Chart.js charts (C6). */
-.sun-charts svg .grid line { stroke: color-mix(in oklab, var(--border) 55%, transparent); stroke-width: 1; }
-.sun-charts svg .axis { stroke: var(--border); stroke-width: 1; }
-/* The zero stands on its axis, clear of the first hour or month below. */
+.sun-charts svg :is(line, polyline) { vector-effect: non-scaling-stroke; }
+.sun-charts svg .grid line { stroke: var(--chart-grid); stroke-width: 1px; }
+.sun-charts svg .axis { stroke: var(--border); stroke-width: 1px; }
 .sun-charts svg text.zero { dominant-baseline: alphabetic; }
-/* Translucent, so the card's felt shows through where nothing was measured. */
-.sun-charts svg .nodata { fill: color-mix(in oklab, var(--surface-sunk) 55%, transparent); }
 .sun-charts svg .bars path { fill: var(--viz-solar); }
 .sun-charts svg .hits rect { fill: transparent; }
-/* Amber on the amber ramp vanishes in the dark: there the sun lines are drawn
-   in the text colour. A halo lifts them off the ramp's dark core. */
-.sun-charts svg .sun-halo {
+/* Copies in <use> match only selectors that stay inside the copy: name no ancestor outside it. */
+.cells .nodata { fill: var(--nodata); }
+polyline:is(.sun, .sun-halo) {
   fill: none;
-  stroke: var(--chart-halo);
-  stroke-width: 4;
+  stroke: var(--sun-line);
+  stroke-width: 1.7px;
   stroke-linejoin: round;
   stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
 }
-.sun-charts svg polyline.sun {
-  fill: none;
-  stroke: light-dark(var(--warning-text), var(--text));
-  stroke-width: 1.6;
-  stroke-linejoin: round;
-  stroke-linecap: round;
-}
-.sun-charts svg polyline.noon { stroke-width: 1.2; stroke-dasharray: 2 4; }
-.sun-charts svg .seam { stroke: var(--muted); stroke-width: 1.2; stroke-dasharray: 3 3; }
+polyline.sun-halo { stroke: var(--chart-halo); stroke-width: 5px; }
+polyline.noon { stroke-width: 1.3px; stroke-dasharray: 2 4; }
+.sun-charts .seam { --tone: var(--muted); }
+.sun-charts svg .seam { stroke: var(--tone); stroke-width: 1.3px; stroke-dasharray: 3 3; }
 .sun-charts .label-sparse { display: none; }
 
-/* Legend swatches mirror the marks they explain. */
 .sun-charts .legend-ramp,
 .sun-charts .legend-box {
   display: inline-block;
@@ -90,93 +71,68 @@
   border-radius: var(--radius-sm);
 }
 .sun-charts .legend-box { width: 10px; border-radius: 2px; }
-.sun-charts .legend-box.nodata { background-color: color-mix(in oklab, var(--surface-sunk) 55%, transparent); }
+.sun-charts .legend-box.nodata { background-color: var(--nodata); }
 .sun-charts .legend-line {
   display: inline-block;
   width: 18px;
-  border-top: 2px solid light-dark(var(--warning-text), var(--text));
+  border-top: 2px solid var(--tone, var(--sun-line));
 }
 .sun-charts .legend-line.noon { border-top-style: dotted; }
-.sun-charts .legend-line.seam { border-top-style: dashed; border-top-color: var(--muted); }
+.sun-charts .legend-line.seam { border-top-style: dashed; }
+
+.shading .measured { --tone: var(--viz-solar); }
+.shading .expected { --tone: var(--viz-1); }
+.shading .theory { --tone: var(--muted); }
+.shading .pv1 { --tone: var(--viz-1); }
+.shading .pv2 { --tone: var(--viz-4); }
+.shading .pv3 { --tone: var(--viz-2); }
+.shading .pv4 { --tone: var(--viz-3); }
 
 .shading svg .fields rect { stroke: none; }
 .shading svg .dot { fill: var(--muted); stroke: var(--surface); stroke-width: 2; }
-/* Dates and hours lie over the fields and lines, so they carry a halo to
-   stay readable on any of them. */
+/* Label halos in em: the type scales with the drawing, the halo has to follow. */
 .shading svg .path-label,
 .shading svg .dot-label,
 .shading svg .direct-labels text,
 .shading svg .unit {
   paint-order: stroke;
   stroke: var(--chart-halo);
-  stroke-width: 3;
+  stroke-width: 0.28em;
   stroke-linejoin: round;
 }
 .shading svg .path-label,
 .shading svg .direct-labels text { font-weight: 600; }
+.shading svg .direct-labels text { fill: var(--tone); }
 .shading svg .curve {
   fill: none;
-  stroke-width: 2;
+  stroke: var(--tone);
+  stroke-width: 2.2px;
   stroke-linejoin: round;
   stroke-linecap: round;
 }
-.shading svg .measured { stroke: var(--viz-solar); }
-.shading svg .expected { stroke: var(--expected); stroke-dasharray: 5 4; }
-/* The clear sky is a quiet bound; the measured line leads. */
-.shading svg .theory {
-  stroke: var(--muted);
-  stroke-width: 1;
-  stroke-dasharray: 1 2.5;
-  vector-effect: non-scaling-stroke;
-}
+.shading .multiple svg .curve { stroke-width: 1.7px; }
+.shading svg .expected { stroke-dasharray: 3.5 3; }
+.shading .multiple svg .theory { stroke-width: 1px; stroke-dasharray: 1 2.5; }
 .shading svg .measured-area { fill: var(--viz-solar); fill-opacity: 0.18; }
-.shading svg .pv1 { stroke: var(--panel-1); }
-.shading svg .pv2 { stroke: var(--panel-2); }
-.shading svg .pv3 { stroke: var(--panel-3); }
-.shading svg .pv4 { stroke: var(--panel-4); }
-/* Leaders only point; in their line's colour they read as spikes of it. */
-.shading svg .leaders line {
-  stroke: var(--muted);
-  stroke-width: 0.75;
-  vector-effect: non-scaling-stroke;
-}
-.shading svg .direct-labels .pv1 { fill: var(--panel-1); }
-.shading svg .direct-labels .pv2 { fill: var(--panel-2); }
-.shading svg .direct-labels .pv3 { fill: var(--panel-3); }
-.shading svg .direct-labels .pv4 { fill: var(--panel-4); }
-.shading .legend-line.measured { border-top-color: var(--viz-solar); }
-.shading .legend-line.expected { border-top-color: var(--expected); border-top-style: dashed; }
-.shading .legend-line.theory { border-top-color: var(--muted); border-top-style: dotted; }
-.shading .legend-line.pv1 { border-top-color: var(--panel-1); }
-.shading .legend-line.pv2 { border-top-color: var(--panel-2); }
-.shading .legend-line.pv3 { border-top-color: var(--panel-3); }
-.shading .legend-line.pv4 { border-top-color: var(--panel-4); }
+/* In their line's colour, leaders would read as spikes of it. */
+.shading svg .leaders line { stroke: var(--muted); stroke-width: 0.75px; }
+.shading .legend-line.expected { border-top-style: dashed; }
+.shading .legend-line.theory { border-top-style: dotted; }
 
-/* The 720-unit SVGs shrink to less than half on a phone, so their own units
-   have to grow for lines to stay legible. The monthly profiles and the
-   phone's panel drawing hardly shrink and keep their lines. */
+/* A phone shrinks the 720-unit drawings below half: dots grow in their own units, the halo narrows. */
 @media (max-width: 575.98px) {
   .sun-charts .label-dense { display: none; }
   .sun-charts .label-sparse { display: block; }
   .sun-charts .legend-ramp { width: 64px; }
-  .sun-calendar svg .grid line,
-  [data-chart="yield-map"] svg .grid line { stroke-width: 2; }
-  .sun-charts svg polyline.sun { stroke-width: 3; }
-  .sun-charts svg .sun-halo { stroke-width: 7; }
-  .sun-charts svg polyline.noon { stroke-width: 2.4; stroke-dasharray: 4 7; }
-  .sun-charts svg .seam { stroke-width: 2.4; stroke-dasharray: 5 5; }
+  polyline.sun-halo { stroke-width: 3px; }
   .shading svg .dot { r: 7px; stroke-width: 3; }
-  .shading svg .path-label,
-  .shading svg .dot-label { stroke-width: 8; }
-  .shading .multiple svg .curve:not(.theory) { stroke-width: 3; }
 }
 /* Two columns share one scale: only the left one names its values. */
 @media (max-width: 991.98px) {
   .shading .multiple:nth-child(even) .value-labels { display: none; }
 }
 
-/* A quiet disclosure for method notes and details: felt's accordion is a
-   whole panel, too loud for a sentence behind a question. */
+/* felt's accordion is a whole panel, too loud for a sentence behind a question. */
 .solakon-details > summary {
   display: inline-flex;
   align-items: center;

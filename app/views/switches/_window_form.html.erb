@@ -1,5 +1,3 @@
-<%# A persisted window takes the id of its row, so the form can replace it and
-    be replaced by it again. %>
 <%= tag.div id: (form.persisted? ? "sw_entry_#{plug.id}_#{form.group_id}" : nil) do %>
   <%= form_with url: (form.persisted? ? switch_window_path(plug_id: plug.id, group_id: form.group_id)
                                       : switch_windows_path(plug_id: plug.id)),

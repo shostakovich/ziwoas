@@ -12,7 +12,7 @@
                   aria: { label: "#{row.plug.name} #{row.on? ? 'ausschalten' : 'einschalten'}" } do %>
       <%= image_tag "switch_plush_#{lit ? 'on' : 'off'}.webp", alt: "", class: "sw-knob-plush" %>
     <% end %>
-    <% if row.on? && !row.offline? %>
+    <% if lit %>
       <span class="badge border tabular-nums">
         <span class="text-warning me-1" aria-hidden="true">⚡</span><%= de_number(row.watt || 0) %> W
       </span>

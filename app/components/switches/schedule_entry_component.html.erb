@@ -1,6 +1,5 @@
 <div class="d-flex align-items-center flex-wrap gap-1 py-1 border-top" id="<%= row_id %>">
-  <%# Only an Einzelschaltung carries an arrow: a Zeitfenster says both
-      directions by having two times. %>
+  <%# Only an Einzelschaltung carries an arrow: a Zeitfenster's two times say both directions. %>
   <span class="<%= pill_class %>">
     <%= helpers.entry_label(entry) %>
     <% unless window? %><span class="fw-bold ms-1"><%= direction %></span><% end %>

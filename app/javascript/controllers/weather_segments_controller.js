@@ -1,9 +1,5 @@
 import { Controller } from "@hotwired/stimulus"
 
-// Connects to data-controller="weather-segments"
-// One instance per day-card. Manages single-select expansion of the four
-// segment tiles into the matching hidden hour-row. Click same tile to
-// collapse; click another to switch.
 export default class extends Controller {
   static targets = ["tile", "hourRow"]
   static classes = ["selected"]

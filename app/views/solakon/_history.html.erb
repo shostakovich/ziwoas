@@ -1,7 +1,6 @@
-<%# Range switches navigate the frame; the chart controller inside is rebuilt on every swap. %>
 <%= turbo_frame_tag "solakon_history" do %>
-  <div data-controller="solakon-history" data-solakon-history-url-value="<%= solakon_history_path(range: history.fetch(:range)) %>">
-    <%# "Letzte" gives way on a phone, so the three ranges fit side by side. %>
+  <div data-controller="solakon-history" data-solakon-history-url-value="<%= solakon_history_path(range: history.fetch(:range)) %>"
+       data-solakon-history-range-value="<%= history.fetch(:range) %>">
     <div class="btn-group btn-group-sm d-flex d-sm-inline-flex mb-3" role="group" aria-label="Zeitraum">
       <% Solakon::History::RANGE_LABELS.each do |key, label| %>
         <% active = key == history.fetch(:range) %>
@@ -16,7 +15,6 @@
       <p class="small text-body-secondary"><%= history.fetch(:message) %></p>
     <% end %>
     <p class="small text-body-secondary">Über 0 W: Akku lädt, Außensteckdose liefert ins Hausnetz. Unter 0 W: Akku entlädt, Außensteckdose zieht Leistung.</p>
-    <%# Bars in the colours of the chart's series. %>
     <div class="solakon-balance mt-3">
       <% history.fetch(:balance_rows).each do |row| %>
         <div class="solakon-balance-row row gx-2 gy-1 align-items-center small mb-2" data-role="<%= row.fetch(:role) %>">

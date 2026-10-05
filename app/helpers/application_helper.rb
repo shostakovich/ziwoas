@@ -1,6 +1,4 @@
 module ApplicationHelper
-  # Every battery face the inverter can wear, keyed by Solakon::Reading#battery_state.
-  # A discharging battery and an unknown state both show the normal face.
   BATTERY_ASSETS = {
     "normal"      => "solakon_battery_normal.webp",
     "discharging" => "solakon_battery_normal.webp",
@@ -15,8 +13,7 @@ module ApplicationHelper
 
   NavItem = Data.define(:path, :label, :icon, :current)
 
-  # Small action glyphs drawn in the text colour (emoji render as boxes or
-  # in their own colours, depending on the device). 16×16, filled.
+  # Drawn in the text colour: emoji render as boxes or in their own colours, depending on the device.
   UI_ICONS = {
     play: "M5 3.2v9.6a.6.6 0 0 0 .9.5l7.6-4.8a.6.6 0 0 0 0-1L5.9 2.7a.6.6 0 0 0-.9.5z",
     pause: "M4 3h3v10H4zm5 0h3v10H9z",
@@ -29,12 +26,10 @@ module ApplicationHelper
                                                aria: { hidden: true }, focusable: false, data: { icon: name })
   end
 
-  # A number for display: decimal comma, thousands dot, true minus sign.
-  def de_number(value, precision: 0) = GermanNumber.format(value, precision: precision)
+  # Components call GermanNumber directly: their class-level catalogs have no view context.
+  def de_number(value, precision: 0, unit: nil) = GermanNumber.format(value, precision:, unit:)
 
-  # The six tabs of the header nav (desktop) and the tab bar (mobile). A lamp's
-  # page lives under /lights but is reached from the Schalten tab, so that tab
-  # owns the section too.
+  # A lamp's page lives under /lights but is reached from the Schalten tab.
   def main_navigation
     [
       [ root_path, "Home", "nav_dashboard_plush.webp" ],
@@ -50,8 +45,7 @@ module ApplicationHelper
 
   private
 
-  # A tab stays active on its sub pages (/solakon/wirtschaftlichkeit). Home's
-  # sub-page prefix would be "//", so Home is only ever active on itself.
+  # Home's sub-page prefix would be "//", so Home is only ever active on itself.
   def current_section?(path)
     request.path == path || request.path.start_with?("#{path}/")
   end

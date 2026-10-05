@@ -1,4 +1,3 @@
-# test/components/lights/power_component_test.rb
 require "test_helper"
 
 class Lights::PowerComponentTest < ViewComponent::TestCase

@@ -10,9 +10,6 @@ module Lights
 
     def light = snapshot.light
 
-    def plush = "lamp_#{light.plush_type}_#{snapshot.on? ? 'on' : 'off'}.webp"
-
-    # The brightness lives in the chip beside the knob, so the line only names the light.
     def summary
       return "Aus" unless snapshot.on?
       "An · #{snapshot.white? ? 'Weiß' : 'Farbe'}"
@@ -20,7 +17,7 @@ module Lights
 
     def chip
       return nil unless snapshot.on?
-      { swatch: snapshot.color_hex || "#ffd9a0", label: "#{snapshot.brightness} %" }
+      { swatch: snapshot.color_hex || "#ffd9a0", label: GermanNumber.format(snapshot.brightness, unit: "%") }
     end
   end
 end

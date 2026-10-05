@@ -3,7 +3,7 @@
   <div class="card-body">
     <div class="d-flex gap-1 mb-2 small text-uppercase text-body-secondary">
       <label for="light_temp">Lichtfarbe</label><span aria-hidden="true">·</span>
-      <output for="light_temp" class="text-body tabular-nums" data-light-detail-target="tempValue"><%= kelvin(slider_value) %></output>
+      <output for="light_temp" class="text-body tabular-nums" data-light-detail-target="tempValue"><%= GermanNumber.format(slider_value, unit: "K") %></output>
     </div>
     <input class="form-range ld-range ld-white" type="range" id="light_temp"
            min="<%= light.color_temp_min_k %>" max="<%= light.color_temp_max_k %>" step="100"
@@ -15,8 +15,8 @@
       <% end %>
     </div>
     <div class="d-flex justify-content-between small text-body-secondary mt-1">
-      <span><%= kelvin(light.color_temp_min_k) %> · warm</span>
-      <span><%= kelvin(light.color_temp_max_k) %> · kalt</span>
+      <span><%= GermanNumber.format(light.color_temp_min_k, unit: "K") %> · warm</span>
+      <span><%= GermanNumber.format(light.color_temp_max_k, unit: "K") %> · kalt</span>
     </div>
     <div class="d-flex gap-2 mt-3 ld-choices">
       <% presets.each do |label, preset_kelvin| %>
