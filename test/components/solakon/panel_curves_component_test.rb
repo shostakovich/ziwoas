@@ -144,13 +144,20 @@ class Solakon::PanelCurvesComponentTest < ViewComponent::TestCase
     assert_equal "8–9 Uhr · Panel 1 Ø 100 W · Panel 2 keine Daten · Panel 3 keine Daten · Panel 4 keine Daten", title
   end
 
-  test "names the hours with their unit on the wide drawing and bare, further apart, on the narrow one" do
+  test "names the hours as clock times on the wide drawing and bare, further apart, on the narrow one" do
     scattered = curves(pv1: [ [ 6, 300.0 ], [ 18, 310.0 ] ])
     rendered = render_panels(curves: scattered)
 
-    assert_equal [ "6 Uhr", "8 Uhr", "10 Uhr", "12 Uhr", "14 Uhr", "16 Uhr", "18 Uhr" ],
-                 wide(rendered).css(".hour-labels text").map(&:text)
-    assert_equal %w[6 9 12 15 18], narrow(rendered).css(".hour-labels text").map(&:text)
+    assert_equal %w[06:00 08:00 10:00 12:00 14:00 16:00 18:00], wide(rendered).css(".hour-labels text").map(&:text)
+    assert_equal %w[06 09 12 15 18], narrow(rendered).css(".hour-labels text").map(&:text)
+  end
+
+  test "puts the hour labels on the clock's step, not on the first hour measured" do
+    scattered = curves(pv1: [ [ 5, 300.0 ], [ 19, 310.0 ] ])
+    rendered = render_panels(curves: scattered)
+
+    assert_equal %w[06:00 08:00 10:00 12:00 14:00 16:00 18:00], wide(rendered).css(".hour-labels text").map(&:text)
+    assert_equal %w[06 09 12 15 18], narrow(rendered).css(".hour-labels text").map(&:text)
   end
 
   test "breaks a line where an hour is missing" do
@@ -165,7 +172,7 @@ class Solakon::PanelCurvesComponentTest < ViewComponent::TestCase
 
     rendered = render_panels(curves: scattered)
 
-    assert_equal [ "8 Uhr", "10 Uhr", "12 Uhr", "14 Uhr", "16 Uhr" ], wide(rendered).css(".hour-labels text").map(&:text)
+    assert_equal %w[08:00 10:00 12:00 14:00 16:00], wide(rendered).css(".hour-labels text").map(&:text)
   end
 
   test "waits for the first full day with a word" do
@@ -181,7 +188,8 @@ class Solakon::PanelCurvesComponentTest < ViewComponent::TestCase
     axis = chart.css("line.axis").sole
     assert_equal %w[40 632 192 192], %w[x1 x2 y1 y2].map { |name| axis[name] }
 
-    assert_equal [ [ "100", "35", "147" ], [ "200", "35", "102" ], [ "300", "35", "57" ], [ "W", "35", "12" ] ],
+    assert_equal [ [ "0", "35", "192" ], [ "100", "35", "147" ], [ "200", "35", "102" ], [ "300", "35", "57" ],
+                   [ "400", "35", "12" ], [ "W", "38", "12" ] ],
                  chart.css(".value-labels text").map { |node| [ node.text, node["x"], node["y"] ] }
 
     assert_equal "40,57 336,12 632,34.5", chart.css("polyline.pv1").sole["points"]
@@ -208,30 +216,31 @@ class Solakon::PanelCurvesComponentTest < ViewComponent::TestCase
     chart = narrow
 
     assert_equal %w[36 348 216 216], %w[x1 x2 y1 y2].map { |name| chart.css("line.axis").sole[name] }
-    assert_equal [ [ "100", "31", "165" ], [ "200", "31", "114" ], [ "300", "31", "63" ], [ "W", "31", "12" ] ],
+    assert_equal [ [ "0", "31", "216" ], [ "100", "31", "165" ], [ "200", "31", "114" ], [ "300", "31", "63" ],
+                   [ "400", "31", "12" ], [ "W", "34", "12" ] ],
                  chart.css(".value-labels text").map { |node| [ node.text, node["x"], node["y"] ] }
     assert_equal "36,63 192,12 348,37.5", chart.css("polyline.pv1").sole["points"]
     assert_equal [ [ "12", "36", "221" ] ], chart.css(".hour-labels text").map { |node| [ node.text, node["x"], node["y"] ] }
   end
 
-  test "draws a grid line at each labeled height, spanning the full width" do
+  test "draws a grid line at each labeled height above zero, spanning the full width" do
     lines = wide.css(".grid line")
 
-    assert_equal %w[147 102 57], lines.map { |line| line["y1"] }
+    assert_equal %w[147 102 57 12], lines.map { |line| line["y1"] }, "the axis stands for zero"
     assert_equal lines.map { |line| line["y1"] }, lines.map { |line| line["y2"] }
-    assert_equal %w[40 40 40], lines.map { |line| line["x1"] }
-    assert_equal %w[632 632 632], lines.map { |line| line["x2"] }
+    assert_equal %w[40 40 40 40], lines.map { |line| line["x1"] }
+    assert_equal %w[632 632 632 632], lines.map { |line| line["x2"] }
   end
 
   test "steps the grid in round watts that leave the curves filling the plot" do
     {
-      110.0 => %w[25 50 75 100],
-      125.5 => %w[50 100],
-      250.0 => %w[50 100 150 200],
-      410.0 => %w[100 200 300 400],
-      700.5 => %w[200 400 600],
-      1250.0 => %w[250 500 750 1000],
-      2500.0 => %w[500 1000 1500 2000]
+      110.0 => %w[0 25 50 75 100 125],
+      125.5 => %w[0 50 100 150],
+      250.0 => %w[0 50 100 150 200 250],
+      410.0 => %w[0 100 200 300 400 500],
+      700.5 => %w[0 200 400 600 800],
+      1250.0 => %w[0 250 500 750 1000 1250],
+      2500.0 => %w[0 500 1000 1500 2000 2500]
     }.each do |peak, expected|
       labels = wide(render_panels(curves: single(peak))).css(".value-labels text").map(&:text)
 
@@ -239,18 +248,22 @@ class Solakon::PanelCurvesComponentTest < ViewComponent::TestCase
     end
   end
 
-  test "tops the axis at the peak rounded up to the step, where the unit stands" do
+  test "tops the axis at the peak rounded up to the step, where the unit follows the top value" do
     chart = wide(render_panels(curves: single(110.0)))
 
     # 110 W of 125 W: the line ends 22.4 units under the top of the plot.
     assert_equal "40,33.6", chart.css("polyline.pv1").sole["points"]
-    assert_equal "12", chart.css(".value-labels text.unit").sole["y"]
+    top = chart.css(".value-labels text:not(.unit)").last
+    unit = chart.css(".value-labels text.unit").sole
+    assert_equal [ "125", "12" ], [ top.text, top["y"] ]
+    assert_equal [ "38", "12" ], [ unit["x"], unit["y"] ]
+    assert_nil unit["text-anchor"], "the unit reads on from the number, rightwards"
   end
 
   test "rounds a peak beyond the round steps to whole five hundreds" do
     labels = wide(render_panels(curves: single(3000.0))).css(".value-labels text").map(&:text)
 
-    assert_equal %w[1000 2000 W], labels
+    assert_equal %w[0 1000 2000 3000 W], labels
   end
 
   test "keeps one step of axis even when every panel reported nothing" do
@@ -258,7 +271,7 @@ class Solakon::PanelCurvesComponentTest < ViewComponent::TestCase
 
     chart = wide(render_panels(curves: zero))
 
-    assert_equal %w[W], chart.css(".value-labels text").map(&:text)
+    assert_equal %w[0 25 W], chart.css(".value-labels text").map(&:text)
     assert_equal "40,192", chart.css("polyline.pv1").sole["points"]
   end
 

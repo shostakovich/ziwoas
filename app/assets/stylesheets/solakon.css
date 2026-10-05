@@ -13,7 +13,8 @@
   --ramp-grey-0: color-mix(in oklab, var(--text) 6%, var(--surface));
   --ramp-grey-1: color-mix(in oklab, var(--text) 85%, var(--surface));
   --ramp-low: var(--viz-grid);
-  --ramp-neutral: color-mix(in oklab, var(--text) 10%, var(--surface));
+  /* Strong enough to stand apart from the card, felt and dark included. */
+  --ramp-neutral: color-mix(in oklab, var(--text) 19%, var(--surface));
   --ramp-high: var(--viz-solar);
   --panel-1: var(--viz-1);
   --panel-2: var(--viz-4);
@@ -36,7 +37,7 @@
 .sun-charts .panel-chart-narrow { --chart-text: 13px; }
 @media (max-width: 575.98px) {
   .sun-charts { --chart-text: 26px; }
-  .sun-charts .multiple { --chart-text: 11px; }
+  .sun-charts .multiple { --chart-text: 21px; }
 }
 @media (min-width: 576px) and (max-width: 767.98px) {
   .sun-charts { --chart-text: 17px; }
@@ -46,15 +47,24 @@
   .sun-charts { --chart-text: 13px; }
 }
 .sun-charts svg text { fill: var(--muted); font-size: var(--chart-text); }
-.sun-charts svg .grid line { stroke: var(--surface-sunk); stroke-width: 1; }
+/* One grid colour for SVG and Chart.js charts (C6). */
+.sun-charts svg .grid line { stroke: color-mix(in oklab, var(--border) 55%, transparent); stroke-width: 1; }
 .sun-charts svg .axis { stroke: var(--border); stroke-width: 1; }
 /* Translucent, so the card's felt shows through where nothing was measured. */
 .sun-charts svg .nodata { fill: color-mix(in oklab, var(--surface-sunk) 55%, transparent); }
-.sun-charts svg .cells rect { shape-rendering: crispEdges; }
-.sun-charts svg .bars rect { fill: var(--viz-solar); }
+.sun-charts svg .bars path { fill: var(--viz-solar); }
 .sun-charts svg .hits rect { fill: transparent; }
 /* Amber on the amber ramp vanishes in the dark: there the sun lines are drawn
-   in the text colour. */
+   in the text colour. A halo in the card's colour lifts them off the ramp's
+   dark core. */
+.sun-charts svg .sun-halo {
+  fill: none;
+  stroke: var(--surface);
+  stroke-width: 4;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  opacity: 0.85;
+}
 .sun-charts svg polyline.sun {
   fill: none;
   stroke: light-dark(var(--warning-text), var(--text));
@@ -75,9 +85,8 @@
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
 }
-.sun-charts .legend-box { width: 14px; }
+.sun-charts .legend-box { width: 10px; border-radius: 2px; }
 .sun-charts .legend-box.nodata { background-color: color-mix(in oklab, var(--surface-sunk) 55%, transparent); }
-.sun-charts .legend-box.bar { background-color: var(--viz-solar); border-color: var(--viz-solar); }
 .sun-charts .legend-line {
   display: inline-block;
   width: 18px;
@@ -92,7 +101,8 @@
    colour to stay readable on any of them. */
 .shading svg .path-label,
 .shading svg .dot-label,
-.shading svg .direct-labels text {
+.shading svg .direct-labels text,
+.shading svg .unit {
   paint-order: stroke;
   stroke: var(--surface);
   stroke-width: 3;
@@ -114,7 +124,12 @@
 .shading svg .pv2 { stroke: var(--panel-2); }
 .shading svg .pv3 { stroke: var(--panel-3); }
 .shading svg .pv4 { stroke: var(--panel-4); }
-.shading svg .leaders line { stroke-width: 1; }
+/* Leaders only point; in their line's colour they read as spikes of it. */
+.shading svg .leaders line {
+  stroke: var(--muted);
+  stroke-width: 0.75;
+  vector-effect: non-scaling-stroke;
+}
 .shading svg .direct-labels .pv1 { fill: var(--panel-1); }
 .shading svg .direct-labels .pv2 { fill: var(--panel-2); }
 .shading svg .direct-labels .pv3 { fill: var(--panel-3); }
@@ -137,7 +152,11 @@
   .sun-calendar svg .grid line,
   [data-chart="yield-map"] svg .grid line { stroke-width: 2; }
   .sun-charts svg polyline.sun { stroke-width: 3; }
+  .sun-charts svg .sun-halo { stroke-width: 7; }
   .sun-charts svg polyline.noon { stroke-width: 2.4; stroke-dasharray: 4 7; }
   .sun-charts svg .seam { stroke-width: 2.4; stroke-dasharray: 5 5; }
-  .shading svg .dot { stroke-width: 3; }
+  .shading svg .dot { r: 7px; stroke-width: 3; }
+  .shading svg .path-label,
+  .shading svg .dot-label { stroke-width: 8; }
+  .shading .multiple svg .curve { stroke-width: 3; }
 }

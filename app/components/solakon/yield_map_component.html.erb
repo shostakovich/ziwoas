@@ -3,9 +3,9 @@
     <p class="note small text-body-secondary mb-0">Die Karte füllt sich, sobald Stunden mit Einstrahlung und PV-Leistung zusammenkommen.</p>
   <% else %>
     <svg viewBox="<%= plot.view_box %>" role="img" aria-label="Ausbeute nach Sonnenstand, Azimut über Sonnenhöhe">
-      <g class="grid"><% elevation_lines.each do |line| %><line x1="<%= plot.left %>" x2="<%= plot.right %>" y1="<%= line.at %>" y2="<%= line.at %>"/><% end %></g>
-      <g class="hour-labels" dominant-baseline="central"><% elevation_lines.each do |line| %><text x="<%= elevation_label_x %>" y="<%= line.label_at %>" text-anchor="end"><%= line.text %></text><% end %></g>
+      <g class="grid"><% elevation_lines(:dense).each do |line| %><line x1="<%= plot.left %>" x2="<%= plot.right %>" y1="<%= line.at %>" y2="<%= line.at %>"/><% end %></g>
       <% %i[dense sparse].each do |density| %>
+        <g class="hour-labels label-<%= density %>" dominant-baseline="central"><% elevation_lines(density).each do |line| %><text x="<%= elevation_label_x %>" y="<%= line.label_at %>" text-anchor="end"><%= line.text %></text><% end %></g>
         <g class="grid label-<%= density %>"><% azimuth_lines(density).each do |line| %><line x1="<%= line.at %>" x2="<%= line.at %>" y1="<%= plot.top %>" y2="<%= plot.bottom %>"/><% end %></g>
         <g class="month-labels label-<%= density %>" dominant-baseline="hanging"><% azimuth_lines(density).each do |line| %><text x="<%= line.at %>" y="<%= line.label_at %>" text-anchor="middle"><%= line.text %></text><% end %></g>
       <% end %>
@@ -13,15 +13,20 @@
       <% paths.each do |path| %>
         <g>
           <polyline class="sun" points="<%= path.points %>"/>
-          <% path.dots.each do |dot| %><circle class="dot" cx="<%= dot.x %>" cy="<%= dot.y %>" r="<%= Solakon::YieldMapComponent::DOT_RADIUS %>"/><% if dot.text %><text class="dot-label" x="<%= dot.x %>" y="<%= dot.text_y %>" text-anchor="middle"><%= dot.text %></text><% end %><% end %>
+          <% path.dots.each do |dot| %><circle class="dot" cx="<%= dot.x %>" cy="<%= dot.y %>" r="<%= Solakon::YieldMapComponent::DOT_RADIUS %>"/><% if dot.text %><text class="dot-label" x="<%= dot.text_x %>" y="<%= dot.text_y %>" text-anchor="<%= dot.anchor %>" dominant-baseline="central"><%= dot.text %></text><% end %><% end %>
           <text class="path-label" x="<%= path.label_x %>" y="<%= path.label_y %>" text-anchor="middle"><%= path.label %></text>
         </g>
       <% end %>
     </svg>
     <ul class="legend list-unstyled d-flex flex-wrap align-items-center column-gap-3 row-gap-1 small text-body-secondary mt-2 mb-0">
-      <li class="legend-item d-inline-flex align-items-center gap-2">unter Erwartung<span class="legend-ramp" style="background: <%= legend_gradient %>"></span>voller Ertrag</li>
+      <li class="legend-item d-inline-flex align-items-center gap-2">Ausbeute 0 %<span class="legend-ramp" style="background: <%= legend_gradient %>"></span>100 %</li>
       <li class="legend-item d-inline-flex align-items-center gap-2"><span class="legend-line"></span>Sonnenbahn, Punkte alle drei Stunden</li>
     </ul>
-    <p class="note small text-body-secondary mt-3 mb-0"><%= note %></p>
+    <div class="accordion mt-3">
+      <details class="accordion-item">
+        <summary class="accordion-button">Wie wird gerechnet?</summary>
+        <p class="note accordion-body small text-body-secondary mb-0"><%= note %></p>
+      </details>
+    </div>
   <% end %>
 <% end %>

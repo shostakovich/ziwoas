@@ -324,7 +324,8 @@ class SolakonControllerTest < ActionDispatch::IntegrationTest
     assert_select "main h2", text: "Sonnenkalender 2026"
     assert_select ".sun-calendar [data-strip]", 4
     assert_select ".sun-calendar [data-strip='pv'] .cells rect", minimum: 1
-    assert_select ".sun-calendar [data-strip='pv'] polyline.sun", 3
+    assert_select ".sun-calendar [data-strip='pv'] svg.strip-chart-wide polyline.sun", 3
+    assert_select ".sun-calendar [data-strip='pv'] svg.strip-chart-narrow polyline.sun", 3
   end
 
   test "sun calendar marks the switch from producer-plug energy once PV data begins" do

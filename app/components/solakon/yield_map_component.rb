@@ -16,11 +16,19 @@ module Solakon
     AXIS_ROUNDING_DEG = 10
     AZIMUTH_LABEL_STEP = 30
     ELEVATION_LABEL_STEP = 10
+    # The phone's larger labels need every other line.
+    SPARSE_ELEVATION_LABEL_STEP = 20
     CELL_GAP = 0.6
     DOT_RADIUS = 3
-    # The hours sit under their dot, the date over the arc's highest point, so
-    # the two never meet at noon where both belong to the same place.
-    DOT_LABEL_OFFSET = 13
+    # The hours stand outside their arc, away from its middle: the highest arc
+    # bounds every field, so out there they lie on empty sky. The date stands
+    # over the arc's highest point.
+    DOT_LABEL_OFFSET = 10
+    # How far a label may lean sideways before it is anchored at its dot's side.
+    SIDEWAYS = 0.4
+    # A sideways label needs this much plot beside its dot, or it would run
+    # into the axis labels; it stands over its dot instead.
+    LABEL_ROOM = 90
     PATH_LABEL_OFFSET = 9
     ELEVATION_LABEL_GAP = 5
     # The azimuth labels hang from this line under the horizon.
@@ -29,7 +37,7 @@ module Solakon
 
     Field = Data.define(:rect, :fill, :title)
     Gridline = Data.define(:at, :label_at, :text)
-    Dot = Data.define(:x, :y, :text, :text_y)
+    Dot = Data.define(:x, :y, :text, :text_x, :text_y, :anchor)
     PathView = Data.define(:label, :points, :dots, :label_x, :label_y)
 
     def initialize(map:)
@@ -58,11 +66,13 @@ module Solakon
 
     def elevation_label_x = plot.left - ELEVATION_LABEL_GAP
 
-    def elevation_lines
-      0.step(top_elevation, ELEVATION_LABEL_STEP).map do |elevation|
-        at = y(elevation)
+    def elevation_lines(density)
+      step = density == :sparse ? SPARSE_ELEVATION_LABEL_STEP : ELEVATION_LABEL_STEP
 
-        Gridline.new(at: number(at), label_at: number(at), text: "#{elevation}°")
+      0.step(top_elevation, step).map do |elevation|
+        at = number(y(elevation))
+
+        Gridline.new(at: at, label_at: at, text: "#{elevation}°")
       end
     end
 
@@ -83,7 +93,7 @@ module Solakon
         PathView.new(
           label: path.label,
           points: plot.line(path.points),
-          dots: dots(path, hours: index.zero?),
+          dots: dots(path, peak, hours: index.zero?),
           label_x: number(x(peak.first)), label_y: number(y(peak.last) - PATH_LABEL_OFFSET)
         )
       end
@@ -131,11 +141,40 @@ module Solakon
 
     def degrees(&) = @map.paths.flat_map { |path| path.points.map(&) }
 
-    def dots(path, hours:)
+    def dots(path, peak, hours:)
       path.dots.map do |dot|
-        Dot.new(x: number(x(dot.azimuth)), y: number(y(dot.elevation)),
-                text: hours ? dot.hour.to_s : nil, text_y: number(y(dot.elevation) + DOT_LABEL_OFFSET))
+        at_x = x(dot.azimuth)
+        at_y = y(dot.elevation)
+        out_x, out_y = room_for(at_x, *outwards(at_x, at_y, x(peak.first)))
+
+        Dot.new(x: number(at_x), y: number(at_y), text: (format("%02d:00", dot.hour) if hours),
+                text_x: number(at_x + (out_x * DOT_LABEL_OFFSET)), text_y: number(at_y + (out_y * DOT_LABEL_OFFSET)),
+                anchor: anchor(out_x))
       end
+    end
+
+    # The unit vector from the foot of the arc's middle, on the horizon, to
+    # the dot.
+    def outwards(at_x, at_y, middle_x)
+      dx = at_x - middle_x
+      dy = at_y - y(0)
+      length = Math.hypot(dx, dy)
+      return [ 0, -1 ] if length.zero?
+
+      [ dx / length, dy / length ]
+    end
+
+    def room_for(at_x, out_x, out_y)
+      room = out_x.negative? ? at_x - plot.left : plot.right - at_x
+      return [ out_x, out_y ] if out_x.abs < SIDEWAYS || room >= LABEL_ROOM
+
+      [ 0, -1 ]
+    end
+
+    def anchor(out_x)
+      return "middle" if out_x.abs < SIDEWAYS
+
+      out_x.negative? ? "end" : "start"
     end
 
     def azimuth_label(azimuth, density)
