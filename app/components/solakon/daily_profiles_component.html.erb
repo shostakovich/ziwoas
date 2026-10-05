@@ -14,7 +14,7 @@
           <figcaption class="small fw-semibold mb-1<%= ' text-body-secondary' if multiple.partial? %>"><%= multiple.label %> <span class="fw-normal text-body-secondary"><%= multiple.days %> <%= multiple.days == 1 ? "Tag" : "Tage" %></span></figcaption>
           <svg viewBox="<%= plot.view_box %>" role="img" aria-label="Tagesgang <%= multiple.label %>" <%= tag.attributes(class: ("opacity-50" if multiple.partial?)) %>>
             <g class="grid"><% grid_lines.each do |at| %><line x1="<%= plot.left %>" x2="<%= plot.right %>" y1="<%= at %>" y2="<%= at %>"/><% end %></g>
-            <g class="value-labels" dominant-baseline="central"><% value_labels.each do |label| %><text x="<%= label.x %>" y="<%= label.y %>" text-anchor="end"><%= label.text %></text><% end %></g>
+            <g class="value-labels" dominant-baseline="central"><% value_labels.each do |label| %><text x="<%= label.x %>" y="<%= label.y %>" text-anchor="end" <%= tag.attributes(class: ("zero" if label.zero)) %>><%= label.text %></text><% end %></g>
             <% %i[dense sparse].each do |density| %>
               <g class="hour-labels label-<%= density %>" dominant-baseline="hanging"><% hour_labels(density).each do |label| %><text x="<%= label.x %>" y="<%= label.y %>" text-anchor="middle"><%= label.text %></text><% end %></g>
             <% end %>

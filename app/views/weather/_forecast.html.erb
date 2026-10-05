@@ -7,23 +7,24 @@
                  data-controller="weather-segments"
                  data-weather-segments-day-value="<%= day.date.iso8601 %>"
                  data-weather-segments-selected-class="active border-primary bg-primary-subtle">
-          <header class="card-header d-flex flex-wrap justify-content-between align-items-baseline gap-2">
-            <div>
-              <h3 class="h6 mb-0"><%= day.weekday_label %> <span class="fw-normal text-body-secondary tabular-nums"><%= day.date_label %></span></h3>
-              <div class="weather-day-summary small text-body-secondary tabular-nums">
-                <%= de_number(day.temp_min, precision: 0) %>
-                – <%= de_number(day.temp_max, precision: 0) %> °C
-                <% if day.precip_sum.positive? %>
-                  · Regen <%= de_number(day.precip_sum, precision: 1) %> mm
-                <% end %>
-              </div>
+          <%# The sun's peak shares the title's line, so a phone header keeps two lines. %>
+          <header class="card-header">
+            <div class="d-flex justify-content-between align-items-baseline gap-2">
+              <h3 class="h6 mb-0 text-nowrap"><%= day.weekday_label %> <span class="fw-normal text-body-secondary tabular-nums"><%= day.date_label %></span></h3>
+              <% if day.solar_peak_w_per_m2 %>
+                <div class="weather-day-peak small fw-semibold text-warning-emphasis tabular-nums text-nowrap">
+                  <%= image_tag "weather_clear_day.webp", class: "weather-icon-inline", alt: "" %>
+                  Spitze <%= de_number(day.solar_peak_w_per_m2, precision: 0) %> W/m²
+                </div>
+              <% end %>
             </div>
-            <% if day.solar_peak_w_per_m2 %>
-              <div class="weather-day-peak small fw-semibold text-warning-emphasis tabular-nums">
-                <%= image_tag "weather_clear_day.webp", class: "weather-icon-inline", alt: "" %>
-                Spitze <%= de_number(day.solar_peak_w_per_m2, precision: 0) %> W/m²
-              </div>
-            <% end %>
+            <div class="weather-day-summary small text-body-secondary tabular-nums">
+              <%= de_number(day.temp_min, precision: 0) %>
+              – <%= de_number(day.temp_max, precision: 0) %> °C
+              <% if day.precip_sum.positive? %>
+                · Regen <%= de_number(day.precip_sum, precision: 1) %> mm
+              <% end %>
+            </div>
           </header>
           <div class="card-body">
             <% rows = weather_segment_rows(day.segments) %>
@@ -86,7 +87,7 @@
                       <%= render "weather/hour_card", record: record, rows: hour_rows %>
                     <% end %>
                   </div>
-                  <%= render "weather/hour_key", rows: hour_rows, classes: "px-3 pb-3" %>
+                  <%= render "weather/hour_key", records: segment.records, classes: "px-3 pb-3" %>
                 </div>
               <% end %>
             </div>

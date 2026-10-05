@@ -8,7 +8,7 @@
            class="panel-chart panel-chart-<%= chart.key %> <%= chart.named? ? 'd-none d-sm-block' : 'd-sm-none' %>">
         <g class="grid"><% chart.grid_lines.each do |at| %><line x1="<%= chart.plot.left %>" x2="<%= chart.plot.right %>" y1="<%= at %>" y2="<%= at %>"/><% end %></g>
         <g class="value-labels" dominant-baseline="central">
-          <% chart.value_labels.each do |label| %><text x="<%= label.x %>" y="<%= label.y %>" text-anchor="end"><%= label.text %></text><% end %>
+          <% chart.value_labels.each do |label| %><text x="<%= label.x %>" y="<%= label.y %>" text-anchor="end" <%= tag.attributes(class: ("zero" if label.zero)) %>><%= label.text %></text><% end %>
           <% unit = chart.unit_label %><text class="unit" x="<%= unit.x %>" y="<%= unit.y %>"><%= unit.text %></text>
         </g>
         <g class="hour-labels" dominant-baseline="hanging"><% chart.hour_labels.each do |label| %><text x="<%= label.x %>" y="<%= label.y %>" text-anchor="middle"><%= label.text %></text><% end %></g>
@@ -22,9 +22,9 @@
       </svg>
     <% end %>
     <%# The wide drawing names its lines itself; only the phone's needs a legend. %>
-    <ul class="legend d-sm-none list-unstyled d-flex flex-wrap align-items-center column-gap-3 row-gap-1 small text-body-secondary mt-2 mb-0">
+    <ul class="legend d-sm-none list-unstyled row row-cols-2 g-1 small text-body-secondary mt-2 mb-0">
       <% legend.each do |entry| %>
-        <li class="legend-item d-inline-flex align-items-center gap-2"><span class="legend-line <%= entry.key %>"></span><%= entry.label %></li>
+        <li class="legend-item col d-flex align-items-center gap-2"><span class="legend-line <%= entry.key %>"></span><%= entry.label %></li>
       <% end %>
     </ul>
     <p class="note small text-body-secondary mt-3 mb-0"><%= note %></p>

@@ -80,6 +80,13 @@ class Solakon::DailyProfilesComponentTest < ViewComponent::TestCase
     assert_operator labels.last["y"].to_f, :<, labels.first["y"].to_f
   end
 
+  test "stands the zero on the axis, clear of the first hour below" do
+    labels = render_profiles.css(".multiple").first.css(".value-labels text")
+
+    assert_equal [ "0", %w[zero] ], [ labels.first.text, labels.first["class"].split ]
+    assert_equal [ nil ], labels.drop(1).map { |label| label["class"] }.uniq
+  end
+
   test "tops the plot with the last step when the maximum lands exactly on it" do
     rendered = render_profiles([ profile(measured: [ [ 10, 300.0 ] ], expected: [ [ 10, 100.0 ] ], theory: [ [ 10, 50.0 ] ]) ])
 

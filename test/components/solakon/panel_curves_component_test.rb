@@ -71,8 +71,21 @@ class Solakon::PanelCurvesComponentTest < ViewComponent::TestCase
     assert_equal %w[336 129], %w[x1 y1].map { |name| leader[name] }
   end
 
-  test "keeps the legend for the phone drawing only" do
-    assert_includes render_panels.css("ul.legend").sole["class"].split, "d-sm-none"
+  test "keeps the legend for the phone drawing only, two panels a row" do
+    legend = render_panels.css("ul.legend").sole
+
+    assert_includes legend["class"].split, "d-sm-none"
+    assert_includes legend["class"].split, "row-cols-2"
+    assert_equal [ "col" ], legend.css("li").map { |item| item["class"].split & %w[col] }.flatten.uniq
+  end
+
+  test "stands the zero on the axis in both drawings, the other values across their lines" do
+    render_panels.css("svg.panel-chart").each do |chart|
+      labels = chart.css(".value-labels text:not(.unit)")
+
+      assert_equal [ "0", %w[zero] ], [ labels.first.text, labels.first["class"].split ]
+      assert_equal [ nil ], labels.drop(1).map { |label| label["class"] }.uniq
+    end
   end
 
   test "lifts the names back over the axis when pushing them apart ran out of room" do

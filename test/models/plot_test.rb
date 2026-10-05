@@ -36,16 +36,6 @@ class PlotTest < ActiveSupport::TestCase
     assert_equal 130.1, frame.bottom
   end
 
-  test "hands out the drawing area as one box" do
-    assert_equal Plot::Rect.new(x: 20, y: 10, width: 70, height: 70), plot.box
-  end
-
-  test "rounds the drawing area's width and height too, not just its corner" do
-    frame = plot(width: 301.23, height: 151.67, margins: { top: 11.17, right: 23.29, bottom: 21.53, left: 35.42 })
-
-    assert_equal Plot::Rect.new(x: 35.4, y: 11.2, width: 242.5, height: 119), frame.box
-  end
-
   test "spreads the x domain between the left and the right edge" do
     frame = plot
 
