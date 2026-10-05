@@ -6,7 +6,8 @@
     </clipPath>
   </defs>
 
-  <%# One line per channel, idle until the controller marks it flowing. Each line
+  <%# One line per channel in its source's colour (PV, grid, battery: the same
+      colours the consumer ring uses), idle until the controller marks it flowing. Each line
       leaves its ring at its own point and starts inside the ring, so the dots
       that ride it (they inherit fill from their group) enter from under the
       ring instead of waiting on top of it. Lines and dots are clipped at the
@@ -14,29 +15,29 @@
   <g fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" clip-path="url(#ef-clip)">
     <path <%= target.call("efLineSolarHome") %> class="ef-link" style="--ef-tone: var(--viz-solar)"
           d="M 209.6,109.5 L 212.4,118 C 219.2,139 246.9,139.1 304,157.6 L 312.5,160.4"/>
-    <path <%= target.call("efLineSolarGrid") %> class="ef-link" style="--ef-tone: var(--viz-3)"
+    <path <%= target.call("efLineSolarGrid") %> class="ef-link" style="--ef-tone: var(--viz-solar)"
           d="M 190.4,109.5 L 187.6,118 C 180.8,139 153.1,139.1 96,157.6 L 87.5,160.4"/>
-    <path <%= target.call("efLineSolarBattery") %> class="ef-link" style="--ef-tone: var(--viz-8)"
+    <path <%= target.call("efLineSolarBattery") %> class="ef-link" style="--ef-tone: var(--viz-solar)"
           d="M 200,111 L 200,229"/>
     <path <%= target.call("efLineGridHome") %> class="ef-link" style="--ef-tone: var(--viz-grid)"
           d="M 89,170 L 311,170"/>
-    <path <%= target.call("efLineGridBattery") %> class="ef-link" style="--ef-tone: var(--viz-muted)"
+    <path <%= target.call("efLineGridBattery") %> class="ef-link" style="--ef-tone: var(--viz-grid)"
           d="M 87.5,179.6 L 96,182.4 C 153.1,200.9 180.8,201 187.6,222 L 190.4,230.5"/>
     <path <%= target.call("efLineBatteryHome") %> class="ef-link" style="--ef-tone: var(--viz-battery)"
           d="M 209.6,230.5 L 212.4,222 C 219.2,201 246.9,200.9 304,182.4 L 312.5,179.6"/>
   </g>
 
   <g <%= target.call("efDotsSolarHome") %> clip-path="url(#ef-clip)" style="fill: var(--viz-solar)"></g>
-  <g <%= target.call("efDotsSolarGrid") %> clip-path="url(#ef-clip)" style="fill: var(--viz-3)"></g>
-  <g <%= target.call("efDotsSolarBattery") %> clip-path="url(#ef-clip)" style="fill: var(--viz-8)"></g>
+  <g <%= target.call("efDotsSolarGrid") %> clip-path="url(#ef-clip)" style="fill: var(--viz-solar)"></g>
+  <g <%= target.call("efDotsSolarBattery") %> clip-path="url(#ef-clip)" style="fill: var(--viz-solar)"></g>
   <g <%= target.call("efDotsGridHome") %> clip-path="url(#ef-clip)" style="fill: var(--viz-grid)"></g>
-  <g <%= target.call("efDotsGridBattery") %> clip-path="url(#ef-clip)" style="fill: var(--viz-muted)"></g>
+  <g <%= target.call("efDotsGridBattery") %> clip-path="url(#ef-clip)" style="fill: var(--viz-grid)"></g>
   <g <%= target.call("efDotsBatteryHome") %> clip-path="url(#ef-clip)" style="fill: var(--viz-battery)"></g>
 
   <g stroke-width="3" fill="none">
     <circle cx="200" cy="80" r="40" style="stroke: var(--viz-solar)"/>
     <circle cx="58" cy="170" r="40" style="stroke: var(--viz-grid)"/>
-    <circle cx="342" cy="170" r="40" style="stroke: var(--track)"/>
+    <circle cx="342" cy="170" r="40" class="ef-groove"/>
     <circle cx="200" cy="260" r="40" style="stroke: var(--viz-battery)"/>
   </g>
   <%# Arcs by source share: where the consumers' power comes from (key below). %>
@@ -55,7 +56,7 @@
     <text <%= target.call("efPvW") %> x="200" y="102" style="fill: var(--warning-text)">— W</text>
     <text <%= target.call("efGridW") %> x="58" y="192" style="fill: var(--primary-text)">— W</text>
     <text <%= target.call("efConsumerW") %> x="342" y="192" style="fill: var(--text)">— W</text>
-    <text <%= target.call("efBatteryW") %> x="200" y="282" style="fill: var(--success-text)">— W</text>
+    <text <%= target.call("efBatteryW") %> x="200" y="282" style="fill: var(--text)">— W</text>
   </g>
 
   <image class="ef-icon" href="<%= asset_path pv_asset %>" x="180" y="50" width="40" height="40" role="img" aria-label="<%= pv_alt %>"/>
@@ -68,4 +69,4 @@
                                      .transform_keys { |state| "battery_state_#{state}" }
                                      .transform_values { |asset| asset_path(asset) }) %>/>
 </svg>
-<p class="small text-body-secondary text-center mt-2 mb-0">Verbraucher-Ring: Herkunft des Stroms</p>
+<p class="energy-flow-key text-body-secondary text-center mt-2 mb-0">Verbraucher-Ring: Herkunft des Stroms</p>

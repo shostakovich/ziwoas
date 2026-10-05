@@ -18,10 +18,15 @@
 /* Small enough to see whole in one desktop viewport. */
 .energy-flow { width: 100%; max-width: 34rem; margin-inline: auto; }
 
-/* A channel is a quiet track until power flows through it (the controller sets
-   data-flowing), then it takes its own colour (--ef-tone, set per line). */
-.energy-flow .ef-link { stroke: var(--track); transition: stroke 300ms ease-out; }
+/* A channel is a quiet groove until power flows through it (the controller sets
+   data-flowing), then it takes its source's colour (--ef-tone, set per line).
+   The groove mixes text into the surface instead of --track, which stays a cool
+   grey on felt (felt-css finding). The consumer ring's base is the same groove. */
+.energy-flow { --ef-groove: color-mix(in oklab, var(--text) 13%, transparent); }
+.energy-flow .ef-link { stroke: var(--ef-groove); transition: stroke 300ms ease-out; }
 .energy-flow .ef-link[data-flowing] { stroke: var(--ef-tone); }
+.energy-flow .ef-groove { stroke: var(--ef-groove); }
+.energy-flow-key { font-size: .75rem; }
 
 /* Phones draw the 400-unit diagram ~340px wide: larger text units keep labels at 11px and up,
    smaller icons make room for the values inside the rings. The drawing reaches into the card padding. */

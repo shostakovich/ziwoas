@@ -13,6 +13,6 @@
         <div class="col"><%= render "sensors/card", sensor: s, reading: latest[s.id] %></div>
       <% end %>
     </section>
-    <%= render "sensors/charts" %>
+    <%= render "sensors/charts", sensors: sensors %>
   <% end %>
 <% end %>

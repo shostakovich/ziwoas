@@ -2,6 +2,10 @@ import { Controller } from "@hotwired/stimulus"
 import "chart.js"
 import { chartTheme, vizToken, timeScale, timeCategoryScale, formatTime, isPhone } from "lib/chart_theme"
 
+// An hour's yield below this is the inverter's night-time noise, not
+// production: it reads 0 instead of a stub bar.
+const MIN_PRODUCED_KWH = 0.02
+
 export default class extends Controller {
   static targets = ["powerCanvas", "energyCanvas", "deltas"]
 
@@ -137,7 +141,7 @@ export default class extends Controller {
         elements: { line: { borderWidth: isPhone() ? 0.75 : 1.25 } },
         scales: {
           x: timeScale(Date.now() - 86_400_000, Date.now()),
-          y: { beginAtZero: true, title: { display: true, text: "Watt" }, unit: "W" },
+          y: { beginAtZero: true, unit: "W" },
         },
         plugins: {
           legend: { position: "bottom" },
@@ -167,7 +171,10 @@ export default class extends Controller {
     }
     const sorted   = Object.keys(buckets).map(Number).sort((a, b) => a - b)
     const labels   = sorted.map(ts => formatTime(ts * 1000, { hour: "2-digit", minute: "2-digit" }))
-    const produced = sorted.map(ts => +(buckets[ts].produced / 1000).toFixed(3))
+    const produced = sorted.map(ts => {
+      const kwh = buckets[ts].produced / 1000
+      return kwh < MIN_PRODUCED_KWH ? 0 : +kwh.toFixed(3)
+    })
     const consumed = sorted.map(ts => {
       const wh = Object.values(buckets[ts].consumers).reduce((sum, value) => sum + value, 0)
       return +(wh / 1000).toFixed(3)
@@ -190,7 +197,7 @@ export default class extends Controller {
         maintainAspectRatio: false,
         scales: {
           x: { stacked: true, ...timeCategoryScale(sorted.map((ts) => ts * 1000)) },
-          y: { stacked: true, beginAtZero: true, title: { display: true, text: "kWh" }, unit: "kWh", decimals: 2 },
+          y: { stacked: true, beginAtZero: true, unit: "kWh", decimals: 2 },
         },
         plugins: { legend: { position: "bottom" } },
         animation: false,

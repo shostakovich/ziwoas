@@ -51,7 +51,7 @@ export default class extends Controller {
         maintainAspectRatio: false,
         scales: {
           x: timeCategoryScale(producer.points.map(({ date }) => localMidnight(date))),
-          y: { beginAtZero: true, title: { display: true, text: "kWh" }, unit: "kWh", decimals: 2 },
+          y: { beginAtZero: true, unit: "kWh", decimals: 2 },
         },
         plugins: { legend: { display: false } },
         animation: false,

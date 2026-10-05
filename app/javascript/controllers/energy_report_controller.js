@@ -167,7 +167,7 @@ export default class extends Controller {
         ticks: { ...timeAxis.ticks, padding: hasIcons && this.dailyWeatherEnabled ? dailyIconsPadding : 0 },
         afterFit: trimXScale,
       },
-      y: { stacked: true, beginAtZero: true, title: { display: true, text: "kWh" }, unit: "kWh", decimals: 2 },
+      y: { stacked: true, beginAtZero: true, unit: "kWh", decimals: 2 },
     }
 
     if (hasSolar) {
@@ -240,7 +240,7 @@ export default class extends Controller {
         maintainAspectRatio: false,
         scales: {
           x: timeCategoryScale(ratios.map((r) => localMidnight(r.date))),
-          y: { min: 0, max: 100, title: { display: true, text: "%" }, unit: "%" },
+          y: { min: 0, max: 100, unit: "%" },
         },
         plugins: { legend: { position: "bottom" } },
         animation: false,
@@ -296,7 +296,7 @@ export default class extends Controller {
     }
     const scales = {
       x: { ...timeAxis, ticks: { ...timeAxis.ticks, padding: hasIcons && this.detailWeatherEnabled ? detailIconsPadding : 0 }, afterFit: trimXScale },
-      y: { beginAtZero: true, title: { display: true, text: "Watt" }, unit: "W" },
+      y: { beginAtZero: true, unit: "W" },
     }
 
     if (hasSolar) {
@@ -360,7 +360,7 @@ export default class extends Controller {
         maintainAspectRatio: false,
         scales: {
           x: { stacked: true, ...timeCategoryScale(detail.times || []) },
-          y: { stacked: true, beginAtZero: true, title: { display: true, text: "Watt" }, unit: "W" },
+          y: { stacked: true, beginAtZero: true, unit: "W" },
         },
         plugins: { legend: { position: "bottom" } },
         animation: false,
