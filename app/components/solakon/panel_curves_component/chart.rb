@@ -15,6 +15,8 @@ module Solakon
       # Half the names' line height at their largest: centred names stay clear of the hours.
       LABEL_MARGIN = 10
       VALUE_LABEL_GAP = 5
+      # The unit follows the top value across the axis, with a little air.
+      UNIT_GAP = 3
       # The hour labels hang from this line under the axis.
       HOUR_LABEL_GAP = 5
 
@@ -55,20 +57,23 @@ module Solakon
         placed.map { |label| label.with(y: number(label.y - overflow)) }
       end
 
-      def grid_lines = grid.map(&:at)
+      # The axis stands for zero.
+      def grid_lines = grid.reject { |tick| tick.value.zero? }.map(&:at)
 
       def value_labels
         grid.map { |tick| Label.new(x: value_label_x, y: tick.at, text: tick.value.to_s, key: nil) }
       end
 
-      # The unit stands where the top value would, above the last grid line.
-      def unit_label = Label.new(x: value_label_x, y: plot.top, text: "W", key: nil)
+      # The unit reads on from the top value, which stands at the top of the plot.
+      def unit_label = Label.new(x: value_label_x + UNIT_GAP, y: plot.top, text: "W", key: nil)
 
-      # The wide frame has room for the unit, the narrow one only for the number.
+      # On the clock's step: the wide frame has room for the full time, the
+      # narrow one only for the hour.
       def hour_labels
-        plot.x_ticks(@hours.step(@frame.hour_step)).map do |tick|
-          text = named? ? "#{tick.value} Uhr" : tick.value.to_s
-          Label.new(x: tick.at, y: number(plot.bottom + HOUR_LABEL_GAP), text: text, key: nil)
+        pattern = named? ? "%02d:00" : "%02d"
+
+        plot.x_ticks(@hours.select { |hour| (hour % @frame.hour_step).zero? }).map do |tick|
+          Label.new(x: tick.at, y: plot.bottom + HOUR_LABEL_GAP, text: format(pattern, tick.value), key: nil)
         end
       end
 
@@ -86,7 +91,7 @@ module Solakon
 
       def value_label_x = plot.left - VALUE_LABEL_GAP
 
-      def grid = plot.y_ticks(@grid_step.step(@max_w - 1, @grid_step))
+      def grid = plot.y_ticks(0.step(@max_w, @grid_step))
 
       def spread(labels)
         labels.each_with_object([]) do |label, placed|

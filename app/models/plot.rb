@@ -74,12 +74,14 @@ class Plot
     end
   end
 
+  # The edges are rounded before the size is taken from them, so two boxes
+  # that meet share one edge: rounding corner and size apart leaves slits
+  # between neighbours that crisp edges turn into hairlines.
   def rect(x_range, y_range, inset: 0)
-    xs = [ x(x_range.begin), x(x_range.end) ]
-    ys = [ y(y_range.begin), y(y_range.end) ]
+    xs = [ x(x_range.begin), x(x_range.end) ].map { |value| number(value) }
+    ys = [ y(y_range.begin), y(y_range.end) ].map { |value| number(value) }
 
-    Rect.new(x: number(xs.min), y: number(ys.min),
-             width: number(xs.max - xs.min - inset), height: number(ys.max - ys.min - inset))
+    Rect.new(x: xs.min, y: ys.min, width: number(xs.max - xs.min - inset), height: number(ys.max - ys.min - inset))
   end
 
   private

@@ -9,7 +9,7 @@
         <g class="grid"><% chart.grid_lines.each do |at| %><line x1="<%= chart.plot.left %>" x2="<%= chart.plot.right %>" y1="<%= at %>" y2="<%= at %>"/><% end %></g>
         <g class="value-labels" dominant-baseline="central">
           <% chart.value_labels.each do |label| %><text x="<%= label.x %>" y="<%= label.y %>" text-anchor="end"><%= label.text %></text><% end %>
-          <% unit = chart.unit_label %><text class="unit" x="<%= unit.x %>" y="<%= unit.y %>" text-anchor="end"><%= unit.text %></text>
+          <% unit = chart.unit_label %><text class="unit" x="<%= unit.x %>" y="<%= unit.y %>"><%= unit.text %></text>
         </g>
         <g class="hour-labels" dominant-baseline="hanging"><% chart.hour_labels.each do |label| %><text x="<%= label.x %>" y="<%= label.y %>" text-anchor="middle"><%= label.text %></text><% end %></g>
         <line class="axis" x1="<%= chart.plot.left %>" x2="<%= chart.plot.right %>" y1="<%= chart.plot.bottom %>" y2="<%= chart.plot.bottom %>"/>

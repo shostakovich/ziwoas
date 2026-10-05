@@ -18,8 +18,8 @@ class SunCalendarTest < ApplicationSystemTestCase
     # The section label is uppercased via CSS, so the browser reports it in caps.
     assert_text(/Sonnenkalender 2026/i)
     assert_selector ".sun-calendar [data-strip]", count: 4
-    assert_selector ".sun-calendar [data-strip='pv'] polyline.sun", count: 3, visible: :all
-    assert_selector ".sun-calendar [data-strip='energy'] .bars rect", minimum: 30, visible: :all
+    assert_selector ".sun-calendar [data-strip='pv'] svg.strip-chart-wide polyline.sun", count: 3, visible: :all
+    assert_selector ".sun-calendar [data-strip='energy'] .bars path", minimum: 1, visible: :all
 
     widths = page.evaluate_script(<<~JS)
       Array.from(document.querySelectorAll(".sun-calendar svg"))
@@ -39,6 +39,8 @@ class SunCalendarTest < ApplicationSystemTestCase
     assert_selector ".sun-calendar .month-labels.label-sparse text", visible: true, minimum: 1
     assert_no_selector ".sun-calendar .month-labels.label-dense text", visible: true
     assert_selector ".sun-calendar svg.energy-chart-narrow", visible: true
+    assert_selector ".sun-calendar svg.strip-chart-narrow", count: 3, visible: true
+    assert_no_selector ".sun-calendar svg.strip-chart-wide", visible: true
     assert_no_selector ".sun-calendar svg.energy-chart-wide", visible: true
 
     overflow = page.evaluate_script("document.documentElement.scrollWidth - document.documentElement.clientWidth")

@@ -191,6 +191,21 @@ class PlotTest < ActiveSupport::TestCase
     frame = plot(width: 301.23, height: 151.67, margins: { top: 11.17, right: 23.29, bottom: 21.53, left: 35.42 },
                 x: 22..2, y: 0..100)
 
-    assert_equal Plot::Rect.new(x: 217.3, y: 23.1, width: 60.6, height: 95.2), frame.rect(2..7, 10..90)
+    assert_equal Plot::Rect.new(x: 217.3, y: 23.1, width: 60.6, height: 95.1), frame.rect(2..7, 10..90)
+  end
+
+  test "leaves no float residue in a box's size taken from two rounded edges" do
+    # 80 - 79.3 is 0.7000000000000028 in floating point.
+    assert_equal Plot::Rect.new(x: 20, y: 79.3, width: 7, height: 0.7), plot.rect(0..1, 0..1)
+  end
+
+  test "lets two neighbouring boxes share their rounded edge" do
+    frame = plot(width: 720, margins: { top: 10, right: 4, bottom: 20, left: 40 }, x: 1..366, y: 0..10)
+
+    first = frame.rect(25..27, 0..1)
+    second = frame.rect(27..29, 0..1)
+
+    assert_equal 84.4, first.x
+    assert_equal second.x, Plot.number(first.x + first.width), "no slit between the two"
   end
 end

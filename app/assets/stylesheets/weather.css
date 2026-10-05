@@ -17,7 +17,12 @@
   vertical-align: -0.45em;
 }
 
-.weather-hour-card { min-width: 5.5rem; }
+/* Narrow enough that four hours fit beside each other on a phone. */
+.weather-hour-card { min-width: 4rem; }
+
+/* A chosen segment tile stays where it is: felt presses .btn.active down by a
+   pixel, which would set it off against its neighbours' rows (C7). */
+.weather-segment.btn.active { transform: none; }
 
 /* Hour rows scroll sideways; the right edge fades into the hours that follow.
    The end padding keeps the last card clear of the fade. */

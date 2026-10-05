@@ -38,8 +38,8 @@ class Solakon::YieldMapComponentTest < ViewComponent::TestCase
   test "names the compass points on both densities and the degrees only on the wide one" do
     rendered = render_map
 
-    dense = rendered.css(".label-dense text").map(&:text)
-    sparse = rendered.css(".label-sparse text").map(&:text)
+    dense = rendered.css(".month-labels.label-dense text").map(&:text)
+    sparse = rendered.css(".month-labels.label-sparse text").map(&:text)
 
     assert_includes dense, "Ost 90°"
     assert_includes dense, "120°"
@@ -47,14 +47,21 @@ class Solakon::YieldMapComponentTest < ViewComponent::TestCase
   end
 
   test "labels the sun's height up the side" do
-    heights = render_map.css(".hour-labels text").map(&:text)
+    heights = render_map.css(".hour-labels.label-dense text").map(&:text)
 
     assert_equal "0°", heights.first
     assert_includes heights, "60°"
   end
 
   test "steps the elevation grid by ten degrees, not by one" do
-    assert_equal 7, render_map.css(".hour-labels text").length
+    rendered = render_map
+
+    assert_equal 7, rendered.css(".hour-labels.label-dense text").length
+    assert_equal 7, rendered.css("g.grid").first.css("line").length
+  end
+
+  test "labels every other elevation line on the phone" do
+    assert_equal %w[0° 20° 40° 60°], render_map.css(".hour-labels.label-sparse text").map(&:text)
   end
 
   test "extends both axes to cover the widest field, not just the sun's own path" do
@@ -83,7 +90,7 @@ class Solakon::YieldMapComponentTest < ViewComponent::TestCase
     rendered = render_map(bins: [ wide_bin ], paths: [ wide ], bin_size: 250)
 
     line = rendered.css("g.grid line").select { |node| node["y1"] == node["y2"] }[4]
-    label = rendered.css(".hour-labels text")[4]
+    label = rendered.css(".hour-labels.label-dense text")[4]
 
     assert_equal "855.6", line["y1"]
     assert_equal "855.6", label["y"]
@@ -106,16 +113,70 @@ class Solakon::YieldMapComponentTest < ViewComponent::TestCase
     assert_equal labels.fetch("21.6."), labels.fetch("21.12.")
   end
 
-  test "writes the hour under its dot, where the date cannot reach it" do
-    dots = [ Shading::Dot.new(hour: 12, azimuth: 180.0, elevation: 60.0) ]
+  test "writes the hour outside its arc, away from the arc's middle, on the empty sky" do
+    dots = [ Shading::Dot.new(hour: 9, azimuth: 120.0, elevation: 40.0), Shading::Dot.new(hour: 12, azimuth: 180.0, elevation: 60.0),
+             Shading::Dot.new(hour: 15, azimuth: 240.0, elevation: 40.0) ]
     rendered = render_map(paths: [ path(dots: dots) ])
 
-    dot = rendered.css("circle.dot").sole
-    hour = rendered.css("text.dot-label").sole
-    date = rendered.css("text.path-label").sole
+    circles = rendered.css("circle.dot")
+    hours = rendered.css("text.dot-label")
 
-    assert_operator hour["y"].to_f, :>, dot["cy"].to_f
-    assert_operator date["y"].to_f, :<, dot["cy"].to_f
+    assert_equal %w[09:00 12:00 15:00], hours.map(&:text)
+    assert_equal %w[end middle start], hours.map { |hour| hour["text-anchor"] }
+    circles.zip(hours).each do |dot, hour|
+      assert_operator hour["y"].to_f, :<, dot["cy"].to_f, "#{hour.text} stands above its dot"
+    end
+    assert_operator hours[0]["x"].to_f, :<, circles[0]["cx"].to_f
+    assert_equal circles[1]["cx"], hours[1]["x"]
+    assert_operator hours[2]["x"].to_f, :>, circles[2]["cx"].to_f
+  end
+
+  test "sets an hour off its dot by ten units, along the line from the arc's foot to the dot" do
+    dots = [ Shading::Dot.new(hour: 15, azimuth: 240.0, elevation: 40.0) ]
+    hour = render_map(paths: [ path(dots: dots) ]).css("text.dot-label").sole
+
+    # The dot sits at 545.5, 95.5; the arc's foot at 381, 254.5.
+    assert_equal [ "552.7", "88.6", "start" ], [ hour["x"], hour["y"], hour["text-anchor"] ]
+  end
+
+  test "points outwards with a unit vector from the horizon under the arc's middle" do
+    component = Solakon::YieldMapComponent.new(map: Shading::Map.new(bins: [ bin ], paths: [ path ], bin_size: 5))
+    horizon = component.plot.y(0)
+
+    assert_equal [ 0.6, -0.8 ], component.send(:outwards, 411.0, horizon - 40, 381.0).map { |value| value.round(6) }
+    assert_equal [ 0, -1 ], component.send(:outwards, 381.0, horizon, 381.0)
+  end
+
+  test "keeps a sideways label beside its dot only while the plot leaves it the room" do
+    component = Solakon::YieldMapComponent.new(map: Shading::Map.new(bins: [ bin ], paths: [ path ], bin_size: 5))
+
+    # The plot runs from 52 to 710; a label needs 90 units beside its dot.
+    assert_equal [ -0.9, -0.4 ], component.send(:room_for, 142.0, -0.9, -0.4)
+    assert_equal [ 0, -1 ], component.send(:room_for, 141.9, -0.9, -0.4)
+    assert_equal [ 0, -1 ], component.send(:room_for, 100.0, -0.9, -0.4)
+    assert_equal [ 0.9, -0.4 ], component.send(:room_for, 620.0, 0.9, -0.4)
+    assert_equal [ 0, -1 ], component.send(:room_for, 620.1, 0.9, -0.4)
+    assert_equal [ -0.3, -0.95 ], component.send(:room_for, 60.0, -0.3, -0.95), "a label over its dot needs no room beside it"
+  end
+
+  test "stands an hour over its dot where the plot's edge leaves no room beside it" do
+    dots = [ Shading::Dot.new(hour: 6, azimuth: 65.0, elevation: 8.0), Shading::Dot.new(hour: 18, azimuth: 295.0, elevation: 8.0) ]
+    rendered = render_map(paths: [ path(dots: dots) ])
+
+    circles = rendered.css("circle.dot")
+    hours = rendered.css("text.dot-label")
+
+    assert_equal %w[middle middle], hours.map { |hour| hour["text-anchor"] }
+    assert_equal circles.map { |dot| dot["cx"] }, hours.map { |hour| hour["x"] }
+    assert_equal circles.map { |dot| Plot.number(dot["cy"].to_f - 10) }, hours.map { |hour| hour["y"].to_f }
+  end
+
+  test "stands an hour over its dot when the dot sits at the arc's very foot" do
+    dots = [ Shading::Dot.new(hour: 12, azimuth: 180.0, elevation: 0.0) ]
+
+    hour = render_map(paths: [ path(dots: dots) ]).css("text.dot-label").sole
+
+    assert_equal [ "381", "244.5", "middle" ], [ hour["x"], hour["y"], hour["text-anchor"] ]
   end
 
   test "marks the hours on the first path only" do
@@ -123,7 +184,7 @@ class Solakon::YieldMapComponentTest < ViewComponent::TestCase
     rendered = render_map(paths: [ path(dots: dots), path(label: "21.12.", dots: dots) ])
 
     assert_equal 2, rendered.css("circle.dot").length
-    assert_equal [ "9" ], rendered.css("text.dot-label").map(&:text)
+    assert_equal [ "09:00" ], rendered.css("text.dot-label").map(&:text)
   end
 
   test "measures the fields, the grid and the paths against the same axes" do
@@ -133,22 +194,22 @@ class Solakon::YieldMapComponentTest < ViewComponent::TestCase
     assert_equal "0 0 720 290.5", rendered.css("svg").sole["viewBox"]
 
     rect = rendered.css(".fields rect").sole
-    assert_equal %w[271.3 55.8 13.1 19.3], %w[x y width height].map { |name| rect[name] }
+    assert_equal %w[271.3 55.8 13.1 19.2], %w[x y width height].map { |name| rect[name] }
 
     horizon = rendered.css("g.grid").first.css("line").first
     assert_equal %w[52 710 254.5 254.5], %w[x1 x2 y1 y2].map { |name| horizon[name] }
 
-    label = rendered.css(".hour-labels text").first
+    label = rendered.css(".hour-labels.label-dense text").first
     assert_equal [ "0°", "47", "254.5" ], [ label.text, label["x"], label["y"] ]
 
-    east = rendered.css(".label-dense text").find { |node| node.text == "Ost 90°" }
+    east = rendered.css(".month-labels.label-dense text").find { |node| node.text == "Ost 90°" }
     assert_equal %w[134.3 259.5], [ east["x"], east["y"] ]
 
     assert_equal "52,234.6 381,16 710,238.6", rendered.css("polyline.sun").sole["points"]
 
     dot = rendered.css("circle.dot").sole
     assert_equal %w[381 16], [ dot["cx"], dot["cy"] ]
-    assert_equal %w[381 29], [ rendered.css("text.dot-label").sole["x"], rendered.css("text.dot-label").sole["y"] ]
+    assert_equal %w[381 6], [ rendered.css("text.dot-label").sole["x"], rendered.css("text.dot-label").sole["y"] ]
     assert_equal %w[381 7], [ rendered.css("text.path-label").sole["x"], rendered.css("text.path-label").sole["y"] ]
   end
 
@@ -158,9 +219,10 @@ class Solakon::YieldMapComponentTest < ViewComponent::TestCase
 
     # 63.7° snaps down to 60°, 291.4° up to 300°, and 57.3° of height up to 60°.
     assert_equal "0 0 720 290.5", rendered.css("svg").sole["viewBox"]
-    assert_equal %w[0° 60°], [ rendered.css(".hour-labels text").first.text, rendered.css(".hour-labels text").last.text ]
-    assert_equal %w[60° Ost\ 90°], rendered.css(".label-dense text").map(&:text).first(2)
-    assert_equal %w[52 134.3], rendered.css(".label-dense text").map { |node| node["x"] }.first(2)
+    heights = rendered.css(".hour-labels.label-dense text")
+    assert_equal %w[0° 60°], [ heights.first.text, heights.last.text ]
+    assert_equal %w[60° Ost\ 90°], rendered.css(".month-labels.label-dense text").map(&:text).first(2)
+    assert_equal %w[52 134.3], rendered.css(".month-labels.label-dense text").map { |node| node["x"] }.first(2)
     assert_equal "62.1,234.6 381,26.7 686.4,238.6", rendered.css("polyline.sun").sole["points"]
   end
 
@@ -168,6 +230,9 @@ class Solakon::YieldMapComponentTest < ViewComponent::TestCase
     rendered = render_map
 
     assert_equal "background: #{Ramp.fetch(:diverging).css_gradient}", rendered.css(".legend-ramp").sole["style"]
+    assert_equal "Ausbeute 0 %100 %", rendered.css(".legend-item").first.text.squish
+    assert_equal "Wie wird gerechnet?", rendered.css("details.accordion-item > summary").sole.text
+    assert_equal rendered.css(".note").sole, rendered.css("details .note").sole, "the method waits behind its question"
     assert_equal "Ausbeute ist die PV-Leistung geteilt durch die Einstrahlung derselben Stunde, " \
                  "bezogen auf die beste je gemessene Stunde. Gezählt werden nur Stunden mit mindestens " \
                  "100 W/m²; ein Feld von 5° × 5° zeigt den Median seiner Stunden und bleibt unter " \
