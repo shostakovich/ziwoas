@@ -197,7 +197,7 @@ class ReportsControllerTest < ActionDispatch::IntegrationTest
       assert_select "nav[aria-label='#{nav_label}'] a.nav-link[aria-current]", 1
     end
 
-    assert_select "nav.navbar.fixed-bottom.pb-safe.d-lg-none[aria-label='Tab-Leiste'] ul.nav.nav-pills.nav-fill"
+    assert_select "nav.navbar.fixed-bottom.pb-safe.d-lg-none[aria-label='Tab-Leiste'] ul.nav.nav-pills.nav-justified.flex-nowrap"
     assert_select "nav.d-none.d-lg-block[aria-label='Hauptnavigation']"
     assert_select "a.visually-hidden-focusable[href='#main']", text: "Zum Inhalt springen"
     assert_select "main#main.container", 1
