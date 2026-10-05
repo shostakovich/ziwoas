@@ -130,6 +130,104 @@ class ChartNumbersTest < ApplicationSystemTestCase
     assert_equal(-200, result["exact"])
   end
 
+  test "a snug axis tops out on the next 1–2–2,5–5 step above the peak, in at most five steps" do
+    result = chart(<<~JS)
+      return [
+        m.snugTop([ 400, null, "1020", 870 ]), m.snugTop([ 2400 ]), m.snugTop([ 3000 ]), m.snugTop([ 0.3 ]),
+        m.snugTop([ 1000 ]), m.snugTop([ 0, null ]),
+      ]
+    JS
+
+    assert_equal({ "max" => 1250, "ticks" => { "stepSize" => 250, "maxTicksLimit" => 6 } }, result[0])
+    assert_equal [ [ 2500, 500 ], [ 3000, 1000 ], [ 0.3, 0.1 ], [ 1000, 200 ] ],
+      result[1..4].map { |scale| [ scale["max"].round(6), scale["ticks"]["stepSize"].round(6) ] }
+    assert_equal({}, result[5])
+  end
+
+  test "a phone's snug report axis keeps its own tick count" do
+    page.current_window.resize_to(390, 844)
+    visit root_path
+    result = chart(<<~JS)
+      const canvas = document.createElement("canvas")
+      canvas.style.cssText = "width:300px;height:300px"
+      document.body.appendChild(canvas)
+      const values = [ 0, 1020, 640 ]
+      const chart = new Chart(canvas, {
+        type: "line",
+        data: { labels: [ "a", "b", "c" ], datasets: [ { label: "Verbrauch", data: values, tone: "--viz-total" } ] },
+        options: { animation: false, responsive: false, scales: { y: { beginAtZero: true, ...m.snugTop(values) } } },
+        plugins: [ m.chartTheme ],
+      })
+      const result = chart.scales.y.ticks.map((tick) => tick.value)
+      chart.destroy()
+      canvas.remove()
+      return result
+    JS
+
+    assert_equal [ 0, 250, 500, 750, 1000, 1250 ], result, "five steps of 250, not three of 500 up to 1.500"
+  ensure
+    page.current_window.resize_to(1400, 1400)
+  end
+
+  test "a threshold names itself where the series keeps clear of it" do
+    result = chart(<<~JS)
+      const area = { left: 0, right: 600, top: 0, bottom: 300 }
+      const spot = (lines, lineY = 150) => {
+        const { textAlign, textBaseline, x, y } = m.placeEndLabel({ lineY, width: 100, height: 12, area, lines })
+        return [ textAlign, textBaseline, x, y ]
+      }
+      const crossingRight = [ { x: 0, y: 250 }, { x: 400, y: 250 }, { x: 600, y: 120 } ]
+      const crossingBoth = [ { x: 0, y: 138 }, { x: 600, y: 138 } ]
+      return {
+        free: spot([]),
+        clearRight: spot([ [ { x: 0, y: 250 }, { x: 600, y: 250 } ] ]),
+        crossingRight: spot([ crossingRight ]),
+        crossingBoth: spot([ crossingBoth ]),
+        top: spot([], 5),
+        cutLeast: spot([
+          [ { x: 450, y: 140 }, { x: 600, y: 140 } ], [ { x: 500, y: 140 }, { x: 500, y: 300 } ],
+          [ { x: 60, y: 0 }, { x: 60, y: 300 } ],
+        ]),
+        taken: m.placeEndLabel({ lineY: 150, width: 100, height: 12, area, taken: [ { left: 490, right: 600, top: 130, bottom: 150 } ] }).textAlign,
+      }
+    JS
+
+    assert_equal [ "right", "bottom", 596, 146 ], result["free"], "a free right end keeps the label right, over the line"
+    assert_equal [ "right", "bottom", 596, 146 ], result["clearRight"]
+    assert_equal [ "left", "bottom", 4, 146 ], result["crossingRight"], "the series crosses at the right: the label moves left"
+    assert_equal [ "right", "top", 596, 154 ], result["crossingBoth"], "just over the line at both ends: the label hangs below"
+    assert_equal [ "right", "top", 596, 9 ], result["top"], "no room over the line at the top of the plot"
+    assert_equal [ "left", "bottom", 4, 146 ], result["cutLeast"], "crossed everywhere: where the series cuts through least"
+    assert_equal "left", result["taken"]
+  end
+
+  test "the CO₂ chart's threshold labels keep clear of the curve" do
+    result = chart(<<~JS)
+      const canvas = document.createElement("canvas")
+      canvas.style.cssText = "width:600px;height:300px"
+      document.body.appendChild(canvas)
+      const points = [ [ 0, 840 ], [ 6, 450 ], [ 12, 1250 ], [ 18, 450 ], [ 23, 1250 ], [ 24, 900 ] ]
+      const chart = new Chart(canvas, {
+        type: "line",
+        data: {
+          datasets: [
+            { label: "Büro", data: points.map(([ x, y ]) => ({ x, y })), tone: "--viz-1" },
+            { label: "Lüften", data: [ { x: 0, y: 1000 }, { x: 24, y: 1000 } ], tone: "--warning", endLabel: "1.000 Lüften" },
+            { label: "Grenzwert", data: [ { x: 0, y: 1400 }, { x: 24, y: 1400 } ], tone: "--danger", endLabel: "1.400 Grenzwert" },
+          ],
+        },
+        options: { animation: false, responsive: false, scales: { x: { type: "linear", min: 0, max: 24 }, y: { beginAtZero: true, suggestedMax: 1500 } } },
+        plugins: [ m.chartTheme ],
+      })
+      const result = chart.data.datasets.slice(1).map((dataset) => dataset.endLabelSpot.textAlign)
+      chart.destroy()
+      canvas.remove()
+      return result
+    JS
+
+    assert_equal %w[left right], result, "the curve runs through 1.000 at the right end, so Lüften names itself at the left"
+  end
+
   private
 
   def format(expression)

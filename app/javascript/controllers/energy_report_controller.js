@@ -1,6 +1,6 @@
 import { Controller } from "@hotwired/stimulus"
 import "chart.js"
-import { chartTheme, vizToken, timeCategoryScale, localMidnight, isPhone } from "lib/chart_theme"
+import { chartTheme, vizToken, timeCategoryScale, localMidnight, isPhone, snugTop } from "lib/chart_theme"
 
 // Connects to data-controller="energy-report"
 // Renders bar/line charts plus an in-canvas weather-icon plugin that draws
@@ -296,7 +296,8 @@ export default class extends Controller {
     }
     const scales = {
       x: { ...timeAxis, ticks: { ...timeAxis.ticks, padding: hasIcons && this.detailWeatherEnabled ? detailIconsPadding : 0 }, afterFit: trimXScale },
-      y: { beginAtZero: true, unit: "W" },
+      // A phone's few value ticks would leave a third of the plot empty.
+      y: { beginAtZero: true, unit: "W", ...(isPhone() ? snugTop(datasets.flatMap((dataset) => dataset.data || [])) : {}) },
     }
 
     if (hasSolar) {

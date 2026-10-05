@@ -156,6 +156,9 @@ class WeatherControllerTest < ActionDispatch::IntegrationTest
     assert_equal "1,2", lists[2].css(".weather-hour-rain").text.squish
     assert_equal "Regen in mm", lists[2].css(".weather-hour-rain img").sole["alt"]
     assert_select ".weather-hour-row .weather-hour-key", text: "Wind in km/h · Sonne in W/m² · Regen in mm"
+    assert_equal [ "Wind in km/h", "· Sonne in W/m²", "· Regen in mm" ],
+      css_select(".weather-hour-row .weather-hour-key > span.text-nowrap").map(&:text),
+      "each unit keeps its leading dot, so the key wraps between units"
     assert_equal "25", lists[2].css(".weather-hour-wind.fw-semibold").text.squish
     assert_select ".weather-hour-card strong", text: "−2°"
   end

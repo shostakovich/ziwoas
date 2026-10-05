@@ -5,8 +5,10 @@ module Solakon
     # taller, so the low morning sun gets room, and names only noon.
     class Sky
       # `hours` lists the hours named at their dots, nil for all of them;
-      # `apex_anchor` sets the dates standing over an apex beside it or on it.
-      Frame = Data.define(:key, :stretch, :density, :hours, :apex_anchor)
+      # `hour_place` sets them outside their arc (:outside) or diagonally over
+      # their dot, away from the apex (:corner); `apex_anchor` sets the dates
+      # standing over an apex beside it or on it.
+      Frame = Data.define(:key, :stretch, :density, :hours, :hour_place, :apex_anchor)
 
       WIDTH = 720
       # Room for the elevation labels and, under the horizon, the azimuth labels
@@ -26,6 +28,10 @@ module Solakon
       # The hours stand outside their arc, away from its middle: the highest arc
       # bounds every field, so out there they lie on empty sky.
       DOT_LABEL_OFFSET = 10
+      # The phone's large hours stand diagonally off their dot: their bottom
+      # corner clears the dot's ring (radius 7, stroke 3) and the arc, which
+      # falls away from the apex beneath them.
+      CORNER_LABEL_OFFSET = 10
       # How far a label may lean sideways before it is anchored at its dot's side.
       SIDEWAYS = 0.4
       # A sideways label needs this much plot beside its dot, or it would run
@@ -39,7 +45,7 @@ module Solakon
 
       Field = Data.define(:rect, :fill, :title)
       Gridline = Data.define(:at, :label_at, :text)
-      Dot = Data.define(:x, :y, :text, :text_x, :text_y, :anchor)
+      Dot = Data.define(:x, :y, :text, :text_x, :text_y, :anchor, :baseline)
       # `baseline` is the label's dominant-baseline: it hangs under the apex
       # of the lowest arc and stands over every other.
       PathView = Data.define(:label, :points, :dots, :label_x, :label_y, :anchor, :baseline)
@@ -156,12 +162,26 @@ module Solakon
         path.dots.map do |dot|
           at_x = x(dot.azimuth)
           at_y = y(dot.elevation)
-          out_x, out_y = room_for(at_x, *outwards(at_x, at_y, x(peak.first)))
+          place = @frame.hour_place == :corner ? corner(at_x, at_y, x(peak.first)) : outside(at_x, at_y, x(peak.first))
 
-          Dot.new(x: number(at_x), y: number(at_y), text: (format("%02d:00", dot.hour) if hours && named?(dot.hour)),
-                  text_x: number(at_x + (out_x * DOT_LABEL_OFFSET)), text_y: number(at_y + (out_y * DOT_LABEL_OFFSET)),
-                  anchor: anchor(out_x))
+          Dot.new(x: number(at_x), y: number(at_y), text: (format("%02d:00", dot.hour) if hours && named?(dot.hour)), **place)
         end
+      end
+
+      def outside(at_x, at_y, middle_x)
+        out_x, out_y = room_for(at_x, *outwards(at_x, at_y, middle_x))
+
+        { text_x: number(at_x + (out_x * DOT_LABEL_OFFSET)), text_y: number(at_y + (out_y * DOT_LABEL_OFFSET)),
+          anchor: anchor(out_x), baseline: "central" }
+      end
+
+      # Over the dot and to the side away from the apex: there the arc runs
+      # below the label, and the sky above an arc is empty.
+      def corner(at_x, at_y, middle_x)
+        side = at_x > middle_x ? 1 : -1
+
+        { text_x: number(at_x + (side * CORNER_LABEL_OFFSET)), text_y: number(at_y - CORNER_LABEL_OFFSET),
+          anchor: side.positive? ? "start" : "end", baseline: "auto" }
       end
 
       def named?(hour) = @frame.hours.nil? || @frame.hours.include?(hour)

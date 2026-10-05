@@ -7,11 +7,12 @@ module Solakon
   class YieldMapComponent < ApplicationComponent
     # The sky is wider than it is high; stretching the elevation keeps the
     # fields close to square and the low morning sun readable. The phone's
-    # frame stretches further and names only noon among the hours; its larger
-    # dates start at the apex, so they keep clear of noon's label.
+    # frame stretches further and names only noon among the hours, at its
+    # dot's upper corner, off dot and arc; its larger dates start at the apex,
+    # so they keep clear of noon's label.
     FRAMES = [
-      Sky::Frame.new(key: :wide, stretch: 1.45, density: :dense, hours: nil, apex_anchor: "middle"),
-      Sky::Frame.new(key: :narrow, stretch: 2.1, density: :sparse, hours: [ 12 ], apex_anchor: "start")
+      Sky::Frame.new(key: :wide, stretch: 1.45, density: :dense, hours: nil, hour_place: :outside, apex_anchor: "middle"),
+      Sky::Frame.new(key: :narrow, stretch: 2.1, density: :sparse, hours: [ 12 ], hour_place: :corner, apex_anchor: "start")
     ].freeze
 
     def initialize(map:)

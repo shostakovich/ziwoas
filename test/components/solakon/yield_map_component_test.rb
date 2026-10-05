@@ -168,6 +168,25 @@ class Solakon::YieldMapComponentTest < ViewComponent::TestCase
     assert_equal %w[12:00], narrow(rendered).css("text.dot-label").map(&:text)
   end
 
+  test "sets the phone's noon diagonally over its dot, on the side away from the apex" do
+    [ [ 165.0, "end", -10 ], [ 180.0, "end", -10 ], [ 195.0, "start", 10 ] ].each do |azimuth, anchor, offset|
+      dots = [ Shading::Dot.new(hour: 12, azimuth: azimuth, elevation: 58.0) ]
+      svg = narrow(render_map(paths: [ path(dots: dots) ]))
+      dot = svg.css("circle.dot").sole
+      hour = svg.css("text.dot-label").sole
+
+      assert_equal [ anchor, "auto" ], [ hour["text-anchor"], hour["dominant-baseline"] ], "noon at #{azimuth}°"
+      assert_equal Plot.number(dot["cx"].to_f + offset), hour["x"].to_f
+      assert_equal Plot.number(dot["cy"].to_f - 10), hour["y"].to_f
+    end
+  end
+
+  test "centres the wide sky's hours on their place beside the dot" do
+    dots = [ Shading::Dot.new(hour: 12, azimuth: 165.0, elevation: 58.0) ]
+
+    assert_equal "central", wide(render_map(paths: [ path(dots: dots) ])).css("text.dot-label").sole["dominant-baseline"]
+  end
+
   test "writes the hour outside its arc, away from the arc's middle, on the empty sky" do
     dots = [ Shading::Dot.new(hour: 9, azimuth: 120.0, elevation: 40.0), Shading::Dot.new(hour: 12, azimuth: 180.0, elevation: 60.0),
              Shading::Dot.new(hour: 15, azimuth: 240.0, elevation: 40.0) ]

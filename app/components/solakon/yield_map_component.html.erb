@@ -14,7 +14,7 @@
         <% sky.paths.each do |path| %>
           <g>
             <polyline class="sun" points="<%= path.points %>"/>
-            <% path.dots.each do |dot| %><circle class="dot" cx="<%= dot.x %>" cy="<%= dot.y %>" r="<%= Solakon::YieldMapComponent::Sky::DOT_RADIUS %>"/><% if dot.text %><text class="dot-label" x="<%= dot.text_x %>" y="<%= dot.text_y %>" text-anchor="<%= dot.anchor %>" dominant-baseline="central"><%= dot.text %></text><% end %><% end %>
+            <% path.dots.each do |dot| %><circle class="dot" cx="<%= dot.x %>" cy="<%= dot.y %>" r="<%= Solakon::YieldMapComponent::Sky::DOT_RADIUS %>"/><% if dot.text %><text class="dot-label" x="<%= dot.text_x %>" y="<%= dot.text_y %>" text-anchor="<%= dot.anchor %>" dominant-baseline="<%= dot.baseline %>"><%= dot.text %></text><% end %><% end %>
             <text class="path-label" x="<%= path.label_x %>" y="<%= path.label_y %>" text-anchor="<%= path.anchor %>" dominant-baseline="<%= path.baseline %>"><%= path.label %></text>
           </g>
         <% end %>

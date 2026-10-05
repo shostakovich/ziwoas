@@ -52,11 +52,11 @@
     <text x="200" y="315"><tspan <%= target.call("efBatteryName") %>>Batterie</tspan><tspan <%= target.call("efBatterySoc") %>></tspan></text>
   </g>
 
-  <g text-anchor="middle" font-size="12" font-weight="600" class="ef-values tabular-nums">
-    <text <%= target.call("efPvW") %> x="200" y="102" style="fill: var(--warning-text)">— W</text>
-    <text <%= target.call("efGridW") %> x="58" y="192" style="fill: var(--primary-text)">— W</text>
-    <text <%= target.call("efConsumerW") %> x="342" y="192" style="fill: var(--text)">— W</text>
-    <text <%= target.call("efBatteryW") %> x="200" y="282" style="fill: var(--text)">— W</text>
+  <g text-anchor="middle" font-size="12" font-weight="600" class="ef-values tabular-nums" style="fill: var(--text)">
+    <text <%= target.call("efPvW") %> x="200" y="102">— W</text>
+    <text <%= target.call("efGridW") %> x="58" y="192">— W</text>
+    <text <%= target.call("efConsumerW") %> x="342" y="192">— W</text>
+    <text <%= target.call("efBatteryW") %> x="200" y="282">— W</text>
   </g>
 
   <image class="ef-icon" href="<%= asset_path pv_asset %>" x="180" y="50" width="40" height="40" role="img" aria-label="<%= pv_alt %>"/>

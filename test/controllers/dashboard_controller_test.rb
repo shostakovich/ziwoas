@@ -85,6 +85,14 @@ class DashboardControllerTest < ActionDispatch::IntegrationTest
     assert_select "#{values} > text[data-ef='efBatteryW'][x='200'][y='282']", 1
   end
 
+  test "energy flow values share the text ink; the rings carry the hue" do
+    get "/"
+    assert_response :ok
+
+    assert_select "g.ef-values[style='fill: var(--text)'] > text", 4
+    assert_select "g.ef-values > text[style]", 0
+  end
+
   test "uses current weather icon in hero and pv energy flow node" do
     WeatherRecord.delete_all
     WeatherRecord.create!(kind: "current", lat: 52.52, lon: 13.405, timestamp: Time.zone.parse("2026-05-04 12:00"), daytime: "night", icon: "cloudy")
