@@ -5,11 +5,12 @@
 
 /* Plush lamp knob: glowing while the lamp is on (a drop shadow, so felt's own
    patch shadow stays), greyed while off. The lamp art is dark, so in dark mode
-   the disc is lifted towards light: warm while on, dimmed while off so an off
-   lamp recedes like an off plug. The slim lamp art fills more of it. */
+   the disc is lifted towards light: amber with a glowing centre while on,
+   dimmed while off so an off lamp recedes like an off plug. The slim lamp art
+   fills more of it. */
 .sw-knob.sw-lamp-knob {
   --tone: light-dark(color-mix(in oklab, var(--warning) 12%, var(--surface-raised)),
-                     color-mix(in oklab, var(--warning) 40%, color-mix(in oklab, var(--light-fixed) 62%, var(--surface-raised))));
+                     color-mix(in oklab, var(--warning) 50%, color-mix(in oklab, var(--light-fixed) 30%, var(--surface-raised))));
   border-color: var(--warning);
   filter: drop-shadow(0 0 8px color-mix(in oklab, var(--warning) 55%, transparent));
 }
@@ -18,7 +19,15 @@
   border-color: var(--border-strong);
   filter: none;
 }
-.sw-lamp-knob .sw-knob-plush { width: 80%; height: 80%; }
+/* In the dark a lit lamp emits light: a lighter, warmer centre fading into the
+   disc, drawn under the plush. In light mode the warm disc is enough. */
+.sw-knob.sw-lamp-knob::before {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  background-image: radial-gradient(circle at 50% 42%,
+    light-dark(transparent, color-mix(in oklab, var(--light-fixed) 80%, var(--warning))) 0, transparent 72%);
+}
+.sw-knob.sw-lamp-knob.off::before { content: none; }
+.sw-lamp-knob .sw-knob-plush { position: relative; width: 80%; height: 80%; }
 .sw-lamp-knob.off .sw-knob-plush { filter: grayscale(.35); }
 /* The lamp detail page shows the lamp in the knob's ring, larger. */
 .sw-knob.sw-lamp-hero { width: 112px; height: 112px; }
@@ -26,6 +35,13 @@
 /* felt presses an .active button down by 1px; in a row of choices the chosen
    one would sit lower than its neighbours (felt-css finding). */
 .ld-choices .btn.active { transform: none; }
+
+/* Three zones share a phone's width: a size smaller, on the same 20px line,
+   so a long name like "Leselicht" clears its seam and the row keeps the
+   height of An/Aus. */
+@media (max-width: 575.98px) {
+  .ld-zones .btn { font-size: .875rem; line-height: 1.25rem; }
+}
 
 /* Lamp names are long: on phones the title shrinks and balances its lines
    between the back button and the settings gear. */
@@ -76,13 +92,16 @@
 @media (min-width: 576px) {
   .ld-swatches { grid-template-columns: repeat(9, max-content); }
 }
-:is(.btn-check:checked + .ld-swatch, .ld-swatch-custom) { outline: 3px solid var(--primary); outline-offset: 2px; }
-.ld-swatch-wheel { position: relative; overflow: hidden;
-                   --ld-wheel: conic-gradient(in hsl longer hue, hsl(0 90% 60%), hsl(0 90% 60%));
-                   background-image: var(--ld-wheel); background-origin: border-box; background-repeat: no-repeat;
-                   /* felt sizes and blends its texture layer; the wheel's layers fill the disc as drawn */
-                   background-size: 100% 100%; background-blend-mode: normal; }
-.ld-swatch-wheel.ld-swatch-custom { background-image: radial-gradient(closest-side, var(--ld-custom) 64%, transparent 67%), var(--ld-wheel); }
+:is(.btn-check:checked + .ld-swatch, .ld-swatch-custom) {
+  outline: 3px solid light-dark(var(--primary), var(--primary-text)); outline-offset: 2px;
+}
+/* The wheel (and a custom colour inside it) is painted on a layer of its own
+   over the border, so the label stays a felt piece and felt sews its seam on
+   top like on every other swatch. */
+.ld-swatch-wheel { --ld-wheel: conic-gradient(in hsl longer hue, hsl(0 90% 60%), hsl(0 90% 60%)); }
+.ld-swatch-wheel::before { content: ""; position: absolute; inset: -1px; border-radius: inherit; pointer-events: none;
+                           background-image: var(--ld-wheel); }
+.ld-swatch-wheel.ld-swatch-custom::before { background-image: radial-gradient(closest-side, var(--ld-custom) 64%, transparent 67%), var(--ld-wheel); }
 .ld-swatch-wheel input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
 
 /* Scene list scrolls inside its card and fades out at the bottom like the

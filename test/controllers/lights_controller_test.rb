@@ -125,6 +125,7 @@ class LightsControllerTest < ActionDispatch::IntegrationTest
     assert_select "button[role=tab][data-light-detail-tab-param=zones]", false
     assert_select "[data-tab=zones]", false
     assert_select "#light_power [aria-label=Zonen] form[id^=zone_] button", 3
+    assert_select "#light_power [aria-label=Zonen] .row-cols-3 > form[id^=zone_]", 3
     # detail page always opens on the white tab
     assert_select "[data-controller=light-detail][data-light-detail-tab-value=white]"
     assert_select "button[role=tab][data-light-detail-tab-param=white]"
