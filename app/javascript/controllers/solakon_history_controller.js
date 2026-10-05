@@ -1,8 +1,11 @@
 import { Controller } from "@hotwired/stimulus"
 import "chart.js"
-import { chartTheme, timeCategoryScale } from "lib/chart_theme"
+import { chartTheme, timeCategoryScale, roundedFloor, dropOffStepBound } from "lib/chart_theme"
 
 const REFRESH_MS = 60_000
+// A night's standby draw dips the battery a few watts below zero: the axis ends
+// on the next round hundred instead of a whole (phone: 500 W) tick step.
+const FLOOR_STEP_W = 100
 const SERIES_TOKENS = { "PV": "--viz-solar", "Akku": "--viz-battery", "Außensteckdose": "--viz-grid", "0 W": "--viz-muted" }
 // The signed series say their direction in words in the tooltip.
 const FLOW_WORDS = {
@@ -71,7 +74,7 @@ export default class extends Controller {
         maintainAspectRatio: false,
         scales: {
           x: timeCategoryScale(chart.times || []),
-          y: { title: { display: true, text: "Watt" }, unit: "W" },
+          y: { unit: "W", min: this._floor(datasets), afterBuildTicks: dropOffStepBound },
         },
         plugins: {
           legend: { position: "bottom" },
@@ -83,4 +86,10 @@ export default class extends Controller {
       plugins: [ chartTheme ],
     })
   }
+
+  _floor(datasets) {
+    const readings = datasets.filter((dataset) => dataset.legend).flatMap((dataset) => dataset.data)
+    return roundedFloor(readings, FLOOR_STEP_W)
+  }
 }
+

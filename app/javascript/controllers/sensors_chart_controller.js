@@ -14,6 +14,9 @@ const CO2_THRESHOLDS = [
 // axis (steps of 500) shares: 1.400 × 1.1 would round up to 2.000 there.
 const CO2_AXIS_TOP = 1500
 const DECIMALS = { "°C": 1, "%": 0, "ppm": 0 }
+// Amounts start at zero on every width; a temperature has no natural zero
+// (0 °C would squash the day's swing indoors into a flat line).
+const FROM_ZERO = { "°C": false, "%": true, "ppm": true }
 
 // Connects to data-controller="sensors-chart"
 // Builds three line charts (temperature, humidity, CO2) of the last 24h.
@@ -74,7 +77,7 @@ export default class extends Controller {
     this.charts[key] = new Chart(canvas, {
       type: "line",
       data: { datasets },
-      options: this._opts(unit, xBounds),
+      options: this._opts(unit, xBounds, series.length),
       plugins: [ chartTheme ],
     })
   }
@@ -84,7 +87,7 @@ export default class extends Controller {
     const xBounds = this._xBounds(series)
     const datasets = this._datasets(series)
     CO2_THRESHOLDS.forEach((threshold) => datasets.push(this._thresholdLine(xBounds, threshold)))
-    const options = this._opts("ppm", xBounds)
+    const options = this._opts("ppm", xBounds, series.length)
     options.scales.y.suggestedMax = CO2_AXIS_TOP
     this.charts.co2?.destroy()
     this.charts.co2 = new Chart(canvas, {
@@ -123,7 +126,8 @@ export default class extends Controller {
     }
   }
 
-  _opts(unit, xBounds) {
+  // A single sensor needs no legend: the card's subtitle names its room.
+  _opts(unit, xBounds, seriesCount) {
     const xScale = xBounds ? timeScale(xBounds.min, xBounds.max) : { type: "linear" }
 
     return {
@@ -132,10 +136,10 @@ export default class extends Controller {
       animation: false,
       scales: {
         x: xScale,
-        y: { title: { display: true, text: unit }, unit, decimals: DECIMALS[unit] ?? 0 },
+        y: { beginAtZero: FROM_ZERO[unit] ?? true, unit, decimals: DECIMALS[unit] ?? 0 },
       },
       plugins: {
-        legend: { position: "bottom" },
+        legend: { display: seriesCount > 1, position: "bottom" },
         tooltip: {
           callbacks: {
             title: (items) => {

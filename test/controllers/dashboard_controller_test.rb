@@ -29,14 +29,14 @@ class DashboardControllerTest < ActionDispatch::IntegrationTest
     assert_select "[data-ef='efBatterySoc']"
     assert_select "[data-ef='efBatteryW']"
 
-    # One line per channel, each naming its colour token; the controller marks a
-    # line flowing, so every line is a target and none is flowing before it runs.
+    # One line per channel in its source's colour, dots alike; the controller
+    # marks a line flowing, so every line is a target and none is flowing before it runs.
     {
-      "efLineSolarHome" => "--viz-solar", "efLineSolarGrid" => "--viz-3",
-      "efLineSolarBattery" => "--viz-8", "efLineGridHome" => "--viz-grid",
-      "efLineGridBattery" => "--viz-muted", "efLineBatteryHome" => "--viz-battery"
-    }.each do |line, token|
-      assert_select "path.ef-link[data-ef='#{line}'][style='--ef-tone: var(#{token})']", 1
+      "SolarHome" => "--viz-solar", "SolarGrid" => "--viz-solar", "SolarBattery" => "--viz-solar",
+      "GridHome" => "--viz-grid", "GridBattery" => "--viz-grid", "BatteryHome" => "--viz-battery"
+    }.each do |channel, token|
+      assert_select "path.ef-link[data-ef='efLine#{channel}'][style='--ef-tone: var(#{token})']", 1
+      assert_select "g[data-ef='efDots#{channel}'][style='fill: var(#{token})']", 1
     end
     assert_select "path.ef-link[data-flowing]", 0
 
@@ -45,13 +45,6 @@ class DashboardControllerTest < ActionDispatch::IntegrationTest
     assert_select "text[data-ef='efGridName']", text: "Stromnetz"
     assert_select "text > tspan[data-ef='efBatteryName']", text: "Batterie"
     assert_select "p", text: "Verbraucher-Ring: Herkunft des Stroms"
-
-    assert_select "[data-ef='efDotsSolarHome']"
-    assert_select "[data-ef='efDotsSolarGrid']"
-    assert_select "[data-ef='efDotsSolarBattery']"
-    assert_select "[data-ef='efDotsGridHome']"
-    assert_select "[data-ef='efDotsGridBattery']"
-    assert_select "[data-ef='efDotsBatteryHome']"
   end
 
   test "dashboard battery hero icon shares the sun icon's sizing" do

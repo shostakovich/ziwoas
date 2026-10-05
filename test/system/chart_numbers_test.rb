@@ -70,6 +70,66 @@ class ChartNumbersTest < ApplicationSystemTestCase
     assert_equal "beforeDatasetsDraw", result["drawTime"]
   end
 
+  test "the main axes leave the unit to the subtitle and time axes draw no grid" do
+    result = chart(<<~JS)
+      const canvas = document.createElement("canvas")
+      canvas.style.cssText = "width:600px;height:300px"
+      document.body.appendChild(canvas)
+      const chart = new Chart(canvas, {
+        type: "line",
+        data: { datasets: [ { label: "PV", data: [ { x: 0, y: 1 }, { x: 3_600_000, y: 2 } ], tone: "--viz-solar" } ] },
+        options: {
+          animation: false, responsive: false,
+          scales: {
+            x: m.timeScale(0, 3_600_000),
+            y: { title: { display: true, text: "Watt" } },
+            ySolar: { position: "right", title: { display: true, text: "W/m²" } },
+          },
+        },
+        plugins: [ m.chartTheme ],
+      })
+      const { x, y, ySolar } = chart.options.scales
+      const result = [ x.title.display, y.title.display, ySolar.title.display, x.grid.drawOnChartArea, y.grid.drawOnChartArea ]
+      chart.destroy()
+      canvas.remove()
+      return result
+    JS
+
+    assert_equal [ false, false, true, false, true ], result
+  end
+
+  test "an axis dipping below zero ends on a round floor without breaking the tick rhythm" do
+    result = chart(<<~JS)
+      const canvas = document.createElement("canvas")
+      canvas.style.cssText = "width:300px;height:300px"
+      document.body.appendChild(canvas)
+      const values = [ 800, null, -80, 0 ]
+      const chart = new Chart(canvas, {
+        type: "line",
+        data: { labels: [ "a", "b", "c", "d" ], datasets: [ { label: "Akku", data: values, tone: "--viz-battery" } ] },
+        options: {
+          animation: false, responsive: false,
+          scales: { y: { min: m.roundedFloor(values, 100), afterBuildTicks: m.dropOffStepBound, ticks: { stepSize: 500 } } },
+        },
+        plugins: [ m.chartTheme ],
+      })
+      const result = {
+        min: chart.scales.y.min,
+        ticks: chart.scales.y.ticks.map((tick) => tick.value),
+        positive: m.roundedFloor([ 3, 5 ], 100) ?? "none",
+        exact: m.roundedFloor([ -200 ], 100),
+      }
+      chart.destroy()
+      canvas.remove()
+      return result
+    JS
+
+    assert_equal(-100, result["min"])
+    assert_equal [ 0, 500, 1000 ], result["ticks"]
+    assert_equal "none", result["positive"]
+    assert_equal(-200, result["exact"])
+  end
+
   private
 
   def format(expression)

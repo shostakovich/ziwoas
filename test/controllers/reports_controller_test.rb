@@ -25,6 +25,16 @@ class ReportsControllerTest < ActionDispatch::IntegrationTest
     assert_select "input[name='end_date'][value='2026-04-07']"
   end
 
+  test "the weather switch says what it does" do
+    Plugs::DailyTotal.create!(plug_id: "bkw", date: "2026-04-10", energy_wh: 2000)
+    WeatherRecord.create!(kind: "historic", lat: 52.52, lon: 13.405, timestamp: Time.zone.parse("2026-04-03 12:00"),
+                          daytime: "day", icon: "clear-day", solar: 0.5)
+
+    get "/reports", params: { start_date: "2026-04-01", end_date: "2026-04-07" }
+
+    assert_select "label[for='report-daily-weather']", text: "Wetter einblenden"
+  end
+
   test "a custom range marks Benutzerdefiniert, not a preset, as active" do
     Plugs::DailyTotal.create!(plug_id: "bkw", date: "2026-04-10", energy_wh: 2000)
 

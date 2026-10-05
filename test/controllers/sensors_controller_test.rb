@@ -27,6 +27,10 @@ class SensorsControllerTest < ActionDispatch::IntegrationTest
     assert_select "section[aria-label=Sensoren].row-cols-sm-2.row-cols-lg-2", 1,
       "two sensors fill a row of two on desktops instead of leaving a third slot empty"
     assert_select "[data-controller=sensors-chart] canvas", count: 3
+    # Only the living room measures CO₂: its chart names the room instead of a legend.
+    assert_select "[data-controller=sensors-chart] .card-subtitle", text: "ppm · Test Wohnzimmer · letzte 24 h"
+    assert_select "[data-controller=sensors-chart] .card-subtitle", text: "°C · letzte 24 h"
+    assert_select "[data-controller=sensors-chart] .card-subtitle", text: "Prozent · letzte 24 h"
   end
 
   test "GET /sensors warns about sensors with a low battery" do

@@ -13,7 +13,8 @@
 // colour scheme or the look changes, it repaints and redraws the chart.
 // Charts also share the page's font, rounded bar ends, small round legend keys,
 // German numbers (lib/format) on value axes and in tooltips, and fills drawn
-// beneath every line.
+// beneath every line. The main axes carry no titles: the card's subtitle names
+// the unit once. Time axes tick without grid lines.
 //
 // Per chart, a value scale may name its `unit` and `decimals` (tooltips read
 // "Büro: 0,18 kWh"); a dataset may override both, say a signed flow in words
@@ -31,6 +32,10 @@ const GRID_ALPHA = 0.55
 const LEGEND_KEY_PX = 9
 const LEGEND_FONT_PX = 12
 const PHONE_VALUE_TICKS = 5
+// Label halos let the card show through (felt stays felt) and still lift the
+// text off the lines it crosses.
+const HALO_ALPHA = 0.6
+const HALO_WIDTH = 5
 
 // Below felt's sm breakpoint a time axis gets fewer labels.
 const PHONE = window.matchMedia("(max-width: 575.98px)")
@@ -132,6 +137,7 @@ export function timeScale(min, max) {
     min,
     max,
     afterBuildTicks: (scale) => { scale.ticks = timeTicks(scale.min, scale.max).map((value) => ({ value })) },
+    grid: { drawOnChartArea: false },
     ticks: {
       autoSkip: false,
       maxRotation: 0,
@@ -154,8 +160,25 @@ export function timeCategoryScale(times) {
   }
   return {
     afterBuildTicks: (scale) => { scale.ticks = scale.ticks.filter((tick) => labels.has(tick.value)) },
+    grid: { drawOnChartArea: false },
     ticks: { autoSkip: false, maxRotation: 0, callback: (value) => labels.get(value) },
   }
+}
+
+// A value axis that dips below zero ends on the next multiple of `step` under
+// the lowest value; undefined (Chart.js' own minimum) when nothing is negative.
+export function roundedFloor(values, step) {
+  const lowest = values.reduce((low, value) => (Number.isFinite(value) ? Math.min(low, value) : low), 0)
+  return lowest < 0 ? Math.floor(lowest / step) * step : undefined
+}
+
+// afterBuildTicks for an axis with such a floor: a minimum off the tick step
+// (−100 on a 500 step) bounds the plot unlabelled, so the labels keep an even
+// rhythm.
+export function dropOffStepBound(scale) {
+  const [ first, second, third ] = scale.ticks
+  if (!third) return
+  if (second.value - first.value < third.value - second.value - 1e-9) scale.ticks.shift()
 }
 
 // Categorical colour for the entity at `index` in its stable (config) order.
@@ -236,8 +259,8 @@ function drawEndLabels(chart) {
     ctx.textAlign = "right"
     ctx.textBaseline = "bottom"
     ctx.lineJoin = "round"
-    ctx.lineWidth = 3
-    ctx.strokeStyle = themeColor("--surface")
+    ctx.lineWidth = HALO_WIDTH
+    ctx.strokeStyle = withAlpha(themeColor("--surface"), HALO_ALPHA)
     ctx.fillStyle = themeColor(dataset.endLabelTone || "--muted")
     const x = Math.min(point.x, chartArea.right) - 4
     const y = point.y - 3
@@ -254,11 +277,14 @@ function paintOptions(chart) {
   // The raw config (scales already merged per axis), not the resolver proxy.
   const options = chart.config.options
 
-  // Value axes (y…) get German ticks. Phones: no axis titles (the card
-  // subtitle names the unit) and fewer value ticks.
+  // Value axes (y…) get German ticks. The main axes (x, y) never show a
+  // title: the card subtitle names the unit. A second value axis (the
+  // reports' sun scale) keeps its unit title, except on phones, which also
+  // get fewer value ticks.
   for (const [ id, scale ] of Object.entries(options.scales || {})) {
     scale.ticks = Object.assign(scale.ticks || {}, { color: muted })
     scale.title = Object.assign(scale.title || {}, { color: muted })
+    if (id === "x" || id === "y") scale.title.display = false
     scale.grid = Object.assign(scale.grid || {}, { color: grid })
     scale.border = Object.assign(scale.border || {}, { color: grid })
     // The merged config may already hold Chart.js' own numeric formatter.
