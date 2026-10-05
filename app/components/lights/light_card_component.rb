@@ -12,9 +12,10 @@ module Lights
 
     def plush = "lamp_#{light.plush_type}_#{snapshot.on? ? 'on' : 'off'}.webp"
 
+    # The brightness lives in the chip beside the knob, so the line only names the light.
     def summary
       return "Aus" unless snapshot.on?
-      "An · #{snapshot.white? ? 'Weiß' : 'Farbe'} · #{snapshot.brightness} %"
+      "An · #{snapshot.white? ? 'Weiß' : 'Farbe'}"
     end
 
     def chip

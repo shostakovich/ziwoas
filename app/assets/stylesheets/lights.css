@@ -5,17 +5,16 @@
 
 /* Plush lamp knob: glowing while the lamp is on (a drop shadow, so felt's own
    patch shadow stays), greyed while off. The lamp art is dark, so in dark mode
-   the disc is lifted towards light: warm and brighter while on, dimmed while
-   off so an off lamp recedes like an off plug. The slim lamp art fills more of it. */
+   the disc is lifted towards light: warm while on, dimmed while off so an off
+   lamp recedes like an off plug. The slim lamp art fills more of it. */
 .sw-knob.sw-lamp-knob {
-  --lamp-disc: light-dark(var(--surface-raised), color-mix(in oklab, var(--light-fixed) 55%, var(--surface-raised)));
-  --tone: color-mix(in oklab, var(--warning) 12%, var(--lamp-disc));
+  --tone: light-dark(color-mix(in oklab, var(--warning) 12%, var(--surface-raised)),
+                     color-mix(in oklab, var(--warning) 40%, color-mix(in oklab, var(--light-fixed) 62%, var(--surface-raised))));
   border-color: var(--warning);
   filter: drop-shadow(0 0 8px color-mix(in oklab, var(--warning) 55%, transparent));
 }
 .sw-knob.sw-lamp-knob.off {
-  --lamp-disc: light-dark(var(--surface-raised), color-mix(in oklab, var(--light-fixed) 28%, var(--surface-raised)));
-  --tone: var(--lamp-disc);
+  --tone: light-dark(var(--surface-raised), color-mix(in oklab, var(--light-fixed) 28%, var(--surface-raised)));
   border-color: var(--border-strong);
   filter: none;
 }
@@ -23,6 +22,10 @@
 .sw-lamp-knob.off .sw-knob-plush { filter: grayscale(.35); }
 /* The lamp detail page shows the lamp in the knob's ring, larger. */
 .sw-knob.sw-lamp-hero { width: 112px; height: 112px; }
+
+/* felt presses an .active button down by 1px; in a row of choices the chosen
+   one would sit lower than its neighbours (felt-css finding). */
+.ld-choices .btn.active { transform: none; }
 
 /* Lamp names are long: on phones the title shrinks and balances its lines
    between the back button and the settings gear. */
@@ -35,25 +38,62 @@
 .sw-swatch { display: inline-block; width: .8rem; height: .8rem; border-radius: var(--radius-sm);
              border: 1px solid color-mix(in oklab, var(--text) 15%, transparent); }
 
-/* White temperature: the track itself is the scale from warm to cold. */
-.form-range.ld-white::-webkit-slider-runnable-track { height: .75rem; background-image: var(--ld-kelvin); }
-.form-range.ld-white::-moz-range-track { height: .75rem; background-image: var(--ld-kelvin); }
-.form-range.ld-white::-webkit-slider-thumb { margin-top: -.25rem; }
+/* Brightness and white temperature share one track height and a neutral
+   thumb, so the thumb never reads as a colour on the scale. */
+.form-range.ld-range::-webkit-slider-runnable-track { height: .75rem; }
+.form-range.ld-range::-moz-range-track { height: .75rem; }
+.form-range.ld-range::-webkit-slider-thumb { margin-top: -.25rem; background-color: var(--surface-raised); border-color: var(--border-strong); }
+.form-range.ld-range::-moz-range-thumb { background-color: var(--surface-raised); border-color: var(--border-strong); }
+:where([data-look="felt"]) .form-range.ld-range {
+  --thumb-shadow: 0 1px 1px var(--felt-inset), 0 3px 5px var(--felt-shadow-far);
+}
+
+/* White temperature: the track itself is the scale from warm to cold, edged
+   so its white middle doesn't vanish on a light card. */
 .form-range.ld-white {
   --ld-kelvin: linear-gradient(to right, var(--warning), color-mix(in oklab, var(--warning) 30%, var(--light-fixed)),
                                var(--light-fixed), color-mix(in oklab, var(--primary) 25%, var(--light-fixed)),
                                color-mix(in oklab, var(--primary) 50%, var(--light-fixed)));
+  --ld-edge: inset 0 0 0 1px color-mix(in oklab, var(--text) 18%, transparent);
 }
+:where([data-look="felt"]) .form-range.ld-white {
+  --ld-edge: inset 0 0 0 1px color-mix(in oklab, var(--text) 18%, transparent), inset 0 1px 3px var(--felt-inset);
+}
+.form-range.ld-white::-webkit-slider-runnable-track { background-image: var(--ld-kelvin); box-shadow: var(--ld-edge); }
+.form-range.ld-white::-moz-range-track { background-image: var(--ld-kelvin); box-shadow: var(--ld-edge); }
 
-/* Colour swatches: the label carries its colour inline (in felt, .border sews
-   it on); a ring marks the chosen one. */
-.btn-check:checked + .ld-swatch { outline: 3px solid var(--text); outline-offset: 2px; }
+/* Notches under the Kelvin track where the presets sit; --at is the share of
+   the range, mapped onto the thumb's travel (thumb 1.25rem wide). */
+.ld-ticks { position: relative; height: .375rem; }
+.ld-tick { position: absolute; top: 0; left: calc(.625rem + (100% - 1.25rem) * var(--at)); width: 2px; height: 100%;
+           margin-left: -1px; border-radius: 1px; background-color: var(--border-strong); }
+
+/* Colour swatches: five a row on phones (5 + 4), one row from sm. The label
+   carries its colour inline (in felt, .border sews it on); a ring in the
+   selection tone marks the chosen one, the wheel included when the lamp shows
+   a colour no swatch has. */
+.ld-swatches { display: grid; grid-template-columns: repeat(5, max-content); gap: var(--space-2); }
+@media (min-width: 576px) {
+  .ld-swatches { grid-template-columns: repeat(9, max-content); }
+}
+:is(.btn-check:checked + .ld-swatch, .ld-swatch-custom) { outline: 3px solid var(--primary); outline-offset: 2px; }
 .ld-swatch-wheel { position: relative; overflow: hidden;
-                   background-image: conic-gradient(in hsl longer hue, hsl(0 90% 60%), hsl(0 90% 60%)); }
+                   --ld-wheel: conic-gradient(in hsl longer hue, hsl(0 90% 60%), hsl(0 90% 60%));
+                   background-image: var(--ld-wheel); background-origin: border-box; background-repeat: no-repeat;
+                   /* felt sizes and blends its texture layer; the wheel's layers fill the disc as drawn */
+                   background-size: 100% 100%; background-blend-mode: normal; }
+.ld-swatch-wheel.ld-swatch-custom { background-image: radial-gradient(closest-side, var(--ld-custom) 64%, transparent 67%), var(--ld-wheel); }
 .ld-swatch-wheel input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
 
-/* Scene list scrolls inside its card; the preview strip is derived from the name. */
-.ld-scenes { max-height: 15rem; overflow: hidden auto; }
+/* Scene list scrolls inside its card and fades out at the bottom like the
+   weather hours; the padding keeps the patches' shadows unclipped and lets the
+   last row scroll clear of the fade. The height cuts through a preview strip,
+   never through a name. */
+.ld-scenes {
+  max-height: 12.25rem; overflow: hidden auto;
+  margin: -.5rem; padding: .5rem .5rem 2rem;
+  mask-image: linear-gradient(to bottom, black calc(100% - 2rem), transparent);
+}
 .ld-scene-preview { display: block; height: 2.75rem; }
 
 /* Toast above the page end — and above the tab bar where there is one. */

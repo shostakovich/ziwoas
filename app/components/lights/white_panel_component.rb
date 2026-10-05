@@ -34,5 +34,14 @@ module Lights
     end
 
     def active?(kelvin) = snapshot.color_temp_k == kelvin
+
+    def kelvin(value) = "#{GermanNumber.format(value)} K"
+
+    # Where a preset sits on the slider, as a share of its range (0..1).
+    def share(kelvin)
+      span = light.color_temp_max_k - light.color_temp_min_k
+      return 0 unless span.positive?
+      (kelvin - light.color_temp_min_k).fdiv(span).round(4)
+    end
   end
 end

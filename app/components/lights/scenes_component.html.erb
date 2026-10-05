@@ -4,7 +4,7 @@
     <% if light.firmware_scenes.any? %>
       <p class="d-block mb-2 small text-uppercase text-body-secondary">Govee-Szenen</p>
       <div class="ld-scenes">
-        <div class="row row-cols-2 g-2">
+        <div class="row row-cols-2 row-cols-sm-3 g-2">
           <% light.firmware_scenes.each do |scene| %>
             <div class="col">
               <%= button_to light_command_path(light_key: light.key),

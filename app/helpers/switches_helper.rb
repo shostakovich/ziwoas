@@ -22,7 +22,7 @@ module SwitchesHelper
   def switch_status_line(row)
     return offline_line(row) if row.offline?
 
-    state_word = row.on? ? "an" : "aus"
+    state_word = row.on? ? "An" : "Aus"
     cmd        = row.last_command
     first_part =
       if cmd && (cmd.action == "on") == row.on?
@@ -36,9 +36,9 @@ module SwitchesHelper
   private
 
   def offline_line(row)
-    return "noch keine Statusmeldung" if row.last_seen_at.nil?
+    return "Noch keine Statusmeldung" if row.last_seen_at.nil?
     minutes = (row.age / 60).round
-    "keine Statusmeldung seit #{minutes} min"
+    "Keine Statusmeldung seit #{minutes} min"
   end
 
   def schedule_part(row)
