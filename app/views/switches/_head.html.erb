@@ -4,7 +4,7 @@
     <div class="small text-body-secondary"><%= switch_status_line(row) %></div>
     <div class="small text-danger-emphasis" id="sw_error_<%= row.plug.id %>"></div>
   </div>
-  <div class="d-flex flex-column align-items-end gap-2">
+  <div class="d-flex flex-column align-items-center gap-2">
     <% lit = row.on? && !row.offline? %>
     <%= button_to plug_switch_path(plug_id: row.plug.id, state: row.on? ? "off" : "on"),
                   class: "btn btn-light btn-icon sw-knob#{' off' unless lit}",
@@ -14,7 +14,7 @@
     <% end %>
     <% if row.on? && !row.offline? %>
       <span class="badge border tabular-nums">
-        <span class="text-warning me-1" aria-hidden="true">⚡</span><%= "#{row.watt&.round || 0} W" %>
+        <span class="text-warning me-1" aria-hidden="true">⚡</span><%= de_number(row.watt || 0) %> W
       </span>
     <% end %>
   </div>

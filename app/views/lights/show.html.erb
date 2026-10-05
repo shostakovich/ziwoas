@@ -19,9 +19,13 @@
 
   <div class="card mb-3">
     <div class="card-body">
-      <label class="d-block mb-2 small text-uppercase text-body-secondary" for="light_brightness">Helligkeit</label>
-      <input class="form-range" type="range" id="light_brightness" min="1" max="100"
-             value="<%= [ @snapshot.brightness, 1 ].max %>"
+      <% brightness = [ @snapshot.brightness, 1 ].max %>
+      <div class="d-flex gap-1 mb-2 small text-uppercase text-body-secondary">
+        <label for="light_brightness">Helligkeit</label><span aria-hidden="true">·</span>
+        <output for="light_brightness" class="text-body tabular-nums" data-light-detail-target="rangeValue"><%= brightness %> %</output>
+      </div>
+      <input class="form-range ld-range" type="range" id="light_brightness" min="1" max="100"
+             value="<%= brightness %>"
              data-light-detail-target="range" data-action="light-detail#brightness">
     </div>
   </div>

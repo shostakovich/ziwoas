@@ -5,16 +5,15 @@
       <%= image_tag "lamp_#{light.plush_type}_#{snapshot.on? ? 'on' : 'off'}.webp",
                     width: 112, height: 112, alt: "", class: "sw-knob-plush" %>
     </span>
-    <div class="vstack gap-2">
+    <%# The current choice is denim like every other selection; the warm tone belongs to the lamp's ring. %>
+    <div class="vstack justify-content-center gap-2 ld-choices">
       <div class="d-flex gap-2" role="group" aria-label="Lampe">
-        <%= button_to "An", light_command_path(light_key: light.key),
-              params: { command: "turn", on: "true" },
-              class: "btn w-100 #{snapshot.on? ? 'btn-warning' : 'btn-outline-secondary'}",
-              form_class: "flex-fill", "aria-pressed": snapshot.on?.to_s %>
-        <%= button_to "Aus", light_command_path(light_key: light.key),
-              params: { command: "turn", on: "false" },
-              class: "btn w-100 #{snapshot.on? ? 'btn-outline-secondary' : 'btn-secondary'}",
-              form_class: "flex-fill", "aria-pressed": (!snapshot.on?).to_s %>
+        <% { "An" => true, "Aus" => false }.each do |label, on| %>
+          <%= button_to label, light_command_path(light_key: light.key),
+                params: { command: "turn", on: on.to_s },
+                class: "btn btn-outline-primary w-100#{' active' if snapshot.on? == on}",
+                form_class: "flex-fill", "aria-pressed": (snapshot.on? == on).to_s %>
+        <% end %>
       </div>
       <% if snapshot.zone_lamp? %>
         <%# Zones belong to the lamp's power: hidden while off, shown while on. %>

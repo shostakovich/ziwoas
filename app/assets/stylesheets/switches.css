@@ -9,5 +9,11 @@
            border-color: var(--success); --tone: var(--success-subtle); background-color: var(--tone); }
 .sw-knob.off { border-color: var(--border-strong); --tone: var(--surface-raised); }
 
+/* felt-css #28: the pill seam keeps 20px corners, so on a disc it is a rounded
+   square whose corners cross the ring. Stretched to a circle (border-image-width
+   50%) its stitches grow to twice the size of every other seam, so the knob
+   goes unsewn: the coloured ring is its edge. */
+:where([data-look="felt"]) .sw-knob::after { content: none; }
+
 /* Plush art is not square: a square box, never squashed. */
 .sw-knob-plush { width: 68%; height: 68%; object-fit: contain; pointer-events: none; }

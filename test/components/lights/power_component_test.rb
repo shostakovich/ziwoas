@@ -17,8 +17,10 @@ class Lights::PowerComponentTest < ViewComponent::TestCase
     assert_equal "span", hero.name, "the hero shows the knob; only the buttons switch"
     assert_equal %w[btn btn-light btn-icon sw-knob sw-lamp-knob], hero["class"].split & %w[btn btn-light btn-icon sw-knob sw-lamp-knob]
     assert_equal "true", hero["aria-hidden"]
-    assert_equal "true", rendered.css("button.btn-warning").find { |b| b.text == "An" }["aria-pressed"]
-    assert_equal "false", rendered.css("button.btn-outline-secondary").find { |b| b.text == "Aus" }["aria-pressed"]
+    on_button, off_button = %w[An Aus].map { |label| rendered.css("button.btn-outline-primary").find { |b| b.text == label } }
+    assert_equal [ "true", "false" ], [ on_button["aria-pressed"], off_button["aria-pressed"] ]
+    assert_includes on_button["class"].split, "active"
+    refute_includes off_button["class"].split, "active"
   end
 
   test "shows the zones row only for zone lamps" do
@@ -38,6 +40,6 @@ class Lights::PowerComponentTest < ViewComponent::TestCase
     rendered = render_inline(Lights::PowerComponent.new(snapshot: snapshot(light: light)))
 
     assert rendered.css(".sw-lamp-hero.off img.sw-knob-plush[src*='lamp_floorlamp_off']").any?
-    assert_equal "true", rendered.css("button.btn-secondary").find { |b| b.text == "Aus" }["aria-pressed"]
+    assert_equal "true", rendered.css("button.btn-outline-primary.active").sole.tap { |b| assert_equal "Aus", b.text }["aria-pressed"]
   end
 end

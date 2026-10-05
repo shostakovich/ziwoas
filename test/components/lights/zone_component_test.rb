@@ -5,7 +5,7 @@ class Lights::ZoneComponentTest < ViewComponent::TestCase
     zone = Lights::Zone.new(key: "bottomLightToggle", label: "Leselicht", role: "main", on: true)
     rendered = render_inline(Lights::ZoneComponent.new(zone: zone, light_key: "K1"))
 
-    assert rendered.css("button.active").any?
+    assert rendered.css("button.btn-outline-primary.active").any?, "a lit zone is the current choice"
     assert rendered.css("form#zone_bottomLightToggle").any?
     assert_equal "true", rendered.css("button").first["aria-pressed"]
     assert_includes rendered.to_html, "Leselicht"

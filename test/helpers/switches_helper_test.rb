@@ -1,6 +1,8 @@
 require "test_helper"
 
 class SwitchesHelperTest < ActionView::TestCase
+  cover "SwitchesHelper*"
+
   include SwitchesHelper
 
   def row(on: true, offline: false, last_command: nil, next_edge: nil, entries: [], last_seen_at: nil)
@@ -62,23 +64,34 @@ class SwitchesHelperTest < ActionView::TestCase
     cmd = Switching::Command.new(plug_id: "x", action: "on", source: "schedule",
                             created_at: Time.zone.local(2026, 6, 15, 18, 0))
     line = switch_status_line(row(on: true, last_command: cmd, next_edge: edge(:off, 23, 0)))
-    assert_equal "an seit 18:00 (Zeitplan) · nächste Schaltung: 23:00 → aus", line
+    assert_equal "An seit 18:00 (Zeitplan) · nächste Schaltung: 23:00 → aus", line
   end
 
   test "status line names the direction of the next edge" do
     line = switch_status_line(row(on: false, next_edge: edge(:on, 6, 30)))
-    assert_equal "aus · nächste Schaltung: 06:30 → an", line
+    assert_equal "Aus · nächste Schaltung: 06:30 → an", line
   end
 
   test "status line shows bare state when command mismatches, and kein Zeitplan" do
     cmd = Switching::Command.new(plug_id: "x", action: "on", source: "manual",
                             created_at: Time.zone.local(2026, 6, 15, 18, 0))
-    assert_equal "aus · kein Zeitplan", switch_status_line(row(on: false, last_command: cmd))
+    assert_equal "Aus · kein Zeitplan", switch_status_line(row(on: false, last_command: cmd))
+  end
+
+  test "status line shows bare state when an on plug's last command was off" do
+    cmd = Switching::Command.new(plug_id: "x", action: "off", source: "manual",
+                            created_at: Time.zone.local(2026, 6, 15, 18, 0))
+    assert_equal "An · kein Zeitplan", switch_status_line(row(on: true, last_command: cmd))
+  end
+
+  test "status line counts whole minutes of silence" do
+    line = switch_status_line(row(offline: true, last_seen_at: Time.zone.local(2026, 6, 15, 17, 30)))
+    assert_equal "Keine Statusmeldung seit 90 min", line
   end
 
   test "status line for offline plug shows minutes since last message" do
     line = switch_status_line(row(offline: true, last_seen_at: Time.zone.local(2026, 6, 15, 18, 35)))
-    assert_equal "keine Statusmeldung seit 25 min", line
-    assert_equal "noch keine Statusmeldung", switch_status_line(row(offline: true))
+    assert_equal "Keine Statusmeldung seit 25 min", line
+    assert_equal "Noch keine Statusmeldung", switch_status_line(row(offline: true))
   end
 end

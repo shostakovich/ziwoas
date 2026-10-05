@@ -17,7 +17,8 @@ class SwitchesControllerTest < ActionDispatch::IntegrationTest
     assert_select "#light_card_#{@light.key} a[aria-label='Wohnzimmer Stehlampe Details'][href=?]", light_path(@light.key)
     assert_select ".card[data-light-key=?] button.sw-knob", @light.key
     assert_match "Wohnzimmer Stehlampe", @response.body
-    assert_match "An · Weiß · 60 %", @response.body
+    assert_select "#light_card_#{@light.key} .small", text: "An · Weiß"
+    assert_select "#light_card_#{@light.key} span.badge", text: "60 %"
   end
 
   test "lamp tile knob shows the lamp's own plush" do
@@ -90,6 +91,13 @@ class SwitchesControllerTest < ActionDispatch::IntegrationTest
     assert_select "#sw_head_fridge button.btn.btn-light.btn-icon.sw-knob:not(.off)[aria-label='Kühlschrank ausschalten'] img[src*='switch_plush_on']"
     assert_select "#sw_head_fridge .badge", text: /84 W/
     assert_select "#sw_card_fridge.opacity-75", false
+  end
+
+  test "the watt chip groups thousands the German way" do
+    Plugs::Sample.create!(plug_id: "fridge", ts: Time.current.to_i, apower_w: 1980.2, aenergy_wh: 1)
+    Plugs::State.create!(plug_id: "fridge", output: true)
+    get "/switches"
+    assert_select "#sw_head_fridge .badge", text: /\A⚡1\.980 W\z/
   end
 
   test "a silent plug is dimmed, its knob disabled and without watts" do

@@ -3,6 +3,7 @@ require "test_helper"
 
 class Lights::ColorPanelComponentTest < ViewComponent::TestCase
   cover "Lights::ColorPanelComponent#selected?"
+  cover "Lights::ColorPanelComponent#custom?"
 
   def panel(light:, state: nil)
     Lights::ColorPanelComponent.new(snapshot: LightSnapshot.new(light: light, state: state))
@@ -42,5 +43,34 @@ class Lights::ColorPanelComponentTest < ViewComponent::TestCase
 
     white = LightState.new(light_key: "K4", color_r: 0xff, color_g: 0x7a, color_b: 0x3d, color_temp_k: 2700)
     assert render_inline(panel(light: light, state: white)).css("input.btn-check[checked]").none?
+  end
+
+  test "the swatches sit in their own grid" do
+    light = Light.new(key: "K5", name: "Lampe", zones: [])
+    rendered = render_inline(panel(light: light))
+    assert_equal 9, rendered.css(".ld-swatches[role=radiogroup] > label.ld-swatch").length
+  end
+
+  test "a colour no swatch has is shown and marked on the wheel" do
+    light = Light.new(key: "K6", name: "Lampe", zones: [])
+    custom = LightState.new(light_key: "K6", color_r: 180, color_g: 60, color_b: 140)
+    rendered = render_inline(panel(light: light, state: custom))
+
+    wheel = rendered.css("label.ld-swatch-wheel[data-light-detail-target=wheel]").sole
+    assert_includes wheel["class"].split, "ld-swatch-custom"
+    assert_equal "--ld-custom: #b43c8c", wheel["style"]
+    assert rendered.css("input.btn-check[checked]").none?
+  end
+
+  test "the wheel stays unmarked for a swatch colour, in white mode and without a colour" do
+    light = Light.new(key: "K7", name: "Lampe", zones: [])
+    preset = LightState.new(light_key: "K7", color_r: 0x4d, color_g: 0x7c, color_b: 0xff)
+    white = LightState.new(light_key: "K7", color_r: 180, color_g: 60, color_b: 140, color_temp_k: 4000)
+
+    [ preset, white, nil ].each do |state|
+      wheel = render_inline(panel(light: light, state: state)).css("label.ld-swatch-wheel").sole
+      refute_includes wheel["class"].split, "ld-swatch-custom"
+      assert_nil wheel["style"]
+    end
   end
 end
