@@ -15,45 +15,51 @@ class Dashboard::HeroComponentTest < ViewComponent::TestCase
                                         battery_soc_pct: 57, battery_state: "charging" }))
 
     assert rendered.css("#dashboard_hero").any?
-    assert_equal "433", rendered.css(".hero-half:first-child .hero-number").text
-    assert_equal "Sonne", rendered.css(".hero-half:first-child img.hero-icon").attr("alt").value
-    assert rendered.css(".hero-half:last-child[hidden]").none?
-    assert_equal "57", rendered.css(".hero-half:last-child .hero-number").text
-    assert rendered.css("img.hero-icon-battery[src*='solakon_battery_charging']").any?
+    assert_equal "433", rendered.css("#dashboard_hero .col:first-child .display-4").text
+    assert_equal "Sonne", rendered.css("#dashboard_hero .col:first-child img.hero-icon").attr("alt").value
+    assert rendered.css("#dashboard_hero .col:last-child[hidden]").none?
+    assert_equal "57", rendered.css("#dashboard_hero .col:last-child .display-4").text
+    assert rendered.css("img.hero-icon[alt='Batterie'][src*='solakon_battery_charging']").any?
+  end
+
+  test "solar watts from a thousand on carry a thousands dot" do
+    rendered = render_hero(live(flow: { solakon_online: true, solar_w: 1234.6 }))
+
+    assert_equal "1.235", rendered.css("#dashboard_hero .col:first-child .display-4").text
   end
 
   test "negative solar watts clamp to zero" do
     rendered = render_hero(live(flow: { solakon_online: true, solar_w: -3.0 }))
 
-    assert_equal "0", rendered.css(".hero-half:first-child .hero-number").text
+    assert_equal "0", rendered.css("#dashboard_hero .col:first-child .display-4").text
   end
 
   test "without the inverter an online producer plug fills in, magnitude only" do
     rendered = render_hero(live(plugs: [ row(id: "bkw", role: :producer, apower_w: -300.4) ]))
 
-    assert_equal "300", rendered.css(".hero-half:first-child .hero-number").text
-    assert rendered.css(".hero-half:last-child[hidden]").any?
+    assert_equal "300", rendered.css("#dashboard_hero .col:first-child .display-4").text
+    assert rendered.css("#dashboard_hero .col:last-child[hidden]").any?
   end
 
   test "with nothing online the PV half shows a dash and the battery stays hidden" do
     rendered = render_hero(live(plugs: [ row(id: "bkw", role: :producer, online: false, apower_w: 300.0) ]))
 
-    assert_equal "—", rendered.css(".hero-half:first-child .hero-number").text
-    assert rendered.css(".hero-half:last-child[hidden]").any?
+    assert_equal "—", rendered.css("#dashboard_hero .col:first-child .display-4").text
+    assert rendered.css("#dashboard_hero .col:last-child[hidden]").any?
   end
 
   test "an unknown battery state falls back to the normal face and SoC to a dash" do
     rendered = render_hero(live(flow: { solakon_online: true, solar_w: 10.0,
                                         battery_soc_pct: nil, battery_state: nil }))
 
-    assert rendered.css("img.hero-icon-battery[src*='solakon_battery_normal']").any?
-    assert_equal "—", rendered.css(".hero-half:last-child .hero-number").text
+    assert rendered.css("img.hero-icon[alt='Batterie'][src*='solakon_battery_normal']").any?
+    assert_equal "—", rendered.css("#dashboard_hero .col:last-child .display-4").text
   end
 
   test "a missing solar reading while the inverter is online falls back to zero" do
     rendered = render_hero(live(flow: { solakon_online: true, solar_w: nil }))
 
-    assert_equal "0", rendered.css(".hero-half:first-child .hero-number").text
+    assert_equal "0", rendered.css("#dashboard_hero .col:first-child .display-4").text
   end
 
   test "the producer plug is found by role, not by position" do
@@ -65,18 +71,18 @@ class Dashboard::HeroComponentTest < ViewComponent::TestCase
 
     rendered = render_hero(live(plugs: plugs))
 
-    assert_equal "222", rendered.css(".hero-half:first-child .hero-number").text
+    assert_equal "222", rendered.css("#dashboard_hero .col:first-child .display-4").text
   end
 
   test "with no producer plug at all and no inverter the PV half shows a dash" do
     rendered = render_hero(live(plugs: [ row(id: "fridge", role: :consumer, online: true, apower_w: 50.0) ]))
 
-    assert_equal "—", rendered.css(".hero-half:first-child .hero-number").text
+    assert_equal "—", rendered.css("#dashboard_hero .col:first-child .display-4").text
   end
 
   test "a missing apower reading on an online producer plug falls back to zero" do
     rendered = render_hero(live(plugs: [ row(id: "bkw", role: :producer, online: true, apower_w: nil) ]))
 
-    assert_equal "0", rendered.css(".hero-half:first-child .hero-number").text
+    assert_equal "0", rendered.css("#dashboard_hero .col:first-child .display-4").text
   end
 end

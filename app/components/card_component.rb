@@ -14,5 +14,5 @@ class CardComponent < ApplicationComponent
 
   def heading_tag = "h#{@level}"
 
-  def css_classes = [ "chart-card", @classes ].compact.join(" ")
+  def css_classes = [ "card", "mb-3", @classes ].compact
 end

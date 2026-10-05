@@ -1,0 +1,87 @@
+.weather-icon {
+  flex-shrink: 0;
+  width: var(--weather-icon-size);
+  height: var(--weather-icon-size);
+  object-fit: contain;
+}
+.weather-icon-sm { --weather-icon-size: 42px; }
+.weather-icon-md { --weather-icon-size: 72px; }
+.weather-icon-lg { --weather-icon-size: 82px; }
+
+.weather-icon-inline {
+  width: 1.5em;
+  height: 1.5em;
+  object-fit: contain;
+  vertical-align: -0.45em;
+}
+
+/* Tiles take the rows over as subgrids; no row gap, so a row no tile has takes no room. */
+.weather-day-segments {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: var(--space-2);
+}
+.weather-segment {
+  display: grid;
+  grid-template-rows: subgrid;
+  grid-row: span 5;
+  row-gap: 0;
+  justify-items: center;
+}
+.weather-segment > * + * { margin-top: .4rem; }
+.weather-segment-temp { grid-row: 3; }
+.weather-segment-rain { grid-row: 4; }
+.weather-segment-solar { grid-row: 5; }
+@media (max-width: 575.98px) {
+  .weather-segment:nth-child(n + 3) { margin-top: var(--space-2); }
+}
+@media (min-width: 576px) {
+  .weather-day-segments { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+/* felt presses .btn.active down a pixel, which would misalign the chosen tile's rows. */
+.weather-segment.btn.active { transform: none; }
+
+/* Cards take the rows over as subgrids; no row gap, so a row no hour has takes no room. */
+.weather-hour-scroller {
+  --hour-fade: 3.5rem;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(min-content, 1fr);
+  column-gap: var(--space-2);
+  padding-inline-end: var(--hour-fade);
+  scroll-snap-type: x proximity;
+  scroll-padding-inline-start: var(--space-3);
+  mask-image: linear-gradient(to right, black calc(100% - var(--hour-fade)), transparent);
+}
+.weather-hour-card {
+  display: grid;
+  grid-template-rows: subgrid;
+  grid-row: span 6;
+  min-width: 4rem;
+  scroll-snap-align: start;
+}
+.weather-hour-extras {
+  display: grid;
+  grid-template-rows: subgrid;
+  grid-row: span 3;
+}
+.weather-hour-wind { grid-row: 1; }
+.weather-hour-solar { grid-row: 2; }
+.weather-hour-rain { grid-row: 3; }
+
+/* Snapped hours keep the strip's own start padding, the card body's in today's strip. */
+.weather-hour-scroller.card-body { scroll-padding-inline-start: var(--space-4); }
+
+/* Six hours fit unscrolled from 28.5rem (6 × 4rem, 5 × .5rem gap, 1rem padding each side). */
+.weather-day-hour-row { container-type: inline-size; }
+@container (min-width: 28.5rem) {
+  .weather-day-hour-row .weather-hour-scroller {
+    padding-inline-end: var(--space-3);
+    mask-image: none;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .weather-icon-lg { --weather-icon-size: 64px; }
+}

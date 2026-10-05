@@ -39,6 +39,9 @@ Real data only exists on the home server (Docker). Local SQLite is not a copy of
   `app/models/lights/` and `lib/govees/`.
 - **ViewComponent** for logic-heavy UI. Trivial markup and simple views (`_form`, `index`)
   stay ERB.
+- **felt-css** (Bootstrap class names) for styling: its components and utilities first; own CSS
+  in `app/assets/stylesheets/` only for ZiWoAS widgets, with tokens, never hex. Chart colours via
+  `--viz-*` and `lib/chart_theme.js`. See [ADR-0005](docs/adr/0005-felt-css-as-the-ui-foundation.md).
 - Comments in English and sparse — speaking names over commentary. UI text is German.
 
 ## Validation

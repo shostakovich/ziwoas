@@ -1,12 +1,18 @@
+# Colours between stops are color-mix() so the browser resolves them and dark mode follows.
 class Ramp
   STOPS = {
-    amber: %w[#fff8e1 #ffe9a8 #ffd166 #f7b733 #f59f00 #d97a00 #a85300],
-    blue:  %w[#eef4fb #cde2fb #9ec5f4 #6da7ec #3987e5 #256abf #184f95],
-    grey:  %w[#f8f9fa #e9ecef #ced4da #adb5bd #868e96 #495057 #343a40],
-    diverging: %w[#256abf #6da7ec #cde2fb #f0efec #ffe9a8 #f7b733 #d97a00]
+    amber: %w[var(--ramp-amber-0) var(--ramp-amber-1) var(--ramp-amber-2)],
+    blue: %w[var(--ramp-blue-0) var(--ramp-blue-1) var(--ramp-blue-2)],
+    grey: %w[var(--ramp-grey-0) var(--ramp-grey-1)],
+    diverging: %w[var(--ramp-low) var(--ramp-neutral) var(--ramp-high)]
   }.freeze
 
+  # Snapping to levels lets near-equal values share one fill; a step is below what the eye tells apart.
+  LEVELS = 64
+
   def self.fetch(name) = new(STOPS.fetch(name))
+
+  def self.level(fraction) = (fraction * LEVELS).round / LEVELS.to_f
 
   def initialize(stops)
     @stops = stops
@@ -23,9 +29,10 @@ class Ramp
   private
 
   def mix(from, to, share)
-    channels = rgb(from).zip(rgb(to)).map { |a, b| (a + (b - a) * share).round }
-    format("#%02x%02x%02x", *channels)
-  end
+    percent = (share * 100).round(1)
+    return from if percent.zero?
+    return to if percent == 100
 
-  def rgb(hex) = [ 1, 3, 5 ].map { |offset| hex[offset, 2].to_i(16) }
+    "color-mix(in oklab, #{to} #{format('%g', percent)}%, #{from})"
+  end
 end

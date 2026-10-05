@@ -1,7 +1,9 @@
-<div class="sw-card sw-plug-card<%= ' sw-offline' if row.offline? %>" id="sw_card_<%= row.plug.id %>" data-plug-id="<%= row.plug.id %>">
-  <%= render "switches/head", row: row %>
-  <details class="sw-details">
-    <%= render "switches/summary", row: row %>
-    <%= render "switches/entries", plug: row.plug, entries: row.entries %>
-  </details>
+<div class="card mb-3<%= ' opacity-75' if row.offline? %>" id="sw_card_<%= row.plug.id %>" data-plug-id="<%= row.plug.id %>">
+  <div class="card-body">
+    <%= render "switches/head", row: row %>
+    <details class="mt-2">
+      <%= render "switches/summary", row: row %>
+      <%= render "switches/entries", plug: row.plug, entries: row.entries %>
+    </details>
+  </div>
 </div>

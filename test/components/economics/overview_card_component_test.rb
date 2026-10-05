@@ -17,10 +17,11 @@ class Economics::OverviewCardComponentTest < ViewComponent::TestCase
 
     assert_equal "Wirtschaftlichkeit", rendered.css(".card-title").text.split(" seit ").first.strip
     assert_match "seit 14.02.2026", rendered.css(".card-subtitle").text
-    values = rendered.css(".tile-value").map { |node| node.text.squish }
+    values = rendered.css(".stat-value").map { |node| node.text.squish }
     assert_equal [ "1.000,00 €", "200,00 €", "20,0 %", "09.11.2028" ], values
     assert_equal "20", rendered.css("[data-economics-covered-pct]").first["data-economics-covered-pct"]
-    assert_equal "Voraussichtliche Amortisation", rendered.css(".tile-label").last.text
+    assert_equal [ "Anschaffungs\u00ADkosten", "Ersparnis", "Zurückverdient", "Voraus\u00ADsichtliche Amortisation" ],
+                 rendered.css(".stat-label").map(&:text)
     assert_match "Hochrechnung aus 200 Tagen.", rendered.to_html
   end
 
@@ -33,7 +34,7 @@ class Economics::OverviewCardComponentTest < ViewComponent::TestCase
   test "the covered share keeps one decimal, not the full float" do
     rendered = render_inline(Economics::OverviewCardComponent.new(result: result(covered_ratio: 1.0 / 3)))
 
-    assert_equal "33,3 %", rendered.css(".tile-value")[2].text.squish
+    assert_equal "33,3 %", rendered.css(".stat-value")[2].text.squish
   end
 
   test "plenty of data without a projection still shows an em dash, not a data warning" do
@@ -41,8 +42,8 @@ class Economics::OverviewCardComponentTest < ViewComponent::TestCase
       result: result(projected_payback_date: nil, projection_days: 200)
     ))
 
-    assert_equal "—", rendered.css(".tile-value").last.text.squish
-    assert_equal 1, rendered.css(".muted-text").size
+    assert_equal "—", rendered.css(".stat-value").last.text.squish
+    assert_equal 1, rendered.css(".text-body-secondary").size
   end
 
   test "a reached payback names the day instead of a projection" do
@@ -52,7 +53,7 @@ class Economics::OverviewCardComponentTest < ViewComponent::TestCase
     ))
 
     assert_match "Amortisiert", rendered.to_html
-    assert_match "04.05.2027", rendered.css(".tile-value").last.text
+    assert_match "04.05.2027", rendered.css(".stat-value").last.text
   end
 
   test "too short a record says so instead of naming a date" do
@@ -60,7 +61,7 @@ class Economics::OverviewCardComponentTest < ViewComponent::TestCase
       result: result(projected_payback_date: nil, projection_days: 12)
     ))
 
-    assert_match "Noch zu wenig Daten", rendered.css(".tile-value").last.text
+    assert_match "Noch zu wenig Daten", rendered.css(".stat-value").last.text
     assert_match "Basis sind erst 12 Tage", rendered.to_html
   end
 
@@ -72,8 +73,8 @@ class Economics::OverviewCardComponentTest < ViewComponent::TestCase
 
     assert_match "Kosten erfassen", rendered.to_html
     assert_empty rendered.css("[data-economics-covered-pct]")
-    assert_equal "—", rendered.css(".tile-value")[2].text.squish
-    assert_equal "—", rendered.css(".tile-value").last.text.squish
+    assert_equal "—", rendered.css(".stat-value")[2].text.squish
+    assert_equal "—", rendered.css(".stat-value").last.text.squish
     assert_match "Noch keine Kosten erfasst.", rendered.to_html
   end
 
@@ -84,8 +85,8 @@ class Economics::OverviewCardComponentTest < ViewComponent::TestCase
     ))
 
     assert_match "Strompreis", rendered.to_html
-    assert_equal "—", rendered.css(".tile-value")[1].text.squish
-    assert_equal "—", rendered.css(".tile-value").last.text.squish
+    assert_equal "—", rendered.css(".stat-value")[1].text.squish
+    assert_equal "—", rendered.css(".stat-value").last.text.squish
   end
 
   test "without any data it names no start date" do
@@ -94,5 +95,20 @@ class Economics::OverviewCardComponentTest < ViewComponent::TestCase
     ))
 
     assert_empty rendered.css(".card-subtitle")
+  end
+
+  test "on the PV page it is titled Wirtschaftlichkeit and leads to the costs and prices" do
+    rendered = render_inline(Economics::OverviewCardComponent.new(result: result))
+
+    link = rendered.css("a.btn").sole
+    assert_equal "Kosten und Preise pflegen", link.text.squish
+    assert_equal "/solakon/wirtschaftlichkeit", link["href"]
+  end
+
+  test "on its own page it takes the title it is given and leaves the link out" do
+    rendered = render_inline(Economics::OverviewCardComponent.new(result: result, title: "Stand", link: false))
+
+    assert_equal "Stand", rendered.css(".card-title").sole.text.squish
+    assert_empty rendered.css("a")
   end
 end

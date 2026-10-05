@@ -39,6 +39,8 @@ class Light < ApplicationRecord
 
   def plush_type = PLUSH_TYPES.fetch(sku.to_s.upcase, "generic")
 
+  def plush_image(on:) = "lamp_#{plush_type}_#{on ? 'on' : 'off'}.webp"
+
   # Always present, even before discovery has written a list.
   def firmware_scenes = super || []
 

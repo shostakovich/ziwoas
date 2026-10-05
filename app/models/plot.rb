@@ -1,16 +1,17 @@
-# The frame the four sun charts are drawn in: a viewBox with margins and the
-# two linear scales that put a pair of values onto it.
-#
-# The y domain's beginning lies at the foot of the plot, so hours that run
-# downwards are a reversed range rather than a special case. Geometry leaves
-# the frame rounded to one decimal, but `x` and `y` stay raw: a caller that
-# goes on calculating with a coordinate would otherwise round twice.
+# Geometry is rounded to one decimal; `x` and `y` stay raw, so callers calculating on don't round twice.
 class Plot
   Tick = Data.define(:value, :at)
 
   Rect = Data.define(:x, :y, :width, :height)
 
-  # Whole numbers stay whole, so the markup carries no trailing zeros.
+  Hit = Data.define(:rect, :title)
+
+  Label = Data.define(:x, :y, :text, :zero) do
+    def initialize(x:, y:, text:, zero: false) = super
+  end
+
+  Scale = Data.define(:step, :top)
+
   def self.number(value)
     rounded = value.round(1)
     rounded == rounded.to_i ? rounded.to_i : rounded
@@ -19,6 +20,15 @@ class Plot
   def self.round_up(value, to:) = (value.to_f / to).ceil * to
 
   def self.round_down(value, to:) = (value.to_f / to).floor * to
+
+  def self.nice_scale(peak, steps:, max_steps:)
+    step = steps.find { |candidate| peak <= candidate * max_steps } ||
+           round_up(peak.fdiv(max_steps), to: steps.last)
+
+    Scale.new(step: step, top: [ round_up(peak, to: step), step ].max)
+  end
+
+  def self.extent(values) = values.empty? ? (0..0) : Range.new(*values.minmax)
 
   def initialize(width:, height:, margins:, x:, y:)
     @width = width
@@ -38,8 +48,6 @@ class Plot
 
   def bottom = number(y_from)
 
-  def box = Rect.new(x: left, y: top, width: number(x_to - x_from), height: number(plot_height))
-
   def x(value) = x_from + share(value, @x_domain) * (x_to - x_from)
 
   def y(value) = y_from + share(value, @y_domain) * (y_to - y_from)
@@ -50,11 +58,15 @@ class Plot
 
   def y_ticks(values) = values.map { |value| Tick.new(value: value, at: number(y(value))) }
 
+  def grid_lines(values) = y_ticks(values).reject { |tick| tick.value.zero? }.map(&:at)
+
+  def value_labels(values, gap:)
+    y_ticks(values).map { |tick| Label.new(x: left - gap, y: tick.at, text: tick.value.to_s, zero: tick.value.zero?) }
+  end
+
   def line(points) = points.map { |value, measure| "#{number(x(value))},#{number(y(measure))}" }.join(" ")
 
-  # One line per unbroken run: a step in the x values wider than `gap` is a
-  # stretch nobody measured, and a single line would bridge it with a shape no
-  # data ever took. A repeated value is no step at all and stays inside its run.
+  # A step wider than `gap` was never measured; one line would bridge it with a shape no data took.
   def polylines(points, gap: 1) = runs(points, gap).map { |run| line(run) }
 
   def areas(points, gap: 1)
@@ -74,12 +86,14 @@ class Plot
     end
   end
 
-  def rect(x_range, y_range, inset: 0)
-    xs = [ x(x_range.begin), x(x_range.end) ]
-    ys = [ y(y_range.begin), y(y_range.end) ]
+  def hits(values, titles) = columns(values).zip(titles).map { |rect, title| Hit.new(rect: rect, title: title) }
 
-    Rect.new(x: number(xs.min), y: number(ys.min),
-             width: number(xs.max - xs.min - inset), height: number(ys.max - ys.min - inset))
+  # Edges are rounded before the size: rounding corner and size apart leaves hairline slits.
+  def rect(x_range, y_range, inset: 0)
+    xs = [ x(x_range.begin), x(x_range.end) ].map { |value| number(value) }
+    ys = [ y(y_range.begin), y(y_range.end) ].map { |value| number(value) }
+
+    Rect.new(x: xs.min, y: ys.min, width: number(xs.max - xs.min - inset), height: number(ys.max - ys.min - inset))
   end
 
   private
@@ -94,8 +108,6 @@ class Plot
 
   def plot_height = y_from - y_to
 
-  # A domain of a single value — one hour measured, or none — would divide by
-  # zero; it sits at the beginning of its axis instead.
   def share(value, domain)
     span = domain.end - domain.begin
 

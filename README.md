@@ -1,4 +1,4 @@
-<img src="app/assets/images/logo.png" alt="Zipfelmaus – Wohnungsautomatisierung" width="300">
+<img src="app/assets/images/zipfelmaus.webp" alt="Zipfelmaus – Wohnungsautomatisierung" width="120">
 
 # ZiWoAS – Zipfelmaus Wohnungs Automatisierungs System
 

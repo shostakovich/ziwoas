@@ -98,6 +98,15 @@ class EnergyReportTest < ActiveSupport::TestCase
     assert_in_delta 1.2, report.consumer_ranking.second.fetch(:kwh)
   end
 
+  test "ranking rows keep each plug's place in the configured order of its role, whatever its rank" do
+    seed_daily("2026-04-10", pv: 2000, desk: 700, washer: 1300)
+
+    report = EnergyReport.new(params: {}, plugs: @plugs, location: LOCATION).build
+
+    assert_equal [ [ "washer", 1 ], [ "desk", 0 ] ], report.consumer_ranking.map { |row| row.values_at(:plug_id, :position) }
+    assert_equal 0, report.producer_ranking.sole.fetch(:position)
+  end
+
   test "ranking rows carry the plug id, the role label and a precisely rounded kwh total" do
     Plugs::DailyTotal.create!(plug_id: "pv", date: "2026-04-10", energy_wh: 1234.5678)
 
@@ -314,8 +323,7 @@ class EnergyReportTest < ActiveSupport::TestCase
   end
 
   test "totals are summed in watt-hours, not from rounded kilowatt-hours" do
-    # Each day rounds down to 0.100 kWh on its own; summing the rounded days would
-    # lose 3.5 Wh and drop the savings a whole cent.
+    # Each day rounds down to 0.100 kWh; summing rounded days would lose a cent of savings.
     7.times do |i|
       seed_daily((Date.new(2026, 4, 1) + i).to_s, pv: 100.4999, desk: 0.0, washer: 0.0,
                  self_consumed: 100.4999)

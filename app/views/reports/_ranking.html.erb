@@ -1,19 +1,24 @@
+<%# Bars take each plug's dashboard colour (config order, never its rank). %>
+<% rows = producers + consumers %>
 <% if rows.any? %>
-  <% max_kwh = rows.map { |row| row.fetch(:kwh).to_f }.max.to_f %>
-  <div class="report-ranking" role="list">
-    <% rows.each_with_index do |row, index| %>
-      <% share = max_kwh.positive? ? (row.fetch(:kwh).to_f / max_kwh * 100).round(1) : 0 %>
-      <div class="report-ranking-row <%= row.fetch(:role) %>" role="listitem">
-        <span class="report-ranking-rank"><%= index + 1 %></span>
-        <span class="dot <%= row.fetch(:role) %>"></span>
-        <span class="report-ranking-name"><%= row.fetch(:name) %></span>
-        <span class="report-ranking-bar" aria-hidden="true">
-          <span style="width: <%= share %>%"></span>
-        </span>
-        <span class="report-ranking-value"><%= number_with_precision(row.fetch(:kwh), precision: 2, delimiter: ".", separator: ",") %> kWh</span>
-      </div>
-    <% end %>
-  </div>
+  <% max_kwh = rows.map { |row| row.fetch(:kwh).to_f }.max %>
+  <% if producers.any? %>
+    <ul class="list-group mb-2 small" aria-label="Erzeugung">
+      <% producers.each do |row| %>
+        <%= render "reports/ranking_row", row: row, max_kwh: max_kwh, colour: Dashboard::PlugBarComponent::PRODUCER_COLOR do %>
+          <%= image_tag "icon_sonne.webp", alt: "Erzeuger", class: "app-nav-icon" %>
+        <% end %>
+      <% end %>
+    </ul>
+  <% end %>
+  <% if consumers.any? %>
+    <ol class="list-group mb-3 small" aria-label="Rangliste">
+      <% consumers.each_with_index do |row, index| %>
+        <%= render "reports/ranking_row", row: row, max_kwh: max_kwh,
+                                          colour: Dashboard::PlugBarComponent.color_at(row.fetch(:position)) do %><%= index + 1 %><% end %>
+      <% end %>
+    </ol>
+  <% end %>
 <% else %>
-  <p class="muted-text">Keine Daten</p>
+  <p class="small text-body-secondary">Keine Daten</p>
 <% end %>

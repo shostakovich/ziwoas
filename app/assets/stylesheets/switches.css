@@ -1,0 +1,31 @@
+/* A plain border, not .border-{tone}: felt sews that as a rounded square on a disc (felt-css #28). */
+.sw-knob { width: 88px; height: 88px; border-style: solid; border-width: 4px;
+           border-color: var(--success); --tone: var(--success-subtle); background-color: var(--tone); }
+.sw-knob.off { border-color: var(--border-strong); --tone: var(--surface-raised); }
+
+/* felt-css #28: a pill seam stretched to a circle grows double-size stitches, so the knob goes unsewn. */
+:where([data-look="felt"]) .sw-knob::after { content: none; }
+
+.sw-knob-plush { width: 68%; height: 68%; object-fit: contain; pointer-events: none; }
+
+/* A drop shadow, so felt's own patch shadow stays. */
+.sw-lamp-knob {
+  --tone: light-dark(color-mix(in oklab, var(--warning) 12%, var(--surface-raised)),
+                     color-mix(in oklab, var(--warning) 50%, color-mix(in oklab, var(--light-fixed) 30%, var(--surface-raised))));
+  border-color: var(--warning);
+  filter: drop-shadow(0 0 8px color-mix(in oklab, var(--warning) 55%, transparent));
+}
+.sw-lamp-knob.off {
+  --tone: light-dark(var(--surface-raised), color-mix(in oklab, var(--light-fixed) 28%, var(--surface-raised)));
+  border-color: var(--border-strong);
+  filter: none;
+}
+.sw-lamp-knob::before {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  background-image: radial-gradient(circle at 50% 42%,
+    light-dark(transparent, color-mix(in oklab, var(--light-fixed) 80%, var(--warning))) 0, transparent 72%);
+}
+.sw-lamp-knob.off::before { content: none; }
+.sw-lamp-knob .sw-knob-plush { position: relative; width: 80%; height: 80%; }
+.sw-lamp-knob.off .sw-knob-plush { filter: grayscale(.35); }
+.sw-lamp-hero { width: 112px; height: 112px; }

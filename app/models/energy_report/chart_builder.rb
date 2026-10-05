@@ -1,5 +1,4 @@
 class EnergyReport
-  # Chart payload builders (daily + detail) including weather overlay.
   class ChartBuilder
     def initialize(plugs:, timezone:, store:, weather_loader: nil)
       @roster = Plugs::Roster.wrap(plugs)
@@ -88,6 +87,7 @@ class EnergyReport
       {
         chart_type: "line",
         labels: timestamps.map { |ts| detail_label(ts, multi_day) },
+        times: timestamps.map { |ts| ts * 1000 },
         series: series,
         _timestamps: timestamps
       }
@@ -112,6 +112,7 @@ class EnergyReport
       {
         chart_type: "bar",
         labels: dates.map { |date| date.strftime("%d.%m.") },
+        times: dates.map { |date| local_midnight_utc(date) * 1000 },
         series: series
       }
     end

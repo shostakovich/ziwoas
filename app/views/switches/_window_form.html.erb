@@ -1,32 +1,24 @@
-<%# A persisted window takes the id of its row, so the form can replace it and
-    be replaced by it again. %>
-<%= tag.div id: (form.persisted? ? "sw_entry_#{plug.id}_#{form.group_id}" : nil), class: "sw-form-wrapper" do %>
+<%= tag.div id: (form.persisted? ? "sw_entry_#{plug.id}_#{form.group_id}" : nil) do %>
   <%= form_with url: (form.persisted? ? switch_window_path(plug_id: plug.id, group_id: form.group_id)
                                       : switch_windows_path(plug_id: plug.id)),
                 method: (form.persisted? ? :patch : :post),
-                scope: :switch_window, class: "sw-form" do |f| %>
+                scope: :switch_window, class: "bg-body border rounded p-2 p-sm-3 mt-2 vstack gap-3" do |f| %>
     <% if form.errors.any? %>
-      <div class="sw-form-errors"><%= form.errors.join(", ") %></div>
+      <div class="small text-danger-emphasis"><%= form.errors.join(", ") %></div>
     <% end %>
-    <div class="sw-form-row">
-      <%= f.time_field :on_at_time, value: form.on_at_time, class: "sw-time" %>
-      <span class="sw-hint">bis</span>
-      <%= f.time_field :off_at_time, value: form.off_at_time, class: "sw-time" %>
+    <div class="input-group input-group-sm">
+      <%= f.time_field :on_at_time, value: form.on_at_time, class: "form-control tabular-nums",
+                       "aria-label": "Einschalten um" %>
+      <span class="input-group-text">bis</span>
+      <%= f.time_field :off_at_time, value: form.off_at_time, class: "form-control tabular-nums",
+                       "aria-label": "Ausschalten um" %>
     </div>
-    <div class="sw-form-row">
-      <input type="hidden" name="switch_window[days][]" value="">
-      <% SwitchesHelper::DAY_ABBR.each do |num, label| %>
-        <label class="sw-day">
-          <%= check_box_tag "switch_window[days][]", num, form.days.include?(num),
-                            id: "sw_day_#{plug.id}_#{form.group_id || 'new'}_#{num}" %>
-          <span><%= label %></span>
-        </label>
-      <% end %>
-    </div>
-    <div class="sw-form-row sw-form-actions">
-      <%= f.submit "Speichern", class: "sw-btn" %>
-      <%= link_to "Abbrechen", switches_path, class: "sw-btn ghost" %>
-      <span class="sw-hint">Über Mitternacht? Einfach 22:00–06:00 eintragen.</span>
+    <%= render "switches/weekdays", scope: :switch_window, days: form.days,
+                                    id_prefix: "sw_day_#{plug.id}_#{form.group_id || 'new'}" %>
+    <div class="d-flex flex-wrap align-items-center gap-2">
+      <%= f.submit "Speichern", class: "btn btn-sm btn-primary" %>
+      <%= link_to "Abbrechen", switches_path, class: "btn btn-sm btn-outline-secondary" %>
+      <span class="small text-body-secondary">Über Mitternacht? Einfach 22:00–06:00 eintragen.</span>
     </div>
   <% end %>
 <% end %>

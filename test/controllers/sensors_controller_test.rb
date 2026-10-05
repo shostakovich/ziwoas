@@ -1,10 +1,57 @@
-# test/controllers/sensors_controller_test.rb
 require "test_helper"
 
 class SensorsControllerTest < ActionDispatch::IntegrationTest
   test "GET /sensors returns 200" do
     get "/sensors"
     assert_response :success
+  end
+
+  test "GET /sensors shows a card per sensor with the CO₂ gauge" do
+    SensorReading.delete_all
+    SensorReading.create!(device_id: "TEST_INDOOR",  taken_at: 5.minutes.ago,
+                          temperature: 21.0, humidity: 50, co2: 1200, battery_pct: 90)
+    SensorReading.create!(device_id: "TEST_OUTDOOR", taken_at: 5.minutes.ago,
+                          temperature: 12.0, humidity: 70, battery_pct: 100)
+
+    get "/sensors"
+
+    assert_select "turbo-frame#sensors_dashboard .card", text: /Test Wohnzimmer/ do
+      assert_select "svg.co2-gauge[aria-label=?]", "CO₂ 1.200 ppm, erhöht"
+      assert_select "li", text: /1\.200\s*ppm/
+    end
+    assert_select "turbo-frame#sensors_dashboard .card", text: /Test Balkon/ do
+      assert_select "svg.co2-gauge", count: 0
+    end
+    assert_select ".alert", count: 0
+    assert_select "section[aria-label=Sensoren].row-cols-sm-2.row-cols-lg-2", 1,
+      "two sensors fill a row of two on desktops instead of leaving a third slot empty"
+    assert_select "[data-controller=sensors-chart] canvas", count: 3
+    assert_select "[data-controller=sensors-chart] .card-subtitle", text: "ppm · Test Wohnzimmer · letzte 24 h"
+    assert_select "[data-controller=sensors-chart] .card-subtitle", text: "°C · letzte 24 h"
+    assert_select "[data-controller=sensors-chart] .card-subtitle", text: "Prozent · letzte 24 h"
+  end
+
+  test "GET /sensors warns about sensors with a low battery" do
+    SensorReading.delete_all
+    SensorReading.create!(device_id: "TEST_INDOOR",  taken_at: 5.minutes.ago,
+                          temperature: 21.0, co2: 600, battery_pct: 90)
+    SensorReading.create!(device_id: "TEST_OUTDOOR", taken_at: 5.minutes.ago,
+                          temperature: 12.0, battery_pct: 15)
+
+    get "/sensors"
+
+    assert_select ".alert.alert-warning[role=alert]", text: /Batterie schwach:\s*Test Balkon/
+    assert_select ".alert", text: /Test Wohnzimmer/, count: 0
+  end
+
+  test "GET /sensors shows the empty state without readings" do
+    SensorReading.delete_all
+
+    get "/sensors"
+
+    assert_select ".card .card-title", text: "Noch keine Sensordaten"
+    assert_select ".card p", text: /sobald die SwitchBot-API Daten geliefert hat/
+    assert_select "[data-controller=sensors-chart]", count: 0
   end
 
   test "GET /sensors/series returns JSON with three series" do

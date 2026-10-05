@@ -1,11 +1,6 @@
 require "test_helper"
 
-# module_function gives DashboardBroadcaster.broadcast_live etc. a *snapshot*
-# singleton method, taken once when the file first loads. Mutant's killfork
-# monkeypatches only the instance-method-table entry (undef + redefine), so a
-# call through the module method never runs the mutated body — every mutation
-# looks alive no matter what the test asserts. Routing calls through an
-# includer reaches the entry mutant actually rewrites.
+# Through an includer: mutant rewrites the instance method, never module_function's singleton copy.
 class DashboardBroadcasterCaller
   include DashboardBroadcaster
 end
@@ -39,7 +34,7 @@ class DashboardBroadcasterTest < ActiveSupport::TestCase
     assert_match(/alt="Sonne"/, payload_for("dashboard_hero", payloads))
 
     consumption = payload_for("tile_consumption_now", payloads)
-    assert_match(/80 W/, consumption)
+    assert_equal "80 W", stat_value(consumption)
     refute_match(/app-header/, consumption, "a fragment must not ship the page layout")
   end
 
@@ -83,10 +78,12 @@ class DashboardBroadcasterTest < ActiveSupport::TestCase
        tile_autarky tile_self_consumption].each do |target|
       assert_replace_for target, payloads
     end
-    assert_match(/0,00 kWh/, payload_for("tile_produced", payloads))
+    assert_equal "0,00 kWh", stat_value(payload_for("tile_produced", payloads))
   end
 
   private
+
+  def stat_value(payload) = Nokogiri::HTML5.fragment(payload).at_css(".stat-value").text
 
   def broadcast_live(**args) = DashboardBroadcasterCaller.new.send(:broadcast_live, **args)
   def broadcast_summary(**args) = DashboardBroadcasterCaller.new.send(:broadcast_summary, **args)

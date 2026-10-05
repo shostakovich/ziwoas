@@ -1,4 +1,3 @@
-# test/controllers/lights_controller_test.rb
 require "test_helper"
 
 class LightsControllerTest < ActionDispatch::IntegrationTest
@@ -58,11 +57,12 @@ class LightsControllerTest < ActionDispatch::IntegrationTest
     LightState.record_state(@light.key, on: true, brightness: 60, color_temp_k: 2700)
     get light_url(@light.key)
     assert_response :success
-    assert_select "#light_power .ld-pill"
+    assert_select "#light_power button[aria-pressed]", 2
     assert_select "input[type=range][data-action='light-detail#brightness']"
     assert_select "input[type=range][data-light-detail-target='temp'][min='2700'][max='6500']"
-    assert_select "button[data-light-detail-tab-param='white']"
-    assert_select "button[data-light-detail-tab-param='color']"
+    assert_select "button[role=tab][data-light-detail-tab-param='white']"
+    assert_select "button[role=tab][data-light-detail-tab-param='color']"
+    assert_select "[role=tabpanel][aria-labelledby=light_tab_white]"
   end
 
   test "white slider and presets follow the lamp's persisted Kelvin range" do
@@ -72,8 +72,8 @@ class LightsControllerTest < ActionDispatch::IntegrationTest
     get light_url(@light.key)
     assert_response :success
     assert_select "input[data-light-detail-target='temp'][min='2200'][max='6500']"
-    assert_select "button.ld-preset[data-light-detail-temp-param='2200']", text: "Gemütlich"
-    assert_select "button.ld-preset.ld-preset--active[data-light-detail-temp-param='2200']"
+    assert_select "button[data-light-detail-temp-param='2200']", text: "Gemütlich"
+    assert_select "button.active[aria-pressed=true][data-light-detail-temp-param='2200']"
   end
 
   test "show hides colour tab when the light has no colour support" do
@@ -92,27 +92,27 @@ class LightsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select "button[data-light-detail-tab-param='white']"
     assert_select "button[data-light-detail-temp-param='2700']"
-    assert_select "button[data-light-detail-color-param]"
+    assert_select "input[type=radio][data-light-detail-color-param]"
   end
 
   test "scenes tab renders the device firmware scenes when present" do
     light = Light.create!(key: "ABCDEF05", name: "Decke", firmware_scenes: %w[Forest Aurora])
     get light_url(light.key)
-    assert_select "form.ld-inline-form input[name='effect'][value='Forest']"
-    assert_select "form.ld-inline-form input[name='effect'][value='Aurora']"
+    assert_select "form input[name='effect'][value='Forest']"
+    assert_select "form input[name='effect'][value='Aurora']"
   end
 
   test "scenes tab shows a hint instead of buttons when the light has no scenes" do
     light = Light.create!(key: "ABCDEF06", name: "Decke", firmware_scenes: [])
     get light_url(light.key)
-    assert_select "form.ld-inline-form input[name='effect']", count: 0
-    assert_select ".ld-panel[data-tab=scenes] .ld-zone-hint", text: "Diese Lampe meldet keine Govee-Szenen."
+    assert_select "form input[name='effect']", count: 0
+    assert_select "[data-tab=scenes] p", text: "Diese Lampe meldet keine Govee-Szenen."
   end
 
-  test "detail hero lamp carries the per-SKU plush class" do
+  test "detail hero shows the per-SKU plush lamp" do
     light = Light.create!(key: "ABCDEF07", name: "Decke", sku: "H60A6")
     get light_url(light.key)
-    assert_select ".ld-lamp.plush-ceiling"
+    assert_select "#light_power img[src*='lamp_ceiling_off']"
   end
 
   test "zone lamp renders one toggle button per zone inside the hero, no Zonen tab" do
@@ -120,32 +120,29 @@ class LightsControllerTest < ActionDispatch::IntegrationTest
                   zones: %w[bottomLightToggle sideLightToggle rippleLightToggle])
     get light_url(key: "UP1")
     assert_response :success
-    # zones live in the hero tile now, not a tab/panel
-    assert_select "button.ld-tab[data-light-detail-tab-param=zones]", false
-    assert_select ".ld-panel[data-tab=zones]", false
-    assert_select "#light_power .ld-zones-row .ld-zone-btn", 3
-    # detail page always opens on the white tab
-    assert_select ".ld[data-light-detail-tab-value=white]"
-    assert_select "button.ld-tab[data-light-detail-tab-param=white]"
+    assert_select "button[role=tab][data-light-detail-tab-param=zones]", false
+    assert_select "[data-tab=zones]", false
+    assert_select "#light_power [aria-label=Zonen] form[id^=zone_] button", 3
+    assert_select "#light_power [aria-label=Zonen] .row-cols-3 > form[id^=zone_]", 3
+    assert_select "[data-controller=light-detail][data-light-detail-tab-value=white]"
+    assert_select "button[role=tab][data-light-detail-tab-param=white]"
   end
 
   test "zone buttons are visible when the lamp is on, hidden when off" do
     Light.create!(name: "Up", key: "UPVIS", sku: "H60B0",
                   zones: %w[bottomLightToggle sideLightToggle])
-    # off (no state) -> zones row carries the is-off hide marker
     get light_url(key: "UPVIS")
-    assert_select ".ld-zones-row.is-off"
-    # on -> no hide marker
+    assert_select "[aria-label=Zonen][hidden]"
     LightState.record_state("UPVIS", on: true)
     get light_url(key: "UPVIS")
-    assert_select ".ld-zones-row:not(.is-off)"
+    assert_select "[aria-label=Zonen]:not([hidden])"
   end
 
   test "simple lamp renders no zone buttons" do
     Light.create!(name: "Lamp", key: "S1", supports_color: true)
     get light_url(key: "S1")
-    assert_select ".ld-zones-row", false
-    assert_select ".ld-zone-btn", false
+    assert_select "[aria-label=Zonen]", false
+    assert_select "form[id^=zone_]", false
   end
 
   test "show renders a zone toggle with stable id and reflects persisted zone_states" do
@@ -153,8 +150,8 @@ class LightsControllerTest < ActionDispatch::IntegrationTest
     LightState.record_zone_state("UP9", "rippleLightToggle", true)
     get light_url(key: "UP9")
     assert_response :success
-    assert_select "form#zone_rippleLightToggle .ld-zone-btn.on"
-    assert_select "form#zone_bottomLightToggle .ld-zone-btn:not(.on)"
+    assert_select "form#zone_rippleLightToggle button.active[aria-pressed=true]"
+    assert_select "form#zone_bottomLightToggle button:not(.active)[aria-pressed=false]"
   end
 
   test "edit page renders the slim form with a plug dropdown" do
@@ -176,15 +173,15 @@ class LightsControllerTest < ActionDispatch::IntegrationTest
     light = Light.create!(name: "Lampe", key: "A1B2C3D4E5F60011")
     patch light_url(light.key), params: { light: { name: "" } }
     assert_response :unprocessable_entity
-    assert_select ".form-errors"
-    assert_select "select[name='light[shelly_plug_id]']"
+    assert_select ".alert-danger li"
+    assert_select "select.form-select[name='light[shelly_plug_id]']"
   end
 
   test "show topbar has a settings gear that opens the edit sheet via turbo" do
     light = Light.create!(name: "Lampe", key: "A1B2C3D4E5F60020")
     get light_url(light.key)
-    assert_select "a.ld-gear[href=?]", edit_light_path(light.key)
-    assert_select "a.ld-gear[data-turbo-stream]"
+    assert_select "a[aria-label=Einstellungen][href=?]", edit_light_path(light.key)
+    assert_select "a[aria-label=Einstellungen][data-turbo-stream]"
     assert_select "#light_settings"
   end
 
@@ -193,7 +190,9 @@ class LightsControllerTest < ActionDispatch::IntegrationTest
     get edit_light_url(light.key), headers: { "Accept" => "text/vnd.turbo-stream.html" }
     assert_response :success
     assert_select "turbo-stream[action=update][target=light_settings]"
-    assert_match "ld-modal", @response.body
+    assert_match %(<dialog class="modal" closedby="any"), @response.body
+    assert_match %(data-controller="settings-dialog"), @response.body
+    assert_match %(class="btn-close"), @response.body
     assert_match "Abbrechen", @response.body
     assert_match "light[shelly_plug_id]", @response.body
   end
@@ -204,6 +203,7 @@ class LightsControllerTest < ActionDispatch::IntegrationTest
           headers: { "Accept" => "text/vnd.turbo-stream.html" }
     assert_response :unprocessable_entity
     assert_select "turbo-stream[action=update][target=light_settings]"
-    assert_match "form-errors", @response.body
+    assert_match %(<dialog class="modal"), @response.body
+    assert_match "alert-danger", @response.body
   end
 end

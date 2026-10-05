@@ -34,19 +34,19 @@ class SolakonControllerTest < ActionDispatch::IntegrationTest
     assert_select ".card-title", text: "Energiefluss"
     assert_select ".card-title", text: "Status"
     assert_select ".card-title", text: "Solakon-Verlauf"
-    assert_select ".section-label", text: "Steuerung"
-    assert_select ".section-label", text: "Panels"
-    assert_select ".section-label", text: "Speicher"
+    assert_select "main h2", text: "Steuerung"
+    assert_select "main h2", text: "Panels"
+    assert_select "main h2", text: "Speicher"
     assert_operator response.body.index("Status"), :<, response.body.index("Steuerung")
     assert_select "[role='tablist']", count: 0
     assert_no_match(/SOH|EPS|46613|39067|Modbus/, response.body)
     assert_match(/Außensteckdose/, response.body)
     assert_match(/Auto-Regelung/, response.body)
-    assert_match(/Batteriegesundheit/, response.body)
+    assert_match(/Batterie\u00ADgesundheit/, response.body)
     assert_select "turbo-frame#solakon_history canvas[data-solakon-history-target='canvas']", 1
     assert_select "turbo-frame#solakon_history script[data-solakon-history-target='payload']", 1
     assert_select "turbo-frame#solakon_history .solakon-balance", 1
-    assert_select "turbo-frame#solakon_history a.preset-link.active", text: "Letzte 24 h", count: 1
+    assert_select "turbo-frame#solakon_history a.btn.active", text: "Letzte 24 h", count: 1
     assert_select "input[data-solakon-target='epsToggle'][data-action='change->solakon#toggleEps']", 1
     assert_select "input[data-solakon-target='controlToggle'][data-action='change->solakon#toggleControl']", 1
   end
@@ -61,8 +61,8 @@ class SolakonControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_select ".card-title", text: /\AWirtschaftlichkeit/
-    labels = css_select(".economics-tiles .tile-label").map { |node| node.text.squish }
-    assert_equal [ "Anschaffungskosten", "Ersparnis", "Zurückverdient", "Voraussichtliche Amortisation" ], labels
+    labels = css_select(".economics-tiles .stat-label").map { |node| node.text.squish }
+    assert_equal [ "Anschaffungs\u00ADkosten", "Ersparnis", "Zurückverdient", "Voraus\u00ADsichtliche Amortisation" ], labels
     assert_match "1.000,00 €", response.body
     assert_match "0,60 €", response.body
     assert_select "a[href=?]", economics_path
@@ -89,11 +89,13 @@ class SolakonControllerTest < ActionDispatch::IntegrationTest
     assert_select "[data-ef='efBatterySoc']", 1
     assert_select "[data-ef='efBatteryW']", 1
     assert_select "[data-ef='efDotsSolarHome']", 1
-    assert_select "image[href*='solakon_battery_normal']", minimum: 1
-    assert_select "image[data-ef='efBatteryImage'][data-battery-state-normal*='solakon_battery_normal']", 1
-    assert_select "image[data-ef='efBatteryImage'][data-battery-state-charging*='solakon_battery_charging']", 1
-    assert_select "image[data-ef='efBatteryImage'][data-battery-state-low*='solakon_battery_low']", 1
-    assert_select "image[data-ef='efBatteryImage'][data-battery-state-fault*='solakon_battery_fault']", 1
+    assert_select ".ef-ring[data-ring='pv'] > img.ef-icon[src*='icon_sonne'][alt='PV']", 1
+    battery = "img.ef-icon[data-ef='efBatteryImage']"
+    assert_select "#{battery}[src*='solakon_battery_normal']", 1
+    assert_select "#{battery}[data-battery-state-normal*='solakon_battery_normal']", 1
+    assert_select "#{battery}[data-battery-state-charging*='solakon_battery_charging']", 1
+    assert_select "#{battery}[data-battery-state-low*='solakon_battery_low']", 1
+    assert_select "#{battery}[data-battery-state-fault*='solakon_battery_fault']", 1
   end
 
   test "history frame renders the selected range with its switch active" do
@@ -104,11 +106,16 @@ class SolakonControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select "h1", 0
     assert_select "turbo-frame#solakon_history", 1
-    assert_select "a.preset-link.active", text: "Letzte 7 Tage", count: 1
-    assert_select "a.preset-link.active", 1
-    assert_select "a.preset-link[href=?]", "/solakon/history?range=30d"
+    assert_select "a.btn.active", text: "Letzte 7 Tage", count: 1
+    assert_select "a.btn.active", 1
+    assert_select "a.btn[href=?]", "/solakon/history?range=30d"
     assert_select "[data-controller='solakon-history'][data-solakon-history-url-value=?]", "/solakon/history?range=7d"
-    assert_select ".solakon-balance-row", minimum: 6
+    assert_select "[data-controller='solakon-history'][data-solakon-history-range-value=?]", "7d"
+    assert_select ".solakon-balance-row", 5
+    assert_select ".solakon-balance-row[data-role='solar'] .progress-bar[style*='background-color: var(--viz-solar)']", 1
+    assert_select ".solakon-balance-row[data-role='battery'] .progress-bar[style*='background-color: var(--viz-battery)']", 2
+    assert_select ".solakon-balance-row[data-role='grid'] .progress-bar[style*='background-color: var(--viz-grid)']", 2
+    assert_select "[data-role='outlet-average']", text: /Ø Außensteckdose\s+0 W/
     chart = JSON.parse(css_select("script[data-solakon-history-target='payload']").first.text)
     assert_equal [ "PV", "Akku", "Außensteckdose", "0 W" ], chart.fetch("datasets").map { |dataset| dataset.fetch("label") }
   end
@@ -117,9 +124,10 @@ class SolakonControllerTest < ActionDispatch::IntegrationTest
     get "/solakon/history", params: { range: "1y" }, headers: { "Turbo-Frame" => "solakon_history" }
 
     assert_response :success
-    assert_select "a.preset-link.active", text: "Letzte 24 h", count: 1
-    assert_select ".muted-text", text: "Keine Solakon-Historie"
+    assert_select "a.btn.active", text: "Letzte 24 h", count: 1
+    assert_select ".text-body-secondary", text: "Keine Solakon-Historie"
     assert_select ".solakon-balance-row", 0
+    assert_select "[data-role='outlet-average']", 0
   end
 
   test "page renders controls, panel, storage, balance, and status labels without protocol language" do
@@ -154,21 +162,21 @@ class SolakonControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_select ".solakon-control-card", 2
-    assert_select ".solakon-panel-card", 4
-    assert_select ".solakon-panel-card .tile-label", text: "Panel 3"
-    assert_select ".solakon-panel-card .tile-label", text: "Panel 4"
-    assert_select ".solakon-panel-card .muted-text", text: "41,7 V · 5,12 A"
-    assert_select ".muted-text", text: /Speichertemperatur.*24,8 °C/
-    assert_select ".muted-text", text: /Wechselrichtertemperatur.*34,1 °C/
+    assert_select ".solakon-panel-grid .card", 4
+    assert_select ".solakon-panel-grid .stat-label", text: "Panel 3"
+    assert_select ".solakon-panel-grid .stat-label", text: "Panel 4"
+    assert_select ".solakon-panel-grid .text-body-secondary", text: "41,7 V · 5,12 A"
+    assert_select ".text-body-secondary", text: /Speichertemperatur.*24,8\u00A0°C/
+    assert_select ".text-body-secondary", text: /Wechselrichtertemperatur.*34,1\u00A0°C/
 
-    assert_select ".solakon-storage-grid .tile-label", text: "Ladestand"
-    assert_select ".solakon-storage-grid .tile-label", text: "Batteriegesundheit"
-    assert_select ".solakon-storage-grid .tile-label", text: "Aktuelle Batterieleistung"
-    assert_select ".solakon-storage-grid .tile-label", text: "Batteriespannung"
-    assert_select ".solakon-storage-grid .tile-label", text: "Batteriestrom"
-    assert_select ".solakon-storage-grid .tile-label", text: "Speichertemperatur"
-    assert_select ".solakon-storage-grid .tile-label", text: "Ladezyklen", count: 0
-    assert_select ".solakon-balance-row", minimum: 6
+    assert_select ".solakon-storage-grid .stat-label", text: "Ladestand"
+    assert_select ".solakon-storage-grid .stat-label", text: "Batterie\u00ADgesundheit"
+    assert_select ".solakon-storage-grid .stat-label", text: "Aktuelle Batterie\u00ADleistung"
+    assert_select ".solakon-storage-grid .stat-label", text: "Batterie\u00ADspannung"
+    assert_select ".solakon-storage-grid .stat-label", text: "Batteriestrom"
+    assert_select ".solakon-storage-grid .stat-label", text: "Speicher\u00ADtemperatur"
+    assert_select ".solakon-storage-grid .stat-label", text: "Ladezyklen", count: 0
+    assert_select ".solakon-balance-row", 5
     assert_no_match(/SOH|EPS|Modbus|Register|39067|46613|Fault\d|Alarm \d/, response.body)
   end
 
@@ -184,8 +192,8 @@ class SolakonControllerTest < ActionDispatch::IntegrationTest
     get "/solakon"
 
     assert_response :success
-    assert_select ".solakon-panel-card", 4
-    assert_select ".solakon-panel-card", text: /Panel 4\s*0 W/
+    assert_select ".solakon-panel-grid .card", 4
+    assert_select ".solakon-panel-grid .card", text: /Panel 4\s*0 W/
   end
 
   test "a snapshot predating panels three and four shows zero, not a blank dash" do
@@ -198,9 +206,9 @@ class SolakonControllerTest < ActionDispatch::IntegrationTest
     get "/solakon"
 
     assert_response :success
-    assert_select ".solakon-panel-card", 4
-    assert_select ".solakon-panel-card", text: /Panel 3\s*0 W\s*0,0 V · 0,00 A/
-    assert_select ".solakon-panel-card", text: /Panel 4\s*0 W\s*0,0 V · 0,00 A/
+    assert_select ".solakon-panel-grid .card", 4
+    assert_select ".solakon-panel-grid .card", text: /Panel 3\s*0 W\s*0,0 V · 0,00 A/
+    assert_select ".solakon-panel-grid .card", text: /Panel 4\s*0 W\s*0,0 V · 0,00 A/
   end
 
   test "panel power rounds to the nearest watt instead of truncating" do
@@ -216,7 +224,7 @@ class SolakonControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     # 210.6 rounds to 211; a truncating cast would show 210.
-    assert_select ".solakon-panel-card", text: /Panel 1\s*211 W/
+    assert_select ".solakon-panel-grid .card", text: /Panel 1\s*211 W/
   end
 
   test "status renders one relevant battery character with short description" do
@@ -247,8 +255,8 @@ class SolakonControllerTest < ActionDispatch::IntegrationTest
     end
 
     assert_response :success
-    assert_select ".tile-value[data-solakon-target='controlState']", text: "Aktiv"
-    assert_select ".muted-text[data-solakon-target='controlHelp']", text: "folgt dem gemessenen Verbrauch"
+    assert_select ".stat-value[data-solakon-target='controlState']", text: "Aktiv"
+    assert_select ".text-body-secondary[data-solakon-target='controlHelp']", text: "folgt dem gemessenen Verbrauch"
     assert_select "input[data-solakon-target='controlToggle'][checked]", 1
     assert_select "input[data-solakon-target='controlToggle'][disabled]", 0
   end
@@ -262,8 +270,8 @@ class SolakonControllerTest < ActionDispatch::IntegrationTest
     end
 
     assert_response :success
-    assert_select ".tile-value[data-solakon-target='controlState']", text: "Aus"
-    assert_select ".muted-text[data-solakon-target='controlHelp']", text: "in Konfiguration deaktiviert"
+    assert_select ".stat-value[data-solakon-target='controlState']", text: "Aus"
+    assert_select ".text-body-secondary[data-solakon-target='controlHelp']", text: "in Konfiguration deaktiviert"
     assert_select "input[data-solakon-target='controlToggle'][checked]", 0
     assert_select "input[data-solakon-target='controlToggle'][disabled]", 1
   end
@@ -275,15 +283,15 @@ class SolakonControllerTest < ActionDispatch::IntegrationTest
     get "/solakon"
 
     assert_response :success
-    assert_select ".solakon-storage-grid .tile-value", text: "84 %"
+    assert_select ".solakon-storage-grid .stat-value", text: "84 %"
   end
 
   test "history frame falls back to 24 h when the range parameter is missing entirely" do
     get "/solakon/history", headers: { "Turbo-Frame" => "solakon_history" }
 
     assert_response :success
-    assert_select "a.preset-link.active", text: "Letzte 24 h", count: 1
-    assert_select ".muted-text", text: "Keine Solakon-Historie"
+    assert_select "a.btn.active", text: "Letzte 24 h", count: 1
+    assert_select ".text-body-secondary", text: "Keine Solakon-Historie"
   end
 
   test "page shows the shading section under the history" do
@@ -300,10 +308,11 @@ class SolakonControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select ".card-title", text: "Ausbeute nach Sonnenstand"
     assert_select ".card-title", text: "Tagesgang je Monat"
-    assert_select ".card-title", text: /\ADie vier Panels im Tagesverlauf seit /
+    assert_select ".card-title", text: "Die vier Panels im Tagesverlauf"
+    assert_select ".card-title + .card-subtitle", text: /\Aseit /
     assert_select ".shading [data-chart='yield-map'] .fields rect", minimum: 1
     assert_select ".shading [data-chart='daily-profiles'] .multiple", 1
-    assert_select ".shading [data-chart='panels'] polyline", 4
+    assert_select ".shading [data-chart='panels'] .panel-chart-wide polyline", 4
   end
 
   test "page keeps an empty state for the shading section while no PV hour exists" do
@@ -320,10 +329,11 @@ class SolakonControllerTest < ActionDispatch::IntegrationTest
     get "/solakon"
 
     assert_response :success
-    assert_select ".section-label", text: "Sonnenkalender 2026"
+    assert_select "main h2", text: "Sonnenkalender 2026"
     assert_select ".sun-calendar [data-strip]", 4
     assert_select ".sun-calendar [data-strip='pv'] .cells rect", minimum: 1
-    assert_select ".sun-calendar [data-strip='pv'] polyline.sun", 3
+    assert_select ".sun-calendar [data-strip='pv'] svg.strip-chart-wide polyline.sun", 3
+    assert_select ".sun-calendar [data-strip='pv'] svg.strip-chart-narrow polyline.sun", 3
   end
 
   test "sun calendar marks the switch from producer-plug energy once PV data begins" do

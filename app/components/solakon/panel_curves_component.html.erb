@@ -1,24 +1,31 @@
 <%= render CardComponent.new(title: "Die vier Panels im Tagesverlauf", subtitle: period,
-                             classes: "sun-chart", data: { chart: "panels" }) do %>
+                             data: { chart: "panels" }) do %>
   <% if empty? %>
-    <p class="note">Der Vergleich erscheint, sobald alle vier Panels einen Tag lang geliefert haben.</p>
+    <p class="note small text-body-secondary mb-0">Der Vergleich erscheint, sobald alle vier Panels einen Tag lang geliefert haben.</p>
   <% else %>
-    <svg viewBox="<%= plot.view_box %>" role="img" aria-label="Stundenmittel je Panel über den Tag">
-      <g class="grid"><% grid_lines.each do |at| %><line x1="<%= plot.left %>" x2="<%= plot.right %>" y1="<%= at %>" y2="<%= at %>"/><% end %></g>
-      <g class="value-labels"><% value_labels.each do |label| %><text x="<%= label.x %>" y="<%= label.y %>" text-anchor="end"><%= label.text %></text><% end %></g>
-      <% %i[dense sparse].each do |density| %>
-        <g class="hour-labels label-<%= density %>"><% hour_labels(density).each do |label| %><text x="<%= label.x %>" y="<%= label.y %>" text-anchor="middle"><%= label.text %></text><% end %></g>
-      <% end %>
-      <line class="axis" x1="<%= plot.left %>" x2="<%= plot.right %>" y1="<%= plot.bottom %>" y2="<%= plot.bottom %>"/>
-      <% series.each do |panel| %><% panel.segments.each do |points| %><polyline class="curve <%= panel.key %>" points="<%= points %>"/><% end %><% end %>
-      <g class="direct-labels"><% labels.each do |label| %><text class="<%= label.key %>" x="<%= label.x %>" y="<%= label.y %>"><%= label.text %></text><% end %></g>
-      <g class="hits"><% hits.each do |hit| %><rect x="<%= hit.rect.x %>" y="<%= hit.rect.y %>" width="<%= hit.rect.width %>" height="<%= hit.rect.height %>"><title><%= hit.title %></title></rect><% end %></g>
-    </svg>
-    <ul class="legend">
-      <% series.each do |panel| %>
-        <li class="legend-item"><span class="legend-line <%= panel.key %>"></span><%= panel.label %></li>
+    <% charts.each do |chart| %>
+      <svg viewBox="<%= chart.plot.view_box %>" role="img" aria-label="Stundenmittel je Panel über den Tag"
+           class="panel-chart panel-chart-<%= chart.key %> <%= frame_classes(chart.key) %>">
+        <g class="grid"><% chart.grid_lines.each do |at| %><line x1="<%= chart.plot.left %>" x2="<%= chart.plot.right %>" y1="<%= at %>" y2="<%= at %>"/><% end %></g>
+        <g class="value-labels" dominant-baseline="central">
+          <%= value_texts(chart.value_labels) %>
+          <% unit = chart.unit_label %><text class="unit" x="<%= unit.x %>" y="<%= unit.y %>"><%= unit.text %></text>
+        </g>
+        <g class="hour-labels" dominant-baseline="hanging"><% chart.hour_labels.each do |label| %><text x="<%= label.x %>" y="<%= label.y %>" text-anchor="middle"><%= label.text %></text><% end %></g>
+        <line class="axis" x1="<%= chart.plot.left %>" x2="<%= chart.plot.right %>" y1="<%= chart.plot.bottom %>" y2="<%= chart.plot.bottom %>"/>
+        <% chart.series.each do |panel| %><% panel.segments.each do |points| %><polyline class="curve <%= panel.key %>" points="<%= points %>"/><% end %><% end %>
+        <% if chart.named? %>
+          <g class="leaders"><% chart.labels.each do |label| %><% x1, y1, x2, y2 = label.leader %><line class="<%= label.key %>" x1="<%= x1 %>" y1="<%= y1 %>" x2="<%= x2 %>" y2="<%= y2 %>"/><% end %></g>
+          <g class="direct-labels" dominant-baseline="central"><% chart.labels.each do |label| %><text class="<%= label.key %>" x="<%= label.x %>" y="<%= label.y %>"><%= label.text %></text><% end %></g>
+        <% end %>
+        <%= hit_areas(chart.hits) if tooltips?(chart.key) %>
+      </svg>
+    <% end %>
+    <ul class="legend d-sm-none list-unstyled row row-cols-2 g-1 small text-body-secondary mt-2 mb-0">
+      <% legend.each do |entry| %>
+        <li class="legend-item col d-flex align-items-center gap-2"><span class="legend-line <%= entry.key %>"></span><%= entry.label %></li>
       <% end %>
     </ul>
-    <p class="note"><%= note %></p>
+    <p class="note small text-body-secondary mt-3 mb-0"><%= note %></p>
   <% end %>
 <% end %>

@@ -1,8 +1,8 @@
-<%# app/views/sensors/_battery_warning.html.erb %>
 <% low = sensors.filter_map { |s| latest[s.id] }.select { |r| battery_low?(r.battery_pct) } %>
 <% if low.any? %>
   <% names = low.map { |r| sensors.find { |s| s.id == r.device_id }&.name }.compact.join(", ") %>
-  <section class="sensor-warning">
-    ⚠ Batterie schwach: <%= names %>
-  </section>
+  <div class="alert alert-warning d-flex align-items-center gap-3 mb-3" role="alert">
+    <%= image_tag "solakon_battery_low.webp", class: "sensor-alert-icon", alt: "" %>
+    <div><strong>Batterie schwach:</strong> <%= names %></div>
+  </div>
 <% end %>

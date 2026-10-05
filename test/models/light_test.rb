@@ -2,6 +2,8 @@
 require "test_helper"
 
 class LightTest < ActiveSupport::TestCase
+  cover "Light*"
+
   test "valid with a name and a device-id key" do
     assert Light.new(name: "Stehlampe", key: "14ABDB4844064B60").valid?
   end
@@ -54,6 +56,11 @@ class LightTest < ActiveSupport::TestCase
   test "plush_type falls back to generic for unknown or blank SKU" do
     assert_equal "generic", Light.new(sku: "H9999").plush_type
     assert_equal "generic", Light.new(sku: nil).plush_type
+  end
+
+  test "plush_image names the lamp's plush art for its type and switch state" do
+    assert_equal "lamp_uplighter_on.webp", Light.new(sku: "H60B0").plush_image(on: true)
+    assert_equal "lamp_generic_off.webp", Light.new(sku: nil).plush_image(on: false)
   end
 
   test "zones defaults to an empty array" do

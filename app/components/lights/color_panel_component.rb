@@ -9,5 +9,9 @@ module Lights
     private
 
     attr_reader :snapshot
+
+    def selected?(hex) = !snapshot.white? && snapshot.color_hex == hex
+
+    def custom? = !snapshot.white? && !SWATCHES.include?(snapshot.color_hex)
   end
 end

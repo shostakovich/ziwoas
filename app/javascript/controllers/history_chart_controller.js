@@ -1,5 +1,6 @@
 import { Controller } from "@hotwired/stimulus"
 import "chart.js"
+import { chartTheme, timeCategoryScale, localMidnight } from "lib/chart_theme"
 
 export default class extends Controller {
   static targets = ["canvas"]
@@ -43,15 +44,19 @@ export default class extends Controller {
       type: "bar",
       data: {
         labels,
-        datasets: [{ label: "kWh/Tag", data: values, backgroundColor: "#f59f00" }],
+        datasets: [{ label: "Ertrag", data: values, tone: "--viz-solar" }],
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        scales: { y: { beginAtZero: true, title: { display: true, text: "kWh" } } },
+        scales: {
+          x: timeCategoryScale(producer.points.map(({ date }) => localMidnight(date))),
+          y: { beginAtZero: true, unit: "kWh", decimals: 2 },
+        },
         plugins: { legend: { display: false } },
         animation: false,
       },
+      plugins: [ chartTheme ],
     })
   }
 }

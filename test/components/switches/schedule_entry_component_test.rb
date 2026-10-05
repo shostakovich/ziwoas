@@ -1,11 +1,11 @@
 require "test_helper"
 
 class Switches::ScheduleEntryComponentTest < ViewComponent::TestCase
+  cover "Switches::ScheduleEntryComponent*"
+
   PLUG = ConfigLoader::PlugCfg.new(id: "fridge", name: "Kühlschrank", role: :consumer,
                                    driver: :shelly, ain: nil, room: nil, switchable: true).freeze
 
-  # Rules built in memory, with the ids the row and the button targets are made
-  # of — nothing here needs a database.
   def rule(id:, action:, at_minute:, days: [ 1, 2, 3, 4, 5 ], enabled: true, group_id: nil)
     Switching::Rule.new(id: id, plug_id: "fridge", action: action, at_minute: at_minute,
                    days: days, enabled: enabled, group_id: group_id)
@@ -31,24 +31,24 @@ class Switches::ScheduleEntryComponentTest < ViewComponent::TestCase
   test "a Zeitfenster is one plain pill in a row named by its group" do
     rendered = render_entry(window)
 
-    assert rendered.css("div.sw-entry#sw_entry_fridge_g-1").any?
-    assert rendered.css("span.sw-pill").any?
-    assert rendered.css("span.sw-pill.single").none?
-    assert rendered.css("span.sw-dir").none?
-    assert_equal "Mo–Fr · 10:00–20:00", rendered.css("span.sw-pill").text.squish
+    assert rendered.css("div#sw_entry_fridge_g-1").any?
+    assert rendered.css("span.badge.rounded-pill").any?
+    assert rendered.css("span.badge.border").none?, "a Zeitfenster pill is filled, not drawn open"
+    assert rendered.css("span.badge .fw-bold").none?
+    assert_equal "Mo–Fr · 10:00–20:00", rendered.css("span.badge").text.squish
   end
 
-  test "an Einzelschaltung is a dashed, directed pill in a row named by its rule" do
+  test "an Einzelschaltung is an open, directed pill in a row named by its rule" do
     rendered = render_entry(single)
 
-    assert rendered.css("div.sw-entry#sw_entry_fridge_7").any?
-    assert rendered.css("span.sw-pill.single").any?
-    assert_equal "→ aus", rendered.css("span.sw-pill.single .sw-dir").text
-    assert_equal "täglich · 22:00 → aus", rendered.css("span.sw-pill").text.squish
+    assert rendered.css("div#sw_entry_fridge_7").any?
+    assert rendered.css("span.badge.rounded-pill.border").any?
+    assert_equal "→ aus", rendered.css("span.badge.border .fw-bold").text
+    assert_equal "täglich · 22:00 → aus", rendered.css("span.badge").text.squish
   end
 
   test "an Einzelschaltung that switches on points the other way" do
-    assert_equal "→ an", render_entry(single(action: "on")).css(".sw-dir").text
+    assert_equal "→ an", render_entry(single(action: "on")).css("span.badge .fw-bold").text
   end
 
   test "the buttons of a Zeitfenster address the group and say Zeitfenster" do
@@ -74,15 +74,43 @@ class Switches::ScheduleEntryComponentTest < ViewComponent::TestCase
   test "a paused row is struck through and its button resumes instead" do
     rendered = render_entry(window(enabled: false))
 
-    assert rendered.css("span.sw-pill.paused").any?
+    assert rendered.css("span.badge.text-decoration-line-through").any?
     assert_equal "Zeitfenster aktivieren", rendered.css("button[aria-label]").first["aria-label"]
     assert rendered.css("form[action$='/enabled'] input[name=enabled][value=true]").any?
+  end
+
+  test "a running pill is drawn in the primary tone, filled for a Zeitfenster and outlined for an Einzelschaltung" do
+    filled = render_entry(window).css("span.badge").sole["class"].split
+    outlined = render_entry(single).css("span.badge").sole["class"].split
+
+    assert_includes filled, "bg-primary-subtle"
+    assert_includes filled, "text-primary-emphasis"
+    assert_not_includes filled, "border-primary"
+    assert_includes outlined, "border-primary"
+    assert_includes outlined, "text-primary-emphasis"
+    assert_not_includes outlined, "bg-primary-subtle"
+  end
+
+  test "a paused pill loses its colour" do
+    paused = render_entry(single(enabled: false)).css("span.badge").sole["class"].split
+
+    assert_includes paused, "text-body-secondary"
+    assert_empty paused.grep(/primary/)
   end
 
   test "a running row offers to pause" do
     rendered = render_entry(single)
 
-    assert rendered.css("span.sw-pill.paused").none?
+    assert rendered.css("span.badge.text-decoration-line-through").none?
     assert rendered.css("form[action$='/enabled'] input[name=enabled][value=false]").any?
+  end
+
+  test "the buttons carry glyphs in the text colour, not emoji" do
+    running = render_entry(single)
+    paused = render_entry(single(enabled: false))
+
+    assert_equal %w[pause edit delete], running.css(".btn.btn-icon svg").map { |svg| svg["data-icon"] }
+    assert_equal "play", paused.css("form[action$='/enabled'] .btn svg").sole["data-icon"]
+    assert_equal "", running.css(".btn").map(&:text).join.strip
   end
 end

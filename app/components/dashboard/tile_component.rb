@@ -1,44 +1,41 @@
 module Dashboard
-  # One dashboard tile. The class methods are the catalog: each names a tile,
-  # its DOM id — which doubles as the broadcast target — and how its value is
-  # formatted, so the index view and DashboardBroadcaster can never disagree
-  # about the markup they produce.
+  # The class methods are the dashboard catalog, shared with DashboardBroadcaster so ids and markup match.
   class TileComponent < ApplicationComponent
-    def initialize(id:, label:, value:)
-      @id    = id
-      @label = label
-      @value = value
+    def initialize(label:, number:, unit: nil, caption: nil, id: nil)
+      @id      = id
+      @label   = label
+      @number  = number
+      @unit    = unit
+      @caption = caption
     end
 
-    attr_reader :id, :label, :value
+    attr_reader :id, :label, :number, :unit, :caption
 
     class << self
       def produced(summary)
-        new(id: "tile_produced", label: "Erzeugt heute", value: kwh(summary.produced.wh))
+        energy(id: "tile_produced", label: "Erzeugt heute", kwh: summary.produced.kwh)
       end
 
       def consumed(summary)
-        new(id: "tile_consumed", label: "Verbraucht heute", value: kwh(summary.consumed.wh))
+        energy(id: "tile_consumed", label: "Verbraucht heute", kwh: summary.consumed.kwh)
       end
 
       # No price on record means the savings are unknown, not zero.
       def savings(summary)
-        eur = summary.savings_eur
-        value = eur.nil? ? "—" : "#{de(eur)} €"
-        new(id: "tile_savings", label: "Gespart heute", value: value)
+        money(id: "tile_savings", label: "Gespart heute", eur: summary.savings_eur)
       end
 
       def net_today(summary)
         net = (summary.produced.wh - summary.consumed.wh) / 1000.0
-        new(id: "tile_net_today", label: "Bilanz heute", value: "#{'+' if net >= 0}#{de(net)} kWh")
+        energy(id: "tile_net_today", label: "Bilanz heute", kwh: net, signed: true)
       end
 
       def autarky(summary)
-        new(id: "tile_autarky", label: "Autarkie heute", value: pct(summary.autarky_ratio))
+        share(id: "tile_autarky", label: "Autarkie heute", ratio: summary.autarky_ratio)
       end
 
       def self_consumption(summary)
-        new(id: "tile_self_consumption", label: "Eigenverbrauchsquote", value: pct(summary.self_consumption_ratio))
+        share(id: "tile_self_consumption", label: "Eigen­verbrauchs­quote", ratio: summary.self_consumption_ratio)
       end
 
       def summary_tiles(summary)
@@ -49,28 +46,41 @@ module Dashboard
       def consumption_now(live)
         flow = live.energy_flow
         any_online = flow.solakon_online || live.plugs.any?(&:online)
-        value = any_online && flow.home_w ? "#{flow.home_w.round} W" : "—"
-        new(id: "tile_consumption_now", label: "Verbrauch jetzt", value: value)
+        power(id: "tile_consumption_now", label: "Verbrauch jetzt", watts: (flow.home_w if any_online))
       end
 
       def netbalance_now(live)
         grid_w = live.energy_flow.grid_w
-        value = grid_w.nil? ? "—" : "#{grid_w <= 0 ? '+' : '−'}#{grid_w.abs.round} W"
-        new(id: "tile_netbalance_now", label: "Bilanz jetzt", value: value)
+        power(id: "tile_netbalance_now", label: "Bilanz jetzt", watts: grid_w && -grid_w, signed: true)
       end
 
       def live_tiles(live)
         [ consumption_now(live), netbalance_now(live) ]
       end
 
-      def kwh(wh) = "#{de(wh / 1000.0)} kWh"
+      def energy(label:, kwh:, id: nil, signed: false)
+        measure(id:, label:, value: kwh, unit: "kWh", precision: 2, signed:)
+      end
 
-      def pct(ratio) = "#{de((ratio || 0) * 100, precision: 1)} %"
+      def money(label:, eur:, id: nil)
+        measure(id:, label:, value: eur, unit: "€", precision: 2)
+      end
 
-      def de(number, precision: 2)
-        ActiveSupport::NumberHelper.number_to_rounded(
-          number, precision: precision, separator: ",", delimiter: "."
-        )
+      def share(label:, ratio:, id: nil)
+        measure(id:, label:, value: (ratio || 0) * 100, unit: "%", precision: 1)
+      end
+
+      def power(label:, watts:, id: nil, signed: false)
+        measure(id:, label:, value: watts, unit: "W", precision: 0, signed:)
+      end
+
+      private
+
+      def measure(id:, label:, value:, unit:, precision:, signed: false)
+        return new(id:, label:, number: GermanNumber::MISSING) if value.nil?
+
+        number = GermanNumber.format(value, precision:)
+        new(id:, label:, number: signed && !value.negative? ? "+#{number}" : number, unit:)
       end
     end
   end

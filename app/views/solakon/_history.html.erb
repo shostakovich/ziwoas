@@ -1,25 +1,34 @@
-<%# Range switches navigate the frame; the chart controller inside is rebuilt on every swap. %>
 <%= turbo_frame_tag "solakon_history" do %>
-  <div data-controller="solakon-history" data-solakon-history-url-value="<%= solakon_history_path(range: history.fetch(:range)) %>">
-    <div class="preset-actions" role="group" aria-label="Zeitraum">
+  <div data-controller="solakon-history" data-solakon-history-url-value="<%= solakon_history_path(range: history.fetch(:range)) %>"
+       data-solakon-history-range-value="<%= history.fetch(:range) %>">
+    <div class="btn-group btn-group-sm d-flex d-sm-inline-flex mb-3" role="group" aria-label="Zeitraum">
       <% Solakon::History::RANGE_LABELS.each do |key, label| %>
         <% active = key == history.fetch(:range) %>
-        <%= link_to label, solakon_history_path(range: key), class: [ "preset-link", ("active" if active) ], aria: { current: (active || nil) } %>
+        <%= link_to solakon_history_path(range: key), class: [ "btn btn-outline-primary flex-fill", ("active" if active) ],
+                                                     aria: { current: (active || nil) } do %><span><span class="d-none d-sm-inline">Letzte </span><%= label.delete_prefix("Letzte ") %></span><% end %>
       <% end %>
     </div>
     <div class="chart-frame">
       <canvas data-solakon-history-target="canvas"></canvas>
     </div>
     <% if history.fetch(:message) %>
-      <p class="muted-text"><%= history.fetch(:message) %></p>
+      <p class="small text-body-secondary"><%= history.fetch(:message) %></p>
     <% end %>
-    <p class="muted-text">Akku: + lädt, − entlädt. Außensteckdose: + liefert ins Hausnetz, − zieht Leistung.</p>
-    <div class="solakon-balance">
+    <p class="small text-body-secondary">Über 0 W: Akku lädt, Außensteckdose liefert ins Hausnetz. Unter 0 W: Akku entlädt, Außensteckdose zieht Leistung.</p>
+    <div class="solakon-balance mt-3">
       <% history.fetch(:balance_rows).each do |row| %>
-        <div class="solakon-balance-row <%= row.fetch(:role) %>">
-          <span class="solakon-balance-label"><%= row.fetch(:label) %></span>
-          <span class="report-ranking-bar" aria-hidden="true"><span style="width: <%= row.fetch(:share) %>%"></span></span>
-          <span class="report-ranking-value"><%= row.fetch(:value) %></span>
+        <div class="solakon-balance-row row gx-2 gy-1 align-items-center small mb-2" data-role="<%= row.fetch(:role) %>">
+          <span class="col col-sm-4 text-truncate"><%= row.fetch(:label) %></span>
+          <div class="col-12 col-sm order-last order-sm-0">
+            <div class="progress" style="height: .5rem" aria-hidden="true"><div class="progress-bar" style="width: <%= row.fetch(:share) %>%; background-color: var(--viz-<%= row.fetch(:role) %>)"></div></div>
+          </div>
+          <span class="col-auto tabular-nums text-nowrap"><%= row.fetch(:value) %></span>
+        </div>
+      <% end %>
+      <% if (average = history[:outlet_average]) %>
+        <div class="d-flex justify-content-between gap-2 small" data-role="outlet-average">
+          <span>Ø Außensteckdose</span>
+          <span class="tabular-nums text-nowrap"><%= average %></span>
         </div>
       <% end %>
     </div>

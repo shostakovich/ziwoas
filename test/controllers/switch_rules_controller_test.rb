@@ -18,6 +18,14 @@ class SwitchRulesControllerTest < ActionDispatch::IntegrationTest
     assert_match "switch_rule[days][]", @response.body
   end
 
+  test "the editor offers the direction and the weekdays as toggle buttons" do
+    get "/plugs/fridge/switch_rules/new", as: :turbo_stream
+    assert_select "[role=group][aria-label=Richtung] input.btn-check[type=radio][name='switch_rule[action]']", 2
+    assert_select "input#sw_fridge_new_action_on + label[for=sw_fridge_new_action_on]", text: "an"
+    assert_select "[role=group][aria-label=Wochentage] input.btn-check[type=checkbox]", 7
+    assert_select "input#sw_day_fridge_new_1 + label[for=sw_day_fridge_new_1]", text: "Mo"
+  end
+
   test "create writes one rule without a group and re-renders the rules region" do
     post "/plugs/fridge/switch_rules", params: valid_params, as: :turbo_stream
     assert_response :success
@@ -28,7 +36,6 @@ class SwitchRulesControllerTest < ActionDispatch::IntegrationTest
     assert_nil rule.group_id
     assert_match "sw_rules_fridge", @response.body
     assert_match "sw_head_fridge", @response.body
-    # The count sits outside the rules container and is streamed on its own.
     assert_match "sw_count_fridge", @response.body
     assert_match "Schaltzeiten (1)", @response.body
   end
@@ -141,8 +148,7 @@ class SwitchRulesControllerTest < ActionDispatch::IntegrationTest
     )
   end
 
-  # Addressing one half of a window through the single-rule routes would pause or
-  # delete that half alone, while the card keeps folding the group into one row.
+  # Pausing one half of a window via the single-rule routes would split it from its folded row.
   test "one half of an intact Zeitfenster is not addressable as an Einzelschaltung" do
     a_window
     half = Switching::Rule.find_by(action: "off")

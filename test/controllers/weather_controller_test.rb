@@ -3,8 +3,7 @@ require "test_helper"
 class WeatherControllerTest < ActionDispatch::IntegrationTest
   setup do
     WeatherRecord.delete_all
-    # Tests reference 2026-05-04..06; freeze "now" so the controller's
-    # Time.zone.today filter is stable regardless of the wall clock.
+    # Freeze now: the controller filters by Time.zone.today and the records are 2026-05-04..06.
     travel_to Time.zone.local(2026, 5, 4, 12, 0)
   end
 
@@ -14,7 +13,8 @@ class WeatherControllerTest < ActionDispatch::IntegrationTest
     get "/weather"
 
     assert_response :success
-    assert_select "turbo-frame#weather_empty .empty-state", text: /Noch keine Wetterdaten/
+    assert_select "turbo-frame#weather_empty .card .card-title", text: "Noch keine Wetterdaten"
+    assert_select "turbo-frame#weather_empty .card p", text: /sobald Bright Sky Daten geladen hat/
   end
 
   test "hides empty state once weather data is present" do
@@ -25,7 +25,7 @@ class WeatherControllerTest < ActionDispatch::IntegrationTest
     get "/weather"
 
     assert_select "turbo-frame#weather_empty"
-    assert_select "turbo-frame#weather_empty .empty-state", count: 0
+    assert_select "turbo-frame#weather_empty .card", count: 0
   end
 
   test "subscribes to the weather turbo stream" do
@@ -52,9 +52,13 @@ class WeatherControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select ".weather-current"
     assert_select ".weather-current", text: /16,2/
+    assert_select ".weather-current", text: /trocken · Wind 10 km\/h · DWD/
+    assert_select "h1", text: "Wetter", count: 1
     assert_select ".weather-hour-card", minimum: 1
     assert_select ".weather-day-card", minimum: 1
-    assert_select ".weather-hour-card .weather-hour-solar", text: /320 W\/m²/
+    assert_select ".weather-hour-card .weather-hour-solar", text: "320"
+    assert_equal [ [ "Wind in km/h", "Sonne in W/m²" ] ],
+      css_select("ul.weather-hour-key").map { |key| key.css("> li.text-nowrap").map(&:text) }.uniq
   end
 
   test "hourly card renders prominent solar value during the day" do
@@ -65,7 +69,61 @@ class WeatherControllerTest < ActionDispatch::IntegrationTest
 
     get "/weather"
 
-    assert_select ".weather-hour-card .weather-hour-solar", text: /320 W\/m²/
+    assert_select ".weather-hour-card .weather-hour-solar", text: "320"
+    assert_select ".weather-hour-card .weather-hour-solar.fw-semibold", count: 0
+  end
+
+  test "sets the sun in bold from 400 W/m² on, like a strong wind from 20 km/h" do
+    WeatherRecord.create!(kind: "forecast", lat: 52.52, lon: 13.405,
+      timestamp: Time.zone.parse("2026-05-04 13:00"), daytime: "day",
+      icon: "clear-day", temperature: 22, solar: 0.4, wind_speed: 19)
+    WeatherRecord.create!(kind: "forecast", lat: 52.52, lon: 13.405,
+      timestamp: Time.zone.parse("2026-05-04 14:00"), daytime: "day",
+      icon: "clear-day", temperature: 22, solar: 0.399, wind_speed: 20)
+
+    get "/weather"
+
+    solar = css_select(".weather-hour-row .weather-hour-solar")
+    wind = css_select(".weather-hour-row .weather-hour-wind")
+    assert_equal [ true, false ], solar.map { |row| row["class"].split.include?("fw-semibold") }
+    assert_equal [ false, true ], wind.map { |row| row["class"].split.include?("fw-semibold") }
+  end
+
+  test "names the units once per strip, only for the rows it has" do
+    WeatherRecord.create!(kind: "forecast", lat: 52.52, lon: 13.405,
+      timestamp: Time.zone.parse("2026-05-04 23:00"), daytime: "night",
+      icon: "clear-night", temperature: 11, wind_speed: 5)
+    WeatherRecord.create!(kind: "forecast", lat: 52.52, lon: 13.405,
+      timestamp: Time.zone.parse("2026-05-05 02:00"), daytime: "night",
+      icon: "clear-night", temperature: 8)
+
+    get "/weather"
+
+    assert_equal [ "Wind in km/h" ], css_select(".weather-hour-row .weather-hour-key > li").map(&:text)
+    assert_select "#seg-2026-05-05-0 .weather-hour-key", count: 0
+    assert_select ".weather-hour-row .weather-hour-scroller.pb-2", count: 1
+  end
+
+  test "today's strip hands its bottom padding to the key whenever there is one, also for rain alone" do
+    WeatherRecord.create!(kind: "forecast", lat: 52.52, lon: 13.405,
+      timestamp: Time.zone.parse("2026-05-04 23:00"), daytime: "night",
+      icon: "rain-night", temperature: 11, precipitation: 0.3)
+
+    get "/weather"
+
+    assert_equal [ "Regen in mm" ], css_select(".weather-hour-row .weather-hour-key > li").map(&:text)
+    assert_select ".weather-hour-row .weather-hour-scroller.pb-2", count: 1
+  end
+
+  test "today's strip keeps its bottom padding without a key" do
+    WeatherRecord.create!(kind: "forecast", lat: 52.52, lon: 13.405,
+      timestamp: Time.zone.parse("2026-05-04 23:00"), daytime: "night",
+      icon: "rain-night", temperature: 11, precipitation_probability: 60)
+
+    get "/weather"
+
+    assert_select ".weather-hour-row .weather-hour-key", count: 0
+    assert_select ".weather-hour-row .weather-hour-scroller.pb-2", count: 0
   end
 
   test "today row hides hours before the current hour" do
@@ -93,6 +151,64 @@ class WeatherControllerTest < ActionDispatch::IntegrationTest
     assert_select ".weather-hour-row .weather-hour-time", text: /22:00/, count: 1
   end
 
+  test "every hour card of a strip renders the rows the strip has that it has something to tell in" do
+    WeatherRecord.create!(kind: "forecast", lat: 52.52, lon: 13.405,
+      timestamp: Time.zone.parse("2026-05-04 13:00"), daytime: "day",
+      icon: "partly-cloudy-day", temperature: 18, precipitation: 0, solar: 0.32, wind_speed: 11)
+    WeatherRecord.create!(kind: "forecast", lat: 52.52, lon: 13.405,
+      timestamp: Time.zone.parse("2026-05-04 14:00"), daytime: "day",
+      icon: "rain-day", temperature: 17, precipitation: 0, precipitation_probability: 40, solar: 0.1)
+    WeatherRecord.create!(kind: "forecast", lat: 52.52, lon: 13.405,
+      timestamp: Time.zone.parse("2026-05-04 23:00"), daytime: "night",
+      icon: "rain-night", temperature: -2, precipitation: 1.2, wind_speed: 25)
+
+    get "/weather"
+
+    lists = css_select(".weather-hour-card .weather-hour-extras")
+    assert_equal [ %w[weather-hour-wind weather-hour-solar], %w[weather-hour-solar weather-hour-rain], %w[weather-hour-wind weather-hour-rain] ],
+      lists.map { |list| list.css("li").map { |li| li["class"].split.first } }, "rain, the rarest row, comes last"
+    assert_select ".invisible", count: 0
+    assert_equal "11", lists[0].css(".weather-hour-wind").text.squish
+    assert_equal "Wind in km/h", lists[0].css(".weather-hour-wind img").sole["alt"]
+    assert_equal "40 %", lists[1].css(".weather-hour-rain").text.squish
+    assert_equal "Regenwahrscheinlichkeit", lists[1].css(".weather-hour-rain img").sole["alt"]
+    assert_equal "1,2", lists[2].css(".weather-hour-rain").text.squish
+    assert_equal "Regen in mm", lists[2].css(".weather-hour-rain img").sole["alt"]
+    assert_equal [ "Wind in km/h", "Sonne in W/m²", "Regen in mm" ],
+      css_select(".weather-hour-row ul.weather-hour-key.flex-wrap > li.text-nowrap").map(&:text),
+      "one item per unit, apart by the gap: the key wraps between units, with no dot to strand"
+    assert_no_match(/·/, css_select(".weather-hour-row .weather-hour-key").text)
+    assert_equal "25", lists[2].css(".weather-hour-wind.fw-semibold").text.squish
+    assert_select ".weather-hour-card strong", text: "−2°"
+  end
+
+  test "a strip of night hours has no sun row and no rows nothing fills" do
+    WeatherRecord.create!(kind: "forecast", lat: 52.52, lon: 13.405,
+      timestamp: Time.zone.parse("2026-05-05 01:00"), daytime: "night",
+      icon: "clear-night", temperature: 9, wind_speed: 5)
+    WeatherRecord.create!(kind: "forecast", lat: 52.52, lon: 13.405,
+      timestamp: Time.zone.parse("2026-05-05 02:00"), daytime: "night",
+      icon: "clear-night", temperature: 8)
+
+    get "/weather"
+
+    night_strip = css_select("#seg-2026-05-05-0 .weather-hour-extras")
+    assert_equal [ 1, 0 ], night_strip.map { |list| list.css("li").length }
+    assert_equal "5", night_strip[0].css(".weather-hour-wind").text.squish
+    assert_select "#seg-2026-05-05-0 .weather-hour-solar, #seg-2026-05-05-0 .weather-hour-rain", count: 0
+  end
+
+  test "an hour card in a strip without optional rows has no extras list" do
+    WeatherRecord.create!(kind: "forecast", lat: 52.52, lon: 13.405,
+      timestamp: Time.zone.parse("2026-05-05 02:00"), daytime: "night",
+      icon: "clear-night", temperature: 8)
+
+    get "/weather"
+
+    assert_select "#seg-2026-05-05-0 .weather-hour-card", count: 1
+    assert_select "#seg-2026-05-05-0 .weather-hour-extras", count: 0
+  end
+
   test "hourly card omits the solar row entirely at night" do
     WeatherRecord.create!(kind: "forecast", lat: 52.52, lon: 13.405,
       timestamp: Time.zone.parse("2026-05-04 23:00"), daytime: "night",
@@ -114,6 +230,15 @@ class WeatherControllerTest < ActionDispatch::IntegrationTest
     get "/weather"
 
     assert_select ".weather-current-solar", text: /432 W\/m²/
+  end
+
+  test "current weather card writes a missing daytime solar value as a dash with its unit" do
+    WeatherRecord.create!(kind: "current", lat: 52.52, lon: 13.405,
+      timestamp: Time.zone.parse("2026-05-04 12:00"), daytime: "day", icon: "cloudy", solar: nil)
+
+    get "/weather"
+
+    assert_select ".weather-current-solar .tabular-nums", text: "— W/m²"
   end
 
   test "current weather card renders Nacht in the solar row at night" do
@@ -146,6 +271,9 @@ class WeatherControllerTest < ActionDispatch::IntegrationTest
     assert_select ".weather-day-card .weather-day-summary", text: /13.*–.*17.*°C/
     assert_select ".weather-day-card .weather-day-summary", text: /Regen 1,8 mm/
     assert_select ".weather-day-card .weather-day-peak", text: /Spitze 480 W\/m²/
+    assert_select ".weather-day-card .card-header > div > h3 + .weather-day-peak", 1,
+                  "the peak shares the title's line, so the summary stays the second"
+    assert_select ".weather-day-card .card-header > .weather-day-summary", 1
   end
 
   test "day card omits rain summary when total precipitation is zero" do
@@ -175,7 +303,7 @@ class WeatherControllerTest < ActionDispatch::IntegrationTest
     assert_select ".weather-day-card .weather-day-peak", count: 0
   end
 
-  test "day card renders Nacht in segment-solar when all hours are at night" do
+  test "day card keeps the sun row of an all-night segment empty instead of repeating Nacht" do
     (0...6).each do |h|
       WeatherRecord.create!(kind: "forecast", lat: 52.52, lon: 13.405,
         timestamp: Time.zone.parse("2026-05-06 #{format('%02d', h)}:00"),
@@ -187,7 +315,40 @@ class WeatherControllerTest < ActionDispatch::IntegrationTest
 
     get "/weather"
 
-    assert_select ".weather-segment-solar.is-night", text: /Nacht/
+    assert_select ".weather-segment", text: /\ANacht/ do
+      assert_select ".weather-segment-solar", count: 0
+    end
+    assert_select ".weather-segment-solar", count: 1, text: /W\/m²/
+  end
+
+  test "the four segment tiles share the day's rows, each renders those it has something to tell in" do
+    WeatherRecord.create!(kind: "forecast", lat: 52.52, lon: 13.405,
+      timestamp: Time.zone.parse("2026-05-06 09:00"), daytime: "day",
+      icon: "rain-day", temperature: 14, precipitation: 0.6, solar: 0.2)
+    WeatherRecord.create!(kind: "forecast", lat: 52.52, lon: 13.405,
+      timestamp: Time.zone.parse("2026-05-06 15:00"), daytime: "day",
+      icon: "clear-day", temperature: 19, precipitation: 0)
+
+    get "/weather"
+
+    tiles = css_select(".weather-day-card .weather-segment")
+    assert_equal [ %w[label icon], %w[label icon temp rain solar], %w[label icon temp], %w[label icon] ],
+      tiles.map { |tile| tile.element_children.map { |child| child["class"][/weather-segment-(\w+)/, 1] } }
+    assert_equal [ "", "14 – 14°", "19 – 19°", "" ], tiles.map { |tile| tile.css("strong.weather-segment-temp.fs-5").text.squish }
+    assert_equal [ "", "0,6 mm", "", "" ], tiles.map { |tile| tile.css("span.weather-segment-rain.small.fw-normal").text.squish }
+    assert_equal [ "", "200 W/m²", "", "" ], tiles.map { |tile| tile.css("span.weather-segment-solar.small.text-warning-emphasis").text.squish }
+    assert_select ".invisible", count: 0
+  end
+
+  test "marks the chosen segment tile in the selection tone" do
+    WeatherRecord.create!(kind: "forecast", lat: 52.52, lon: 13.405,
+      timestamp: Time.zone.parse("2026-05-05 14:00"), daytime: "day",
+      icon: "clear-day", temperature: 20)
+
+    get "/weather"
+
+    assert_select ".weather-day-card[data-weather-segments-selected-class='active border-primary bg-primary-subtle']"
+    assert_select ".weather-day-hour-row.border", count: 4
   end
 
   test "next-day card renders four segment tiles" do
@@ -222,9 +383,17 @@ class WeatherControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "an hour without a temperature shows a dash, not zero degrees" do
+    WeatherRecord.create!(kind: "forecast", lat: 52.52, lon: 13.405,
+      timestamp: Time.zone.parse("2026-05-04 15:00"), daytime: "day", icon: "cloudy", temperature: nil)
+
+    get "/weather"
+
+    assert_select ".weather-hour-card strong.fs-4", text: "—°"
+  end
+
   test "segment without temperature data omits the range instead of showing 0 - 0" do
-    # Vormittag (06–12) has a record with no temperature; the tile must not
-    # render a fake "0 – 0°" range.
+    # Vormittag has a record without temperature: no fake "0 – 0°" range.
     WeatherRecord.create!(kind: "forecast", lat: 52.52, lon: 13.405,
       timestamp: Time.zone.parse("2026-05-05 09:00"), daytime: "day",
       icon: "cloudy", temperature: nil)
@@ -234,11 +403,9 @@ class WeatherControllerTest < ActionDispatch::IntegrationTest
 
     get "/weather"
 
-    # Nachmittag has a temperature → range present.
     assert_select ".weather-segment", text: /Nachmittag/ do
       assert_select ".weather-segment-temp", text: /20.*–.*20°/
     end
-    # Vormittag has no temperature → no .weather-segment-temp child rendered.
     assert_select ".weather-segment", text: /Vormittag/ do
       assert_select ".weather-segment-temp", count: 0
     end

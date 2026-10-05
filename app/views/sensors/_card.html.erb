@@ -1,36 +1,29 @@
-<%# app/views/sensors/_card.html.erb %>
-<article class="sensor-card chart-card">
-  <h3 class="sensor-card-name"><%= sensor.name %></h3>
-
-  <div class="sensor-card-body">
-    <% if sensor.type == :meter_pro_co2 && reading&.co2 %>
-      <div class="sensor-card-ampel">
-        <%= image_tag co2_icon_path(co2_level(reading.co2)),
-                      class: "sensor-ampel-icon", width: 256, height: 495,
-                      alt: "CO₂-Ampel #{co2_level(reading.co2)}" %>
-      </div>
-    <% end %>
-
-    <div class="sensor-card-content">
-      <% if reading.nil? %>
-        <p class="muted-text">Keine Daten</p>
-      <% else %>
-        <ul class="sensor-card-values">
-          <% if reading.temperature %>
-            <li><strong><%= number_with_precision(reading.temperature, precision: 1, delimiter: ".", separator: ",") %></strong> °C</li>
-          <% end %>
-          <% if reading.humidity %>
-            <li><strong><%= reading.humidity %></strong> % rH</li>
-          <% end %>
-          <% if sensor.type == :meter_pro_co2 && reading.co2 %>
-            <li><strong><%= reading.co2 %></strong> ppm</li>
-          <% end %>
-        </ul>
-
-        <footer class="sensor-card-foot muted-text">
-          <%= relative_time(reading.taken_at) %>
-        </footer>
+<article class="card h-100">
+  <div class="card-body">
+    <h3 class="card-title h6"><%= sensor.name %></h3>
+    <div class="d-flex align-items-center gap-3">
+      <% if sensor.type == :meter_pro_co2 && reading&.co2 %>
+        <%= render Sensors::Co2GaugeComponent.new(ppm: reading.co2) %>
       <% end %>
+
+      <div class="flex-grow-1">
+        <% if reading.nil? %>
+          <p class="small text-body-secondary mb-0">Keine Daten</p>
+        <% else %>
+          <ul class="list-unstyled mb-1">
+            <% if reading.temperature %>
+              <li><strong class="fs-5 tabular-nums"><%= de_number(reading.temperature, precision: 1) %></strong> °C</li>
+            <% end %>
+            <% if reading.humidity %>
+              <li><strong class="fs-5 tabular-nums"><%= reading.humidity %></strong> % rH</li>
+            <% end %>
+            <% if sensor.type == :meter_pro_co2 && reading.co2 %>
+              <li><strong class="fs-5 tabular-nums"><%= de_number(reading.co2) %></strong> ppm</li>
+            <% end %>
+          </ul>
+          <div class="small text-body-secondary"><%= relative_time(reading.taken_at) %></div>
+        <% end %>
+      </div>
     </div>
   </div>
 </article>

@@ -1,5 +1,9 @@
 import { Controller } from "@hotwired/stimulus"
 import "chart.js"
+import { chartTheme, tonesByOrder, timeScale, timeCategoryScale, timeTooltipTitle, formatTime, lineElements } from "lib/chart_theme"
+
+// Below this an hour's yield is the inverter's night-time noise, not production.
+const MIN_PRODUCED_KWH = 0.02
 
 export default class extends Controller {
   static targets = ["powerCanvas", "energyCanvas", "deltas"]
@@ -29,8 +33,6 @@ export default class extends Controller {
     this.energyChart?.destroy()
   }
 
-  // Each live broadcast replaces the carrier div, re-connecting this target
-  // with a fresh per-plug delta payload.
   deltasTargetConnected(element) {
     this.handleUpdates(JSON.parse(element.dataset.payload))
   }
@@ -87,20 +89,16 @@ export default class extends Controller {
       const response = await fetch("/api/today")
       if (!response.ok) return
       const data = await response.json()
-      this._buildPowerChart(data)
-      this._buildEnergyChart(data)
+      const tones = tonesByOrder(data.series.filter((s) => s.role === "consumer").map((s) => s.plug_id))
+      this._buildPowerChart(data, tones)
+      this._buildEnergyChart(data, tones)
     } catch (e) {
       console.error("loadCharts failed:", e)
     }
   }
 
-  _buildPowerChart(data) {
+  _buildPowerChart(data, tones) {
     this.datasetIndex = {}
-    const CONSUMER_COLORS = [
-      "#3b82f6", "#10b981", "#8b5cf6", "#ef4444", "#06b6d4",
-      "#ec4899", "#84cc16", "#6366f1", "#14b8a6", "#f43f5e",
-    ]
-    let consumerIdx = 0
 
     const datasets = data.series.map((s, i) => {
       this.datasetIndex[s.plug_id] = i
@@ -118,12 +116,10 @@ export default class extends Controller {
         hidden: !isProducer,
       }
       if (isProducer) {
-        dataset.borderColor      = "#f59f00"
-        dataset.backgroundColor  = "rgba(245,159,0,0.12)"
+        dataset.tone = "--viz-solar"
+        dataset.fillAlpha = 0.12
       } else {
-        const color = CONSUMER_COLORS[consumerIdx++ % CONSUMER_COLORS.length]
-        dataset.borderColor     = color
-        dataset.backgroundColor = color
+        dataset.tone = tones.get(s.plug_id)
       }
       return dataset
     })
@@ -138,34 +134,22 @@ export default class extends Controller {
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        elements: lineElements(),
         scales: {
-          x: {
-            type: "linear",
-            min: Date.now() - 86_400_000,
-            max: Date.now(),
-            title: { display: true, text: "Uhrzeit" },
-            ticks: {
-              callback: (v) => {
-                const d = new Date(v)
-                return d.getHours().toString().padStart(2, "0") + ":" +
-                       d.getMinutes().toString().padStart(2, "0")
-              },
-              stepSize: 3 * 3_600_000,
-            },
-          },
-          y: { beginAtZero: true, title: { display: true, text: "Watt" } },
+          x: timeScale(Date.now() - 86_400_000, Date.now()),
+          y: { beginAtZero: true, unit: "W" },
         },
-        plugins: { legend: { position: "bottom", labels: { boxWidth: 12, boxHeight: 12, padding: 10, font: { size: 12 }, filter: (item, data) => !data.datasets[item.datasetIndex]?.hidden } } },
+        plugins: {
+          legend: { position: "bottom" },
+          tooltip: { callbacks: { title: timeTooltipTitle({ hour: "2-digit", minute: "2-digit" }) } },
+        },
         animation: false,
       },
+      plugins: [ chartTheme ],
     })
   }
 
-  _buildEnergyChart(data) {
-    const CONSUMER_COLORS = [
-      "#3b82f6", "#10b981", "#8b5cf6", "#ef4444", "#06b6d4",
-      "#ec4899", "#84cc16", "#6366f1", "#14b8a6", "#f43f5e",
-    ]
+  _buildEnergyChart(data, tones) {
     const consumers = data.series.filter((series) => series.role === "consumer")
     const buckets = {}
     for (const series of data.series) {
@@ -182,13 +166,16 @@ export default class extends Controller {
       }
     }
     const sorted   = Object.keys(buckets).map(Number).sort((a, b) => a - b)
-    const labels   = sorted.map(ts => new Date(ts * 1000).getHours().toString().padStart(2, "0") + ":00")
-    const produced = sorted.map(ts => +(buckets[ts].produced / 1000).toFixed(3))
+    const labels   = sorted.map(ts => formatTime(ts * 1000, { hour: "2-digit", minute: "2-digit" }))
+    const produced = sorted.map(ts => {
+      const kwh = buckets[ts].produced / 1000
+      return kwh < MIN_PRODUCED_KWH ? 0 : +kwh.toFixed(3)
+    })
     const consumed = sorted.map(ts => {
       const wh = Object.values(buckets[ts].consumers).reduce((sum, value) => sum + value, 0)
       return +(wh / 1000).toFixed(3)
     })
-    const consumerDatasets = this._topConsumerEnergyDatasets(consumers, sorted, buckets, CONSUMER_COLORS, 5)
+    const consumerDatasets = this._topConsumerEnergyDatasets(consumers, sorted, buckets, tones, 5)
 
     this.energyChart?.destroy()
     if (!this.hasEnergyCanvasTarget) return
@@ -197,7 +184,7 @@ export default class extends Controller {
       data: {
         labels,
         datasets: [
-          { label: "Erzeugt", data: produced, backgroundColor: "#f59f00", stack: "produced" },
+          { label: "Erzeugt", data: produced, tone: "--viz-solar", stack: "produced" },
           ...consumerDatasets,
         ],
       },
@@ -205,12 +192,13 @@ export default class extends Controller {
         responsive: true,
         maintainAspectRatio: false,
         scales: {
-          x: { stacked: true },
-          y: { stacked: true, beginAtZero: true, title: { display: true, text: "kWh" } },
+          x: { stacked: true, ...timeCategoryScale(sorted.map((ts) => ts * 1000)) },
+          y: { stacked: true, beginAtZero: true, unit: "kWh", decimals: 2 },
         },
-        plugins: { legend: { position: "bottom", labels: { boxWidth: 12, boxHeight: 12, padding: 10, font: { size: 12 }, filter: (item, data) => !data.datasets[item.datasetIndex]?.hidden } } },
+        plugins: { legend: { position: "bottom" } },
         animation: false,
       },
+      plugins: [ chartTheme ],
     })
   }
 
@@ -231,18 +219,18 @@ export default class extends Controller {
     }
   }
 
-  _topConsumerEnergyDatasets(consumers, sorted, buckets, colors, limit) {
+  _topConsumerEnergyDatasets(consumers, sorted, buckets, tones, limit) {
     const rows = consumers.map((series) => {
       const data = sorted.map(ts => +((buckets[ts].consumers[series.plug_id] || 0) / 1000).toFixed(3))
-      return { label: series.name, data, total: data.reduce((sum, value) => sum + value, 0) }
+      return { label: series.name, data, tone: tones.get(series.plug_id), total: data.reduce((sum, value) => sum + value, 0) }
     }).sort((a, b) => b.total - a.total)
 
     const visible = rows.slice(0, limit)
     const rest = rows.slice(limit)
-    const datasets = visible.map((row, index) => ({
+    const datasets = visible.map((row) => ({
       label: row.label,
       data: row.data,
-      backgroundColor: colors[index % colors.length],
+      tone: row.tone,
       stack: "consumed",
     }))
 
@@ -250,7 +238,7 @@ export default class extends Controller {
       datasets.push({
         label: "Weitere Verbraucher",
         data: sorted.map((_, index) => +rest.reduce((sum, row) => sum + row.data[index], 0).toFixed(3)),
-        backgroundColor: "#94a3b8",
+        tone: "--viz-muted",
         stack: "consumed",
       })
     }
@@ -274,9 +262,8 @@ export default class extends Controller {
       data: Array.from(pointsByTs.entries())
         .sort(([a], [b]) => a - b)
         .map(([x, y]) => ({ x, y })),
-      borderColor: "#1d4ed8",
-      backgroundColor: "rgba(59, 130, 246, 0.14)",
-      fill: true,
+      tone: "--viz-total",
+      fill: false,
       pointRadius: 0,
       tension: 0.2,
       role: "consumer_total",

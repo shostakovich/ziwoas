@@ -1,26 +1,40 @@
 module Economics
-  # The Wirtschaftlichkeit card on the PV page: what the plant cost, what it has
-  # saved since the data start, and when the two meet. Every figure that cannot
-  # be had honestly is shown as an em dash with the reason next to it.
   class OverviewCardComponent < ApplicationComponent
-    def initialize(result:)
+    def initialize(result:, title: "Wirtschaftlichkeit", link: true)
       @result = result
+      @title = title
+      @link = link
     end
 
     private
 
-    attr_reader :result
+    attr_reader :result, :title
+
+    def link? = @link
+
+    def tiles
+      [
+        [ "Anschaffungs\u00ADkosten", cost_value ],
+        [ "Ersparnis", saved_value ],
+        [ "Zurückverdient", covered_value ],
+        [ payback_label, payback_value ]
+      ]
+    end
 
     def subtitle = result.data_start && "seit #{date(result.data_start)}"
 
-    def cost_value = euro(result.acquisition_cost_eur)
+    def cost_value = GermanNumber.format(result.acquisition_cost_eur, precision: 2, unit: "€")
 
-    def saved_value = result.saved_eur.nil? ? "—" : euro(result.saved_eur)
+    def saved_value
+      return GermanNumber::MISSING if result.saved_eur.nil?
+
+      GermanNumber.format(result.saved_eur, precision: 2, unit: "€")
+    end
 
     def covered_value
-      return "—" if result.covered_ratio.nil?
+      return GermanNumber::MISSING if result.covered_ratio.nil?
 
-      "#{number(result.covered_ratio * 100, precision: 1)} %"
+      GermanNumber.format(result.covered_ratio * 100, precision: 1, unit: "%")
     end
 
     def covered_pct
@@ -29,7 +43,7 @@ module Economics
       (result.covered_ratio * 100).round
     end
 
-    def payback_label = result.reached? ? "Amortisiert" : "Voraussichtliche Amortisation"
+    def payback_label = result.reached? ? "Amortisiert" : "Voraus\u00ADsichtliche Amortisation"
 
     def payback_value
       return date(result.reached_on) if result.reached?
@@ -51,13 +65,5 @@ module Economics
     end
 
     def date(value) = I18n.l(value, format: "%d.%m.%Y")
-
-    def euro(value) = "#{number(value)} €"
-
-    def number(value, precision: 2)
-      ActiveSupport::NumberHelper.number_to_rounded(
-        value, precision: precision, separator: ",", delimiter: "."
-      )
-    end
   end
 end

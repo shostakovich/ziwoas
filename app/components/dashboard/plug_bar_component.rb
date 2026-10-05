@@ -1,13 +1,10 @@
 module Dashboard
-  # The stacked consumption bar with its legend. Colors are keyed by the
-  # plug's position in the config, so a plug keeps its color across renders
-  # and across clients — the old JS assigned first-seen order per tab instead.
+  # Colours are keyed by config position, so a plug keeps its colour across renders and charts.
   class PlugBarComponent < ApplicationComponent
-    PLUG_COLORS = %w[
-      #3b82f6 #10b981 #8b5cf6 #ef4444 #06b6d4
-      #ec4899 #84cc16 #6366f1 #14b8a6 #f43f5e
-    ].freeze
-    PRODUCER_COLOR = "#f59f00".freeze
+    PLUG_COLORS = (1..10).map { |n| "var(--viz-#{n})" }.freeze
+    PRODUCER_COLOR = "var(--viz-solar)".freeze
+
+    def self.color_at(position) = PLUG_COLORS[position.to_i % PLUG_COLORS.length]
 
     def initialize(live:)
       @live = live
@@ -31,10 +28,7 @@ module Dashboard
 
     def width_pct(plug) = (plug.apower_w / total_w) * 100
 
-    def color(plug)
-      index = consumer_order.index(plug.id) || 0
-      PLUG_COLORS[index % PLUG_COLORS.length]
-    end
+    def color(plug) = self.class.color_at(consumer_order.index(plug.id))
 
     def consumer_order
       @consumer_order ||= live.plugs.select { |plug| plug.role == :consumer }.map(&:id)

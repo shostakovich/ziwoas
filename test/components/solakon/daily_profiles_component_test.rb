@@ -20,7 +20,29 @@ class Solakon::DailyProfilesComponentTest < ViewComponent::TestCase
     rendered = render_profiles([ profile(month: 6), profile(month: 9, days: 3) ])
 
     assert_equal %w[6 9], rendered.css(".multiple").map { |node| node["data-month"] }
-    assert_equal [ "Jun 20 Tage · W", "Sep 3 Tage · W" ], rendered.css("figcaption").map { |node| node.text.squish }
+    assert_equal [ "Jun 20 Tage", "Sep 3 Tage" ], rendered.css("figcaption").map { |node| node.text.squish }
+    assert_equal "Mittlere Leistung je Stunde in W", rendered.css(".card-subtitle").sole.text.squish
+  end
+
+  test "counts a single day in the singular" do
+    assert_equal "Jun 1 Tag", render_profiles([ profile(days: 1) ]).css("figcaption").sole.text.squish
+  end
+
+  test "draws a month that is not yet whole quieter than the others" do
+    rendered = render_profiles([ profile(month: 6, days: 30), profile(month: 7, days: 30), profile(month: 2, days: 28) ])
+
+    partial = rendered.css(".multiple.partial").map { |node| node["data-month"] }
+    assert_equal %w[7], partial
+    assert_includes rendered.css(".multiple[data-month='7'] svg").sole["class"].split, "opacity-50"
+    assert_nil rendered.css(".multiple[data-month='6'] svg").sole["class"]
+    assert_includes rendered.css(".multiple[data-month='7'] figcaption").sole["class"].split, "text-body-secondary"
+  end
+
+  test "puts the legend under the title, ahead of the months" do
+    rendered = render_profiles
+
+    assert_equal [ "PV gemessen", "Erwartet aus Einstrahlung", "Wolkenloser Himmel" ], rendered.css(".legend-item").map(&:text)
+    assert_operator rendered.to_html.index("legend-item"), :<, rendered.to_html.index("multiple")
   end
 
   test "draws the three curves, the measured one over the two it is read against" do
@@ -54,23 +76,47 @@ class Solakon::DailyProfilesComponentTest < ViewComponent::TestCase
   test "labels the watt grid under the highest curve, each line at its own height" do
     labels = render_profiles.css(".multiple").first.css(".value-labels text")
 
-    assert_equal [ "300", "600" ], labels.map(&:text)
+    assert_equal %w[0 250 500 750], labels.map(&:text)
     assert_operator labels.last["y"].to_f, :<, labels.first["y"].to_f
   end
 
-  test "keeps the top grid line off the axis when the maximum lands exactly on a step" do
+  test "stands the zero on the axis, clear of the first hour below" do
+    labels = render_profiles.css(".multiple").first.css(".value-labels text")
+
+    assert_equal [ "0", %w[zero] ], [ labels.first.text, labels.first["class"].split ]
+    assert_equal [ nil ], labels.drop(1).map { |label| label["class"] }.uniq
+  end
+
+  test "tops the plot with the last step when the maximum lands exactly on it" do
     rendered = render_profiles([ profile(measured: [ [ 10, 300.0 ] ], expected: [ [ 10, 100.0 ] ], theory: [ [ 10, 50.0 ] ]) ])
 
-    assert_equal %w[100 200], rendered.css(".value-labels text").map(&:text)
+    assert_equal %w[0 100 200 300], rendered.css(".value-labels text").map(&:text)
+    assert_equal "10", rendered.css(".value-labels text").last["y"], "no headroom above the top value"
+  end
+
+  test "steps the grid in round watts that reach the peak in three steps at most" do
+    {
+      90.0 => %w[0 100],
+      300.5 => %w[0 200 400],
+      301.0 => %w[0 200 400],
+      620.0 => %w[0 250 500 750],
+      1400.0 => %w[0 500 1000 1500],
+      2400.0 => %w[0 1000 2000 3000],
+      3100.0 => %w[0 2000 4000]
+    }.each do |peak, expected|
+      rendered = render_profiles([ profile(measured: [ [ 10, peak ] ], expected: [], theory: []) ])
+
+      assert_equal expected, rendered.css(".value-labels text").map(&:text), "peak #{peak} W"
+    end
   end
 
   test "draws a grid line at each labeled height, spanning the full width" do
     lines = render_profiles.css(".grid line")
 
-    assert_equal %w[77.4 26.9], lines.map { |line| line["y1"] }
+    assert_equal %w[90 50 10], lines.map { |line| line["y1"] }, "the axis stands for zero"
     assert_equal lines.map { |line| line["y1"] }, lines.map { |line| line["y2"] }
-    assert_equal %w[40 40], lines.map { |line| line["x1"] }
-    assert_equal %w[286 286], lines.map { |line| line["x2"] }
+    assert_equal %w[48 48 48], lines.map { |line| line["x1"] }
+    assert_equal %w[286 286 286], lines.map { |line| line["x2"] }
   end
 
   test "tells every hour's three numbers" do
@@ -78,6 +124,12 @@ class Solakon::DailyProfilesComponentTest < ViewComponent::TestCase
 
     assert_equal "Jun · 10–11 Uhr · PV gemessen Ø 300 W · Erwartet aus Einstrahlung Ø 350 W · " \
                  "Wolkenloser Himmel Ø 500 W", title
+  end
+
+  test "writes an hour's mean from a thousand watts on with a thousands dot" do
+    title = render_profiles([ profile(measured: [ [ 10, 1234.6 ] ]) ]).css(".hits rect title").first.text
+
+    assert_includes title, "PV gemessen Ø 1.235 W"
   end
 
   test "tells every distinct hour once, in ascending order, even when a curve's hours run out of step" do
@@ -102,8 +154,14 @@ class Solakon::DailyProfilesComponentTest < ViewComponent::TestCase
     rendered = render_profiles([ low, empty, high, mid ])
 
     labels = rendered.css(".multiple").first.css(".value-labels text")
-    assert_equal %w[300 600], labels.map(&:text)
-    assert_equal %w[87.3 43], labels.map { |label| label["y"] }
+    assert_equal %w[0 250 500 750], labels.map(&:text)
+    assert_equal %w[130 90 50 10], labels.map { |label| label["y"] }
+  end
+
+  test "keeps one step of axis when every month produced nothing" do
+    rendered = render_profiles([ profile(measured: [ [ 10, 0.0 ] ], expected: [], theory: []) ])
+
+    assert_equal %w[0 100], rendered.css(".value-labels text").map(&:text)
   end
 
   test "says so where the station measured nothing" do
@@ -115,32 +173,32 @@ class Solakon::DailyProfilesComponentTest < ViewComponent::TestCase
   test "measures the curves, the grid and the hits against the same axes" do
     rendered = render_profiles
 
-    assert_equal "0 0 300 150", rendered.css("svg").sole["viewBox"]
+    assert_equal "0 0 300 160", rendered.css("svg").sole["viewBox"]
 
     axis = rendered.css("line.axis").sole
-    assert_equal %w[40 286 128 128], %w[x1 x2 y1 y2].map { |name| axis[name] }
+    assert_equal %w[48 286 130 130], %w[x1 x2 y1 y2].map { |name| axis[name] }
 
-    assert_equal [ [ "300", "36", "80.9" ], [ "600", "36", "30.4" ] ],
+    assert_equal [ %w[0 44 130], %w[250 44 90], %w[500 44 50], %w[750 44 10] ],
                  rendered.css(".value-labels text").map { |node| [ node.text, node["x"], node["y"] ] }
 
-    assert_equal "40,128 40,77.4 163,60.6 286,43.7 286,128", rendered.css("polygon.measured-area").sole["points"]
-    assert_equal "40,77.4 163,60.6 286,43.7", rendered.css("polyline.measured").sole["points"]
-    assert_equal "40,43.7 163,26.9 286,10", rendered.css("polyline.theory").sole["points"]
+    assert_equal "48,130 48,82 167,66 286,50 286,130", rendered.css("polygon.measured-area").sole["points"]
+    assert_equal "48,82 167,66 286,50", rendered.css("polyline.measured").sole["points"]
+    assert_equal "48,50 167,34 286,18", rendered.css("polyline.theory").sole["points"]
 
     hit = rendered.css(".hits rect").first
-    assert_equal %w[40 10 123 118], %w[x y width height].map { |name| hit[name] }
+    assert_equal %w[48 10 119 120], %w[x y width height].map { |name| hit[name] }
     assert_equal %w[286 0], %w[x width].map { |name| rendered.css(".hits rect").last[name] }
 
     hour = rendered.css(".hour-labels.label-dense text").sole
-    assert_equal %w[10 40 144], [ hour.text, hour["x"], hour["y"] ]
+    assert_equal %w[12 286 138], [ hour.text, hour["x"], hour["y"] ]
   end
 
   test "names every third hour on the wide axis and every sixth on the narrow one" do
     wide = [ profile(measured: (6..18).map { |hour| [ hour, 100.0 * hour ] }, expected: [], theory: []) ]
     rendered = render_profiles(wide)
 
-    assert_equal %w[6 9 12 15 18], rendered.css(".hour-labels.label-dense text").map(&:text)
-    assert_equal %w[6 12 18], rendered.css(".hour-labels.label-sparse text").map(&:text)
+    assert_equal %w[06 09 12 15 18], rendered.css(".hour-labels.label-dense text").map(&:text)
+    assert_equal %w[06 12 18], rendered.css(".hour-labels.label-sparse text").map(&:text)
   end
 
   test "explains what the distance between the lines means" do
@@ -156,15 +214,14 @@ class Solakon::DailyProfilesComponentTest < ViewComponent::TestCase
 
     dense = rendered.css(".multiple[data-month='6'] .hour-labels.label-dense text")
 
-    # June has no hour six of its own; the axis it is drawn on starts there
-    # because March does.
-    assert_equal %w[6 9 12], dense.map(&:text)
+    # June has no hour six of its own; March sets the shared axis.
+    assert_equal %w[06 09 12], dense.map(&:text)
   end
 
   test "keeps an axis for a month whose curves are all empty" do
     rendered = render_profiles([ profile(measured: [], expected: [], theory: []) ])
 
-    assert_equal %w[0], rendered.css(".hour-labels.label-dense text").map(&:text)
+    assert_equal %w[00], rendered.css(".hour-labels.label-dense text").map(&:text)
     assert_empty rendered.css("polyline")
     assert_empty rendered.css(".hits rect")
   end

@@ -12,12 +12,12 @@ module Lights
 
     def summary
       return "Aus" unless snapshot.on?
-      "An · #{snapshot.white? ? 'Weiß' : 'Farbe'} · #{snapshot.brightness} %"
+      "An · #{snapshot.white? ? 'Weiß' : 'Farbe'}"
     end
 
     def chip
       return nil unless snapshot.on?
-      { swatch: snapshot.color_hex || "#ffd9a0", label: "#{snapshot.brightness} %" }
+      { swatch: snapshot.color_hex || "#ffd9a0", label: GermanNumber.format(snapshot.brightness, unit: "%") }
     end
   end
 end

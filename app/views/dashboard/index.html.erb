@@ -1,6 +1,5 @@
 <% content_for :title, "Dashboard" %>
-<% content_for :body_class, "page-dashboard" %>
-<h1>Dashboard</h1>
+<h1 class="h2 mb-3">Dashboard</h1>
 
 <%= turbo_stream_from DashboardBroadcaster::STREAM %>
 
@@ -10,7 +9,7 @@
                                           weather_asset: @weather_asset,
                                           weather_alt: @weather_alt) %>
 
-  <div class="tiles">
+  <div class="row row-cols-2 row-cols-md-4 g-2 mb-3 live-dim">
     <%= render Dashboard::TileComponent.produced(@summary) %>
     <%= render Dashboard::TileComponent.consumed(@summary) %>
     <%= render Dashboard::TileComponent.savings(@summary) %>
@@ -21,7 +20,7 @@
     <%= render Dashboard::TileComponent.self_consumption(@summary) %>
   </div>
 
-  <%= render CardComponent.new(title: "Energiefluss", classes: "energy-flow-card",
+  <%= render CardComponent.new(title: "Energiefluss", classes: "energy-flow-card live-dim",
                                data: { controller: "energy-flow" }) do %>
     <%= render Dashboard::EnergyFlowStateComponent.new(live: @live) %>
     <%= render "shared/energy_flow",
@@ -30,19 +29,19 @@
                battery_asset: ApplicationHelper::DEFAULT_BATTERY_ASSET %>
   <% end %>
 
-  <h2 class="section-label">Steckdosen</h2>
+  <h2 class="h6 text-uppercase text-body-secondary mt-4 mb-2">Steckdosen</h2>
   <%= render Dashboard::PlugBarComponent.new(live: @live) %>
 
   <div data-controller="today-chart">
     <%= render Dashboard::PlugDeltasComponent.new(deltas: []) %>
 
-    <%= render CardComponent.new(title: "Gesamtenergie", subtitle: "Letzte 24 h") do %>
+    <%= render CardComponent.new(title: "Gesamtenergie", subtitle: "kWh je Stunde · letzte 24 h") do %>
       <div class="chart-frame">
         <canvas data-today-chart-target="energyCanvas"></canvas>
       </div>
     <% end %>
 
-    <%= render CardComponent.new(title: "Leistung", subtitle: "Letzte 24 h") do %>
+    <%= render CardComponent.new(title: "Leistung", subtitle: "Watt · letzte 24 h") do %>
       <div class="chart-frame">
         <canvas data-today-chart-target="powerCanvas"></canvas>
       </div>
@@ -50,7 +49,7 @@
   </div>
 
   <div data-controller="history-chart">
-    <%= render CardComponent.new(title: "Ertrag", subtitle: "Letzte 14 Tage") do %>
+    <%= render CardComponent.new(title: "Ertrag", subtitle: "kWh je Tag · letzte 14 Tage") do %>
       <div class="chart-frame">
         <canvas data-history-chart-target="canvas"></canvas>
       </div>

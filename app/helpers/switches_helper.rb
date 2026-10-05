@@ -10,11 +10,7 @@ module SwitchesHelper
           .join(", ")
   end
 
-  # "Mo–Fr · 10:00–20:00" for a Zeitfenster, "täglich · 22:00" for an
-  # Einzelschaltung. Both kinds answer +days+ and +rules+, so no branch is
-  # needed — and taking a window's days from its on rule reads the shift past
-  # midnight back out: "22:00 an Mo–Fr, 06:00 aus Di–Sa" becomes "Mo–Fr ·
-  # 22:00–06:00".
+  # A window's days come from its on rule, which reads a shift past midnight back out (Di–Sa → Mo–Fr).
   def entry_label(entry)
     "#{weekday_label(entry.days)} · #{entry.rules.map(&:at_minute_time).join('–')}"
   end
@@ -22,7 +18,7 @@ module SwitchesHelper
   def switch_status_line(row)
     return offline_line(row) if row.offline?
 
-    state_word = row.on? ? "an" : "aus"
+    state_word = row.on? ? "An" : "Aus"
     cmd        = row.last_command
     first_part =
       if cmd && (cmd.action == "on") == row.on?
@@ -36,9 +32,9 @@ module SwitchesHelper
   private
 
   def offline_line(row)
-    return "noch keine Statusmeldung" if row.last_seen_at.nil?
+    return "Noch keine Statusmeldung" if row.last_seen_at.nil?
     minutes = (row.age / 60).round
-    "keine Statusmeldung seit #{minutes} min"
+    "Keine Statusmeldung seit #{minutes} min"
   end
 
   def schedule_part(row)

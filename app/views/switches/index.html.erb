@@ -1,31 +1,26 @@
 <% content_for :title, "Schalten" %>
-<% content_for :body_class, "page-switches" %>
-<h1>Schalten</h1>
+<h1 class="h2 mb-3">Schalten</h1>
 
-<%# Live watt/output updates arrive as sw_head replaces from DashboardBroadcaster. %>
 <%= turbo_stream_from DashboardBroadcaster::STREAM %>
 
 <div>
   <% if @rows.empty? %>
-    <section class="sw-card empty-state">
-      <h2>Keine schaltbaren Steckdosen</h2>
-      <p class="sw-empty">Markiere Verbraucher in <code>ziwoas.yml</code> mit <code>switchable: true</code>.</p>
+    <section class="card card-body mb-3">
+      <h2 class="card-title h5">Keine schaltbaren Steckdosen</h2>
+      <p class="text-body-secondary mb-0">Markiere Verbraucher in <code>ziwoas.yml</code> mit <code>switchable: true</code>.</p>
     </section>
   <% end %>
 
   <% if @light_snapshots.any? %>
-    <h2 class="section-label">Lampen</h2>
-    <%# Live MQTT state reconciles each card via Turbo Streams (see Govees::Subscriber). %>
+    <h2 class="h6 text-uppercase text-body-secondary mt-4 mb-2">Lampen</h2>
     <%= turbo_stream_from "lights" %>
-    <div class="sw-lights">
-      <% @light_snapshots.each do |snapshot| %>
-        <%= render Lights::LightCardComponent.new(snapshot: snapshot) %>
-      <% end %>
-    </div>
+    <% @light_snapshots.each do |snapshot| %>
+      <%= render Lights::LightCardComponent.new(snapshot: snapshot) %>
+    <% end %>
   <% end %>
 
   <% if @rows.any? %>
-    <h2 class="section-label">Steckdosen</h2>
+    <h2 class="h6 text-uppercase text-body-secondary mt-4 mb-2">Steckdosen</h2>
   <% end %>
   <% @rows.each do |row| %>
     <%= render "switches/plug_card", row: row %>

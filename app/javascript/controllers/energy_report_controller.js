@@ -1,9 +1,7 @@
 import { Controller } from "@hotwired/stimulus"
 import "chart.js"
+import { chartTheme, vizToken, tonesByOrder, timeCategoryScale, localMidnight, isPhone, snugTop, lineElements } from "lib/chart_theme"
 
-// Connects to data-controller="energy-report"
-// Renders bar/line charts plus an in-canvas weather-icon plugin that draws
-// icons inside the chart, just below the bars/lines (above the tick labels).
 export default class extends Controller {
   static targets = [
     "payload", "weatherAssets",
@@ -16,6 +14,7 @@ export default class extends Controller {
     this.ratiosChart = null
     this.detailChart = null
     this.payload = this._readPayload()
+    this.consumerTones = tonesByOrder((this.payload.daily?.consumer_series || []).map((series) => series.plug_id))
     this.assetMap = this._readAssetMap()
     this.imageCache = {}
     this.dailyWeatherEnabled = !this.hasDailyWeatherCheckboxTarget || this.dailyWeatherCheckboxTarget.checked
@@ -108,9 +107,7 @@ export default class extends Controller {
         if (!xScale) return
         const { ctx, chartArea } = chart
         const size = cfg.size || 22
-        // Draw icons in the gap between the chart area and the tick labels.
-        // We open that gap via scales.x.ticks.padding. Extra breathing room
-        // between the axis line and the icons keeps things from feeling cramped.
+        // The icons sit in the gap opened by scales.x.ticks.padding.
         const gap = cfg.gap ?? 14
         const y = chartArea.bottom + gap + (size / 2)
         ctx.save()
@@ -133,11 +130,11 @@ export default class extends Controller {
     const labels = daily.labels || []
     const consumerDatasets = this._consumerBarDatasets(daily.consumer_series || [], { top: 5 })
     const consumedDatasets = consumerDatasets.length > 0 ? consumerDatasets : [
-      { label: "Verbrauch", data: daily.consumed_kwh || [], backgroundColor: "#3b82f6", stack: "consumed" },
+      { label: "Verbrauch", data: daily.consumed_kwh || [], tone: "--viz-total", stack: "consumed" },
     ]
 
     const datasets = [
-      { label: "Ertrag", data: daily.produced_kwh || [], backgroundColor: "#f59f00", stack: "produced" },
+      { label: "Ertrag", data: daily.produced_kwh || [], tone: "--viz-solar", stack: "produced" },
       ...consumedDatasets,
     ]
 
@@ -154,13 +151,15 @@ export default class extends Controller {
         if (scale.paddingBottom != null) scale.paddingBottom = Math.max(0, scale.paddingBottom - pad)
       }
     }
+    const timeAxis = timeCategoryScale((daily.ratios || []).map((r) => localMidnight(r.date)))
     const scales = {
       x: {
         stacked: true,
-        ticks: { padding: hasIcons && this.dailyWeatherEnabled ? dailyIconsPadding : 0 },
+        ...timeAxis,
+        ticks: { ...timeAxis.ticks, padding: hasIcons && this.dailyWeatherEnabled ? dailyIconsPadding : 0 },
         afterFit: trimXScale,
       },
-      y: { stacked: true, beginAtZero: true, title: { display: true, text: "kWh" } },
+      y: { stacked: true, beginAtZero: true, unit: "kWh", decimals: 2 },
     }
 
     if (hasSolar) {
@@ -169,8 +168,7 @@ export default class extends Controller {
         label: "Sonnenstrahlung",
         data: w.solar_kwh_per_m2,
         yAxisID: "ySolar",
-        borderColor: "#fbbf24",
-        backgroundColor: "#fbbf24",
+        tone: "--warning-emphasis",
         pointRadius: 3,
         tension: 0.2,
         spanGaps: true,
@@ -183,6 +181,8 @@ export default class extends Controller {
         beginAtZero: true,
         grid: { drawOnChartArea: false },
         title: { display: true, text: "kWh/m²" },
+        unit: "kWh/m²",
+        decimals: 2,
         display: this.dailyWeatherEnabled,
       }
     }
@@ -198,7 +198,7 @@ export default class extends Controller {
         responsive: true,
         maintainAspectRatio: false,
         scales,
-        plugins: { legend: { position: "bottom", labels: { boxWidth: 12, boxHeight: 12, padding: 10, font: { size: 12 }, filter: (item, data) => !data.datasets[item.datasetIndex]?.hidden } } },
+        plugins: { legend: { position: "bottom" } },
         animation: false,
         _weatherIcons: { enabled: this.dailyWeatherEnabled, icons: iconList, size: 32, gap: 8, paddingOn: dailyIconsPadding },
       },
@@ -223,15 +223,18 @@ export default class extends Controller {
       data: {
         labels,
         datasets: [
-          { label: "Autarkie", data: autarky, backgroundColor: "#10b981" },
-          { label: "Eigenverbrauch", data: selfCons, backgroundColor: "#f59f00" },
+          { label: "Autarkie", data: autarky, tone: "--viz-2" },
+          { label: "Eigenverbrauch", data: selfCons, tone: "--viz-solar" },
         ],
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        scales: { y: { min: 0, max: 100, title: { display: true, text: "%" } } },
-        plugins: { legend: { position: "bottom", labels: { boxWidth: 12, boxHeight: 12, padding: 10, font: { size: 12 }, filter: (item, data) => !data.datasets[item.datasetIndex]?.hidden } } },
+        scales: {
+          x: timeCategoryScale(ratios.map((r) => localMidnight(r.date))),
+          y: { min: 0, max: 100, unit: "%" },
+        },
+        plugins: { legend: { position: "bottom" } },
         animation: false,
       },
     })
@@ -251,16 +254,15 @@ export default class extends Controller {
 
   _buildPowerLineChart(detail) {
     const labels = detail.labels || []
-    const colors = ["#f59f00", "#3b82f6", "#10b981", "#8b5cf6", "#ef4444", "#06b6d4", "#ec4899"]
 
-    const datasets = (detail.series || []).map((series, index) => {
-      const color = series.role === "producer" ? "#f59f00" : colors[index % colors.length]
+    const datasets = (detail.series || []).map((series) => {
+      const producer = series.role === "producer"
       return {
         label: series.name,
         data: series.data,
-        borderColor: color,
-        backgroundColor: color,
-        fill: false,
+        tone: producer ? "--viz-solar" : this._consumerTone(series),
+        fill: producer,
+        fillAlpha: producer ? 0.12 : undefined,
         tension: 0.2,
         pointRadius: 0,
         hidden: series.role === "consumer",
@@ -273,6 +275,7 @@ export default class extends Controller {
     const hasIcons = w && Array.isArray(w.icons) && w.icons.length > 0
     const hasSolar = w && Array.isArray(w.solar_w_per_m2)
 
+    const timeAxis = timeCategoryScale(detail.times || [])
     const detailIconsPadding = 38
     const trimXScale = function(scale) {
       const pad = scale.options.ticks?.padding || 0
@@ -283,8 +286,9 @@ export default class extends Controller {
       }
     }
     const scales = {
-      x: { ticks: { maxTicksLimit: 21, autoSkip: true, padding: hasIcons && this.detailWeatherEnabled ? detailIconsPadding : 0 }, afterFit: trimXScale },
-      y: { beginAtZero: true, title: { display: true, text: "Watt" } },
+      x: { ...timeAxis, ticks: { ...timeAxis.ticks, padding: hasIcons && this.detailWeatherEnabled ? detailIconsPadding : 0 }, afterFit: trimXScale },
+      // A phone's few value ticks would leave a third of the plot empty.
+      y: { beginAtZero: true, unit: "W", ...(isPhone() ? snugTop(datasets.flatMap((dataset) => dataset.data || [])) : {}) },
     }
 
     if (hasSolar) {
@@ -292,8 +296,8 @@ export default class extends Controller {
         label: "Sonnenstrahlung",
         data: w.solar_w_per_m2,
         yAxisID: "ySolar",
-        borderColor: "#fbbf24",
-        backgroundColor: "rgba(251,191,36,0.18)",
+        tone: "--warning-emphasis",
+        fillAlpha: 0.18,
         stepped: "before",
         fill: true,
         pointRadius: 0,
@@ -306,6 +310,7 @@ export default class extends Controller {
         beginAtZero: true,
         grid: { drawOnChartArea: false },
         title: { display: true, text: "W/m²" },
+        unit: "W/m²",
         display: this.detailWeatherEnabled,
       }
     }
@@ -316,8 +321,9 @@ export default class extends Controller {
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        elements: lineElements(),
         scales,
-        plugins: { legend: { position: "bottom", labels: { boxWidth: 12, boxHeight: 12, padding: 10, font: { size: 12 }, filter: (item, data) => !data.datasets[item.datasetIndex]?.hidden } } },
+        plugins: { legend: { position: "bottom" } },
         animation: false,
         _weatherIcons: { enabled: this.detailWeatherEnabled, icons: hasIcons ? w.icons : [], size: 28, gap: 8, paddingOn: detailIconsPadding },
       },
@@ -331,7 +337,7 @@ export default class extends Controller {
       .filter((series) => series.role === "producer")
       .map((series) => ({
         label: series.name, data: series.data || [],
-        backgroundColor: "#f59f00", stack: "produced",
+        tone: "--viz-solar", stack: "produced",
       }))
     const consumerDatasets = this._consumerBarDatasets(
       (detail.series || []).filter((series) => series.role === "consumer")
@@ -344,10 +350,10 @@ export default class extends Controller {
         responsive: true,
         maintainAspectRatio: false,
         scales: {
-          x: { stacked: true },
-          y: { stacked: true, beginAtZero: true, title: { display: true, text: "Watt" } },
+          x: { stacked: true, ...timeCategoryScale(detail.times || []) },
+          y: { stacked: true, beginAtZero: true, unit: "W" },
         },
-        plugins: { legend: { position: "bottom", labels: { boxWidth: 12, boxHeight: 12, padding: 10, font: { size: 12 }, filter: (item, data) => !data.datasets[item.datasetIndex]?.hidden } } },
+        plugins: { legend: { position: "bottom" } },
         animation: false,
       },
     })
@@ -355,11 +361,14 @@ export default class extends Controller {
 
   _replaceChart(canvas, config) {
     Chart.getChart(canvas)?.destroy()
-    return new Chart(canvas, config)
+    return new Chart(canvas, { ...config, plugins: [ ...(config.plugins || []), chartTheme ] })
+  }
+
+  _consumerTone(series) {
+    return this.consumerTones.get(series.plug_id) ?? vizToken(this.consumerTones.size)
   }
 
   _consumerBarDatasets(series, options = {}) {
-    const colors = ["#3b82f6", "#10b981", "#8b5cf6", "#ef4444", "#06b6d4", "#ec4899", "#84cc16", "#6366f1"]
     const rows = series.map((row) => ({
       ...row,
       total: (row.data || []).reduce((sum, value) => sum + Number(value || 0), 0),
@@ -368,9 +377,9 @@ export default class extends Controller {
     const limit = options.top || rows.length
     const visible = rows.slice(0, limit)
     const rest = rows.slice(limit)
-    const datasets = visible.map((row, index) => ({
+    const datasets = visible.map((row) => ({
       label: row.name, data: row.data || [],
-      backgroundColor: colors[index % colors.length], stack: "consumed",
+      tone: this._consumerTone(row), stack: "consumed",
     }))
 
     if (rest.length > 0) {
@@ -380,7 +389,7 @@ export default class extends Controller {
         data: Array.from({ length }, (_, index) => {
           return +rest.reduce((sum, row) => sum + Number(row.data?.[index] || 0), 0).toFixed(3)
         }),
-        backgroundColor: "#94a3b8",
+        tone: "--viz-muted",
         stack: "consumed",
       })
     }
@@ -399,8 +408,8 @@ export default class extends Controller {
 
     return {
       label: "Gesamtverbrauch", data,
-      borderColor: "#1d4ed8", backgroundColor: "rgba(59, 130, 246, 0.14)",
-      fill: true, tension: 0.2, pointRadius: 0,
+      tone: "--viz-total",
+      fill: false, tension: 0.2, pointRadius: 0,
     }
   }
 }

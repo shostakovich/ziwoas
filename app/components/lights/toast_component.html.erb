@@ -1,9 +1,12 @@
-<%# app/components/lights/toast_component.html.erb %>
-<div id="light_toast" class="ld-toast" data-controller="toast"<%= " hidden".html_safe unless message %>>
+<%# Stays .show: visibility is the hidden attribute's job (server and toast controller). %>
+<div id="light_toast" class="toast show" role="status" aria-live="polite"
+     data-controller="toast"<%= " hidden".html_safe unless message %>>
   <% if message %>
-    <span><%= message %></span>
-    <%= button_to "Rückgängig", light_command_path(light_key: undo[:light_key]),
-          params: { command: "zone_undo", victim: undo[:victim], added: undo[:added] },
-          class: "ld-toast-undo", form_class: "ld-inline-form" %>
+    <div class="toast-body d-flex align-items-center gap-2">
+      <span><%= message %></span>
+      <%= button_to "Rückgängig", light_command_path(light_key: undo[:light_key]),
+            params: { command: "zone_undo", victim: undo[:victim], added: undo[:added] },
+            class: "btn btn-sm btn-link fw-bold", form_class: "ms-auto" %>
+    </div>
   <% end %>
 </div>

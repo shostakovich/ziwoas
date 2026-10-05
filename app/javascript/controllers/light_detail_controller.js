@@ -1,31 +1,44 @@
-// Connects to data-controller="light-detail". Slim: tab switching + debounced
-// fire-and-forget sliders/wheel. Zone/power/toast state is server-rendered via
-// Turbo Streams (see app/components/lights/*).
+// Zone/power/toast state is server-rendered via Turbo Streams, not managed here.
 import { Controller } from "@hotwired/stimulus"
+import { formatNumber, formatPercent } from "lib/format"
 
 export default class extends Controller {
   static values = { key: String, tab: String }
-  static targets = ["panel", "temp", "preset"]
+  static targets = ["panel", "tab", "range", "rangeValue", "temp", "tempValue", "preset", "wheel"]
 
-  connect() { this.showTab(this.tabValue || "white") }
+  connect() {
+    this.showTab(this.tabValue || "white")
+    this.rangeTargets.forEach((r) => this.fill(r))
+  }
 
   tab(event) { this.showTab(event.params.tab) }
 
   showTab(name) {
     this.tabValue = name
     this.panelTargets.forEach((p) => { p.hidden = p.dataset.tab !== name })
-    this.element.querySelectorAll(".ld-tab").forEach((b) => {
-      b.classList.toggle("active", b.dataset.lightDetailTabParam === name)
+    this.tabTargets.forEach((t) => {
+      const active = t.dataset.lightDetailTabParam === name
+      t.classList.toggle("active", active)
+      t.setAttribute("aria-selected", active)
     })
   }
 
   brightness(event) {
+    this.fill(event.target)
+    if (this.hasRangeValueTarget) this.rangeValueTarget.textContent = formatPercent(event.target.value)
     this.debounce(() => this.send({ command: "brightness", value: event.target.value }))
+  }
+
+  // felt's .form-range draws its filled part up to --fill.
+  fill(range) {
+    const share = (range.value - range.min) / (range.max - range.min) * 100
+    range.style.setProperty("--fill", `${share}%`)
   }
 
   temp(event) {
     const k = event.params.temp ?? event.target.value
     if (this.hasTempTarget && event.params.temp) this.tempTarget.value = k
+    if (this.hasTempValueTarget) this.tempValueTarget.textContent = formatNumber(k, { unit: "K" })
     this.markActivePreset(k)
     this.debounce(() => this.send({ command: "color_temp", temp_k: k }))
   }
@@ -33,13 +46,27 @@ export default class extends Controller {
   markActivePreset(k) {
     this.presetTargets.forEach((b) => {
       const active = b.dataset.lightDetailTempParam === String(k)
-      b.classList.toggle("ld-preset--active", active)
+      b.classList.toggle("active", active)
       b.setAttribute("aria-pressed", active)
     })
   }
 
-  swatch(event) { this.applyHex(event.params.color) }
-  wheel(event) { this.applyHex(event.target.value) }
+  swatch(event) {
+    this.markCustom(null)
+    this.applyHex(event.params.color)
+  }
+
+  wheel(event) {
+    this.element.querySelectorAll("input[name=light_color]").forEach((r) => { r.checked = false })
+    this.markCustom(event.target.value)
+    this.applyHex(event.target.value)
+  }
+
+  markCustom(hex) {
+    if (!this.hasWheelTarget) return
+    this.wheelTarget.classList.toggle("ld-swatch-custom", !!hex)
+    if (hex) this.wheelTarget.style.setProperty("--ld-custom", hex)
+  }
 
   applyHex(hex) {
     const r = parseInt(hex.slice(1, 3), 16)

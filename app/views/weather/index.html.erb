@@ -1,11 +1,9 @@
 <% content_for :title, "Wetter" %>
-<% content_for :body_class, "page-weather" %>
+<h1 class="h2 mb-3">Wetter</h1>
 
 <%= turbo_stream_from "weather" %>
 
-<div class="weather-page">
-  <%= render "empty", current_weather: @current_weather, today_weather: @today_weather, future_weather: @future_weather %>
-  <%= render "current", current_weather: @current_weather, outdoor_sensor_reading: @outdoor_sensor_reading %>
-  <%= render "today", today_weather: @today_weather %>
-  <%= render "forecast", future_weather: @future_weather %>
-</div>
+<%= render "empty", current_weather: @current_weather, today_weather: @today_weather, future_weather: @future_weather %>
+<%= render "current", current_weather: @current_weather, outdoor_sensor_reading: @outdoor_sensor_reading %>
+<%= render "today", today_weather: @today_weather %>
+<%= render "forecast", future_weather: @future_weather %>

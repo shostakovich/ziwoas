@@ -1,15 +1,22 @@
-// app/javascript/controllers/sensors_chart_controller.js
 import { Controller } from "@hotwired/stimulus"
 import "chart.js"
+import { chartTheme, vizToken, tonesByOrder, timeScale, timeTooltipTitle } from "lib/chart_theme"
 
-// Connects to data-controller="sensors-chart"
-// Builds three line charts (temperature, humidity, CO2) of the last 24h.
-// Refreshes every 15 minutes; reloads on visibility change and bfcache restore.
+const CO2_THRESHOLDS = [
+  { value: 1000, name: "Lüften", tone: "--warning", textTone: "--warning-text" },
+  { value: 1400, name: "Grenzwert", tone: "--danger", textTone: "--danger-text" },
+]
+// Room for the top threshold's label on a tick a phone's 500-step axis shares (1.400 × 1.1 rounds up to 2.000).
+const CO2_AXIS_TOP = 1500
+const DECIMALS = { "°C": 1, "%": 0, "ppm": 0 }
+// A temperature has no natural zero: 0 °C would flatten the indoor swing.
+const FROM_ZERO = { "°C": false, "%": true, "ppm": true }
+
 export default class extends Controller {
   static targets = ["temperature", "humidity", "co2"]
   static values  = {
     url:             String,
-    refreshInterval: { type: Number, default: 900_000 }, // 15 min
+    refreshInterval: { type: Number, default: 900_000 },
   }
 
   connect() {
@@ -34,86 +41,66 @@ export default class extends Controller {
     try {
       const res = await fetch(this.urlValue, { headers: { Accept: "application/json" } })
       if (!res.ok) return
-      const data = await res.json()
-      this._render("temperature", this.temperatureTarget, data.temperature, "°C")
-      this._render("humidity",    this.humidityTarget,    data.humidity,    "%")
-      this._renderCo2(this.co2Target, data.co2)
+      this._renderAll(await res.json())
     } catch (e) {
       console.error("sensors-chart load failed:", e)
     }
   }
 
-  _render(key, canvas, series, unit) {
+  _renderAll(data) {
+    const tones = tonesByOrder(data.temperature.map((s) => s.device_id))
+    this._render("temperature", this.temperatureTarget, data.temperature, tones, "°C")
+    this._render("humidity",    this.humidityTarget,    data.humidity,    tones, "%")
+    this._render("co2",         this.co2Target,         data.co2,         tones, "ppm",
+                 { thresholds: CO2_THRESHOLDS, suggestedMax: CO2_AXIS_TOP })
+  }
+
+  _render(key, canvas, series, tones, unit, { thresholds = [], suggestedMax } = {}) {
     if (!canvas) return
     const xBounds = this._xBounds(series)
-    const datasets = series.map((s, i) => ({
-      label: s.name,
-      data:  s.points.map(([x, y]) => ({ x, y })),
-      borderColor:     this._color(i),
-      backgroundColor: this._color(i, 0.15),
-      tension: 0.25,
-      borderWidth: 2,
-      pointRadius: 0,
-    }))
+    const datasets = [ ...this._datasets(series, tones), ...thresholds.map((line) => this._thresholdLine(xBounds, line)) ]
+    const options = this._opts(unit, xBounds, series.length)
+    if (suggestedMax !== undefined) options.scales.y.suggestedMax = suggestedMax
     this.charts[key]?.destroy()
     this.charts[key] = new Chart(canvas, {
       type: "line",
       data: { datasets },
-      options: this._opts(unit, xBounds),
+      options,
+      plugins: [ chartTheme ],
     })
   }
 
-  _renderCo2(canvas, series) {
-    if (!canvas) return
-    const xBounds = this._xBounds(series)
-    const datasets = series.map((s, i) => ({
+  _datasets(series, tones) {
+    return series.map((s) => ({
       label: s.name,
       data:  s.points.map(([x, y]) => ({ x, y })),
-      borderColor:     this._color(i),
-      backgroundColor: this._color(i, 0.15),
+      tone:  tones.get(s.device_id) ?? vizToken(0),
+      fillAlpha: 0.15,
       tension: 0.25,
       borderWidth: 2,
       pointRadius: 0,
     }))
-    datasets.push(this._thresholdLine(xBounds, 1000, "#fbbf24"))
-    datasets.push(this._thresholdLine(xBounds, 1400, "#ef4444"))
-    this.charts.co2?.destroy()
-    this.charts.co2 = new Chart(canvas, {
-      type: "line",
-      data: { datasets },
-      options: this._opts("ppm", xBounds),
-    })
   }
 
-  _thresholdLine(xBounds, value, color) {
+  _thresholdLine(xBounds, { value, name, tone, textTone }) {
     const data = xBounds ? [ { x: xBounds.min, y: value }, { x: xBounds.max, y: value } ] : []
     return {
-      label: `${value} ppm`,
+      label: name,
+      endLabel: name,
+      endLabelTone: textTone,
       data,
-      borderColor:   color,
+      tone,
       borderDash:    [ 4, 4 ],
-      borderWidth:   1,
+      borderWidth:   1.5,
       pointRadius:   0,
       fill: false,
       tension: 0,
     }
   }
 
-  _opts(unit, xBounds) {
-    const xScale = {
-      type: "linear",
-      ticks: {
-        maxTicksLimit: 8,
-        callback: (value) => {
-          const d = new Date(value)
-          return d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })
-        },
-      },
-    }
-    if (xBounds) {
-      xScale.min = xBounds.min
-      xScale.max = xBounds.max
-    }
+  // A single sensor needs no legend: the card's subtitle names its room.
+  _opts(unit, xBounds, seriesCount) {
+    const xScale = xBounds ? timeScale(xBounds.min, xBounds.max) : { type: "linear" }
 
     return {
       responsive: true,
@@ -121,21 +108,11 @@ export default class extends Controller {
       animation: false,
       scales: {
         x: xScale,
-        y: { title: { display: true, text: unit } },
+        y: { beginAtZero: FROM_ZERO[unit] ?? true, unit, decimals: DECIMALS[unit] ?? 0 },
       },
       plugins: {
-        legend: { position: "bottom" },
-        tooltip: {
-          callbacks: {
-            title: (items) => {
-              if (!items.length) return ""
-              const d = new Date(items[0].parsed.x)
-              return d.toLocaleString("de-DE", {
-                weekday: "short", hour: "2-digit", minute: "2-digit"
-              })
-            },
-          },
-        },
+        legend: { display: seriesCount > 1, position: "bottom" },
+        tooltip: { callbacks: { title: timeTooltipTitle({ weekday: "short", hour: "2-digit", minute: "2-digit" }) } },
       },
     }
   }
@@ -144,14 +121,5 @@ export default class extends Controller {
     const xs = series.flatMap((s) => s.points.map((p) => p[0]))
     if (xs.length === 0) return null
     return { min: Math.min(...xs), max: Math.max(...xs) }
-  }
-
-  _color(i, alpha = 1) {
-    const palette = [
-      `rgba(37, 99, 235, ${alpha})`,
-      `rgba(16, 185, 129, ${alpha})`,
-      `rgba(217, 70, 239, ${alpha})`,
-    ]
-    return palette[i % palette.length]
   }
 }

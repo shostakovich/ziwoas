@@ -32,6 +32,8 @@ class WeatherSegmentsTest < ApplicationSystemTestCase
       find('button.weather-segment[data-segment-index="2"]').click
     end
 
+    assert_selector 'button.weather-segment[aria-expanded="true"]', count: 1
+    assert_selector 'button.weather-segment.active[data-segment-index="2"]'
     within first(".weather-day-hours") do
       assert_selector '.weather-day-hour-row[data-segment-index="2"]', visible: :visible
       assert_selector '.weather-day-hour-row[data-segment-index="0"]', visible: :hidden
@@ -43,6 +45,7 @@ class WeatherSegmentsTest < ApplicationSystemTestCase
       find('button.weather-segment[data-segment-index="2"]').click
     end
     assert_selector ".weather-day-hours .weather-day-hour-row", count: 4, visible: :hidden
+    assert_no_selector "button.weather-segment.active"
 
     within first(".weather-day-segments") do
       find('button.weather-segment[data-segment-index="1"]').click
