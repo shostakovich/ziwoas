@@ -4,6 +4,11 @@ import { chartTheme, timeCategoryScale } from "lib/chart_theme"
 
 const REFRESH_MS = 60_000
 const SERIES_TOKENS = { "PV": "--viz-solar", "Akku": "--viz-battery", "Außensteckdose": "--viz-grid", "0 W": "--viz-muted" }
+// The signed series say their direction in words in the tooltip.
+const FLOW_WORDS = {
+  "Akku": { positive: "lädt", negative: "entlädt" },
+  "Außensteckdose": { positive: "liefert", negative: "zieht" },
+}
 
 // Draws the chart from the payload the server rendered into the frame. Turbo
 // swaps the frame content on every range change, which reconnects this
@@ -42,12 +47,16 @@ export default class extends Controller {
   _buildChart(chart) {
     const datasets = (chart.datasets || []).map((dataset) => {
       const fill = dataset.label === "PV"
+      const reference = dataset.label === "0 W"
       return {
         label: dataset.label,
         data: dataset.data,
         tone: SERIES_TOKENS[dataset.label] || "--viz-muted",
         fillAlpha: fill ? 0.14 : 0,
-        borderDash: dataset.label === "0 W" ? [4, 4] : [],
+        borderDash: reference ? [4, 4] : [],
+        borderWidth: reference ? 1 : 2,
+        legend: !reference,
+        flowWords: FLOW_WORDS[dataset.label],
         fill,
         pointRadius: 0,
         tension: 0.2,
@@ -60,14 +69,14 @@ export default class extends Controller {
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        // Dense samples: thin lines keep the series apart.
-        elements: { line: { borderWidth: 1.25 } },
         scales: {
           x: timeCategoryScale(chart.times || []),
-          y: { title: { display: true, text: "Watt" } },
+          y: { title: { display: true, text: "Watt" }, unit: "W" },
         },
         plugins: {
-          legend: { position: "bottom", labels: { boxWidth: 12, boxHeight: 12, padding: 10, font: { size: 12 } } },
+          legend: { position: "bottom" },
+          // The zero line is a reference, not a reading.
+          tooltip: { filter: (item) => item.dataset.legend !== false },
         },
         animation: false,
       },

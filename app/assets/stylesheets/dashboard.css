@@ -1,4 +1,4 @@
-/* Dashboard: hero plush icons, legend dots, energy-flow card, live-stale fade. */
+/* Dashboard: hero plush icons, legend dots, plug bar, energy-flow card, live-stale fade. */
 
 /* Plush icons are not square: a square box, never squashed. */
 .hero-icon { width: 3rem; height: 3rem; object-fit: contain; flex: none; }
@@ -9,8 +9,19 @@
 /* Colour key next to a chart or stacked bar (felt-css candidate). */
 .legend-dot { width: .75rem; height: .75rem; padding: 0; flex: none; }
 
+/* Plug bar: a tiny consumer keeps a visible sliver, even under the pill's
+   rounded end; the others give way (flex-shrink). Long plug names wrap in the
+   legend instead of pushing the value out. */
+.plug-bar > .progress { min-width: .75rem; }
+.plug-bar-name { min-width: 0; hyphens: auto; overflow-wrap: break-word; }
+
 /* Small enough to see whole in one desktop viewport. */
 .energy-flow { width: 100%; max-width: 34rem; margin-inline: auto; }
+
+/* A channel is a quiet track until power flows through it (the controller sets
+   data-flowing), then it takes its own colour (--ef-tone, set per line). */
+.energy-flow .ef-link { stroke: var(--track); transition: stroke 300ms ease-out; }
+.energy-flow .ef-link[data-flowing] { stroke: var(--ef-tone); }
 
 /* Phones draw the 400-unit diagram ~340px wide: larger text units keep labels at 11px and up,
    smaller icons make room for the values inside the rings. The drawing reaches into the card padding. */
@@ -18,10 +29,7 @@
   .energy-flow { width: calc(100% + 2 * var(--space-3)); max-width: none; margin-inline: calc(-1 * var(--space-3)); }
   .energy-flow .ef-names { font-size: 14px; }
   .energy-flow .ef-values text { font-size: 13.5px; transform: translateY(-11px); }
-  .energy-flow .ef-values .ef-battery { transform: translateY(-17px); }
-  .energy-flow .ef-values .ef-soc { font-size: 13px; }
   .energy-flow .ef-icon { transform-box: fill-box; transform-origin: 50% 0; transform: translateY(-4px) scale(.75); }
-  .energy-flow .ef-icon.ef-battery { transform: translateY(-6px) scale(.7); }
 }
 
 /* live_freshness_controller sets .live-stale when broadcasts stop arriving. */

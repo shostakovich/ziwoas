@@ -65,7 +65,7 @@
     <h2 class="h6 text-uppercase text-body-secondary mt-4 mb-2">Steckdosen</h2>
     <%= render "ranking", producers: @report.producer_ranking, consumers: @report.consumer_ranking %>
 
-    <%= render CardComponent.new(title: "Energie", subtitle: "Ertrag / Verbrauch") do %>
+    <%= render CardComponent.new(title: "Energie", subtitle: "kWh je Tag · Ertrag und Verbrauch") do %>
       <% if daily_has_weather %>
         <div class="d-flex align-items-center mb-2">
           <div class="form-check form-switch mb-0">
@@ -81,11 +81,12 @@
       </div>
     <% end %>
 
-    <% power_resolution = (@report.detail_end_date - @report.detail_start_date).to_i > 6 ? "Tagesmittel" : "5-Minuten-Verlauf" %>
-    <% detail_from = @report.detail_start_date.strftime("%d.%m.%Y") %>
-    <% detail_to = @report.detail_end_date.strftime("%d.%m.%Y") %>
-    <% detail_range = detail_from == detail_to ? detail_from : "#{detail_from} bis #{detail_to}" %>
-    <%= render CardComponent.new(title: "Leistung", subtitle: "#{power_resolution} · #{detail_range}") do %>
+    <% power_resolution = (@report.detail_end_date - @report.detail_start_date).to_i > 6 ? "Tagesmittel" : "5-Min-Werte" %>
+    <%# Short enough for one phone line: the year only when it isn't this one. %>
+    <% day = ->(date) { date.strftime(date.year == Date.current.year ? "%d.%m." : "%d.%m.%Y") } %>
+    <% detail_from, detail_to = @report.detail_start_date, @report.detail_end_date %>
+    <% detail_range = detail_from == detail_to ? day.call(detail_from) : "#{day.call(detail_from)}–#{day.call(detail_to)}" %>
+    <%= render CardComponent.new(title: "Leistung", subtitle: "Watt · #{power_resolution} · #{detail_range}") do %>
       <% if detail_has_weather %>
         <div class="d-flex align-items-center mb-2">
           <div class="form-check form-switch mb-0">
@@ -101,7 +102,7 @@
       </div>
     <% end %>
 
-    <%= render CardComponent.new(title: "Autarkie & Eigenverbrauchsquote") do %>
+    <%= render CardComponent.new(title: "Autarkie & Eigenverbrauchsquote", subtitle: "Prozent je Tag") do %>
       <div class="chart-frame">
         <canvas data-energy-report-target="ratiosCanvas"></canvas>
       </div>

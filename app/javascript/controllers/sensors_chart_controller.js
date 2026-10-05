@@ -2,9 +2,18 @@
 import { Controller } from "@hotwired/stimulus"
 import "chart.js"
 import { chartTheme, vizToken, timeScale, formatTime } from "lib/chart_theme"
+import { formatNumber } from "lib/format"
 
-// CO₂ thresholds drawn as dashed lines, coloured like the traffic light.
-const CO2_THRESHOLDS = [ [ 1000, "--warning" ], [ 1400, "--danger" ] ]
+// CO₂ thresholds drawn as dashed lines, coloured like the traffic light and
+// named at their end.
+const CO2_THRESHOLDS = [
+  { value: 1000, name: "Lüften", tone: "--warning", textTone: "--warning-text" },
+  { value: 1400, name: "Grenzwert", tone: "--danger", textTone: "--danger-text" },
+]
+// Room above the top threshold for its label, on a tick a phone's coarse
+// axis (steps of 500) shares: 1.400 × 1.1 would round up to 2.000 there.
+const CO2_AXIS_TOP = 1500
+const DECIMALS = { "°C": 1, "%": 0, "ppm": 0 }
 
 // Connects to data-controller="sensors-chart"
 // Builds three line charts (temperature, humidity, CO2) of the last 24h.
@@ -74,12 +83,14 @@ export default class extends Controller {
     if (!canvas) return
     const xBounds = this._xBounds(series)
     const datasets = this._datasets(series)
-    CO2_THRESHOLDS.forEach(([ value, tone ]) => datasets.push(this._thresholdLine(xBounds, value, tone)))
+    CO2_THRESHOLDS.forEach((threshold) => datasets.push(this._thresholdLine(xBounds, threshold)))
+    const options = this._opts("ppm", xBounds)
+    options.scales.y.suggestedMax = CO2_AXIS_TOP
     this.charts.co2?.destroy()
     this.charts.co2 = new Chart(canvas, {
       type: "line",
       data: { datasets },
-      options: this._opts("ppm", xBounds),
+      options,
       plugins: [ chartTheme ],
     })
   }
@@ -96,15 +107,16 @@ export default class extends Controller {
     }))
   }
 
-  _thresholdLine(xBounds, value, tone) {
+  _thresholdLine(xBounds, { value, name, tone, textTone }) {
     const data = xBounds ? [ { x: xBounds.min, y: value }, { x: xBounds.max, y: value } ] : []
     return {
-      label: `${value} ppm`,
+      label: name,
+      endLabel: `${formatNumber(value)} ${name}`,
+      endLabelTone: textTone,
       data,
       tone,
-      fillAlpha:     0.15,
       borderDash:    [ 4, 4 ],
-      borderWidth:   1,
+      borderWidth:   1.5,
       pointRadius:   0,
       fill: false,
       tension: 0,
@@ -120,7 +132,7 @@ export default class extends Controller {
       animation: false,
       scales: {
         x: xScale,
-        y: { title: { display: true, text: unit } },
+        y: { title: { display: true, text: unit }, unit, decimals: DECIMALS[unit] ?? 0 },
       },
       plugins: {
         legend: { position: "bottom" },

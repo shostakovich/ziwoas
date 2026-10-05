@@ -77,7 +77,7 @@ class ReportsControllerTest < ActionDispatch::IntegrationTest
     assert_select "main h2", text: "Zusammenfassung", count: 0
     assert_select "main h2", text: "Steckdosen"
     assert_select ".card-title", text: "Energie"
-    assert_select ".card-subtitle", text: "Ertrag / Verbrauch"
+    assert_select ".card-subtitle", text: "kWh je Tag · Ertrag und Verbrauch"
     assert_select ".card-title", text: "Leistung"
     assert_select ".card .chart-frame", minimum: 2
     assert_select "ul.list-group[aria-label='Erzeugung'] > li.list-group-item", 1
@@ -127,7 +127,21 @@ class ReportsControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_select ".card-title", text: "Leistung"
-    assert_select ".card-subtitle", text: /\ATagesmittel · /
+    assert_select ".card-subtitle", text: /\AWatt · Tagesmittel · \d\d\.\d\d\.(\d{4})?–\d\d\.\d\d\.(\d{4})?\z/
+  end
+
+  test "the power chart's range names the year only when it is not this one" do
+    travel_to Time.zone.local(2026, 4, 10, 12) do
+      3.times { |i| Plugs::DailyTotal.create!(plug_id: "bkw", date: (Date.new(2026, 4, 1) + i).to_s, energy_wh: 2000) }
+
+      get "/reports", params: { start_date: "2026-04-01", end_date: "2026-04-03" }
+      assert_select ".card-subtitle", text: "Watt · 5-Min-Werte · 01.04.–03.04."
+    end
+
+    travel_to Time.zone.local(2027, 1, 10, 12) do
+      get "/reports", params: { start_date: "2026-04-01", end_date: "2026-04-03" }
+      assert_select ".card-subtitle", text: "Watt · 5-Min-Werte · 01.04.2026–03.04.2026"
+    end
   end
 
   test "reports page shows empty state without data" do

@@ -15,15 +15,22 @@
     <% if history.fetch(:message) %>
       <p class="small text-body-secondary"><%= history.fetch(:message) %></p>
     <% end %>
-    <p class="small text-body-secondary">Akku: + lädt, − entlädt. Außensteckdose: + liefert ins Hausnetz, − zieht Leistung.</p>
+    <p class="small text-body-secondary">Über 0 W: Akku lädt, Außensteckdose liefert ins Hausnetz. Unter 0 W: Akku entlädt, Außensteckdose zieht Leistung.</p>
+    <%# Bars in the colours of the chart's series. %>
     <div class="solakon-balance mt-3">
       <% history.fetch(:balance_rows).each do |row| %>
         <div class="solakon-balance-row row gx-2 gy-1 align-items-center small mb-2" data-role="<%= row.fetch(:role) %>">
           <span class="col col-sm-4 text-truncate"><%= row.fetch(:label) %></span>
           <div class="col-12 col-sm order-last order-sm-0">
-            <div class="progress" style="height: .5rem" aria-hidden="true"><div class="progress-bar <%= { "solar" => "bg-warning", "battery" => "bg-info" }.fetch(row.fetch(:role), "bg-primary") %>" style="width: <%= row.fetch(:share) %>%"></div></div>
+            <div class="progress" style="height: .5rem" aria-hidden="true"><div class="progress-bar" style="width: <%= row.fetch(:share) %>%; background-color: var(--viz-<%= row.fetch(:role) %>)"></div></div>
           </div>
           <span class="col-auto tabular-nums text-nowrap"><%= row.fetch(:value) %></span>
+        </div>
+      <% end %>
+      <% if (average = history[:outlet_average]) %>
+        <div class="d-flex justify-content-between gap-2 small" data-role="outlet-average">
+          <span>Ø Außensteckdose</span>
+          <span class="tabular-nums text-nowrap"><%= average %></span>
         </div>
       <% end %>
     </div>

@@ -12,9 +12,7 @@ class DashboardControllerTest < ActionDispatch::IntegrationTest
     assert_select "svg.energy-flow g[clip-path='url(#ef-clip)'] > path", 6
 
     assert_select "text", text: "PV-Anlage"
-    assert_select "text", text: "Stromnetz"
     assert_select "text", text: "Verbraucher"
-    assert_select "text", text: "Batterie"
 
     assert_select "image[x='180'][y='50'][width='40'][height='40']", 1
     assert_select "image[href*='icon_netz']"
@@ -31,15 +29,22 @@ class DashboardControllerTest < ActionDispatch::IntegrationTest
     assert_select "[data-ef='efBatterySoc']"
     assert_select "[data-ef='efBatteryW']"
 
-    # The six static flow lines render as <path> elements (one per channel,
-    # identified by its stroke token). Only the animated efDots overlays below are
-    # driven from Stimulus, so the lines carry no data-target.
-    assert_select "path[style='stroke: var(--viz-solar)']" # solar -> home
-    assert_select "path[style='stroke: var(--viz-3)']" # solar -> grid
-    assert_select "path[style='stroke: var(--viz-8)']" # solar -> battery
-    assert_select "path[style='stroke: var(--viz-grid)']" # grid -> home
-    assert_select "path[style='stroke: var(--viz-muted)']" # grid -> battery
-    assert_select "path[style='stroke: var(--viz-battery)']" # battery -> home
+    # One line per channel, each naming its colour token; the controller marks a
+    # line flowing, so every line is a target and none is flowing before it runs.
+    {
+      "efLineSolarHome" => "--viz-solar", "efLineSolarGrid" => "--viz-3",
+      "efLineSolarBattery" => "--viz-8", "efLineGridHome" => "--viz-grid",
+      "efLineGridBattery" => "--viz-muted", "efLineBatteryHome" => "--viz-battery"
+    }.each do |line, token|
+      assert_select "path.ef-link[data-ef='#{line}'][style='--ef-tone: var(#{token})']", 1
+    end
+    assert_select "path.ef-link[data-flowing]", 0
+
+    # Grid and battery name their direction next to the ring (set by the
+    # controller); the consumers' ring has a one-line key.
+    assert_select "text[data-ef='efGridName']", text: "Stromnetz"
+    assert_select "text > tspan[data-ef='efBatteryName']", text: "Batterie"
+    assert_select "p", text: "Verbraucher-Ring: Herkunft des Stroms"
 
     assert_select "[data-ef='efDotsSolarHome']"
     assert_select "[data-ef='efDotsSolarGrid']"
@@ -74,13 +79,17 @@ class DashboardControllerTest < ActionDispatch::IntegrationTest
     get "/"
     assert_response :ok
 
-    assert_select "text[data-ef='efPvW'][x='200'][y='102'][text-anchor='middle']", 1
+    values = "g.ef-values[text-anchor='middle']"
+    assert_select "#{values} > text[data-ef='efPvW'][x='200'][y='102']", 1
 
     assert_select "image[x='38'][y='141'][width='40'][height='40']", 1
-    assert_select "text[data-ef='efGridW'][x='58'][y='192'][text-anchor='middle']", 1
+    assert_select "#{values} > text[data-ef='efGridW'][x='58'][y='192']", 1
 
     assert_select "image[x='322'][y='141'][width='40'][height='40']", 1
-    assert_select "text[data-ef='efConsumerW'][x='342'][y='192'][text-anchor='middle']", 1
+    assert_select "#{values} > text[data-ef='efConsumerW'][x='342'][y='192']", 1
+
+    assert_select "image[x='180'][y='231'][width='40'][height='40']", 1
+    assert_select "#{values} > text[data-ef='efBatteryW'][x='200'][y='282']", 1
   end
 
   test "uses current weather icon in hero and pv energy flow node" do

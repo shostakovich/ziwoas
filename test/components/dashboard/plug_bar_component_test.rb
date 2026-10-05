@@ -65,16 +65,24 @@ class Dashboard::PlugBarComponentTest < ViewComponent::TestCase
     assert_equal [ "Fridge" ], legend_items(rendered).map { |item| legend_name(item) }
   end
 
-  test "producers lead the legend with a negative magnitude in producer color" do
+  def producer_lines(rendered) = rendered.css("#dashboard_plug_bar [data-role='producer']")
+
+  test "a producer has its own line in words, not a legend key without a segment" do
     rendered = render_bar([
       row(id: "fridge", role: :consumer, apower_w: 80.0),
-      row(id: "bkw", role: :producer, name: "Solar", apower_w: -300.4)
+      row(id: "bkw", role: :producer, name: "Solar", apower_w: -1300.4)
     ])
 
-    first = legend_items(rendered).first
-    assert_equal "Solar", legend_name(first)
-    assert_equal "−300 W", first.css("span")[2].text
-    assert_equal "var(--viz-solar)", legend_color(first)
+    assert_equal [ "Solar erzeugt 1.300 W" ], producer_lines(rendered).map { |line| line.text.squish }
+    assert_equal [ "Fridge" ], legend_items(rendered).map { |item| legend_name(item) }
+  end
+
+  test "legend values and segment titles are German numbers" do
+    rendered = render_bar([ row(id: "washer", role: :consumer, apower_w: 1980.4) ])
+
+    assert_equal "1.980 W", legend_items(rendered).first.css("span")[2].text
+    assert_equal "Washer · 1.980 W", segments(rendered).first["title"]
+    assert_equal "1.980 W", total(rendered)
   end
 
   test "with nothing online the bar renders empty at 0 W" do
@@ -150,6 +158,6 @@ class Dashboard::PlugBarComponentTest < ViewComponent::TestCase
       row(id: "fridge", role: :consumer, apower_w: 80.0)
     ])
 
-    assert legend_items(rendered).none? { |item| legend_name(item) == "Bkw" }
+    assert producer_lines(rendered).none?
   end
 end

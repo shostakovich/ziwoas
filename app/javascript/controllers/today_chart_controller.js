@@ -1,6 +1,6 @@
 import { Controller } from "@hotwired/stimulus"
 import "chart.js"
-import { chartTheme, vizToken, timeScale, timeCategoryScale, formatTime } from "lib/chart_theme"
+import { chartTheme, vizToken, timeScale, timeCategoryScale, formatTime, isPhone } from "lib/chart_theme"
 
 export default class extends Controller {
   static targets = ["powerCanvas", "energyCanvas", "deltas"]
@@ -133,14 +133,14 @@ export default class extends Controller {
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        // Five-minute samples: thin lines keep the series apart.
-        elements: { line: { borderWidth: 1.25 } },
+        // Minute samples: thin lines keep the series apart, thinner on a phone.
+        elements: { line: { borderWidth: isPhone() ? 0.75 : 1.25 } },
         scales: {
-          x: { ...timeScale(Date.now() - 86_400_000, Date.now()), title: { display: true, text: "Uhrzeit" } },
-          y: { beginAtZero: true, title: { display: true, text: "Watt" } },
+          x: timeScale(Date.now() - 86_400_000, Date.now()),
+          y: { beginAtZero: true, title: { display: true, text: "Watt" }, unit: "W" },
         },
         plugins: {
-          legend: { position: "bottom", labels: { boxWidth: 12, boxHeight: 12, padding: 10, font: { size: 12 }, filter: (item, data) => !data.datasets[item.datasetIndex]?.hidden } },
+          legend: { position: "bottom" },
           tooltip: { callbacks: { title: (items) => items.length ? formatTime(items[0].parsed.x, { hour: "2-digit", minute: "2-digit" }) : "" } },
         },
         animation: false,
@@ -190,9 +190,9 @@ export default class extends Controller {
         maintainAspectRatio: false,
         scales: {
           x: { stacked: true, ...timeCategoryScale(sorted.map((ts) => ts * 1000)) },
-          y: { stacked: true, beginAtZero: true, title: { display: true, text: "kWh" } },
+          y: { stacked: true, beginAtZero: true, title: { display: true, text: "kWh" }, unit: "kWh", decimals: 2 },
         },
-        plugins: { legend: { position: "bottom", labels: { boxWidth: 12, boxHeight: 12, padding: 10, font: { size: 12 }, filter: (item, data) => !data.datasets[item.datasetIndex]?.hidden } } },
+        plugins: { legend: { position: "bottom" } },
         animation: false,
       },
       plugins: [ chartTheme ],
@@ -265,7 +265,7 @@ export default class extends Controller {
       data: Array.from(pointsByTs.entries())
         .sort(([a], [b]) => a - b)
         .map(([x, y]) => ({ x, y })),
-      tone: "--viz-grid",
+      tone: "--viz-total",
       fill: false,
       pointRadius: 0,
       tension: 0.2,
