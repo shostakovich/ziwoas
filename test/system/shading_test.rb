@@ -19,7 +19,8 @@ class ShadingTest < ApplicationSystemTestCase
     assert_text(/Die vier Panels im Tagesverlauf/i)
 
     assert_selector ".shading [data-chart='yield-map'] .fields rect", minimum: 20, visible: :all
-    assert_selector ".shading [data-chart='yield-map'] polyline.sun", count: 3, visible: :all
+    assert_selector ".shading [data-chart='yield-map'] .yield-map-wide polyline.sun", count: 3, visible: :all
+    assert_selector ".shading [data-chart='yield-map'] .yield-map-narrow polyline.sun", count: 3, visible: :all
     assert_selector ".shading [data-chart='daily-profiles'] .multiple", count: 3
     assert_selector ".shading [data-chart='panels'] .panel-chart-wide polyline", count: 4, visible: :all
 
@@ -34,6 +35,8 @@ class ShadingTest < ApplicationSystemTestCase
 
     assert_selector ".shading [data-chart='yield-map'] .label-sparse text", visible: true, minimum: 1
     assert_no_selector ".shading [data-chart='yield-map'] .label-dense text", visible: true
+    assert_selector ".shading .yield-map-narrow", visible: true
+    assert_no_selector ".shading .yield-map-wide", visible: true
     assert_selector ".shading .panel-chart-narrow", visible: true
     assert_no_selector ".shading .panel-chart-wide", visible: true
 

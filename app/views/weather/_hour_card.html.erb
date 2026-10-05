@@ -8,7 +8,7 @@
 <%# The strip decides which rows exist (weather_hour_rows); a card with nothing
     to tell in one of them keeps an invisible placeholder, so the cards line up.
     Rain comes last: an hour without it then ends early instead of leaving a
-    gap. Wind and sun carry no unit here; the strip's key names it once. %>
+    gap. Wind, sun and rain carry no unit here; the strip's key names it once. %>
 <article class="weather-hour-card flex-shrink-0 text-center small">
   <div class="weather-hour-time fw-semibold tabular-nums"><%= record.timestamp.strftime("%H:%M") %></div>
   <%= image_tag record.asset_name, class: "weather-icon weather-icon-sm d-block mx-auto my-2", width: 42, height: 42, loading: "lazy", alt: weather_icon_label(record.icon) %>

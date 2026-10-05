@@ -26,7 +26,11 @@ module Solakon
 
     Series = Data.define(:key, :segments)
     Hit = Data.define(:rect, :title)
-    Label = Data.define(:x, :y, :text)
+    # The zero stands on the axis rather than across it, clear of the first
+    # hour hanging below.
+    Label = Data.define(:x, :y, :text, :zero) do
+      def initialize(x:, y:, text:, zero: false) = super
+    end
     Multiple = Data.define(:month, :label, :days, :partial, :series, :areas, :hits) do
       def partial? = partial
     end
@@ -60,7 +64,7 @@ module Solakon
 
     def value_labels
       grid.map do |tick|
-        Label.new(x: plot.left - VALUE_LABEL_GAP, y: tick.at, text: tick.value.to_s)
+        Label.new(x: plot.left - VALUE_LABEL_GAP, y: tick.at, text: tick.value.to_s, zero: tick.value.zero?)
       end
     end
 

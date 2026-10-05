@@ -22,7 +22,10 @@ module Solakon
 
       Series = Data.define(:key, :segments)
       Hit = Data.define(:rect, :title)
-      Label = Data.define(:x, :y, :text, :key)
+      # A zero stands on the axis rather than across it, clear of the hours.
+      Label = Data.define(:x, :y, :text, :key, :zero) do
+        def initialize(x:, y:, text:, key:, zero: false) = super
+      end
       # A name at the right edge and the end of its own line, which the leader joins.
       EndLabel = Data.define(:x, :y, :text, :key, :line_x, :line_y) do
         def leader = [ line_x, line_y, x - LEADER_GAP, y ]
@@ -61,7 +64,7 @@ module Solakon
       def grid_lines = grid.reject { |tick| tick.value.zero? }.map(&:at)
 
       def value_labels
-        grid.map { |tick| Label.new(x: value_label_x, y: tick.at, text: tick.value.to_s, key: nil) }
+        grid.map { |tick| Label.new(x: value_label_x, y: tick.at, text: tick.value.to_s, key: nil, zero: tick.value.zero?) }
       end
 
       # The unit reads on from the top value, which stands at the top of the plot.

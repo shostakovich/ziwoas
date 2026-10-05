@@ -53,16 +53,14 @@
     <% status_messages.each do |message| %>
       <p class="small text-body-secondary mb-1"><%= message %></p>
     <% end %>
-    <div class="accordion mt-3">
-      <details class="accordion-item">
-        <summary class="accordion-button">Details</summary>
-        <div class="accordion-body small text-body-secondary">
-          <p class="mb-1">Speichertemperatur (Status/Regelung) <%= fmt.call(battery_temp_c, 1) %> °C</p>
-          <p class="mb-1">Wechselrichtertemperatur <%= fmt.call(reading&.inverter_temperature_c || latest&.inverter_temperature_c, 1) %> °C</p>
-          <p class="mb-0">Außensteckdose <%= reading&.eps_enabled ? "bereit" : "aus" %></p>
-        </div>
-      </details>
-    </div>
+    <details class="solakon-details small text-body-secondary mt-2">
+      <summary>Details</summary>
+      <div class="mt-2">
+        <p class="mb-1">Speichertemperatur (Status/Regelung) <%= fmt.call(battery_temp_c, 1) %>&nbsp;°C</p>
+        <p class="mb-1">Wechselrichtertemperatur <%= fmt.call(reading&.inverter_temperature_c || latest&.inverter_temperature_c, 1) %>&nbsp;°C</p>
+        <p class="mb-0">Außensteckdose <%= reading&.eps_enabled ? "bereit" : "aus" %></p>
+      </div>
+    </details>
   <% end %>
 
   <h2 class="h6 text-uppercase text-body-secondary mt-4 mb-2">Steuerung</h2>

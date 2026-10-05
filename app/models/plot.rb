@@ -38,8 +38,6 @@ class Plot
 
   def bottom = number(y_from)
 
-  def box = Rect.new(x: left, y: top, width: number(x_to - x_from), height: number(plot_height))
-
   def x(value) = x_from + share(value, @x_domain) * (x_to - x_from)
 
   def y(value) = y_from + share(value, @y_domain) * (y_to - y_from)

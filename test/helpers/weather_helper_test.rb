@@ -6,6 +6,7 @@ class WeatherHelperTest < ActionView::TestCase
   cover "WeatherHelper#weather_condition_label"
   cover "WeatherHelper#weather_hour_rows"
   cover "WeatherHelper#weather_hour_rain"
+  cover "WeatherHelper#weather_hour_units"
   cover "WeatherHelper#weather_segment_rows"
   cover "WeatherHelper#weather_windy?"
   cover "WeatherHelper#weather_sunny?"
@@ -38,9 +39,21 @@ class WeatherHelperTest < ActionView::TestCase
   end
 
   test "the rain line prefers the amount over the chance of rain" do
-    assert_equal [ "1,2 mm", "Regen" ], weather_hour_rain(hour(precipitation: 1.2, precipitation_probability: 90))
+    assert_equal [ "1,2", "Regen in mm" ], weather_hour_rain(hour(precipitation: 1.2, precipitation_probability: 90))
     assert_equal [ "30 %", "Regenwahrscheinlichkeit" ], weather_hour_rain(hour(precipitation: 0, precipitation_probability: 30))
     assert_equal [ "80 %", "Regenwahrscheinlichkeit" ], weather_hour_rain(hour(precipitation_probability: 80))
+  end
+
+  test "the key names the unit of every row the strip has, rain only for an amount" do
+    day = hour(daytime: "day", wind_speed: 12)
+    chance = hour(precipitation: 0, precipitation_probability: 60)
+    rainy = hour(precipitation: 0.4)
+
+    assert_equal [ "Wind in km/h", "Sonne in W/m²", "Regen in mm" ], weather_hour_units([ day, chance, rainy ])
+    assert_equal [ "Wind in km/h", "Sonne in W/m²" ], weather_hour_units([ day, chance ]), "a chance carries its own %"
+    assert_equal [ "Regen in mm" ], weather_hour_units([ rainy ])
+    assert_empty weather_hour_units([ hour(precipitation: 0) ])
+    assert_empty weather_hour_units([])
   end
 
   test "the rain line says nothing below a 30 % chance" do

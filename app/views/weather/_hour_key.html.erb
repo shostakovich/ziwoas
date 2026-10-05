@@ -1,6 +1,6 @@
-<%# locals: (rows:, classes:) -%>
+<%# locals: (records:, classes:) -%>
 <%# The units the hour cards leave out, named once for the whole strip. %>
-<% units = { wind: "Wind in km/h", solar: "Sonne in W/m²" }.slice(*rows).values %>
+<% units = weather_hour_units(records) %>
 <% if units.any? %>
-  <p class="weather-hour-key small text-body-secondary mb-0 <%= classes %>"><%= units.join(" · ") %></p>
+  <p class="weather-hour-key small text-body-secondary mb-0 <%= classes %>"><%= safe_join(units.map { |unit| tag.span(unit, class: "text-nowrap") }, " · ") %></p>
 <% end %>

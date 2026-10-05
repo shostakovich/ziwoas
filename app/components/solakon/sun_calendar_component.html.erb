@@ -14,9 +14,8 @@
             <g class="grid"><% month_lines(plot).each do |at| %><line x1="<%= at %>" x2="<%= at %>" y1="<%= month_line_top(plot) %>" y2="<%= plot.bottom %>"/><% end %></g>
             <g class="month-labels label-<%= density(frame) %>"><% month_labels(plot, density(frame)).each do |label| %><text x="<%= label.x %>" y="<%= label.y %>"><%= label.text %></text><% end %></g>
             <g class="hour-labels label-<%= density(frame) %>" dominant-baseline="central"><% hour_labels(plot, density(frame)).each do |label| %><text x="<%= label.x %>" y="<%= label.y %>" text-anchor="end"><%= label.text %></text><% end %></g>
-            <rect class="nodata" x="<%= plot.box.x %>" y="<%= plot.box.y %>" width="<%= plot.box.width %>" height="<%= plot.box.height %>"/>
             <% if frame == :wide %>
-              <g class="cells" id="<%= cells_id(strip) %>" shape-rendering="crispEdges"><% cells(strip).each do |group| %><g style="fill: <%= group.fill %>"><% group.rects.each do |cell| %><rect x="<%= cell.x %>" y="<%= cell.y %>" width="<%= cell.width %>" height="<%= cell.height %>"/><% end %></g><% end %></g>
+              <g class="cells" id="<%= cells_id(strip) %>" shape-rendering="crispEdges"><% cells(strip).each do |group| %><g <%= tag.attributes(class: ("nodata" if group.nodata?), style: ("fill: #{group.fill}" unless group.nodata?)) %>><% group.rects.each do |cell| %><rect x="<%= cell.x %>" y="<%= cell.y %>" width="<%= cell.width %>" height="<%= cell.height %>"/><% end %></g><% end %></g>
             <% else %>
               <use class="cells" href="#<%= cells_id(strip) %>" transform="<%= cells_transform %>"/>
             <% end %>
@@ -55,7 +54,7 @@
              class="energy-chart-<%= frame %> <%= frame_classes(frame) %>">
           <g class="grid"><% month_lines(plot).each do |at| %><line x1="<%= at %>" x2="<%= at %>" y1="<%= plot.top %>" y2="<%= plot.bottom %>"/><% end %></g>
           <g class="grid"><% bar_grid_lines(plot).each do |at| %><line x1="<%= plot.left %>" x2="<%= plot.right %>" y1="<%= at %>" y2="<%= at %>"/><% end %></g>
-          <g class="hour-labels" dominant-baseline="central"><% bar_grid_labels(plot).each do |label| %><text x="<%= label.x %>" y="<%= label.y %>" text-anchor="end"><%= label.text %></text><% end %></g>
+          <g class="hour-labels" dominant-baseline="central"><% bar_grid_labels(plot).each do |label| %><text x="<%= label.x %>" y="<%= label.y %>" text-anchor="end" <%= tag.attributes(class: ("zero" if label.zero)) %>><%= label.text %></text><% end %></g>
           <% unit = bar_unit_label(plot) %><text class="unit" x="<%= unit.x %>" y="<%= unit.y %>"><%= unit.text %></text>
           <g class="month-labels label-<%= density(frame) %>" dominant-baseline="hanging"><% month_labels(plot, density(frame)).each do |label| %><text x="<%= label.x %>" y="<%= month_label_top(plot) %>"><%= label.text %></text><% end %></g>
           <g class="bars" shape-rendering="crispEdges"><% bar_areas(plot).each do |area| %><path d="<%= area %>"/><% end %></g>

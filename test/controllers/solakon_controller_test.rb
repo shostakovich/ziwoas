@@ -164,8 +164,8 @@ class SolakonControllerTest < ActionDispatch::IntegrationTest
     assert_select ".solakon-panel-card .stat-label", text: "Panel 3"
     assert_select ".solakon-panel-card .stat-label", text: "Panel 4"
     assert_select ".solakon-panel-card .text-body-secondary", text: "41,7 V · 5,12 A"
-    assert_select ".text-body-secondary", text: /Speichertemperatur.*24,8 °C/
-    assert_select ".text-body-secondary", text: /Wechselrichtertemperatur.*34,1 °C/
+    assert_select ".text-body-secondary", text: /Speichertemperatur.*24,8\u00A0°C/
+    assert_select ".text-body-secondary", text: /Wechselrichtertemperatur.*34,1\u00A0°C/
 
     assert_select ".solakon-storage-grid .stat-label", text: "Ladestand"
     assert_select ".solakon-storage-grid .stat-label", text: "Batterie\u00ADgesundheit"

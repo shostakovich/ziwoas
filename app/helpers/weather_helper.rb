@@ -29,6 +29,9 @@ module WeatherHelper
     "thunderstorm" => "Gewitter"
   }.freeze
 
+  # The units an hour strip's rows leave out, named once in its key.
+  HOUR_UNITS = { wind: "Wind in km/h", solar: "Sonne in W/m²", rain: "Regen in mm" }.freeze
+
   # From here on a value is worth a second look and is set in bold.
   WINDY_KM_PER_H = 20
   SUNNY_W_PER_M2 = 400
@@ -50,6 +53,14 @@ module WeatherHelper
     }.select { |_row, needed| needed }.keys
   end
 
+  # The key under an hour strip. Rain needs it only for an amount; a chance
+  # of rain carries its own "%".
+  def weather_hour_units(records)
+    rows = weather_hour_rows(records)
+    rows -= [ :rain ] unless records.any? { |record| record.precipitation&.positive? }
+    rows.map { |row| HOUR_UNITS.fetch(row) }
+  end
+
   # The optional rows of a day's four segment tiles, decided for the day so
   # the tiles' rows line up side by side.
   def weather_segment_rows(segments)
@@ -64,10 +75,11 @@ module WeatherHelper
   def weather_sunny?(w_per_m2) = w_per_m2.to_i >= SUNNY_W_PER_M2
 
   # The rain line of an hour card as [text, icon alt]: the amount when it
-  # rains, otherwise a likely chance of rain, otherwise nothing.
+  # rains, its unit left to the strip's key, otherwise a likely chance of
+  # rain, otherwise nothing.
   def weather_hour_rain(record)
     if record.precipitation&.positive?
-      [ "#{de_number(record.precipitation, precision: 1)} mm", "Regen" ]
+      [ de_number(record.precipitation, precision: 1), HOUR_UNITS.fetch(:rain) ]
     elsif record.precipitation_probability.to_i >= 30
       [ "#{record.precipitation_probability} %", "Regenwahrscheinlichkeit" ]
     end

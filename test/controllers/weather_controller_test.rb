@@ -153,7 +153,9 @@ class WeatherControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ 1, 1, 1 ], lists.map { |list| list.css("li.invisible").length }
     assert_equal "40 %", lists[1].css(".weather-hour-rain").text.squish
     assert_equal "Regenwahrscheinlichkeit", lists[1].css(".weather-hour-rain img").sole["alt"]
-    assert_equal "1,2 mm", lists[2].css(".weather-hour-rain").text.squish
+    assert_equal "1,2", lists[2].css(".weather-hour-rain").text.squish
+    assert_equal "Regen in mm", lists[2].css(".weather-hour-rain img").sole["alt"]
+    assert_select ".weather-hour-row .weather-hour-key", text: "Wind in km/h · Sonne in W/m² · Regen in mm"
     assert_equal "25", lists[2].css(".weather-hour-wind.fw-semibold").text.squish
     assert_select ".weather-hour-card strong", text: "−2°"
   end
@@ -239,6 +241,9 @@ class WeatherControllerTest < ActionDispatch::IntegrationTest
     assert_select ".weather-day-card .weather-day-summary", text: /13.*–.*17.*°C/
     assert_select ".weather-day-card .weather-day-summary", text: /Regen 1,8 mm/
     assert_select ".weather-day-card .weather-day-peak", text: /Spitze 480 W\/m²/
+    assert_select ".weather-day-card .card-header > div > h3 + .weather-day-peak", 1,
+                  "the peak shares the title's line, so the summary stays the second"
+    assert_select ".weather-day-card .card-header > .weather-day-summary", 1
   end
 
   test "day card omits rain summary when total precipitation is zero" do

@@ -39,6 +39,12 @@ class Solakon::SunCalendarComponentTest < ViewComponent::TestCase
 
   def bars(rendered, frame = "wide") = rendered.css("[data-strip='energy'] svg.energy-chart-#{frame}").sole
 
+  def coloured(rendered, strip = "pv") = rendered.css("[data-strip='#{strip}'] .cells g:not(.nodata)")
+
+  def coloured_cells(rendered, strip = "pv") = coloured(rendered, strip).css("rect")
+
+  def nodata_cells(rendered, strip = "pv") = rendered.css("[data-strip='#{strip}'] .cells g.nodata rect")
+
   # The outline of a run of bars as [x, top] per day, read from its path.
   def steps(path)
     path["d"].scan(/V([\d.]+)H([\d.]+)/).map { |top, right| [ right.to_f, top.to_f ] }
@@ -72,8 +78,7 @@ class Solakon::SunCalendarComponentTest < ViewComponent::TestCase
 
     assert_equal %w[strip-chart-wide d-none d-sm-block], wide(rendered)["class"].split
     assert_equal %w[strip-chart-narrow d-sm-none], narrow(rendered)["class"].split
-    assert_equal "0 0 720 394", narrow(rendered)["viewBox"]
-    assert_equal %w[56 30 660 360], %w[x y width height].map { |name| narrow(rendered).css("rect.nodata").sole[name] }
+    assert_equal "0 0 720 534", narrow(rendered)["viewBox"]
   end
 
   test "stretches the wide strip's cells onto the phone's taller rows instead of writing them twice" do
@@ -83,8 +88,8 @@ class Solakon::SunCalendarComponentTest < ViewComponent::TestCase
     assert_empty narrow(rendered).css("g.cells rect")
     use = narrow(rendered).css("use.cells").sole
     assert_equal "#sun-cells-pv", use["href"]
-    # 18 units a row instead of 8, with the plot's top kept at 30.
-    assert_equal "matrix(1 0 0 2.25 0 -37.5)", use["transform"]
+    # 25 units a row instead of 8, with the plot's top kept at 30.
+    assert_equal "matrix(1 0 0 3.125 0 -63.8)", use["transform"]
     assert_equal %w[sun-cells-pv sun-cells-irradiance sun-cells-cloud], rendered.css("g.cells").map { |node| node["id"] }
   end
 
@@ -100,13 +105,13 @@ class Solakon::SunCalendarComponentTest < ViewComponent::TestCase
   test "paints a cell in the ramp colour of its value" do
     rendered = render_calendar(pv: { [ 100, 12 ] => 800.0 })
 
-    assert_equal "fill: var(--ramp-amber-2)", rendered.css("[data-strip='pv'] .cells g").first["style"]
+    assert_equal "fill: var(--ramp-amber-2)", coloured(rendered).sole["style"]
   end
 
   test "merges neighbouring days of equal colour into one rectangle" do
     values = (10..14).to_h { |doy| [ [ doy, 12 ], 400.0 ] }
 
-    cells = render_calendar(pv: values).css("[data-strip='pv'] .cells rect")
+    cells = coloured_cells(render_calendar(pv: values))
 
     assert_equal 1, cells.length
     assert_in_delta 5 * (720 - 60) / 365.0, cells.first["width"].to_f, 0.05
@@ -114,15 +119,25 @@ class Solakon::SunCalendarComponentTest < ViewComponent::TestCase
 
   test "keeps a gap between days that are not neighbours" do
     values = { [ 10, 12 ] => 400.0, [ 12, 12 ] => 400.0 }
+    rendered = render_calendar(pv: values)
 
-    assert_equal 2, render_calendar(pv: values).css("[data-strip='pv'] .cells rect").length
+    assert_equal 2, coloured_cells(rendered).length
+    gap = nodata_cells(rendered).find { |cell| cell["y"] == coloured_cells(rendered).first["y"] && cell["x"].to_f > 70 && cell["x"].to_f < 80 }
+    assert_in_delta (720 - 60) / 365.0, gap["width"].to_f, 0.05, "the day between them lies on the no-data ground"
   end
 
-  test "leaves days without a value on the no-data ground" do
+  test "lays the no-data ground only under hours without a value, so quiet hours stay translucent" do
     rendered = render_calendar
 
-    assert_equal 1, wide(rendered).css("rect.nodata").length
-    assert_equal 1, rendered.css("[data-strip='pv'] .cells rect").length
+    assert_empty rendered.css("rect.nodata"), "no ground under the whole plot"
+    assert_equal 1, coloured_cells(rendered).length
+    # Nineteen empty rows in one piece each; noon's row is split around day 100.
+    assert_equal 21, nodata_cells(rendered).length
+    assert_equal 1, rendered.css("[data-strip='pv'] .cells g.nodata").length
+    assert_nil rendered.css("[data-strip='pv'] .cells g.nodata").sole["style"]
+    noon = nodata_cells(rendered).select { |cell| cell["y"] == coloured_cells(rendered).sole["y"] }
+    assert_equal [ [ "56", "179" ], [ "236.8", "479.2" ] ], noon.map { |cell| [ cell["x"], cell["width"] ] }
+    assert_equal 20, nodata_cells(rendered, "irradiance").length, "a strip without values is ground from end to end"
     assert_includes rendered.css("[data-strip='pv'] .legend").text, "keine Daten"
   end
 
@@ -196,7 +211,7 @@ class Solakon::SunCalendarComponentTest < ViewComponent::TestCase
     assert_equal 1, seam.length
     assert_equal "363.4", seam.first["x1"]
     assert_equal seam.first["x1"], seam.first["x2"]
-    assert_equal [ "363.4", "30", "390" ], %w[x1 y1 y2].map { |name| narrow(rendered).css("line.seam").sole[name] }
+    assert_equal [ "363.4", "30", "530" ], %w[x1 y1 y2].map { |name| narrow(rendered).css("line.seam").sole[name] }
     assert_includes rendered.css("[data-strip='pv'] .legend").text, "Wechsel der Quelle"
   end
 
@@ -243,7 +258,7 @@ class Solakon::SunCalendarComponentTest < ViewComponent::TestCase
     rendered = render_calendar
 
     assert_equal %w[26 190], %w[y1 y2].map { |name| wide(rendered).css(".grid line").first[name] }
-    assert_equal %w[26 390], %w[y1 y2].map { |name| narrow(rendered).css(".grid line").first[name] }
+    assert_equal %w[26 530], %w[y1 y2].map { |name| narrow(rendered).css(".grid line").first[name] }
   end
 
   test "labels the wide frame densely and the phone's sparsely" do
@@ -315,7 +330,7 @@ class Solakon::SunCalendarComponentTest < ViewComponent::TestCase
     rendered = render_calendar(hours: (1..23))
 
     assert_equal "0 0 720 218", wide(rendered)["viewBox"]
-    assert_equal "0 0 720 448", narrow(rendered)["viewBox"]
+    assert_equal "0 0 720 609", narrow(rendered)["viewBox"]
   end
 
   test "sizes the energy chart's viewBox from the bars height and bottom margin, taller for phones" do
@@ -339,6 +354,13 @@ class Solakon::SunCalendarComponentTest < ViewComponent::TestCase
     assert_equal "275", chart.css(".month-labels.label-sparse text").first["y"]
   end
 
+  test "stands the energy axis' zero on the axis, clear of the month below" do
+    labels = bars(render_calendar(days: [ day(1, pv_kwh: 4.0), *(2..365).map { |doy| day(doy) } ])).css(".hour-labels text")
+
+    assert_equal %w[zero], labels.first["class"].split
+    assert_equal [ nil ], labels.drop(1).map { |label| label["class"] }.uniq
+  end
+
   test "names the energy axis' unit above it, over the plot's left edge" do
     units = render_calendar.css("[data-strip='energy'] text.unit")
 
@@ -350,10 +372,11 @@ class Solakon::SunCalendarComponentTest < ViewComponent::TestCase
     days[99] = day(100, pv_kwh: 3.0)
     rendered = render_calendar(days: days, pv: { [ 10, 12 ] => 800.0 }, lines: year_lines((1..365).to_a))
 
-    ground = wide(rendered).css("rect.nodata").sole
-    assert_equal %w[56 30 660 160], %w[x y width height].map { |name| ground[name] }
+    ground = nodata_cells(rendered)
+    assert_equal [ "56", "30" ], [ ground.first["x"], ground.first["y"] ]
+    assert_equal "190", ground.map { |rect| Plot.number(rect["y"].to_f + rect["height"].to_f) }.max.to_s
 
-    cell = rendered.css("[data-strip='pv'] .cells rect").sole
+    cell = coloured_cells(rendered).sole
     assert_equal %w[72.3 102 1.8 8], %w[x y width height].map { |name| cell[name] }
 
     hit = wide(rendered).css(".hits rect")[99]
@@ -452,7 +475,7 @@ class Solakon::SunCalendarComponentTest < ViewComponent::TestCase
   test "colours a cell by its share of the strip's maximum, not by the raw value" do
     rendered = render_calendar(pv: { [ 10, 12 ] => 400.0 })
 
-    fill = rendered.css("[data-strip='pv'] .cells g").first["style"]
+    fill = coloured(rendered).sole["style"]
 
     assert_equal "fill: #{Ramp.fetch(:amber).color(0.5)}", fill
   end
@@ -462,7 +485,7 @@ class Solakon::SunCalendarComponentTest < ViewComponent::TestCase
     # different stop than dividing the unrounded fraction straight through.
     rendered = render_calendar(pv: { [ 10, 12 ] => 390.0 })
 
-    fill = rendered.css("[data-strip='pv'] .cells g").first["style"]
+    fill = coloured(rendered).sole["style"]
 
     assert_equal "fill: color-mix(in oklab, var(--ramp-amber-1) 96.9%, var(--ramp-amber-0))", fill
   end
@@ -470,7 +493,7 @@ class Solakon::SunCalendarComponentTest < ViewComponent::TestCase
   test "includes both the year's first and last day in the heat strip" do
     values = { [ 1, 12 ] => 200.0, [ 365, 12 ] => 800.0 }
 
-    rects = render_calendar(pv: values).css("[data-strip='pv'] .cells rect")
+    rects = coloured_cells(render_calendar(pv: values))
 
     assert_equal 2, rects.length
     assert_equal "56", rects.first["x"]
@@ -479,7 +502,7 @@ class Solakon::SunCalendarComponentTest < ViewComponent::TestCase
   test "keeps adjacent days with different values as separate rectangles" do
     values = { [ 10, 12 ] => 200.0, [ 11, 12 ] => 800.0 }
 
-    rects = render_calendar(pv: values).css("[data-strip='pv'] .cells rect")
+    rects = coloured_cells(render_calendar(pv: values))
 
     assert_equal 2, rects.length
   end
@@ -492,7 +515,7 @@ class Solakon::SunCalendarComponentTest < ViewComponent::TestCase
 
     assert_equal %w[06:00 09:00 12:00 15:00 18:00 21:00], dense.map(&:text)
     assert_equal %w[06 12 18], sparse.map(&:text)
-    assert_equal [ %w[51 84], %w[51 192], %w[51 300] ], sparse.map { |label| [ label["x"], label["y"] ] }
+    assert_equal [ %w[51 105], %w[51 255], %w[51 405] ], sparse.map { |label| [ label["x"], label["y"] ] }
   end
 
   test "keeps the hour labels on the clock's step and two rows clear of the month labels" do

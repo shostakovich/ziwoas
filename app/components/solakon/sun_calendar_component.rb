@@ -13,7 +13,7 @@ module Solakon
     RIGHT = 4
     TOP = 30
     BOTTOM_PAD = 4
-    ROW_HEIGHTS = { wide: 8, narrow: 18 }.freeze
+    ROW_HEIGHTS = { wide: 8, narrow: 25 }.freeze
     BARS_HEIGHTS = { wide: 100, narrow: 240 }.freeze
     DENSITIES = { wide: :dense, narrow: :sparse }.freeze
     BARS_BOTTOM = 34
@@ -36,9 +36,16 @@ module Solakon
     HOUR_LABEL_CLEAR_ROWS = 2
     WEEKDAYS = %w[So Mo Di Mi Do Fr Sa].freeze
 
-    Cells = Data.define(:fill, :rects)
+    # A group without a fill holds the hours nobody measured.
+    Cells = Data.define(:fill, :rects) do
+      def nodata? = fill.nil?
+    end
     Hit = Data.define(:rect, :title)
-    Label = Data.define(:x, :y, :text)
+    # The zero stands on the axis rather than across it, clear of the first
+    # month hanging below.
+    Label = Data.define(:x, :y, :text, :zero) do
+      def initialize(x:, y:, text:, zero: false) = super
+    end
 
     def initialize(calendar:)
       @calendar = calendar
@@ -73,6 +80,8 @@ module Solakon
     # Grouped by colour so the fill is written once instead of on every
     # rectangle. They are measured in the wide frame; the narrow one stretches
     # the same cells instead of writing thousands of them a second time.
+    # Hours without a value are cells too: the ramp's low end is translucent,
+    # so a ground under the whole plot would tint every quiet hour.
     def cells(strip)
       ramp = Ramp.fetch(strip.ramp)
       hours.flat_map { |hour| row_runs(strip, ramp, hour) }
@@ -109,7 +118,7 @@ module Solakon
     # phone's media query enlarges them.
     def bar_grid_labels(plot)
       bar_grid(plot).map do |tick|
-        Label.new(x: plot.left - AXIS_LABEL_GAP, y: tick.at, text: tick.value.to_s)
+        Label.new(x: plot.left - AXIS_LABEL_GAP, y: tick.at, text: tick.value.to_s, zero: tick.value.zero?)
       end
     end
 
@@ -197,16 +206,16 @@ module Solakon
 
     def day_month(date) = date.strftime("%d.%m.")
 
+    # Every day of the year has a cell, measured or not, so a run ends only
+    # where its colour does.
     def row_runs(strip, ramp, hour)
       runs = []
 
       doys.each do |doy|
         value = strip.values[[ doy, hour ]]
-        next if value.nil?
-
-        fill = ramp.color(level(value, strip.max))
+        fill = value && ramp.color(level(value, strip.max))
         run = runs.last
-        if run && run.fetch(:fill) == fill && run.fetch(:last) == doy - 1
+        if run && run.fetch(:fill) == fill
           run[:last] = doy
         else
           runs << { first: doy, last: doy, fill: fill, hour: hour }

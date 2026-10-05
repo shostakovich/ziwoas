@@ -8,7 +8,7 @@
           <%= render "weather/hour_card", record: record, rows: rows %>
         <% end %>
       </div>
-      <%= render "weather/hour_key", rows: rows, classes: "px-4 pb-4" %>
+      <%= render "weather/hour_key", records: today_weather, classes: "px-4 pb-4" %>
     </section>
   <% end %>
 <% end %>

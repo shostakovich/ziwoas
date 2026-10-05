@@ -17,19 +17,31 @@
   vertical-align: -0.45em;
 }
 
-/* Narrow enough that four hours fit beside each other on a phone. */
-.weather-hour-card { min-width: 4rem; }
+/* One width for every hour, narrow enough that four fit beside each other
+   on a phone; no cell carries a unit, so none needs more. */
+.weather-hour-card {
+  width: 4rem;
+  scroll-snap-align: start;
+}
 
 /* A chosen segment tile stays where it is: felt presses .btn.active down by a
    pixel, which would set it off against its neighbours' rows (C7). */
 .weather-segment.btn.active { transform: none; }
 
-/* Hour rows scroll sideways; the right edge fades into the hours that follow.
-   The end padding keeps the last card clear of the fade. */
+/* Hour rows scroll sideways and stop with an hour at the start. The right
+   edge fades over most of a card, so whichever hour the edge cuts reads as
+   going on rather than clipped. The end padding keeps the last card clear
+   of the fade. */
 .weather-hour-scroller {
-  padding-inline-end: 2rem;
-  mask-image: linear-gradient(to right, black calc(100% - 2rem), transparent);
+  --hour-fade: 3.5rem;
+  padding-inline-end: var(--hour-fade);
+  scroll-snap-type: x proximity;
+  scroll-padding-inline-start: var(--space-3);
+  mask-image: linear-gradient(to right, black calc(100% - var(--hour-fade)), transparent);
 }
+/* Snapped hours keep the strip's own start padding: .ps-3 in a day's well,
+   the card body's in today's strip. */
+.weather-hour-scroller.card-body { scroll-padding-inline-start: var(--space-4); }
 
 @media (max-width: 575.98px) {
   .weather-icon-lg { --weather-icon-size: 64px; }
