@@ -57,7 +57,8 @@ class WeatherControllerTest < ActionDispatch::IntegrationTest
     assert_select ".weather-hour-card", minimum: 1
     assert_select ".weather-day-card", minimum: 1
     assert_select ".weather-hour-card .weather-hour-solar", text: "320"
-    assert_select ".weather-hour-key", text: "Wind in km/h · Sonne in W/m²"
+    assert_equal [ [ "Wind in km/h", "Sonne in W/m²" ] ],
+      css_select("ul.weather-hour-key").map { |key| key.css("> li.text-nowrap").map(&:text) }.uniq
   end
 
   test "hourly card renders prominent solar value during the day" do
@@ -98,7 +99,7 @@ class WeatherControllerTest < ActionDispatch::IntegrationTest
 
     get "/weather"
 
-    assert_select ".weather-hour-row .weather-hour-key", text: "Wind in km/h"
+    assert_equal [ "Wind in km/h" ], css_select(".weather-hour-row .weather-hour-key > li").map(&:text)
     assert_select "#seg-2026-05-05-0 .weather-hour-key", count: 0
     assert_select ".weather-hour-row .weather-hour-scroller.pb-2", count: 1
   end
@@ -155,10 +156,10 @@ class WeatherControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Regenwahrscheinlichkeit", lists[1].css(".weather-hour-rain img").sole["alt"]
     assert_equal "1,2", lists[2].css(".weather-hour-rain").text.squish
     assert_equal "Regen in mm", lists[2].css(".weather-hour-rain img").sole["alt"]
-    assert_select ".weather-hour-row .weather-hour-key", text: "Wind in km/h · Sonne in W/m² · Regen in mm"
-    assert_equal [ "Wind in km/h", "· Sonne in W/m²", "· Regen in mm" ],
-      css_select(".weather-hour-row .weather-hour-key > span.text-nowrap").map(&:text),
-      "each unit keeps its leading dot, so the key wraps between units"
+    assert_equal [ "Wind in km/h", "Sonne in W/m²", "Regen in mm" ],
+      css_select(".weather-hour-row ul.weather-hour-key.flex-wrap > li.text-nowrap").map(&:text),
+      "one item per unit, apart by the gap: the key wraps between units, with no dot to strand"
+    assert_no_match(/·/, css_select(".weather-hour-row .weather-hour-key").text)
     assert_equal "25", lists[2].css(".weather-hour-wind.fw-semibold").text.squish
     assert_select ".weather-hour-card strong", text: "−2°"
   end

@@ -19,8 +19,8 @@
 // Per chart, a value scale may name its `unit` and `decimals` (tooltips read
 // "Büro: 0,18 kWh"); a dataset may override both, say a signed flow in words
 // (`flowWords: { positive: "lädt", negative: "entlädt" }`), stay out of the
-// legend (`legend: false`), or carry a label at its line's end instead
-// (`endLabel: "1.400 Grenzwert"`, coloured by `endLabelTone`).
+// legend (`legend: false`), or name its line at the line's end instead
+// (`endLabel: "Grenzwert"`, coloured by `endLabelTone`).
 
 import "chart.js"
 import { themeColor, withAlpha, onThemeChange } from "lib/theme_colors"
@@ -366,31 +366,44 @@ function seriesLines(chart) {
   })
 }
 
+// A line's name, led by its value unless the value axis already labels that
+// value as a tick: "Lüften" on 1.000, "1.400 Grenzwert" between ticks.
+function endLabelText(chart, dataset, meta) {
+  const value = meta.controller.getParsed(meta.data.length - 1)?.y
+  const ticks = chart.scales[meta.yAxisID]?.ticks || []
+  const onTick = ticks.some((tick) => Math.abs(tick.value - value) <= 1e-9 * Math.max(1, Math.abs(value)))
+  if (onTick || !Number.isFinite(value)) return dataset.endLabel
+  const decimals = dataset.decimals ?? scaleConfig(chart, dataset).decimals ?? 0
+  return `${formatNumber(value, { decimals })} ${dataset.endLabel}`
+}
+
 function drawEndLabels(chart) {
   const { ctx, chartArea } = chart
   const lines = seriesLines(chart)
   const taken = []
   chart.data.datasets.forEach((dataset, index) => {
     if (!dataset.endLabel || !chart.isDatasetVisible(index)) return
-    const point = chart.getDatasetMeta(index).data.at(-1)
+    const meta = chart.getDatasetMeta(index)
+    const point = meta.data.at(-1)
     if (!point) return
+    const text = endLabelText(chart, dataset, meta)
     ctx.save()
     ctx.font = `600 ${LEGEND_FONT_PX}px ${Chart.defaults.font.family}`
     const spot = placeEndLabel({
-      lineY: point.y, width: ctx.measureText(dataset.endLabel).width, height: LEGEND_FONT_PX,
+      lineY: point.y, width: ctx.measureText(text).width, height: LEGEND_FONT_PX,
       area: chartArea, lines, taken,
     })
     if (spot) {
       taken.push(spot.box)
-      dataset.endLabelSpot = spot
+      dataset.endLabelSpot = { ...spot, text }
       ctx.textAlign = spot.textAlign
       ctx.textBaseline = spot.textBaseline
       ctx.lineJoin = "round"
       ctx.lineWidth = HALO_WIDTH
       ctx.strokeStyle = withAlpha(themeColor("--surface"), HALO_ALPHA)
       ctx.fillStyle = themeColor(dataset.endLabelTone || "--muted")
-      ctx.strokeText(dataset.endLabel, spot.x, spot.y)
-      ctx.fillText(dataset.endLabel, spot.x, spot.y)
+      ctx.strokeText(text, spot.x, spot.y)
+      ctx.fillText(text, spot.x, spot.y)
     }
     ctx.restore()
   })

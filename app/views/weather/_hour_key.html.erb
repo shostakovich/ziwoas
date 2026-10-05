@@ -1,7 +1,11 @@
 <%# locals: (records:, classes:) -%>
-<%# The units the hour cards leave out, named once for the whole strip. Each
-    separator leads its unit, so a narrow key breaks between units, never after a dot. %>
+<%# The units the hour cards leave out, named once for the whole strip. The gap
+    separates them, so a narrow key breaks between units without a stray dot. %>
 <% units = weather_hour_units(records) %>
 <% if units.any? %>
-  <p class="weather-hour-key small text-body-secondary mb-0 <%= classes %>"><%= safe_join(units.each_with_index.map { |unit, index| tag.span(index.zero? ? unit : "· #{unit}", class: "text-nowrap") }, " ") %></p>
+  <ul class="weather-hour-key list-unstyled d-flex flex-wrap column-gap-3 row-gap-0 small text-body-secondary mb-0 <%= classes %>">
+    <% units.each do |unit| %>
+      <li class="text-nowrap"><%= unit %></li>
+    <% end %>
+  </ul>
 <% end %>

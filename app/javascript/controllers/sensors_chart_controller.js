@@ -2,7 +2,6 @@
 import { Controller } from "@hotwired/stimulus"
 import "chart.js"
 import { chartTheme, vizToken, timeScale, formatTime } from "lib/chart_theme"
-import { formatNumber } from "lib/format"
 
 // CO₂ thresholds drawn as dashed lines, coloured like the traffic light and
 // named at their end.
@@ -114,7 +113,7 @@ export default class extends Controller {
     const data = xBounds ? [ { x: xBounds.min, y: value }, { x: xBounds.max, y: value } ] : []
     return {
       label: name,
-      endLabel: `${formatNumber(value)} ${name}`,
+      endLabel: name,
       endLabelTone: textTone,
       data,
       tone,

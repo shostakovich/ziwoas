@@ -42,7 +42,7 @@ class ChartNumbersTest < ApplicationSystemTestCase
             { label: "Akku", data: [ -0.16, 0.3 ], tone: "--viz-battery", flowWords: { positive: "lädt", negative: "entlädt" } },
             { label: "Büro", data: [ 0.25, 0.1 ], tone: "--viz-1", unit: "kWh", decimals: 2 },
             { label: "Null", data: [ 0, 0 ], tone: "--viz-muted", legend: false },
-            { label: "Grenzwert", data: [ 0.2, 0.2 ], tone: "--danger", endLabel: "0,2 Grenzwert" },
+            { label: "Grenzwert", data: [ 0.2, 0.2 ], tone: "--danger", endLabel: "Grenzwert" },
             { label: "Versteckt", data: [ 0, 0 ], tone: "--viz-2", hidden: true },
           ],
         },
@@ -201,31 +201,45 @@ class ChartNumbersTest < ApplicationSystemTestCase
     assert_equal "left", result["taken"]
   end
 
-  test "the CO₂ chart's threshold labels keep clear of the curve" do
+  test "the CO₂ chart's threshold labels keep clear of the curve and name only values the axis leaves out" do
     result = chart(<<~JS)
-      const canvas = document.createElement("canvas")
-      canvas.style.cssText = "width:600px;height:300px"
-      document.body.appendChild(canvas)
       const points = [ [ 0, 840 ], [ 6, 450 ], [ 12, 1250 ], [ 18, 450 ], [ 23, 1250 ], [ 24, 900 ] ]
-      const chart = new Chart(canvas, {
-        type: "line",
-        data: {
-          datasets: [
-            { label: "Büro", data: points.map(([ x, y ]) => ({ x, y })), tone: "--viz-1" },
-            { label: "Lüften", data: [ { x: 0, y: 1000 }, { x: 24, y: 1000 } ], tone: "--warning", endLabel: "1.000 Lüften" },
-            { label: "Grenzwert", data: [ { x: 0, y: 1400 }, { x: 24, y: 1400 } ], tone: "--danger", endLabel: "1.400 Grenzwert" },
-          ],
-        },
-        options: { animation: false, responsive: false, scales: { x: { type: "linear", min: 0, max: 24 }, y: { beginAtZero: true, suggestedMax: 1500 } } },
-        plugins: [ m.chartTheme ],
-      })
-      const result = chart.data.datasets.slice(1).map((dataset) => dataset.endLabelSpot.textAlign)
-      chart.destroy()
-      canvas.remove()
-      return result
+      const labels = (yTicks) => {
+        const canvas = document.createElement("canvas")
+        canvas.style.cssText = "width:600px;height:300px"
+        document.body.appendChild(canvas)
+        const chart = new Chart(canvas, {
+          type: "line",
+          data: {
+            datasets: [
+              { label: "Büro", data: points.map(([ x, y ]) => ({ x, y })), tone: "--viz-1" },
+              { label: "Lüften", data: [ { x: 0, y: 1000 }, { x: 24, y: 1000 } ], tone: "--warning", endLabel: "Lüften" },
+              { label: "Grenzwert", data: [ { x: 0, y: 1400 }, { x: 24, y: 1400 } ], tone: "--danger", endLabel: "Grenzwert" },
+            ],
+          },
+          options: {
+            animation: false, responsive: false,
+            scales: { x: { type: "linear", min: 0, max: 24 }, y: { beginAtZero: true, suggestedMax: 1500, ticks: yTicks } },
+          },
+          plugins: [ m.chartTheme ],
+        })
+        const result = {
+          ticks: chart.scales.y.ticks.map((tick) => tick.value),
+          spots: chart.data.datasets.slice(1).map(({ endLabelSpot }) => [ endLabelSpot.textAlign, endLabelSpot.text ]),
+        }
+        chart.destroy()
+        canvas.remove()
+        return result
+      }
+      return { fine: labels({ stepSize: 200 }), coarse: labels({ stepSize: 500 }) }
     JS
 
-    assert_equal %w[left right], result, "the curve runs through 1.000 at the right end, so Lüften names itself at the left"
+    assert_includes result["fine"]["ticks"], 1400
+    assert_equal [ %w[left Lüften], %w[right Grenzwert] ], result["fine"]["spots"],
+      "the curve runs through 1.000 at the right end, so Lüften names itself at the left; both values are ticks"
+    assert_not_includes result["coarse"]["ticks"], 1400
+    assert_equal [ "Lüften", "1.400 Grenzwert" ], result["coarse"]["spots"].map(&:last),
+      "a threshold between ticks names its value"
   end
 
   private
