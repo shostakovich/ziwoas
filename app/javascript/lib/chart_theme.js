@@ -11,14 +11,26 @@
 // borderColor and backgroundColor (translucent when `fillAlpha` is set) and
 // colours axes, grid lines, legend and tooltip from felt tokens. When the
 // colour scheme or the look changes, it repaints and redraws the chart.
-// Charts also share the page's font, rounded bar ends and round legend keys
-// (matching .legend-dot).
+// Charts also share the page's font, rounded bar ends, small round legend keys,
+// German numbers (lib/format) on value axes and in tooltips, and fills drawn
+// beneath every line.
+//
+// Per chart, a value scale may name its `unit` and `decimals` (tooltips read
+// "Büro: 0,18 kWh"); a dataset may override both, say a signed flow in words
+// (`flowWords: { positive: "lädt", negative: "entlädt" }`), stay out of the
+// legend (`legend: false`), or carry a label at its line's end instead
+// (`endLabel: "1.400 Grenzwert"`, coloured by `endLabelTone`).
 
 import "chart.js"
 import { themeColor, withAlpha, onThemeChange } from "lib/theme_colors"
+import { formatNumber, formatFlow } from "lib/format"
 
 const VIZ_SIZE = 10
 const GRID_ALPHA = 0.55
+// Legend keys are 9px dots; Chart.js draws a point style at boxHeight·√2/2.
+const LEGEND_KEY_PX = 9
+const LEGEND_FONT_PX = 12
+const PHONE_VALUE_TICKS = 5
 
 // Below felt's sm breakpoint a time axis gets fewer labels.
 const PHONE = window.matchMedia("(max-width: 575.98px)")
@@ -169,15 +181,69 @@ function setDefaults() {
   Chart.defaults.font.family = getComputedStyle(document.body).fontFamily
   Chart.defaults.locale = document.documentElement.lang || "de"
   Chart.defaults.elements.bar.borderRadius = 3
+  Chart.defaults.plugins.filler.drawTime = "beforeDatasetsDraw"
+}
+
+// Value ticks in German, as many decimals as the tick step needs.
+function valueTick(value, _index, ticks) {
+  const step = ticks.length > 1 ? Math.abs(ticks[1].value - ticks[0].value) : 1
+  const decimals = step > 0 && step < 1 ? Math.min(3, Math.ceil(-Math.log10(step) - 1e-9)) : 0
+  return formatNumber(value, { decimals })
+}
+
+function scaleConfig(chart, dataset) {
+  const scales = chart.config.options.scales || {}
+  return scales[dataset.yAxisID || "y"] || {}
+}
+
+// "Büro: 0,18 kWh", "Akku: entlädt 80 W".
+export function tooltipLabel(context) {
+  const dataset = context.dataset
+  const scale = scaleConfig(context.chart, dataset)
+  const unit = dataset.unit ?? scale.unit
+  const decimals = dataset.decimals ?? scale.decimals ?? 0
+  const value = context.parsed.y
+  const text = dataset.flowWords
+    ? formatFlow(value, { ...dataset.flowWords, unit, decimals })
+    : formatNumber(value, { decimals, unit })
+  return `${dataset.label}: ${text}`
 }
 
 // A line's own fill is faint or none; its legend key is a solid dot in the
-// line's colour, like .legend-dot. Dashed lines are thresholds and references,
-// not data: their key is a short dashed line.
+// line's colour, like .legend-dot. A dataset hidden by its config (until shown
+// on purpose), one with an end label and one marked `legend: false` stay out.
+function inLegend(chart, index) {
+  const dataset = chart.data.datasets[index]
+  if (!dataset || dataset.legend === false || dataset.endLabel) return false
+  return !dataset.hidden || chart.isDatasetVisible(index)
+}
+
 function legendKeys(chart) {
-  return Chart.defaults.plugins.legend.labels.generateLabels(chart).map((item) => {
-    if (chart.data.datasets[item.datasetIndex]?.borderDash?.length) return { ...item, pointStyle: "line", lineWidth: 2 }
-    return { ...item, fillStyle: item.strokeStyle || item.fillStyle, lineWidth: 0, lineDash: [] }
+  return Chart.defaults.plugins.legend.labels.generateLabels(chart)
+    .filter((item) => inLegend(chart, item.datasetIndex))
+    .map((item) => ({ ...item, fillStyle: item.strokeStyle || item.fillStyle, lineWidth: 0, lineDash: [] }))
+}
+
+// A reference line (a threshold) names itself at its right end, above the line.
+function drawEndLabels(chart) {
+  const { ctx, chartArea } = chart
+  chart.data.datasets.forEach((dataset, index) => {
+    if (!dataset.endLabel || !chart.isDatasetVisible(index)) return
+    const point = chart.getDatasetMeta(index).data.at(-1)
+    if (!point) return
+    ctx.save()
+    ctx.font = `600 ${LEGEND_FONT_PX}px ${Chart.defaults.font.family}`
+    ctx.textAlign = "right"
+    ctx.textBaseline = "bottom"
+    ctx.lineJoin = "round"
+    ctx.lineWidth = 3
+    ctx.strokeStyle = themeColor("--surface")
+    ctx.fillStyle = themeColor(dataset.endLabelTone || "--muted")
+    const x = Math.min(point.x, chartArea.right) - 4
+    const y = point.y - 3
+    ctx.strokeText(dataset.endLabel, x, y)
+    ctx.fillText(dataset.endLabel, x, y)
+    ctx.restore()
   })
 }
 
@@ -188,25 +254,38 @@ function paintOptions(chart) {
   // The raw config (scales already merged per axis), not the resolver proxy.
   const options = chart.config.options
 
-  for (const scale of Object.values(options.scales || {})) {
+  // Value axes (y…) get German ticks. Phones: no axis titles (the card
+  // subtitle names the unit) and fewer value ticks.
+  for (const [ id, scale ] of Object.entries(options.scales || {})) {
     scale.ticks = Object.assign(scale.ticks || {}, { color: muted })
     scale.title = Object.assign(scale.title || {}, { color: muted })
     scale.grid = Object.assign(scale.grid || {}, { color: grid })
     scale.border = Object.assign(scale.border || {}, { color: grid })
+    // The merged config may already hold Chart.js' own numeric formatter.
+    if (id.startsWith("y") && [ undefined, Chart.Ticks.formatters.numeric ].includes(scale.ticks.callback)) {
+      scale.ticks.callback = valueTick
+    }
+    if (isPhone()) {
+      scale.title.display = false
+      if (id.startsWith("y")) scale.ticks.maxTicksLimit = PHONE_VALUE_TICKS
+    }
   }
 
   options.plugins ||= {}
   const legend = options.plugins.legend ||= {}
+  const keySize = LEGEND_KEY_PX / Math.SQRT2
   legend.labels = Object.assign(legend.labels || {}, {
     color: text, usePointStyle: true, pointStyle: "circle", generateLabels: legendKeys,
+    boxWidth: keySize, boxHeight: keySize, padding: 12, font: { size: LEGEND_FONT_PX },
   })
-  options.plugins.tooltip = Object.assign(options.plugins.tooltip || {}, {
+  const tooltip = options.plugins.tooltip = Object.assign(options.plugins.tooltip || {}, {
     backgroundColor: themeColor("--surface-raised"),
     titleColor: text,
     bodyColor: text,
     borderColor: grid,
     borderWidth: 1,
   })
+  tooltip.callbacks = { label: tooltipLabel, ...tooltip.callbacks }
 }
 
 const subscriptions = new WeakMap()
@@ -228,6 +307,10 @@ export const chartTheme = {
   // Datasets added or replaced after construction get their colours too.
   beforeUpdate(chart) {
     paintDatasets(chart)
+  },
+
+  afterDatasetsDraw(chart) {
+    drawEndLabels(chart)
   },
 
   afterDestroy(chart) {

@@ -27,10 +27,12 @@ module Solakon
       rows = Solakon::Snapshot.in_range(from: from_time, to: @now).to_a
       return empty_payload if rows.empty?
 
+      outlet = outlet_energy(rows)
       {
         range: @range_key,
         chart: chart_payload(rows),
-        balance_rows: balance_rows(rows),
+        balance_rows: balance_rows(rows, outlet),
+        outlet_average: outlet_average(outlet.fetch(:avg_w)),
         message: nil
       }
     end
@@ -55,6 +57,7 @@ module Solakon
           ]
         },
         balance_rows: [],
+        outlet_average: nil,
         message: "Keine Solakon-Historie"
       }
     end
@@ -87,7 +90,7 @@ module Solakon
       @range_key == "24h" ? time.strftime("%H:%M") : time.strftime("%d.%m. %H:%M")
     end
 
-    def balance_rows(rows)
+    def balance_rows(rows, outlet)
       first = rows.first
       last = rows.last
       deltas = {
@@ -100,28 +103,24 @@ module Solakon
       # Außensteckdose power (active_power_w) over the snapshots — the same series
       # that draws the blue chart line. This is the inverter's feed/draw at the
       # outdoor socket, NOT whole-house grid flow (household consumption is unmeasured).
-      outlet = outlet_energy(rows)
-      max = [
-        deltas.values.max.to_f,
-        outlet.fetch(:delivered_kwh),
-        outlet.fetch(:drawn_kwh),
-        outlet.fetch(:avg_w).abs / 1000.0,
-        0.001
-      ].max
+      max = [ deltas.values.max, outlet.fetch(:delivered_kwh), outlet.fetch(:drawn_kwh), 0.001 ].max
 
       [
         row("PV-Erzeugung", deltas.fetch(:pv), max, :solar),
         row("Akku geladen", deltas.fetch(:charge), max, :battery),
         row("Akku entladen", deltas.fetch(:discharge), max, :battery),
         row("Ins Hausnetz geliefert", outlet.fetch(:delivered_kwh), max, :grid),
-        row("Aus Hausnetz gezogen", outlet.fetch(:drawn_kwh), max, :grid),
-        {
-          label: "Ø Außensteckdose",
-          value: "#{format_decimal(outlet.fetch(:avg_w).round)} W",
-          share: ((outlet.fetch(:avg_w).abs / 1000.0) / max * 100).round(1),
-          role: "grid"
-        }
+        row("Aus Hausnetz gezogen", outlet.fetch(:drawn_kwh), max, :grid)
       ]
+    end
+
+    # The mean power at the outlet is no energy and no share of one: a plain
+    # figure, its sign said in words ("liefert 177 W", "zieht 40 W").
+    def outlet_average(avg_w)
+      watts = "#{GermanNumber.format(avg_w.abs)} W"
+      return watts if avg_w.round.zero?
+
+      "#{avg_w.positive? ? 'liefert' : 'zieht'} #{watts}"
     end
 
     # Trapezoidal integration of the signed Außensteckdose power across snapshots.

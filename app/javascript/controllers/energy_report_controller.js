@@ -1,6 +1,6 @@
 import { Controller } from "@hotwired/stimulus"
 import "chart.js"
-import { chartTheme, vizToken, timeCategoryScale, localMidnight } from "lib/chart_theme"
+import { chartTheme, vizToken, timeCategoryScale, localMidnight, isPhone } from "lib/chart_theme"
 
 // Connects to data-controller="energy-report"
 // Renders bar/line charts plus an in-canvas weather-icon plugin that draws
@@ -138,7 +138,7 @@ export default class extends Controller {
     const labels = daily.labels || []
     const consumerDatasets = this._consumerBarDatasets(daily.consumer_series || [], { top: 5 })
     const consumedDatasets = consumerDatasets.length > 0 ? consumerDatasets : [
-      { label: "Verbrauch", data: daily.consumed_kwh || [], tone: "--viz-grid", stack: "consumed" },
+      { label: "Verbrauch", data: daily.consumed_kwh || [], tone: "--viz-total", stack: "consumed" },
     ]
 
     const datasets = [
@@ -167,7 +167,7 @@ export default class extends Controller {
         ticks: { ...timeAxis.ticks, padding: hasIcons && this.dailyWeatherEnabled ? dailyIconsPadding : 0 },
         afterFit: trimXScale,
       },
-      y: { stacked: true, beginAtZero: true, title: { display: true, text: "kWh" } },
+      y: { stacked: true, beginAtZero: true, title: { display: true, text: "kWh" }, unit: "kWh", decimals: 2 },
     }
 
     if (hasSolar) {
@@ -189,6 +189,8 @@ export default class extends Controller {
         beginAtZero: true,
         grid: { drawOnChartArea: false },
         title: { display: true, text: "kWh/m²" },
+        unit: "kWh/m²",
+        decimals: 2,
         display: this.dailyWeatherEnabled,
       }
     }
@@ -204,7 +206,7 @@ export default class extends Controller {
         responsive: true,
         maintainAspectRatio: false,
         scales,
-        plugins: { legend: { position: "bottom", labels: { boxWidth: 12, boxHeight: 12, padding: 10, font: { size: 12 }, filter: (item, data) => !data.datasets[item.datasetIndex]?.hidden } } },
+        plugins: { legend: { position: "bottom" } },
         animation: false,
         _weatherIcons: { enabled: this.dailyWeatherEnabled, icons: iconList, size: 32, gap: 8, paddingOn: dailyIconsPadding },
       },
@@ -238,9 +240,9 @@ export default class extends Controller {
         maintainAspectRatio: false,
         scales: {
           x: timeCategoryScale(ratios.map((r) => localMidnight(r.date))),
-          y: { min: 0, max: 100, title: { display: true, text: "%" } },
+          y: { min: 0, max: 100, title: { display: true, text: "%" }, unit: "%" },
         },
-        plugins: { legend: { position: "bottom", labels: { boxWidth: 12, boxHeight: 12, padding: 10, font: { size: 12 }, filter: (item, data) => !data.datasets[item.datasetIndex]?.hidden } } },
+        plugins: { legend: { position: "bottom" } },
         animation: false,
       },
     })
@@ -294,7 +296,7 @@ export default class extends Controller {
     }
     const scales = {
       x: { ...timeAxis, ticks: { ...timeAxis.ticks, padding: hasIcons && this.detailWeatherEnabled ? detailIconsPadding : 0 }, afterFit: trimXScale },
-      y: { beginAtZero: true, title: { display: true, text: "Watt" } },
+      y: { beginAtZero: true, title: { display: true, text: "Watt" }, unit: "W" },
     }
 
     if (hasSolar) {
@@ -316,6 +318,7 @@ export default class extends Controller {
         beginAtZero: true,
         grid: { drawOnChartArea: false },
         title: { display: true, text: "W/m²" },
+        unit: "W/m²",
         display: this.detailWeatherEnabled,
       }
     }
@@ -326,10 +329,10 @@ export default class extends Controller {
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        // Five-minute samples: thin lines keep the series apart.
-        elements: { line: { borderWidth: 1.25 } },
+        // Five-minute samples: thin lines keep the series apart, thinner on a phone.
+        elements: { line: { borderWidth: isPhone() ? 0.75 : 1.25 } },
         scales,
-        plugins: { legend: { position: "bottom", labels: { boxWidth: 12, boxHeight: 12, padding: 10, font: { size: 12 }, filter: (item, data) => !data.datasets[item.datasetIndex]?.hidden } } },
+        plugins: { legend: { position: "bottom" } },
         animation: false,
         _weatherIcons: { enabled: this.detailWeatherEnabled, icons: hasIcons ? w.icons : [], size: 28, gap: 8, paddingOn: detailIconsPadding },
       },
@@ -357,9 +360,9 @@ export default class extends Controller {
         maintainAspectRatio: false,
         scales: {
           x: { stacked: true, ...timeCategoryScale(detail.times || []) },
-          y: { stacked: true, beginAtZero: true, title: { display: true, text: "Watt" } },
+          y: { stacked: true, beginAtZero: true, title: { display: true, text: "Watt" }, unit: "W" },
         },
-        plugins: { legend: { position: "bottom", labels: { boxWidth: 12, boxHeight: 12, padding: 10, font: { size: 12 }, filter: (item, data) => !data.datasets[item.datasetIndex]?.hidden } } },
+        plugins: { legend: { position: "bottom" } },
         animation: false,
       },
     })
@@ -414,7 +417,7 @@ export default class extends Controller {
 
     return {
       label: "Gesamtverbrauch", data,
-      tone: "--viz-grid",
+      tone: "--viz-total",
       fill: false, tension: 0.2, pointRadius: 0,
     }
   }

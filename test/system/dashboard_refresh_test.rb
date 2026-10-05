@@ -72,7 +72,47 @@ class DashboardRefreshTest < ApplicationSystemTestCase
     assert_no_selector "[data-ef='efDotsSolarHome'] circle", visible: :all
   end
 
+  test "the energy flow says directions in words and colours only the channels that flow" do
+    visit root_path
+
+    inject_stream(beat_stream({
+      solakon_online: true, home_w: 1415.2, solar_w: 2400, battery_soc_pct: 76.4,
+      battery_w: -180.4, battery_state: "discharging", grid_w: -1165.3,
+      flows: { solar_to_home_w: 1235, solar_to_grid_w: 1165.3, battery_to_home_w: 180.4, grid_to_home_w: 0.6 }
+    }.to_json))
+
+    assert_selector "[data-ef='efGridName']", text: "Einspeisung"
+    assert_equal({
+      "efPvW" => "2.400 W", "efConsumerW" => "1.415 W", "efGridW" => "1.165 W",
+      "efBatteryW" => "180 W", "efBatteryName" => "Batterie entlädt", "efBatterySoc" => " · 76 %"
+    }, ef_texts("efPvW", "efConsumerW", "efGridW", "efBatteryW", "efBatteryName", "efBatterySoc"))
+    assert_equal %w[efLineBatteryHome efLineSolarGrid efLineSolarHome],
+                 page.evaluate_script("[...document.querySelectorAll('.ef-link[data-flowing]')].map((l) => l.dataset.ef).sort()")
+
+    inject_stream(beat_stream({
+      solakon_online: true, home_w: 2000, solar_w: 0, battery_soc_pct: nil,
+      battery_w: 150, battery_state: "charging", grid_w: 2150, flows: { grid_to_home_w: 2000, grid_to_battery_w: 150 }
+    }.to_json))
+
+    assert_selector "[data-ef='efGridName']", text: "Netzbezug"
+    assert_equal({ "efGridW" => "2.150 W", "efBatteryName" => "Batterie lädt", "efBatterySoc" => "" },
+                 ef_texts("efGridW", "efBatteryName", "efBatterySoc"))
+
+    inject_stream(beat_stream({ solakon_online: false, home_w: nil, battery_w: 0.4, grid_w: nil, flows: {} }.to_json))
+
+    assert_selector "[data-ef='efGridName']", text: "Stromnetz"
+    assert_equal({ "efPvW" => "— W", "efGridW" => "— W", "efBatteryW" => "0 W", "efBatteryName" => "Batterie" },
+                 ef_texts("efPvW", "efGridW", "efBatteryW", "efBatteryName"))
+    assert_no_selector ".ef-link[data-flowing]", visible: :all
+  end
+
   private
+
+  def ef_texts(*names)
+    page.evaluate_script(<<~JS)
+      Object.fromEntries(#{names.to_json}.map((name) => [ name, document.querySelector(`[data-ef="${name}"]`).textContent ]))
+    JS
+  end
 
   def flow_state(solar_to_home_w:)
     {

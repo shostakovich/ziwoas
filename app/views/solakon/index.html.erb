@@ -137,7 +137,7 @@
     <%= render Dashboard::TileComponent.new(label: "Volle Kapazität", value: "#{fmt.call(latest&.full_charge_capacity_ah, 1)} Ah") %>
   </section>
 
-  <%= render CardComponent.new(title: "Solakon-Verlauf") do %>
+  <%= render CardComponent.new(title: "Solakon-Verlauf", subtitle: "Leistung in Watt") do %>
     <%= render "history", history: @history %>
   <% end %>
 

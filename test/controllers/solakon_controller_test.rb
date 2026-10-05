@@ -108,7 +108,12 @@ class SolakonControllerTest < ActionDispatch::IntegrationTest
     assert_select "a.btn.active", 1
     assert_select "a.btn[href=?]", "/solakon/history?range=30d"
     assert_select "[data-controller='solakon-history'][data-solakon-history-url-value=?]", "/solakon/history?range=7d"
-    assert_select ".solakon-balance-row", minimum: 6
+    assert_select ".solakon-balance-row", 5
+    # Bars in the chart's series colours; the mean outlet power is a plain figure.
+    assert_select ".solakon-balance-row[data-role='solar'] .progress-bar[style*='background-color: var(--viz-solar)']", 1
+    assert_select ".solakon-balance-row[data-role='battery'] .progress-bar[style*='background-color: var(--viz-battery)']", 2
+    assert_select ".solakon-balance-row[data-role='grid'] .progress-bar[style*='background-color: var(--viz-grid)']", 2
+    assert_select "[data-role='outlet-average']", text: /Ø Außensteckdose\s+0 W/
     chart = JSON.parse(css_select("script[data-solakon-history-target='payload']").first.text)
     assert_equal [ "PV", "Akku", "Außensteckdose", "0 W" ], chart.fetch("datasets").map { |dataset| dataset.fetch("label") }
   end
@@ -120,6 +125,7 @@ class SolakonControllerTest < ActionDispatch::IntegrationTest
     assert_select "a.btn.active", text: "Letzte 24 h", count: 1
     assert_select ".text-body-secondary", text: "Keine Solakon-Historie"
     assert_select ".solakon-balance-row", 0
+    assert_select "[data-role='outlet-average']", 0
   end
 
   test "page renders controls, panel, storage, balance, and status labels without protocol language" do
@@ -168,7 +174,7 @@ class SolakonControllerTest < ActionDispatch::IntegrationTest
     assert_select ".solakon-storage-grid .stat-label", text: "Batteriestrom"
     assert_select ".solakon-storage-grid .stat-label", text: "Speicher\u00ADtemperatur"
     assert_select ".solakon-storage-grid .stat-label", text: "Ladezyklen", count: 0
-    assert_select ".solakon-balance-row", minimum: 6
+    assert_select ".solakon-balance-row", 5
     assert_no_match(/SOH|EPS|Modbus|Register|39067|46613|Fault\d|Alarm \d/, response.body)
   end
 

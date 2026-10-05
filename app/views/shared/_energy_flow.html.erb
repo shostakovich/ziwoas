@@ -6,15 +6,24 @@
     </clipPath>
   </defs>
 
-  <%# Each channel's line and dots share one colour; the dots inherit fill from their group.
-      Lines and dots stop at the rings, which stay open so the card shows through. %>
-  <g fill="none" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" clip-path="url(#ef-clip)">
-    <path d="M 200,122 C 205,150 250,166 306,170" style="stroke: var(--viz-solar)"/>
-    <path d="M 200,122 C 195,150 150,166 94,170" style="stroke: var(--viz-3)"/>
-    <path d="M 200,122 L 200,218" style="stroke: var(--viz-8)"/>
-    <path d="M 94,170 L 306,170" style="stroke: var(--viz-grid)"/>
-    <path d="M 94,170 C 150,174 195,190 200,218" style="stroke: var(--viz-muted)"/>
-    <path d="M 200,218 C 205,190 250,174 306,170" style="stroke: var(--viz-battery)"/>
+  <%# One line per channel, idle until the controller marks it flowing. Each line
+      leaves its ring at its own point and starts inside the ring, so the dots
+      that ride it (they inherit fill from their group) enter from under the
+      ring instead of waiting on top of it. Lines and dots are clipped at the
+      rings, which stay open so the card shows through. %>
+  <g fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" clip-path="url(#ef-clip)">
+    <path <%= target.call("efLineSolarHome") %> class="ef-link" style="--ef-tone: var(--viz-solar)"
+          d="M 209.6,109.5 L 212.4,118 C 219.2,139 246.9,139.1 304,157.6 L 312.5,160.4"/>
+    <path <%= target.call("efLineSolarGrid") %> class="ef-link" style="--ef-tone: var(--viz-3)"
+          d="M 190.4,109.5 L 187.6,118 C 180.8,139 153.1,139.1 96,157.6 L 87.5,160.4"/>
+    <path <%= target.call("efLineSolarBattery") %> class="ef-link" style="--ef-tone: var(--viz-8)"
+          d="M 200,111 L 200,229"/>
+    <path <%= target.call("efLineGridHome") %> class="ef-link" style="--ef-tone: var(--viz-grid)"
+          d="M 89,170 L 311,170"/>
+    <path <%= target.call("efLineGridBattery") %> class="ef-link" style="--ef-tone: var(--viz-muted)"
+          d="M 87.5,179.6 L 96,182.4 C 153.1,200.9 180.8,201 187.6,222 L 190.4,230.5"/>
+    <path <%= target.call("efLineBatteryHome") %> class="ef-link" style="--ef-tone: var(--viz-battery)"
+          d="M 209.6,230.5 L 212.4,222 C 219.2,201 246.9,200.9 304,182.4 L 312.5,179.6"/>
   </g>
 
   <g <%= target.call("efDotsSolarHome") %> clip-path="url(#ef-clip)" style="fill: var(--viz-solar)"></g>
@@ -24,36 +33,39 @@
   <g <%= target.call("efDotsGridBattery") %> clip-path="url(#ef-clip)" style="fill: var(--viz-muted)"></g>
   <g <%= target.call("efDotsBatteryHome") %> clip-path="url(#ef-clip)" style="fill: var(--viz-battery)"></g>
 
-  <g stroke-width="2.5" fill="none">
+  <g stroke-width="3" fill="none">
     <circle cx="200" cy="80" r="40" style="stroke: var(--viz-solar)"/>
     <circle cx="58" cy="170" r="40" style="stroke: var(--viz-grid)"/>
     <circle cx="342" cy="170" r="40" style="stroke: var(--track)"/>
     <circle cx="200" cy="260" r="40" style="stroke: var(--viz-battery)"/>
   </g>
+  <%# Arcs by source share: where the consumers' power comes from (key below). %>
   <g <%= target.call("efConsumerRing") %> transform="rotate(-90 342 170)" fill="none" stroke-linecap="butt"></g>
 
+  <%# Grid and battery say their direction in words here ("Netzbezug",
+      "Batterie lädt"), so the values inside the rings carry no sign. %>
   <g class="ef-names" text-anchor="middle" font-size="11" style="fill: var(--muted)">
     <text x="200" y="22">PV-Anlage</text>
-    <text x="58" y="224">Stromnetz</text>
+    <text <%= target.call("efGridName") %> x="58" y="224">Stromnetz</text>
     <text x="342" y="224">Verbraucher</text>
-    <text x="200" y="315">Batterie</text>
+    <text x="200" y="315"><tspan <%= target.call("efBatteryName") %>>Batterie</tspan><tspan <%= target.call("efBatterySoc") %>></tspan></text>
   </g>
 
   <g text-anchor="middle" font-size="12" font-weight="600" class="ef-values tabular-nums">
-    <text <%= target.call("efPvW") %> x="200" y="102" text-anchor="middle" style="fill: var(--warning-text)">— W</text>
-    <text <%= target.call("efGridW") %> x="58" y="192" text-anchor="middle" style="fill: var(--primary-text)">— W</text>
-    <text <%= target.call("efConsumerW") %> x="342" y="192" text-anchor="middle" style="fill: var(--success-text)">— W</text>
-    <text <%= target.call("efBatteryW") %> class="ef-battery" x="200" y="282" text-anchor="middle" font-size="11" style="fill: var(--success-text)">— W</text>
-    <text <%= target.call("efBatterySoc") %> class="ef-soc" x="200" y="291" text-anchor="middle" font-size="9" style="fill: var(--muted)">— %</text>
+    <text <%= target.call("efPvW") %> x="200" y="102" style="fill: var(--warning-text)">— W</text>
+    <text <%= target.call("efGridW") %> x="58" y="192" style="fill: var(--primary-text)">— W</text>
+    <text <%= target.call("efConsumerW") %> x="342" y="192" style="fill: var(--text)">— W</text>
+    <text <%= target.call("efBatteryW") %> x="200" y="282" style="fill: var(--success-text)">— W</text>
   </g>
 
   <image class="ef-icon" href="<%= asset_path pv_asset %>" x="180" y="50" width="40" height="40" role="img" aria-label="<%= pv_alt %>"/>
   <image class="ef-icon" href="<%= asset_path "icon_netz.webp" %>" x="38" y="141" width="40" height="40"/>
   <image class="ef-icon" href="<%= asset_path "icon_haus.webp" %>" x="322" y="141" width="40" height="40"/>
-  <image <%= target.call("efBatteryImage") %> class="ef-icon ef-battery"
+  <image <%= target.call("efBatteryImage") %> class="ef-icon"
          href="<%= asset_path battery_asset %>"
          x="180" y="231" width="40" height="40" preserveAspectRatio="xMidYMid meet"
          <%= tag.attributes(data: ApplicationHelper::BATTERY_ASSETS
                                      .transform_keys { |state| "battery_state_#{state}" }
                                      .transform_values { |asset| asset_path(asset) }) %>/>
 </svg>
+<p class="small text-body-secondary text-center mt-2 mb-0">Verbraucher-Ring: Herkunft des Stroms</p>

@@ -12,6 +12,8 @@
   --viz-battery: light-dark(oklch(from var(--petrol) 0.6 0.11 calc(h - 25)), oklch(from var(--petrol) 0.62 0.11 calc(h - 25)));
   --viz-grid:    light-dark(oklch(from var(--denim) 0.5 0.13 h), oklch(from var(--denim) 0.6 0.13 h));
   --viz-muted:   light-dark(oklch(from var(--taupe) 0.66 0.03 h), oklch(from var(--taupe) 0.6 0.03 h));
+  /* A reference total (Gesamtverbrauch): neutral ink, apart from every hue. */
+  --viz-total:   color-mix(in oklab, var(--text) 75%, var(--surface));
 
   --viz-1:  light-dark(oklch(from var(--denim) 0.52 0.13 h), oklch(from var(--denim) 0.62 0.12 h));
   --viz-2:  light-dark(oklch(from var(--moss) 0.62 0.14 h), oklch(from var(--moss) 0.66 0.14 h));

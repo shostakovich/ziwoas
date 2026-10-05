@@ -35,13 +35,13 @@
   <div data-controller="today-chart">
     <%= render Dashboard::PlugDeltasComponent.new(deltas: []) %>
 
-    <%= render CardComponent.new(title: "Gesamtenergie", subtitle: "Letzte 24 h") do %>
+    <%= render CardComponent.new(title: "Gesamtenergie", subtitle: "kWh je Stunde · letzte 24 h") do %>
       <div class="chart-frame">
         <canvas data-today-chart-target="energyCanvas"></canvas>
       </div>
     <% end %>
 
-    <%= render CardComponent.new(title: "Leistung", subtitle: "Letzte 24 h") do %>
+    <%= render CardComponent.new(title: "Leistung", subtitle: "Watt · letzte 24 h") do %>
       <div class="chart-frame">
         <canvas data-today-chart-target="powerCanvas"></canvas>
       </div>
@@ -49,7 +49,7 @@
   </div>
 
   <div data-controller="history-chart">
-    <%= render CardComponent.new(title: "Ertrag", subtitle: "Letzte 14 Tage") do %>
+    <%= render CardComponent.new(title: "Ertrag", subtitle: "kWh je Tag · letzte 14 Tage") do %>
       <div class="chart-frame">
         <canvas data-history-chart-target="canvas"></canvas>
       </div>

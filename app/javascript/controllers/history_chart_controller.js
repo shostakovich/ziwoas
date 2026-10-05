@@ -44,14 +44,14 @@ export default class extends Controller {
       type: "bar",
       data: {
         labels,
-        datasets: [{ label: "kWh/Tag", data: values, tone: "--viz-solar" }],
+        datasets: [{ label: "Ertrag", data: values, tone: "--viz-solar" }],
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
         scales: {
           x: timeCategoryScale(producer.points.map(({ date }) => localMidnight(date))),
-          y: { beginAtZero: true, title: { display: true, text: "kWh" } },
+          y: { beginAtZero: true, title: { display: true, text: "kWh" }, unit: "kWh", decimals: 2 },
         },
         plugins: { legend: { display: false } },
         animation: false,
