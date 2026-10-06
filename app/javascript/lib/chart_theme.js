@@ -346,7 +346,7 @@ function drawEndLabels(chart) {
       ctx.lineJoin = "round"
       ctx.lineWidth = HALO_WIDTH
       ctx.strokeStyle = themeColor("--chart-halo")
-      ctx.fillStyle = themeColor(dataset.endLabelTone || "--muted")
+      ctx.fillStyle = themeColor(dataset.endLabelTone || "--felt-secondary-color")
       ctx.strokeText(text, spot.x, spot.y)
       ctx.fillText(text, spot.x, spot.y)
     }
@@ -355,8 +355,8 @@ function drawEndLabels(chart) {
 }
 
 function paintOptions(chart) {
-  const text = themeColor("--text")
-  const muted = themeColor("--muted")
+  const text = themeColor("--felt-body-color")
+  const muted = themeColor("--felt-secondary-color")
   const grid = themeColor("--chart-grid")
   // The raw config, not the resolver proxy.
   const options = chart.config.options
@@ -386,7 +386,7 @@ function paintOptions(chart) {
     boxWidth: keySize, boxHeight: keySize, padding: 12, font: { size: LEGEND_FONT_PX },
   })
   const tooltip = options.plugins.tooltip = Object.assign(options.plugins.tooltip || {}, {
-    backgroundColor: themeColor("--surface-raised"),
+    backgroundColor: themeColor("--felt-surface-raised"),
     titleColor: text,
     bodyColor: text,
     borderColor: grid,

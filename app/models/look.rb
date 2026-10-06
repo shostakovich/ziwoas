@@ -4,7 +4,7 @@ module Look
   DEFAULT = "clean"
   COOKIE = :look
 
-  # The browser chrome follows the page background (felt-css --body-bg).
+  # The browser chrome follows the page background (felt-css --felt-body-bg).
   THEME_COLORS = {
     "clean" => { light: "#f6f7f9", dark: "#212529" },
     "felt" => { light: "#dbcdb7", dark: "#242220" }

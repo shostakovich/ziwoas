@@ -11,27 +11,28 @@
   .ld-title { font-size: 1.125rem; }
 }
 
-.sw-swatch { display: inline-block; width: .8rem; height: .8rem; border-radius: var(--radius-sm);
-             border: 1px solid color-mix(in oklab, var(--text) 15%, transparent); }
+.sw-swatch { display: inline-block; width: .8rem; height: .8rem; border-radius: var(--felt-radius-sm);
+             border: 1px solid color-mix(in oklab, var(--felt-body-color) 15%, transparent); }
 
 /* A neutral thumb, so it never reads as a colour on the scale. */
 .form-range.ld-range::-webkit-slider-runnable-track { height: .75rem; }
 .form-range.ld-range::-moz-range-track { height: .75rem; }
-.form-range.ld-range::-webkit-slider-thumb { margin-top: -.25rem; background-color: var(--surface-raised); border-color: var(--border-strong); }
-.form-range.ld-range::-moz-range-thumb { background-color: var(--surface-raised); border-color: var(--border-strong); }
+.form-range.ld-range::-webkit-slider-thumb { margin-top: -.25rem; background-color: var(--felt-surface-raised); border-color: var(--felt-border-color-strong); }
+.form-range.ld-range::-moz-range-thumb { background-color: var(--felt-surface-raised); border-color: var(--felt-border-color-strong); }
+/* --_thumb-shadow is felt-css-internal: it has no public thumb-shadow token yet. */
 :where([data-look="felt"]) .form-range.ld-range {
-  --thumb-shadow: 0 1px 1px var(--felt-inset), 0 3px 5px var(--felt-shadow-far);
+  --_thumb-shadow: 0 1px 1px var(--felt-groove-shadow), 0 3px 5px var(--felt-patch-shadow-far);
 }
 
 /* Edged so the white middle doesn't vanish on a light card. */
 .ld-white {
-  --ld-kelvin: linear-gradient(to right, var(--warning), color-mix(in oklab, var(--warning) 30%, var(--light-fixed)),
-                               var(--light-fixed), color-mix(in oklab, var(--primary) 25%, var(--light-fixed)),
-                               color-mix(in oklab, var(--primary) 50%, var(--light-fixed)));
-  --ld-edge: inset 0 0 0 1px color-mix(in oklab, var(--text) 18%, transparent);
+  --ld-kelvin: linear-gradient(to right, var(--felt-warning), color-mix(in oklab, var(--felt-warning) 30%, var(--felt-light-fixed)),
+                               var(--felt-light-fixed), color-mix(in oklab, var(--felt-primary) 25%, var(--felt-light-fixed)),
+                               color-mix(in oklab, var(--felt-primary) 50%, var(--felt-light-fixed)));
+  --ld-edge: inset 0 0 0 1px color-mix(in oklab, var(--felt-body-color) 18%, transparent);
 }
 :where([data-look="felt"]) .ld-white {
-  --ld-edge: inset 0 0 0 1px color-mix(in oklab, var(--text) 18%, transparent), inset 0 1px 3px var(--felt-inset);
+  --ld-edge: inset 0 0 0 1px color-mix(in oklab, var(--felt-body-color) 18%, transparent), inset 0 1px 3px var(--felt-groove-shadow);
 }
 .ld-white::-webkit-slider-runnable-track { background-image: var(--ld-kelvin); box-shadow: var(--ld-edge); }
 .ld-white::-moz-range-track { background-image: var(--ld-kelvin); box-shadow: var(--ld-edge); }
@@ -39,14 +40,14 @@
 /* --at is the preset's share of the range, mapped onto the thumb's travel (thumb 1.25rem wide). */
 .ld-ticks { position: relative; height: .375rem; }
 .ld-tick { position: absolute; top: 0; left: calc(.625rem + (100% - 1.25rem) * var(--at)); width: 2px; height: 100%;
-           margin-left: -1px; border-radius: 1px; background-color: var(--border-strong); }
+           margin-left: -1px; border-radius: 1px; background-color: var(--felt-border-color-strong); }
 
-.ld-swatches { display: grid; grid-template-columns: repeat(5, max-content); gap: var(--space-2); }
+.ld-swatches { display: grid; grid-template-columns: repeat(5, max-content); gap: var(--felt-space-2); }
 @media (min-width: 576px) {
   .ld-swatches { grid-template-columns: repeat(9, max-content); }
 }
 :is(.btn-check:checked + .ld-swatch, .ld-swatch-custom) {
-  outline: 3px solid light-dark(var(--primary), var(--primary-text)); outline-offset: 2px;
+  outline: 3px solid light-dark(var(--felt-primary), var(--felt-primary-text)); outline-offset: 2px;
 }
 /* Painted on a layer of its own, so felt still sews its seam on top of the label. */
 .ld-swatch-wheel { --ld-wheel: conic-gradient(in hsl longer hue, hsl(0 90% 60%), hsl(0 90% 60%)); }
@@ -63,8 +64,8 @@
 }
 .ld-scene-preview { display: block; height: 2.75rem; }
 
-.ld-toast-container { position: fixed; inset-inline: 0; bottom: var(--space-3); margin-inline: auto;
-                      padding-inline: var(--space-3); }
+.ld-toast-container { position: fixed; inset-inline: 0; bottom: var(--felt-space-3); margin-inline: auto;
+                      padding-inline: var(--felt-space-3); }
 @media (max-width: 991.98px) {
   .ld-toast-container { bottom: calc(var(--tabbar-height) + .875rem); }
 }

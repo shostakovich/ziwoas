@@ -12,7 +12,8 @@ JavaScript is loaded.
   `<html>` server-side, so pages render in the chosen look without a flash. Switching looks never
   changes layout.
 - **Dark mode** follows the system. felt-css tokens are `light-dark()` values, so anything styled
-  with tokens (`--surface`, `--text`, `--muted`, `--warning`, …) adapts on its own.
+  with tokens (`--felt-surface`, `--felt-body-color`, `--felt-secondary-color`,
+  `--felt-warning`, …) adapts on its own.
 - **Data colours** are the `--viz-*` tokens in `application.css` (solar, battery, grid, muted and
   ten categorical colours, assigned by entity, never cycled), derived from the felt palette. They
   are the only place colour values are defined. Canvas charts cannot read tokens directly:
