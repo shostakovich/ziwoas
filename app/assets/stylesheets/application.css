@@ -58,6 +58,13 @@
 .app-nav-icon { width: 1.75rem; height: 1.75rem; object-fit: contain; }
 .fixed-bottom .app-nav-icon { width: 1.5rem; height: 1.5rem; }
 
+/* Six tabs share one row even on a 320px phone: equal columns without gaps or
+   side padding, and below ~360px the labels shrink so "Sensoren" still fits. */
+.fixed-bottom .nav { gap: 0; }
+.fixed-bottom .nav-item { min-width: 0; }
+.fixed-bottom .nav-link.flex-column { padding-inline: 0; }
+.fixed-bottom .nav-link small { font-size: min(.875em, 2.9vw); }
+
 .chart-frame {
   position: relative;
   height: clamp(280px, 48vh, 380px);

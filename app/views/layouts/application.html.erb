@@ -62,7 +62,7 @@
     </main>
 
     <nav class="navbar fixed-bottom pb-safe d-lg-none" aria-label="Tab-Leiste">
-      <ul class="nav nav-pills nav-fill w-100">
+      <ul class="nav nav-pills nav-justified flex-nowrap w-100">
         <% main_navigation.each do |item| %>
           <li class="nav-item">
             <%= link_to item.path, class: [ "nav-link d-flex flex-column align-items-center", ("active" if item.current) ],

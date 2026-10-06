@@ -27,6 +27,21 @@ class MobileNavigationTest < ApplicationSystemTestCase
     assert_in_delta bar.fetch("viewport"), bar.fetch("width"), 1
   end
 
+  test "on a 320px phone all six tabs share one row and every label fits its tab" do
+    page.current_window.resize_to(320, 640)
+    visit sensors_path
+
+    tabs = page.evaluate_script(<<~JS)
+      [...document.querySelectorAll("nav[aria-label='Tab-Leiste'] a.nav-link")].map((link) => ({
+        top: Math.round(link.getBoundingClientRect().top),
+        overflow: link.querySelector("small").scrollWidth - link.clientWidth
+      }))
+    JS
+
+    assert_equal 1, tabs.map { |tab| tab.fetch("top") }.uniq.size
+    assert(tabs.all? { |tab| tab.fetch("overflow") <= 0 })
+  end
+
   test "the bar keeps its place at the bottom edge while the page scrolls" do
     visit root_path
     resting = tab_bar_top

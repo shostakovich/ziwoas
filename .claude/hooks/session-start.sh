@@ -2,8 +2,8 @@
 # SessionStart hook for Claude Code on the web.
 #
 # Brings a remote container to the point where bin/rubocop, bin/rails test and
-# bin/ci run unattended: Ruby 4.0.7 on PATH, gems installed, a device config in
-# place and the SQLite databases prepared.
+# bin/ci run unattended: Ruby from .ruby-version on PATH, gems installed, a
+# device config in place and the SQLite databases prepared.
 set -euo pipefail
 
 [ "${CLAUDE_CODE_REMOTE:-}" = "true" ] || exit 0
@@ -12,6 +12,22 @@ cd "${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 
 RBENV_ROOT="${RBENV_ROOT:-/opt/rbenv}"
 RUBY_VERSION="$(cat .ruby-version)"
+
+# The image can lag behind .ruby-version (it shipped 4.0.5 while the repo pins
+# 4.0.7). The Gemfile accepts any 4.x, so fall back to the newest patch release
+# of the same minor version instead of failing every step below.
+if [ ! -d "/opt/hostedtoolcache/Ruby/${RUBY_VERSION}" ]; then
+  FALLBACK="$(ls /opt/hostedtoolcache/Ruby | grep "^${RUBY_VERSION%.*}\." | sort -V | tail -1 || true)"
+  if [ -n "${FALLBACK}" ]; then
+    echo "== Ruby ${RUBY_VERSION} is not in this image, using ${FALLBACK} =="
+    RUBY_VERSION="${FALLBACK}"
+    export RBENV_VERSION="${FALLBACK}"
+    if [ -n "${CLAUDE_ENV_FILE:-}" ]; then
+      echo "export RBENV_VERSION=\"${FALLBACK}\"" >> "${CLAUDE_ENV_FILE}"
+    fi
+  fi
+fi
+
 TOOLCACHE="/opt/hostedtoolcache/Ruby/${RUBY_VERSION}/x64"
 
 # The prebuilt Ruby is unpacked one level too deep (…/x64/x64). Both the
