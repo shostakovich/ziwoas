@@ -29,10 +29,10 @@ export default class extends Controller {
     this.debounce(() => this.send({ command: "brightness", value: event.target.value }))
   }
 
-  // felt's .form-range draws its filled part up to --fill.
+  // felt's .form-range draws its filled part up to --felt-form-range-fill.
   fill(range) {
     const share = (range.value - range.min) / (range.max - range.min) * 100
-    range.style.setProperty("--fill", `${share}%`)
+    range.style.setProperty("--felt-form-range-fill", `${share}%`)
   }
 
   temp(event) {

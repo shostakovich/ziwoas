@@ -8,14 +8,14 @@
 .co2-gauge { flex-shrink: 0; width: 6.5rem; height: auto; overflow: visible; }
 .co2-gauge-zone,
 .co2-gauge-texture { fill: none; stroke-width: 15; }
-.co2-gauge-zone[data-level="good"] { --zone: var(--success); }
-.co2-gauge-zone[data-level="warn"] { --zone: var(--warning); }
-.co2-gauge-zone[data-level="bad"]  { --zone: var(--danger); }
-.co2-gauge-zone { stroke: color-mix(in oklab, var(--zone) 30%, var(--surface-sunk)); }
+.co2-gauge-zone[data-level="good"] { --zone: var(--felt-success); }
+.co2-gauge-zone[data-level="warn"] { --zone: var(--felt-warning); }
+.co2-gauge-zone[data-level="bad"]  { --zone: var(--felt-danger); }
+.co2-gauge-zone { stroke: color-mix(in oklab, var(--zone) 30%, var(--felt-surface-sunk)); }
 .co2-gauge-zone.is-current { stroke: var(--zone); }
-.co2-gauge-needle line { stroke: var(--text); stroke-width: 4.5; stroke-linecap: round; }
-.co2-gauge-hub { fill: var(--text); }
-.co2-gauge-shadow { flood-color: var(--felt-shadow-near); }
+.co2-gauge-needle line { stroke: var(--felt-body-color); stroke-width: 4.5; stroke-linecap: round; }
+.co2-gauge-hub { fill: var(--felt-body-color); }
+.co2-gauge-shadow { flood-color: var(--felt-patch-shadow-near); }
 
 :where(html:not([data-look="felt"])) .co2-gauge-piece { filter: none; }
 :where(html:not([data-look="felt"])) :is(.co2-gauge-texture, .co2-gauge-stitches) { display: none; }

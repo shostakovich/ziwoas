@@ -3,8 +3,8 @@ import "chart.js"
 import { chartTheme, vizToken, tonesByOrder, timeScale, timeTooltipTitle } from "lib/chart_theme"
 
 const CO2_THRESHOLDS = [
-  { value: 1000, name: "Lüften", tone: "--warning", textTone: "--warning-text" },
-  { value: 1400, name: "Grenzwert", tone: "--danger", textTone: "--danger-text" },
+  { value: 1000, name: "Lüften", tone: "--felt-warning", textTone: "--felt-warning-text" },
+  { value: 1400, name: "Grenzwert", tone: "--felt-danger", textTone: "--felt-danger-text" },
 ]
 // Room for the top threshold's label on a tick a phone's 500-step axis shares (1.400 × 1.1 rounds up to 2.000).
 const CO2_AXIS_TOP = 1500

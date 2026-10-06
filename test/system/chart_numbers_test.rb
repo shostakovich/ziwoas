@@ -40,7 +40,7 @@ class ChartNumbersTest < ApplicationSystemTestCase
             { label: "Akku", data: [ -0.16, 0.3 ], tone: "--viz-battery", flowWords: { positive: "lädt", negative: "entlädt" } },
             { label: "Büro", data: [ 0.25, 0.1 ], tone: "--viz-1", unit: "kWh", decimals: 2 },
             { label: "Null", data: [ 0, 0 ], tone: "--viz-muted", legend: false },
-            { label: "Grenzwert", data: [ 0.2, 0.2 ], tone: "--danger", endLabel: "Grenzwert" },
+            { label: "Grenzwert", data: [ 0.2, 0.2 ], tone: "--felt-danger", endLabel: "Grenzwert" },
             { label: "Versteckt", data: [ 0, 0 ], tone: "--viz-2", hidden: true },
           ],
         },
@@ -225,8 +225,8 @@ class ChartNumbersTest < ApplicationSystemTestCase
           data: {
             datasets: [
               { label: "Büro", data: points.map(([ x, y ]) => ({ x, y })), tone: "--viz-1" },
-              { label: "Lüften", data: [ { x: 0, y: 1000 }, { x: 24, y: 1000 } ], tone: "--warning", endLabel: "Lüften" },
-              { label: "Grenzwert", data: [ { x: 0, y: 1400 }, { x: 24, y: 1400 } ], tone: "--danger", endLabel: "Grenzwert" },
+              { label: "Lüften", data: [ { x: 0, y: 1000 }, { x: 24, y: 1000 } ], tone: "--felt-warning", endLabel: "Lüften" },
+              { label: "Grenzwert", data: [ { x: 0, y: 1400 }, { x: 24, y: 1400 } ], tone: "--felt-danger", endLabel: "Grenzwert" },
             ],
           },
           options: {

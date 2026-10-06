@@ -19,7 +19,7 @@
 .weather-day-segments {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  column-gap: var(--space-2);
+  column-gap: var(--felt-space-2);
 }
 .weather-segment {
   display: grid;
@@ -33,7 +33,7 @@
 .weather-segment-rain { grid-row: 4; }
 .weather-segment-solar { grid-row: 5; }
 @media (max-width: 575.98px) {
-  .weather-segment:nth-child(n + 3) { margin-top: var(--space-2); }
+  .weather-segment:nth-child(n + 3) { margin-top: var(--felt-space-2); }
 }
 @media (min-width: 576px) {
   .weather-day-segments { grid-template-columns: repeat(4, minmax(0, 1fr)); }
@@ -48,10 +48,10 @@
   display: grid;
   grid-auto-flow: column;
   grid-auto-columns: minmax(min-content, 1fr);
-  column-gap: var(--space-2);
+  column-gap: var(--felt-space-2);
   padding-inline-end: var(--hour-fade);
   scroll-snap-type: x proximity;
-  scroll-padding-inline-start: var(--space-3);
+  scroll-padding-inline-start: var(--felt-space-3);
   mask-image: linear-gradient(to right, black calc(100% - var(--hour-fade)), transparent);
 }
 .weather-hour-card {
@@ -71,13 +71,13 @@
 .weather-hour-rain { grid-row: 3; }
 
 /* Snapped hours keep the strip's own start padding, the card body's in today's strip. */
-.weather-hour-scroller.card-body { scroll-padding-inline-start: var(--space-4); }
+.weather-hour-scroller.card-body { scroll-padding-inline-start: var(--felt-space-4); }
 
 /* Six hours fit unscrolled from 28.5rem (6 × 4rem, 5 × .5rem gap, 1rem padding each side). */
 .weather-day-hour-row { container-type: inline-size; }
 @container (min-width: 28.5rem) {
   .weather-day-hour-row .weather-hour-scroller {
-    padding-inline-end: var(--space-3);
+    padding-inline-end: var(--felt-space-3);
     mask-image: none;
   }
 }

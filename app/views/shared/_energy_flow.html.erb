@@ -28,7 +28,7 @@
     <% consumer = EnergyFlowHelper::RINGS.fetch(:consumer) %>
     <g <%= target.call("efConsumerRing") %> transform="rotate(-90 <%= consumer.cx %> <%= consumer.cy %>)" fill="none" stroke-linecap="butt"></g>
 
-    <g class="ef-names" text-anchor="middle" font-size="11" style="fill: var(--muted)">
+    <g class="ef-names" text-anchor="middle" font-size="11" style="fill: var(--felt-secondary-color)">
       <text x="200" y="22">PV-Anlage</text>
       <text <%= target.call("efGridName") %> x="58" y="224">Stromnetz</text>
       <text x="342" y="224">Verbraucher</text>
