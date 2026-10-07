@@ -1,5 +1,5 @@
 defmodule Ziwoas.Govee.Device do
-  @moduledoc "Rails' `Govees::Device`: one lamp as the bridge knows it. `ip` comes from LAN discovery."
+  @moduledoc "One lamp as the bridge knows it. `ip` comes from LAN discovery."
   @enforce_keys [:key, :api_id, :sku, :name]
   defstruct [
     :key,

@@ -1,16 +1,13 @@
 defmodule ZiwoasWeb.LightsComponents do
   @moduledoc """
-  A lamp on the Schalten page and on its own page (`app/components/lights/`,
-  `app/views/lights/`): the tile, the power hero with its zones, the white,
-  colour and scene panels, the toast and the settings form. The command forms
-  post to `/lights/:key/command` (`ZiwoasWeb.LightCommandController` streams these
-  pieces back); in a LiveView their `phx-submit` sends `"light_command"` instead.
+  A lamp on the Schalten page and on its own page: the tile, the power hero
+  with its zones, the white, colour and scene panels, the toast and the
+  settings form. The controls send `"light_command"` with `light_key`,
+  `command` and its parameters (`ZiwoasWeb.LightEvents`).
   """
   use ZiwoasWeb, :html
 
-  import ZiwoasWeb.CoreComponents
-
-  alias Ziwoas.{GermanNumber, Lights, RubyNumeric}
+  alias Ziwoas.{GermanNumber, Lights}
   alias Ziwoas.Lights.{Light, Snapshot}
 
   @swatches ~w[#ff4d4d #ff7a3d #ffd43b #43d97f #22b8cf #4d7cff #7c5cff #ff6bd6]
@@ -44,7 +41,7 @@ defmodule ZiwoasWeb.LightsComponents do
     {~r/autumn|herbst|\bfall\b/u, ["hsl(25 80% 50%)", "hsl(45 85% 52%)"]}
   ]
 
-  # --- The Schalten tile (Lights::LightCardComponent) -------------------------------
+  # --- The Schalten tile -------------------------------------------------------------
 
   attr :snapshot, Snapshot, required: true
 
@@ -83,15 +80,14 @@ defmodule ZiwoasWeb.LightsComponents do
         </div>
 
         <div class="d-flex flex-column align-items-center gap-2">
-          <.button_to
-            action={"/lights/#{@light.key}/command"}
-            params={[{"command", "turn"}, {"on", to_string(not @on)}]}
-            form={live_form(@light.key, class: "button_to")}
+          <button
+            type="button"
             class={["btn btn-light btn-icon sw-knob sw-lamp-knob", not @on && "off"]}
             aria-label={"#{@light.name} umschalten"}
+            {command(@light.key, "turn", on: not @on)}
           >
             <img alt="" class="sw-knob-plush" src={~p"/images/#{Light.plush_image(@light, @on)}"} />
-          </.button_to>
+          </button>
 
           <span :if={@chip} class="badge border tabular-nums">
             <span class="sw-swatch me-1" style={"background-color: #{@chip.swatch}"}></span>{@chip.label}
@@ -110,7 +106,7 @@ defmodule ZiwoasWeb.LightsComponents do
     end
   end
 
-  # --- The hero (Lights::PowerComponent, Lights::ZoneComponent) ---------------------
+  # --- The hero ------------------------------------------------------------------------
 
   attr :snapshot, Snapshot, required: true
 
@@ -146,33 +142,19 @@ defmodule ZiwoasWeb.LightsComponents do
               src={~p"/images/#{Light.plush_image(@light, @on)}"}
             />
           </span>
-          <.rails_form
-            action={"/lights/#{@light.key}/command"}
-            class="flex-grow-1"
-            {live_form(@light.key, [])}
-          >
-            <input type="hidden" name="command" value="turn" />
-            <div class="btn-group w-100" role="group" aria-label="Lampe">
-              <button
-                :for={{label, value} <- [{"An", true}, {"Aus", false}]}
-                type="submit"
-                name="on"
-                value={to_string(value)}
-                aria-pressed={to_string(@on == value)}
-                class={["btn btn-outline-primary", @on == value && "active"]}
-              >
-                {label}
-              </button>
-            </div>
-          </.rails_form>
+          <div class="btn-group flex-grow-1" role="group" aria-label="Lampe">
+            <button
+              :for={{label, value} <- [{"An", true}, {"Aus", false}]}
+              type="button"
+              aria-pressed={to_string(@on == value)}
+              class={["btn btn-outline-primary", @on == value && "active"]}
+              {command(@light.key, "turn", on: value)}
+            >
+              {label}
+            </button>
+          </div>
         </div>
-        <div
-          :if={@zone_lamp}
-          class="mt-3"
-          role="group"
-          aria-label="Zonen"
-          {attr_if(not @on, hidden: true)}
-        >
+        <div :if={@zone_lamp} class="mt-3" role="group" aria-label="Zonen" hidden={not @on}>
           <p class="mb-2 small text-uppercase text-body-secondary" aria-hidden="true">Zonen</p>
           <div class={"row row-cols-#{@columns} g-2 ld-choices ld-zones"}>
             <.zone :for={zone <- @zones} zone={zone} light_key={@light.key} />
@@ -186,19 +168,20 @@ defmodule ZiwoasWeb.LightsComponents do
   attr :zone, Lights.Zone, required: true
   attr :light_key, :string, required: true
 
-  # Form id stays "zone_<key>" so the per-zone Turbo Stream replace targets the outermost element.
   def zone(assigns) do
     ~H"""
-    <.button_to
-      action={"/lights/#{@light_key}/command"}
-      params={[{"command", "zone"}, {"zone", @zone.key}, {"on", to_string(not @zone.on)}]}
-      form={live_form(@light_key, id: "zone_#{@zone.key}", class: "col")}
-      class={["btn btn-outline-primary w-100 px-2", @zone.on && "active"]}
-      aria-pressed={to_string(@zone.on)}
-      aria-label={"#{@zone.label} an/aus"}
-    >
-      {@zone.label}
-    </.button_to>
+    <div class="col">
+      <button
+        type="button"
+        id={"zone_#{@zone.key}"}
+        class={["btn btn-outline-primary w-100 px-2", @zone.on && "active"]}
+        aria-pressed={to_string(@zone.on)}
+        aria-label={"#{@zone.label} an/aus"}
+        {command(@light_key, "zone", zone: @zone.key, on: not @zone.on)}
+      >
+        {@zone.label}
+      </button>
+    </div>
     """
   end
 
@@ -290,7 +273,7 @@ defmodule ZiwoasWeb.LightsComponents do
 
   defp share(kelvin, min_k, max_k) do
     span = max_k - min_k
-    if span > 0, do: RubyNumeric.to_s(RubyNumeric.round((kelvin - min_k) / span, 4)), else: "0"
+    if span > 0, do: Float.to_string(Float.round((kelvin - min_k) / span, 4)), else: "0"
   end
 
   attr :snapshot, Snapshot, required: true
@@ -347,7 +330,7 @@ defmodule ZiwoasWeb.LightsComponents do
             class={["btn btn-icon border ld-swatch ld-swatch-wheel", @custom && "ld-swatch-custom"]}
             title="Weitere Farbe"
             data-light="wheel"
-            {attr_if(@custom, style: "--ld-custom: #{@hex}")}
+            style={@custom && "--ld-custom: #{@hex}"}
           >
             <span class="visually-hidden">Weitere Farbe</span>
             <input type="color" value={@hex || "#ff7a3d"} />
@@ -379,15 +362,14 @@ defmodule ZiwoasWeb.LightsComponents do
           <div class="ld-scenes">
             <div class="row row-cols-2 row-cols-sm-3 g-2">
               <div :for={scene <- @scenes} class="col">
-                <.button_to
-                  action={"/lights/#{@light.key}/command"}
-                  params={[{"command", "effect"}, {"effect", scene}]}
-                  form={live_form(@light.key, class: "button_to")}
+                <button
+                  type="button"
                   class="btn btn-light d-flex flex-column align-items-stretch w-100 p-0 overflow-hidden"
+                  {command(@light.key, "effect", effect: scene)}
                 >
                   <span class="ld-scene-preview" style={"background-image: #{scene_gradient(scene)}"}></span>
                   <span class="small text-start text-truncate px-2 py-1">{scene}</span>
-                </.button_to>
+                </button>
               </div>
             </div>
           </div>
@@ -427,24 +409,23 @@ defmodule ZiwoasWeb.LightsComponents do
       class="toast show"
       role="status"
       aria-live="polite"
-      {attr_if(is_nil(@message), hidden: true)}
+      hidden={is_nil(@message)}
     >
       <div :if={@message} class="toast-body d-flex align-items-center gap-2">
         <span>{@message}</span>
-        <.button_to
-          action={"/lights/#{@undo.light_key}/command"}
-          params={[{"command", "zone_undo"}, {"victim", @undo.victim}, {"added", @undo.added}]}
-          form={live_form(@undo.light_key, class: "ms-auto")}
-          class="btn btn-sm btn-link fw-bold"
+        <button
+          type="button"
+          class="btn btn-sm btn-link fw-bold ms-auto"
+          {command(@undo.light_key, "zone_undo", victim: @undo.victim, added: @undo.added)}
         >
           Rückgängig
-        </.button_to>
+        </button>
       </div>
     </div>
     """
   end
 
-  @doc "The toast after a zone change (`LightsController#toast_stream`): an eviction or nothing."
+  @doc "The toast after a zone change: an eviction or nothing."
   def toast_assigns(_light, :clear), do: %{message: nil, undo: nil}
 
   def toast_assigns(light, %{evicted: evicted, added: added}) do
@@ -457,20 +438,21 @@ defmodule ZiwoasWeb.LightsComponents do
     }
   end
 
-  # The lamp controls' forms post to /lights/:key/command (Rails' Turbo); in a
-  # connected LiveView the same submit becomes the "light_command" event.
-  defp live_form(key, attrs),
-    do: attrs ++ ["phx-submit": "light_command", "phx-value-light_key": key]
+  # A lamp control: the "light_command" event with the command's parameters.
+  defp command(key, command, params) do
+    values = for {name, value} <- params, do: {:"phx-value-#{name}", to_string(value)}
 
-  # --- Settings (lights/_form, lights/_settings_sheet) -------------------------------
+    [
+      "phx-click": "light_command",
+      "phx-value-light_key": key,
+      "phx-value-command": command
+    ] ++ values
+  end
 
-  attr :light, Light, required: true
+  # --- Settings -------------------------------------------------------------------------
+
+  attr :form, Phoenix.HTML.Form, required: true
   attr :plugs, :list, required: true
-  attr :errors, :list, default: []
-
-  attr :live, :boolean,
-    default: false,
-    doc: "in LightLive: saved by `\"save_settings\"`"
 
   @doc """
   The settings as a modal sheet, the `SettingsSheet` hook: it opens the dialog,
@@ -478,9 +460,6 @@ defmodule ZiwoasWeb.LightsComponents do
   LiveView when it closed (`"close_settings"`).
   """
   def settings_sheet(assigns) do
-    # The controller renders it outside a template, without the defaults.
-    assigns = assign_new(assigns, :live, fn -> false end)
-
     ~H"""
     <dialog
       class="modal"
@@ -501,7 +480,7 @@ defmodule ZiwoasWeb.LightsComponents do
             ></button>
           </div>
           <div class="modal-body">
-            <.light_form light={@light} plugs={@plugs} errors={@errors} live={@live} />
+            <.light_form form={@form} plugs={@plugs} />
           </div>
         </div>
       </div>
@@ -509,84 +488,28 @@ defmodule ZiwoasWeb.LightsComponents do
     """
   end
 
-  attr :light, Light, required: true
+  attr :form, Phoenix.HTML.Form, required: true
   attr :plugs, :list, required: true
-  attr :errors, :list, default: [], doc: "`{field, full message}` pairs"
-  attr :live, :boolean, default: false
 
   def light_form(assigns) do
-    assigns = assign(assigns, :invalid, Keyword.keys(assigns.errors))
+    assigns = assign(assigns, :options, Enum.map(assigns.plugs, &{&1.name, &1.id}))
 
     ~H"""
-    <.rails_form
-      action={"/lights/#{@light.key}"}
-      method="patch"
-      {attr_if(@live, "phx-submit": "save_settings")}
-    >
-      <div :if={@errors != []} class="alert alert-danger small py-2" role="alert">
-        <ul class="mb-0 ps-3">
-          <li :for={{_field, message} <- @errors}>{message}</li>
-        </ul>
-      </div>
-
-      <div class="mb-3">
-        <.field_with_errors invalid={:name in @invalid}>
-          <label class="form-label" for="light_name">Name</label>
-        </.field_with_errors>
-        <.field_with_errors invalid={:name in @invalid}>
-          <input
-            class="form-control"
-            type="text"
-            value={@light.name}
-            name="light[name]"
-            id="light_name"
-          />
-        </.field_with_errors>
-      </div>
-
-      <div class="mb-4">
-        <.field_with_errors invalid={:shelly_plug_id in @invalid}>
-          <label class="form-label" for="light_shelly_plug_id">Shelly-Plug</label>
-        </.field_with_errors>
-        <.field_with_errors invalid={:shelly_plug_id in @invalid}>
-          <select class="form-select" name="light[shelly_plug_id]" id="light_shelly_plug_id">
-            <option value="">— keine —</option>
-            <option
-              :for={plug <- @plugs}
-              value={plug.id}
-              {attr_if(plug.id == @light.shelly_plug_id, selected: "selected")}
-            >
-              {plug.name}
-            </option>
-          </select>
-        </.field_with_errors>
-      </div>
-
+    <.form for={@form} id="light_form" phx-change="validate_settings" phx-submit="save_settings">
+      <.input field={@form[:name]} label="Name" />
+      <.input
+        field={@form[:shelly_plug_id]}
+        type="select"
+        label="Shelly-Plug"
+        options={@options}
+        prompt="— keine —"
+        wrapper_class="mb-4"
+      />
       <div class="d-flex justify-content-end gap-2">
-        <a
-          class="btn btn-outline-secondary"
-          data-dismiss="dialog"
-          href={"/lights/#{@light.key}"}
-        >
-          Abbrechen
-        </a>
-        <.submit value="Speichern" class="btn btn-primary" />
+        <.button type="button" variant="outline-secondary" data-dismiss="dialog">Abbrechen</.button>
+        <.button>Speichern</.button>
       </div>
-    </.rails_form>
-    """
-  end
-
-  attr :invalid, :boolean, required: true
-  slot :inner_block, required: true
-
-  # ActionView's field_error_proc: a label or field of an attribute with errors gets wrapped.
-  defp field_with_errors(assigns) do
-    ~H"""
-    <%= if @invalid do %>
-      <div class="field_with_errors">{render_slot(@inner_block)}</div>
-    <% else %>
-      {render_slot(@inner_block)}
-    <% end %>
+    </.form>
     """
   end
 end

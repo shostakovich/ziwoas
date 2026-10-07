@@ -1,5 +1,4 @@
 defmodule Ziwoas.Switching.RowTest do
-  # Mirrors test/models/switching/row_test.rb.
   use Ziwoas.DataCase
 
   alias Ziwoas.{Clock, Repo}

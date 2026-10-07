@@ -1,7 +1,7 @@
 defmodule Ziwoas.Govee.StateStore do
   @moduledoc """
-  Rails' `Govees::StateStore`: per lamp the published (desired or confirmed) state
-  and how sure the bridge is of it. Pure; the bridge keeps it in its state.
+  Per lamp the published (desired or confirmed) state and how sure the bridge
+  is of it. Pure; the bridge keeps it in its state.
 
     * a command publishes optimistically and stays `:pending` for the window;
     * while pending, a LAN reading that matches confirms (`:synced`), one that
@@ -10,7 +10,7 @@ defmodule Ziwoas.Govee.StateStore do
       that deviates asks for the API (`:reconciling`); API telemetry is the truth.
 
   Published states are maps with atom keys (`:on`, `:brightness`, `:color`, …);
-  `nil` values clear a field the way Rails' store does (`color_temp_k: nil`).
+  a `nil` value clears a field (`color_temp_k: nil` after a colour).
   """
   @compare [:on, :brightness, :color, :color_temp_k]
 

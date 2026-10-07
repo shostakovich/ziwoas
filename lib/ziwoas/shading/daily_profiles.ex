@@ -3,7 +3,7 @@ defmodule Ziwoas.Shading.DailyProfiles do
   The mean day of every month: measured PV against what the irradiance and a
   cloudless sky would have delivered, both scaled by the best hour's ratio.
   """
-  alias Ziwoas.{RubyNumeric, Shading}
+  alias Ziwoas.Shading
   alias Ziwoas.Shading.{ClearSky, Curve, Hour, Profile}
 
   @spec build([Hour.t()], float | nil) :: [Profile.t()]
@@ -46,7 +46,7 @@ defmodule Ziwoas.Shading.DailyProfiles do
       for {clock, group} <- by_hour,
           values = group |> Enum.map(value) |> Enum.reject(&is_nil/1),
           values != [],
-          do: {clock, RubyNumeric.sum(values) / length(values)}
+          do: {clock, Enum.sum(values) / length(values)}
 
     %Curve{key: key, points: points}
   end

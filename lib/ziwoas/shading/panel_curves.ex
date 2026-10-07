@@ -6,7 +6,7 @@ defmodule Ziwoas.Shading.PanelCurves do
   younger panels would drag their own curve down through months they never
   saw.
   """
-  alias Ziwoas.{RubyNumeric, Shading}
+  alias Ziwoas.Shading
   alias Ziwoas.Shading.{Curve, Hour, Panels}
 
   @keys [:pv1, :pv2, :pv3, :pv4]
@@ -44,7 +44,7 @@ defmodule Ziwoas.Shading.PanelCurves do
       points =
         for {clock, group} <- by_hour do
           watts = Enum.map(group, &Enum.at(&1.panels, index))
-          {clock, RubyNumeric.sum(watts) / length(watts)}
+          {clock, Enum.sum(watts) / length(watts)}
         end
 
       %Curve{key: key, points: points}

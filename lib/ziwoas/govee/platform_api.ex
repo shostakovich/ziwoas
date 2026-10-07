@@ -1,19 +1,12 @@
 defmodule Ziwoas.Govee.PlatformApi do
   @moduledoc """
-  Rails' `Govees::PlatformApi`: Govee's documented, API-key-only cloud API. The
-  status code lives in the JSON body, not in HTTP's. Every call returns
-  `{:ok, value}` or `{:error, message}`.
-
-  `control/2` switches a lamp and is the bridge's only cloud write: it calls
-  `Ziwoas.Ownership.ensure_owner!(:govee_bridge)` first. The reads (`devices/1`,
-  `state/3`, `scenes/3`) run in shadow mode too and count against Govee's daily
-  request quota alongside Rails'.
+  Govee's documented, API-key-only cloud API. The status code lives in the JSON
+  body, not in HTTP's. Every call returns `{:ok, value}` or `{:error, message}`.
+  Every call counts against Govee's daily request quota.
 
   `api` is `%{key: api_key, req: keyword}`; `req` are extra Req options
   (`Ziwoas.Http`); tests pass `plug:`.
   """
-  alias Ziwoas.Ownership
-
   @base "https://openapi.api.govee.com"
 
   @type api :: %{key: String.t(), req: keyword}
@@ -31,11 +24,11 @@ defmodule Ziwoas.Govee.PlatformApi do
   @spec state(api, String.t(), String.t()) :: {:ok, map} | {:error, String.t()}
   def state(api, sku, device) do
     with {:ok, body} <-
-           request(api, :post, "/router/api/v1/device/state", [{"sku", sku}, {"device", device}]),
+           request(api, :post, "/router/api/v1/device/state", %{"sku" => sku, "device" => device}),
          do: {:ok, flatten_state(body)}
   end
 
-  @doc "`PlatformApi#state`'s flattening of a response body (later instances win)."
+  @doc "A state response's capabilities as `%{instance => value}` (later instances win)."
   @spec flatten_state(map) :: map
   def flatten_state(body) do
     caps = get_in(body, ["payload", "capabilities"]) || []
@@ -48,7 +41,7 @@ defmodule Ziwoas.Govee.PlatformApi do
   @spec scenes(api, String.t(), String.t()) :: {:ok, [map]} | {:error, String.t()}
   def scenes(api, sku, device) do
     with {:ok, body} <-
-           request(api, :post, "/router/api/v1/device/scenes", [{"sku", sku}, {"device", device}]) do
+           request(api, :post, "/router/api/v1/device/scenes", %{"sku" => sku, "device" => device}) do
       options =
         case get_in(body, ["payload", "capabilities"]) do
           [first | _] when is_map(first) -> get_in(first, ["parameters", "options"])
@@ -59,17 +52,18 @@ defmodule Ziwoas.Govee.PlatformApi do
     end
   end
 
-  @doc "Switches a capability (`sku:, device:, type:, instance:, value:`); owner only."
+  @doc "Switches a capability (`sku:, device:, type:, instance:, value:`)."
   @spec control(api, keyword) :: {:ok, true} | {:error, String.t()}
   def control(api, opts) do
-    Ownership.ensure_owner!(:govee_bridge)
-
-    payload = [
-      {"sku", opts[:sku]},
-      {"device", opts[:device]},
-      {"capability",
-       [{"type", opts[:type]}, {"instance", opts[:instance]}, {"value", opts[:value]}]}
-    ]
+    payload = %{
+      "sku" => opts[:sku],
+      "device" => opts[:device],
+      "capability" => %{
+        "type" => opts[:type],
+        "instance" => opts[:instance],
+        "value" => opts[:value]
+      }
+    }
 
     with {:ok, _body} <- request(api, :post, "/router/api/v1/device/control", payload),
          do: {:ok, true}
@@ -78,7 +72,7 @@ defmodule Ziwoas.Govee.PlatformApi do
   defp request(api, method, path, payload) do
     body =
       if payload,
-        do: Ziwoas.RubyJSON.encode!([{"requestId", uuid()}, {"payload", payload}])
+        do: JSON.encode!(%{"requestId" => uuid(), "payload" => payload})
 
     req =
       Ziwoas.Http.new(
@@ -107,7 +101,7 @@ defmodule Ziwoas.Govee.PlatformApi do
   defp check(body) do
     case JSON.decode(body) do
       {:ok, %{} = parsed} ->
-        if Ziwoas.RubyNumeric.to_i(parsed["code"]) == 200,
+        if parsed["code"] in [200, "200"],
           do: {:ok, parsed},
           else: {:error, "code #{parsed["code"]}: #{parsed["message"] || parsed["msg"]}"}
 

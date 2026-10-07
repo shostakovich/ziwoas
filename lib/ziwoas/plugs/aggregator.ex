@@ -97,13 +97,10 @@ defmodule Ziwoas.Plugs.Aggregator do
   @doc """
   Copies the database the process writes to into `dir/ziwoas-<today>.db`
   (`VACUUM INTO`, replacing that day's file) and keeps the newest `keep`
-  backups by modification time. A file outside the database, so only as the
-  `:aggregator` owner: a shadow run would overwrite Rails' backup of the day.
-  `VACUUM INTO` cannot run inside a transaction.
+  backups by modification time. `VACUUM INTO` cannot run inside a transaction.
   """
   @spec backup!(String.t(), Date.t(), pos_integer) :: String.t()
   def backup!(dir, %Date{} = today, keep \\ 7) do
-    Ziwoas.Ownership.ensure_owner!(:aggregator)
     File.mkdir_p!(dir)
     filename = Path.join(dir, "ziwoas-#{Date.to_iso8601(today)}.db")
     File.rm(filename)
@@ -125,8 +122,8 @@ defmodule Ziwoas.Plugs.Aggregator do
   Aggregates every finished day not yet in `daily_totals`, from the UTC date of
   the oldest sample up to yesterday, then purges. Without samples it does nothing.
 
-  Options: `:today` (default: today in the aggregator's zone, as Rails' `Date.today`
-  under the container's `TZ`) and `:now` (Unix seconds), both from `Ziwoas.Clock`.
+  Options: `:today` (default: today in the aggregator's zone) and `:now` (Unix
+  seconds), both from `Ziwoas.Clock`.
   """
   @spec run_once(t, keyword) :: :ok
   def run_once(%__MODULE__{} = aggregator, opts \\ []) do

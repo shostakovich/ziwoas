@@ -1,7 +1,4 @@
 defmodule ZiwoasWeb.SunChartComponentsTest do
-  # Mirrors the branches of test/components/solakon/{sun_calendar,yield_map,
-  # daily_profiles,panel_curves,chart_parts}_component_test.rb that the golden
-  # master's one data set does not reach.
   use ExUnit.Case, async: true
 
   import Phoenix.LiveViewTest, only: [render_component: 2]
@@ -467,12 +464,5 @@ defmodule ZiwoasWeb.SunChartComponentsTest do
     doc = html(&SunChartComponents.shading/1, report: report)
 
     assert texts(doc, ".empty-state h2") == ["Noch keine Ausbeute"]
-  end
-
-  test "hypot is C's, correctly rounded" do
-    assert SunChartComponents.hypot(3, 4) === 5.0
-    assert SunChartComponents.hypot(0.0, -2.5) === 2.5
-    assert SunChartComponents.hypot(-123.456, 78.9) === 146.51482497003502
-    assert SunChartComponents.hypot(1.0e-3, 5.0) === 5.000000099999999
   end
 end

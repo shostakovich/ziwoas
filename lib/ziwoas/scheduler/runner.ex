@@ -1,21 +1,17 @@
 defmodule Ziwoas.Scheduler.Runner do
   @moduledoc """
   One recurring job: sleeps until its schedule falls due (`Process.send_after/3`),
-  runs the job in this process when its task is not `:rails`, sleeps again. A run
-  that overlaps the next due instant skips it; nothing is made up after downtime,
-  as with Solid Queue's recurring tasks.
+  runs the job in this process, sleeps again. A run that overlaps the next due
+  instant skips it; nothing is made up after downtime.
 
-  Options: `:id`, `:task`, `:schedule` (text or `Schedule`), `:job` (a
-  `Ziwoas.Scheduler.Job`), `:zone`, `:shadow_offset` (seconds after each due
-  instant while the task runs in `:shadow`/`:dry_run`, so a shadow does not poll a
-  device the moment Rails does; default 0); for tests `:clock` (0-arity, a UTC
-  `DateTime`) and `:timer` (`Process.send_after/3`'s shape).
+  Options: `:id`, `:schedule` (text or `Schedule`), `:job` (a
+  `Ziwoas.Scheduler.Job`), `:zone`; for tests `:clock` (0-arity, a UTC `DateTime`) and `:timer`
+  (`Process.send_after/3`'s shape).
   """
   use GenServer
 
   require Logger
 
-  alias Ziwoas.Ownership
   alias Ziwoas.Scheduler.Schedule
 
   def start_link(opts), do: GenServer.start_link(__MODULE__, opts)
@@ -25,13 +21,13 @@ defmodule Ziwoas.Scheduler.Runner do
 
   @impl true
   def init(opts) do
+    id = Keyword.fetch!(opts, :id)
+
     state = %{
-      id: Keyword.fetch!(opts, :id),
-      task: task!(Keyword.fetch!(opts, :task)),
+      id: id,
       schedule: schedule(Keyword.fetch!(opts, :schedule)),
       job: Keyword.fetch!(opts, :job),
       zone: Keyword.fetch!(opts, :zone),
-      shadow_offset: Keyword.get(opts, :shadow_offset, 0),
       clock: Keyword.get(opts, :clock, &Ziwoas.Clock.now/0),
       timer: Keyword.get(opts, :timer, &Process.send_after/3),
       due: nil
@@ -48,44 +44,27 @@ defmodule Ziwoas.Scheduler.Runner do
       # The timer ran ahead of the clock: wait out the rest.
       {:noreply, arm_at(state, at, now)}
     else
-      run(state, at)
+      perform(state, %{at: at})
       {:noreply, arm(state, latest(at, state.clock.()))}
     end
   end
 
   def handle_info({:due, _stale}, state), do: {:noreply, state}
 
-  defp run(state, at) do
-    case Ownership.mode(state.task) do
-      :rails -> :skipped
-      mode -> perform(state, %{task: state.task, mode: mode, at: at})
-    end
-  end
-
   defp perform(state, context) do
     state.job.perform(context)
   rescue
     error ->
       Logger.error(
-        "scheduler: #{state.id} (#{context.mode}) failed: " <>
-          Exception.format(:error, error, __STACKTRACE__)
+        "scheduler: #{state.id} failed: " <> Exception.format(:error, error, __STACKTRACE__)
       )
   catch
     kind, reason ->
-      Logger.error("scheduler: #{state.id} (#{context.mode}) #{kind}: #{inspect(reason)}")
+      Logger.error("scheduler: #{state.id} #{kind}: #{inspect(reason)}")
   end
 
-  defp arm(state, from) do
-    offset =
-      if Ownership.mode(state.task) in [:shadow, :dry_run], do: state.shadow_offset, else: 0
-
-    due =
-      state.schedule
-      |> Schedule.next_after(DateTime.add(from, -offset), state.zone)
-      |> DateTime.add(offset)
-
-    arm_at(state, due, from)
-  end
+  defp arm(state, from),
+    do: arm_at(state, Schedule.next_after(state.schedule, from, state.zone), from)
 
   defp arm_at(state, due, now) do
     state.timer.(self(), {:due, due}, max(DateTime.diff(due, now, :millisecond), 0))
@@ -96,9 +75,4 @@ defmodule Ziwoas.Scheduler.Runner do
 
   defp schedule(%Schedule{} = schedule), do: schedule
   defp schedule(text), do: Schedule.parse!(text)
-
-  defp task!(task) do
-    Ownership.mode(task, Ownership.all_rails())
-    task
-  end
 end

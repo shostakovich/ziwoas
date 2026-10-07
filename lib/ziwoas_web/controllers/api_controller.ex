@@ -1,17 +1,19 @@
 defmodule ZiwoasWeb.ApiController do
   @moduledoc """
-  The JSON API (Rails' `ApiController` and its jbuilder views), byte-identical
-  through `Ziwoas.RubyJSON`. Like Rails without a JSON Accept header, the
-  `:api` pipeline answers 406.
+  The JSON the dashboard's charts load: today's power per plug, today's energy
+  balance and the daily totals of recent days. Times are Unix seconds (`ts`,
+  as the charts plot them) or ISO 8601 dates. The `:api` pipeline answers
+  anything but a JSON request with 406.
   """
   use ZiwoasWeb, :controller
 
   import Ecto.Query
 
-  alias Ziwoas.{Clock, Config, EnergySummary, PowerSeries, Repo, RubyJSON, RubyNumeric}
+  alias Ziwoas.{Clock, Config, EnergySummary, PowerSeries, Repo}
   alias Ziwoas.Plugs.DailyTotal
 
   @today_bucket_seconds 60
+  @default_days 14
 
   def today(conn, _params) do
     config = Config.app_config()
@@ -25,34 +27,33 @@ defmodule ZiwoasWeb.ApiController do
           series
           |> PowerSeries.signed_watts_by_ts(plug.id)
           |> Enum.sort_by(fn {ts, _watt} -> ts end)
-          |> Enum.map(fn {ts, watt} -> [{"ts", ts}, {"avg_power_w", watt}] end)
+          |> Enum.map(fn {ts, watt} -> %{ts: ts, avg_power_w: watt} end)
 
         plug_series(plug, points)
       end
 
-    render_json(conn, [{"series", series}])
+    json(conn, %{series: series})
   end
 
   def today_summary(conn, _params) do
     summary = EnergySummary.compute_today(Config.app_config())
 
-    render_json(conn, [
-      {"date", summary.date},
-      {"produced_wh_today", summary.produced.wh},
-      {"consumed_wh_today", summary.consumed.wh},
-      {"self_consumed_wh_today", summary.self_consumed.wh},
-      {"autarky_ratio", EnergySummary.autarky_ratio(summary)},
-      {"self_consumption_ratio", EnergySummary.self_consumption_ratio(summary)},
-      {"savings_eur_today", summary.savings_eur}
-    ])
+    json(conn, %{
+      date: summary.date,
+      produced_wh_today: summary.produced.wh,
+      consumed_wh_today: summary.consumed.wh,
+      self_consumed_wh_today: summary.self_consumed.wh,
+      autarky_ratio: EnergySummary.autarky_ratio(summary),
+      self_consumption_ratio: EnergySummary.self_consumption_ratio(summary),
+      savings_eur_today: summary.savings_eur
+    })
   end
 
-  @doc "`days` (default 14) is read like Ruby's `to_i` and clamped to 1..365."
+  @doc "`days` (default 14) is clamped to 1..365; anything but an integer is the default."
   def history(conn, params) do
     config = Config.app_config()
-    days = params |> Map.get("days", "14") |> days()
-    zone = config.location.timezone
-    cutoff = zone |> Clock.today() |> Date.add(-days) |> Date.to_iso8601()
+    days = days(params["days"])
+    cutoff = config.location.timezone |> Clock.today() |> Date.add(-days) |> Date.to_iso8601()
 
     rows_by_plug =
       from(d in DailyTotal, where: d.date >= ^cutoff, order_by: d.date)
@@ -64,26 +65,23 @@ defmodule ZiwoasWeb.ApiController do
         points =
           rows_by_plug
           |> Map.get(plug.id, [])
-          |> Enum.map(&[{"date", &1.date}, {"energy_wh", &1.energy_wh}])
+          |> Enum.map(&%{date: &1.date, energy_wh: &1.energy_wh})
 
         plug_series(plug, points)
       end
 
-    render_json(conn, [{"days", days}, {"series", series}])
+    json(conn, %{days: days, series: series})
   end
 
-  # Rails calls `to_i` on whatever arrived; only a string has one.
-  defp days(value) when is_binary(value), do: value |> RubyNumeric.to_i() |> max(1) |> min(365)
+  defp days(value) when is_binary(value) do
+    case Integer.parse(String.trim(value)) do
+      {days, ""} -> days |> max(1) |> min(365)
+      _ -> @default_days
+    end
+  end
 
-  defp days(value),
-    do: raise(ArgumentError, "undefined method 'to_i' for #{inspect(value)}")
+  defp days(_value), do: @default_days
 
   defp plug_series(plug, points),
-    do: [{"plug_id", plug.id}, {"name", plug.name}, {"role", plug.role}, {"points", points}]
-
-  defp render_json(conn, payload) do
-    conn
-    |> put_resp_content_type("application/json")
-    |> send_resp(200, RubyJSON.encode!(payload))
-  end
+    do: %{plug_id: plug.id, name: plug.name, role: plug.role, points: points}
 end

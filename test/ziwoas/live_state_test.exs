@@ -1,5 +1,4 @@
 defmodule Ziwoas.LiveStateTest do
-  # Mirrors test/models/live_state_test.rb.
   use Ziwoas.DataCase
 
   alias Ziwoas.{Config, LiveState, Location, Repo}

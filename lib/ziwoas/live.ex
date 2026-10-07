@@ -1,15 +1,6 @@
 defmodule Ziwoas.Live do
-  @moduledoc """
-  Live updates from the tasks Phoenix runs (Rails' `WeatherBroadcaster`,
-  `SensorsBroadcaster`): a PubSub message on a page's topic, only as the task's
-  owner.
-  """
-  alias Ziwoas.Ownership
+  @moduledoc "Live updates for the pages: a PubSub message on a page's topic."
 
-  @spec broadcast(Ownership.task(), String.t(), term) :: :ok | :skipped | {:error, term}
-  def broadcast(task, topic, message) do
-    if Ownership.owner?(task),
-      do: Phoenix.PubSub.broadcast(Ziwoas.PubSub, topic, message),
-      else: :skipped
-  end
+  @spec broadcast(String.t(), term) :: :ok | {:error, term}
+  def broadcast(topic, message), do: Phoenix.PubSub.broadcast(Ziwoas.PubSub, topic, message)
 end

@@ -1,23 +1,13 @@
 defmodule Ziwoas.Switching.Commander do
   @moduledoc """
-  The single choke point for switching plugs (`Switching::Commander`): publishes the
-  command and logs it to `switch_commands` only after the publish went out.
-
-  By the mode of `switching`:
-
-    * `:phoenix` — publishes over the command connection (`Ziwoas.Mqtt.publish/5`,
-      which checks ownership itself) and writes the main database;
-    * `:dry_run` — logs what it would publish and records the command in the shadow
-      database, so a week of decisions compares with Rails' `switch_commands`;
-    * `:rails` — raises `Ziwoas.Ownership.NotOwnerError` before anything is sent.
+  The single choke point for switching plugs: publishes the command over the
+  command connection (`Ziwoas.Mqtt.publish/5`) and logs it to `switch_commands`
+  only after the publish went out.
   """
-  require Logger
-
-  alias Ziwoas.{Mqtt, Ownership, Repo}
+  alias Ziwoas.{Mqtt, Repo}
   alias Ziwoas.Plugs.Plug
   alias Ziwoas.Switching.Command
 
-  @task :switching
   @actions [:on, :off]
 
   @spec switch(Plug.t(), :on | :off, :manual | :schedule, %Ziwoas.Config.Mqtt{}) ::
@@ -29,7 +19,7 @@ defmodule Ziwoas.Switching.Commander do
     with :ok <- switchable(plug),
          :ok <- publish(plug, action, mqtt) do
       command = %Command{plug_id: plug.id, action: to_string(action), source: to_string(source)}
-      {:ok, Repo.write(@task, fn -> Repo.insert!(command) end)}
+      {:ok, Repo.insert!(command)}
     end
   end
 
@@ -38,16 +28,10 @@ defmodule Ziwoas.Switching.Commander do
 
   defp publish(%Plug{driver: :shelly} = plug, action, mqtt) do
     topic = "#{mqtt.topic_prefix}/#{plug.id}/command/switch:0"
-    payload = to_string(action)
 
-    if Ownership.mode(@task) == :dry_run do
-      Logger.info("switching dry run: would publish #{topic} #{payload}")
-      :ok
-    else
-      case Mqtt.publish(@task, Mqtt.command_client_id(), topic, payload) do
-        :ok -> :ok
-        {:error, reason} -> {:error, "MQTT publish for '#{plug.id}' failed: #{inspect(reason)}"}
-      end
+    case Mqtt.publish(Mqtt.command_client_id(), topic, to_string(action)) do
+      :ok -> :ok
+      {:error, reason} -> {:error, "MQTT publish for '#{plug.id}' failed: #{inspect(reason)}"}
     end
   end
 

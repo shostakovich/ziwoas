@@ -1,5 +1,4 @@
 defmodule Ziwoas.Shading.BuilderTest do
-  # Mirrors test/models/shading/builder_test.rb.
   use Ziwoas.DataCase
 
   alias Ziwoas.{Location, Repo, Shading}

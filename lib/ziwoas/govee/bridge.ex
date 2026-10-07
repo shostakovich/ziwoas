@@ -1,7 +1,6 @@
 defmodule Ziwoas.Govee.Bridge do
   @moduledoc """
-  Rails' `Govees::Bridge` (task `govee_bridge`): the lamps' side of the
-  `govees/<key>/{config,state,set}` contract. One process holds the device
+  The lamps' side of the `govees/<key>/{config,state,set}` contract. One process holds the device
   registry and the state store; the Platform API calls run in tasks so a slow or
   rate-limited cloud never stalls the LAN path.
 
@@ -17,20 +16,14 @@ defmodule Ziwoas.Govee.Bridge do
     * **Commands** — `govees/+/set` (via `Ziwoas.Govee.CommandHandler` on the
       `ziwoas-phoenix-govee` connection) go through `Ziwoas.Govee.CommandRouter`;
       the optimistic state is published at once.
-
-  As owner it does all of that. In **shadow** mode it neither binds the LAN port
-  (Rails' bridge listens there and would lose replies to a second socket) nor sends
-  a datagram, consumes no command and publishes nothing; it only runs the Platform
-  API reads and logs what it would publish.
   """
   use GenServer
 
   require Logger
 
-  alias Ziwoas.{Mqtt, Ownership, RubyJSON}
+  alias Ziwoas.Mqtt
   alias Ziwoas.Govee.{CommandRouter, DeviceRegistry, Lan, Messages, PlatformApi, StateStore}
 
-  @task :govee_bridge
   @client_id "ziwoas-phoenix-govee"
   @listen_backoff_min_ms 1_000
   @listen_backoff_max_ms 60_000
@@ -41,18 +34,15 @@ defmodule Ziwoas.Govee.Bridge do
     do: GenServer.start_link(__MODULE__, opts, name: Keyword.get(opts, :name, __MODULE__))
 
   @doc """
-  Options: `:govee` (`Config.Govee`), `:owner` (default the task's mode); for tests
-  `:name`, `:api_req` (Req options),
+  Options: `:govee` (`Config.Govee`); for tests `:name`, `:api_req` (Req options),
   `:listen_port` (default 4002, `false` for none), `:send` (a datagram sender),
   `:publish` (a function of topic, payload), `:clock` (monotonic seconds).
   """
   @impl true
   def init(opts) do
     govee = Keyword.fetch!(opts, :govee)
-    owner = Keyword.get_lazy(opts, :owner, fn -> Ownership.owner?(@task) end)
 
     state = %{
-      owner: owner,
       govee: govee,
       api: PlatformApi.new(govee.api_key, Keyword.get(opts, :api_req, [])),
       registry:
@@ -60,20 +50,18 @@ defmodule Ziwoas.Govee.Bridge do
       store: StateStore.new(govee.pending_window_seconds * 1.0),
       clock: Keyword.get(opts, :clock, fn -> System.monotonic_time(:millisecond) / 1000 end),
       send: Keyword.get(opts, :send, &Lan.send_datagram/1),
-      publish: Keyword.get_lazy(opts, :publish, fn -> default_publish(owner) end),
+      publish: Keyword.get(opts, :publish, &mqtt_publish/2),
       socket: nil,
       listen_port: Keyword.get(opts, :listen_port, Lan.listen_port()),
       listen_backoff_ms: @listen_backoff_min_ms,
       bootstrapped: false
     }
 
-    state = if owner, do: listen(state), else: state
-
     send(self(), :bootstrap)
-    if owner, do: send(self(), :lan_poll)
+    send(self(), :lan_poll)
     Process.send_after(self(), :api_poll, govee.api_poll_seconds * 1000)
-    Logger.info("Govee bridge: starting (#{if owner, do: "owner", else: "shadow"})")
-    {:ok, state}
+    Logger.info("Govee bridge: starting")
+    {:ok, listen(state)}
   end
 
   @doc "The port the LAN listener is bound to (tests)."
@@ -137,10 +125,7 @@ defmodule Ziwoas.Govee.Bridge do
   def handle_info({:udp, socket, ip, _port, payload}, %{socket: socket} = state),
     do: {:noreply, handle_datagram(state, payload, ip |> :inet.ntoa() |> List.to_string())}
 
-  def handle_info({:set, key, payload}, %{owner: true} = state),
-    do: {:noreply, on_set(state, key, payload)}
-
-  def handle_info({:set, _key, _payload}, state), do: {:noreply, state}
+  def handle_info({:set, key, payload}, state), do: {:noreply, on_set(state, key, payload)}
 
   def handle_info(message, state) do
     Logger.debug("Govee bridge: ignoring #{inspect(message)}")
@@ -195,7 +180,7 @@ defmodule Ziwoas.Govee.Bridge do
           publish(
             state,
             "govees/#{device.key}/config",
-            RubyJSON.generate!(Messages.config_wire(device))
+            JSON.encode!(Messages.config_wire(device))
           )
         end
 
@@ -214,7 +199,7 @@ defmodule Ziwoas.Govee.Bridge do
   defp listen(%{listen_port: false} = state), do: state
 
   # A port another process holds (a bridge not yet gone) is retried with backoff,
-  # 1 s to 60 s: an owner without its listener would hear no lamp.
+  # 1 s to 60 s: without its listener the bridge hears no lamp.
   defp listen(%{listen_port: port} = state) do
     opts = [
       :binary,
@@ -284,7 +269,7 @@ defmodule Ziwoas.Govee.Bridge do
   # --- API ----------------------------------------------------------------------
 
   defp apply_api(state, {device, {:ok, map}}, publish?) do
-    case device_telemetry(map, device) do
+    case Messages.device_telemetry(map, device.zones) do
       {:ok, telemetry} ->
         {result, store} =
           StateStore.apply_telemetry(state.store, device.key, telemetry, :api, state.clock.())
@@ -306,13 +291,6 @@ defmodule Ziwoas.Govee.Bridge do
   defp apply_api(state, {:error, message}, _publish?) do
     Logger.warning("Govee.Reconciler: #{message}")
     state
-  end
-
-  # Rails' to_i raised on a value no Ruby number answers; the tick skipped the lamp.
-  defp device_telemetry(map, device) do
-    Messages.device_telemetry(map, device.zones)
-  rescue
-    _ -> :error
   end
 
   # --- Commands -----------------------------------------------------------------
@@ -353,21 +331,12 @@ defmodule Ziwoas.Govee.Bridge do
 
   # --- Effects ------------------------------------------------------------------
 
-  defp lan(%{owner: false}, _command), do: :ok
-
-  # A task Phoenix does not own refuses the datagram, never the bridge.
-  defp lan(state, command) do
-    state.send.(Lan.datagram(command))
-  rescue
-    error in Ownership.NotOwnerError ->
-      Logger.error("Govee bridge: datagram refused: #{Exception.message(error)}")
-      {:error, :not_owner}
-  end
+  defp lan(state, command), do: state.send.(Lan.datagram(command))
 
   defp publish_state(state, key, published) do
     case Messages.state(published) do
       {:ok, message} ->
-        publish(state, "govees/#{key}/state", RubyJSON.generate!(Messages.state_wire(message)))
+        publish(state, "govees/#{key}/state", JSON.encode!(Messages.state_wire(message)))
 
       :error ->
         Logger.warning("Govee bridge: state of #{key} does not coerce: #{inspect(published)}")
@@ -376,29 +345,14 @@ defmodule Ziwoas.Govee.Bridge do
 
   defp publish(state, topic, payload), do: state.publish.(topic, payload)
 
-  defp default_publish(true) do
-    fn topic, payload ->
-      try do
-        case Mqtt.publish(@task, @client_id, topic, payload, retain: true) do
-          :ok ->
-            :ok
+  defp mqtt_publish(topic, payload) do
+    case Mqtt.publish(@client_id, topic, payload, retain: true) do
+      :ok ->
+        :ok
 
-          {:error, reason} = error ->
-            Logger.error("Govee bridge: publish #{topic} failed: #{inspect(reason)}")
-            error
-        end
-      rescue
-        error in Ownership.NotOwnerError ->
-          Logger.error("Govee bridge: publish #{topic} refused: #{Exception.message(error)}")
-          {:error, :not_owner}
-      end
-    end
-  end
-
-  defp default_publish(false) do
-    fn topic, payload ->
-      Logger.debug("Govee bridge (shadow): would publish #{topic} #{payload}")
-      :ok
+      {:error, reason} = error ->
+        Logger.error("Govee bridge: publish #{topic} failed: #{inspect(reason)}")
+        error
     end
   end
 

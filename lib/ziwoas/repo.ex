@@ -22,12 +22,4 @@ defmodule Ziwoas.Repo do
     {:ok, text} = Ecto.Type.adapter_dump(__adapter__(), :utc_datetime_usec, utc)
     text
   end
-
-  @doc """
-  Runs `fun` and returns its result. A leftover of the time Rails and Phoenix shared
-  the database, when `task` chose the database to write; it goes once no caller
-  names a task any more.
-  """
-  @spec write(Ziwoas.Ownership.task(), (-> result)) :: result when result: var
-  def write(_task, fun) when is_function(fun, 0), do: fun.()
 end

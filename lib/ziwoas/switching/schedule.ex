@@ -1,8 +1,8 @@
 defmodule Ziwoas.Switching.Schedule do
   @moduledoc """
-  The way back from flat switch rules to the rows a plug card shows
-  (`Switching::Rules::Schedule`): a `Window` (Zeitfenster, the two rules of
-  one group) or a `Single` (Einzelschaltung, one rule on its own).
+  The way back from flat switch rules to the rows a plug card shows: a
+  `Window` (Zeitfenster, the two rules of one group) or a `Single`
+  (Einzelschaltung, one rule on its own).
   """
   alias Ziwoas.Switching.Rule
 
@@ -48,7 +48,7 @@ defmodule Ziwoas.Switching.Schedule do
 
   defp singles(rules), do: Enum.map(rules, &%Single{rule: &1})
 
-  # Enumerable#group_by keeps the order of first appearance.
+  # Groups in the order of their first appearance.
   defp group_by_first_appearance(items, key_fun) do
     {keys, groups} =
       Enum.reduce(items, {[], %{}}, fn item, {keys, groups} ->

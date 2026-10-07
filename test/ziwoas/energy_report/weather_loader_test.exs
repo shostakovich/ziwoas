@@ -1,5 +1,4 @@
 defmodule Ziwoas.EnergyReport.WeatherLoaderTest do
-  # Mirrors test/models/weather_report_loader_test.rb.
   use Ziwoas.DataCase
 
   alias Ziwoas.{Location, Repo}
@@ -128,7 +127,7 @@ defmodule Ziwoas.EnergyReport.WeatherLoaderTest do
              nil
   end
 
-  test "rounds the daily solar total to three decimals, Ruby's way" do
+  test "rounds the daily solar total to three decimals" do
     historic!(~U[2026-05-01 10:00:00Z], solar: 0.12345, icon: "clear-day", daytime: "day")
     historic!(~U[2026-05-02 10:00:00Z], solar: 0.0005, icon: "clear-day", daytime: "day")
 

@@ -1,37 +1,34 @@
 defmodule Ziwoas.Lights.Commands do
   @moduledoc """
-  The lamp commands (`Lights::Operations`, `Lights::Params`, `Lights::Contracts`):
-  coerce the request parameters, send through `Ziwoas.Lights.Commander` and record
-  the optimistic state (`LightState.record_state`, `record_zone_state`) inside
-  `Ziwoas.Repo.write(:lights, …)`.
+  The lamp commands: coerce the event parameters, send through
+  `Ziwoas.Lights.Commander` and record the optimistic state.
 
-  Results, as Rails' `Lights::Results`: `:power` (the hero and the tile change),
+  Results: `:power` (the hero and the tile change),
   `{:zones, keys, toast}` (those zone buttons change; `toast` is nil, `:clear` or
-  `%{evicted:, added:}`) and `:no_content` (fire and forget). Failures:
+  `%{evicted:, added:}`) and `:sent` (fire and forget). Failures:
   `{:error, :invalid}` for parameters the contract refuses, `{:error, :commander}`
   when the broker could not be reached.
   """
   import Ecto.Query
 
-  alias Ziwoas.{Clock, Repo}
+  alias Ziwoas.Repo
   alias Ziwoas.Govee.Types
   alias Ziwoas.Lights.{Commander, Light, State}
 
-  @task :lights
   @commands ~w[turn zone brightness color color_temp effect scene zone_undo]
   # Hardware limit: at most N zones lit at once.
   @max_active_zones %{"H60B0" => 2}
 
-  @type result :: :power | {:zones, [String.t()], nil | :clear | map} | :no_content
+  @type result :: :power | {:zones, [String.t()], nil | :clear | map} | :sent
 
-  @doc "Whether `name` is a command (`Lights::Operations[name]`)."
+  @doc "Whether `name` is a command."
   def command?(name), do: name in @commands
 
   @spec run(Light.t(), String.t(), map) :: {:ok, result} | {:error, :invalid | :commander}
   def run(light, "turn", params) do
     with {:ok, on} <- coerce(Types.bool(params["on"])),
          :ok <- publish(light, turn_verb(light, on)) do
-      Repo.write(@task, fn -> record_state(light.key, on) end)
+      record_state(light.key, on)
       {:ok, :power}
     end
   end
@@ -84,7 +81,7 @@ defmodule Ziwoas.Lights.Commands do
   end
 
   defp fire(light, verb) do
-    with :ok <- publish(light, verb), do: {:ok, :no_content}
+    with :ok <- publish(light, verb), do: {:ok, :sent}
   end
 
   defp turn_verb(light, on) do
@@ -95,7 +92,7 @@ defmodule Ziwoas.Lights.Commands do
 
   defp switch_zone(light, zone, on) do
     with :ok <- publish(light, {:zone, zone, on}) do
-      Repo.write(@task, fn -> record_zone_state(light.key, zone, on) end)
+      record_zone_state(light.key, zone, on)
       :ok
     end
   end
@@ -107,7 +104,7 @@ defmodule Ziwoas.Lights.Commands do
     end
   end
 
-  # Contracts::Zone: a filled string naming one of the lamp's zones.
+  # A filled string naming one of the lamp's zones.
   defp zone_of(light, zone) do
     if is_binary(zone) and zone in Light.zones(light), do: {:ok, zone}, else: {:error, :invalid}
   end
@@ -122,7 +119,7 @@ defmodule Ziwoas.Lights.Commands do
   defp coerce({:ok, value}), do: {:ok, value}
   defp coerce(:error), do: {:error, :invalid}
 
-  @doc "The lamp's limit of zones lit at once, nil for none (`Light#max_active_zones`)."
+  @doc "The lamp's limit of zones lit at once, nil for none."
   def max_active_zones(%Light{sku: sku}), do: Map.get(@max_active_zones, String.upcase(sku || ""))
 
   # Which lit side zone must go dark so `zone` can come on.
@@ -142,9 +139,9 @@ defmodule Ziwoas.Lights.Commands do
     Repo.one(from s in State, where: s.light_key == ^key, select: s.zone_states) || %{}
   end
 
-  # --- LightState ------------------------------------------------------------------
+  # --- Recorded state ---------------------------------------------------------------
 
-  @doc "`LightState.record_state(key, on:)`: the row is created when missing, written when changed."
+  @doc "Records the lamp's power; the row is created when missing, written when changed."
   def record_state(key, on) do
     (Repo.get_by(State, light_key: key) || %State{light_key: key})
     |> Ecto.Changeset.change(on: on)
@@ -153,21 +150,14 @@ defmodule Ziwoas.Lights.Commands do
     :ok
   end
 
-  @doc """
-  `LightState.record_zone_state`: one zone's bit, merged into the stored object.
-  SQLite's `json_set` keeps the stored key order and appends a new key, as Ruby's
-  `Hash#merge` does before `JSON.generate` — the map Ecto would write sorts them.
-  """
+  @doc "Records one zone's bit, merged into the stored zones."
   def record_zone_state(key, zone, on) do
-    row = Repo.get_by(State, light_key: key) || Repo.insert!(%State{light_key: key})
+    state = Repo.get_by(State, light_key: key) || %State{light_key: key}
+    zones = state.zone_states || %{}
 
-    if Map.get(row.zone_states || %{}, zone) != on do
-      Repo.query!(
-        "UPDATE light_states SET zone_states = json_set(COALESCE(zone_states, '{}'), ?, json(?)), " <>
-          "updated_at = ? WHERE id = ?",
-        [~s($."#{zone}"), to_string(on), Repo.dump_time(Clock.now()), row.id]
-      )
-    end
+    state
+    |> Ecto.Changeset.change(zone_states: Map.put(zones, zone, on))
+    |> Repo.insert_or_update!()
 
     :ok
   end

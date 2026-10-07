@@ -1,13 +1,13 @@
 defmodule Ziwoas.Govee.CommandRouter do
   @moduledoc """
-  Rails' `Govees::CommandRouter`: one `govees/<key>/set` verb becomes a LAN or a
-  Platform API call and an optimistic store entry. Power, brightness, colour and
+  One `govees/<key>/set` verb becomes a LAN or a Platform API call and an
+  optimistic store entry. Power, brightness, colour and
   colour temperature prefer the LAN when the lamp's IP is known (and it is not a
   power-only lamp); zones and scenes are API-only.
 
   `io` carries the two effects: `lan: fn command -> … end` (a `Ziwoas.Govee.Lan`
   command tuple) and `api: fn control_keyword -> … end`. Either may raise; the
-  bridge logs it, as Rails' does.
+  bridge logs it.
   """
   require Logger
 
@@ -115,7 +115,7 @@ defmodule Ziwoas.Govee.CommandRouter do
         %{}
 
       %{id: id, param_id: param_id} ->
-        control(device, io, @scene, "lightScene", [{"id", id}, {"paramId", param_id}])
+        control(device, io, @scene, "lightScene", %{"id" => id, "paramId" => param_id})
         %{on: true}
     end
   end

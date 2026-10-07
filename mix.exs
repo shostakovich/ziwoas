@@ -36,6 +36,7 @@ defmodule Ziwoas.MixProject do
       {:phoenix, "~> 1.8.15"},
       {:phoenix_html, "~> 4.1"},
       {:phoenix_live_view, "~> 1.2.0"},
+      {:phoenix_ecto, "~> 4.6"},
       {:ecto_sql, "~> 3.13"},
       {:ecto_sqlite3, "~> 0.22"},
       {:bandit, "~> 1.5"},

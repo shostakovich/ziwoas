@@ -1,16 +1,10 @@
 defmodule Ziwoas.Switching.ScheduleTickJob do
   @moduledoc """
-  Rails' `ScheduleTickJob` (`schedule_tick`, every minute): the edge-driven
-  scheduler (ADR-0001). Per switchable plug the latest edge between its watermark
-  and now is switched, unless a manual command came after it; the watermark then
-  moves to now. A missed edge is made up within `grace_s/0` only. A failed switch
-  leaves its plug's watermark, so the next tick retries that plug alone.
-
-  What the tick reads, by owner: the rules and the manual commands are the human's
-  (`switch_schedule`, the plug button), so they come from the main database in
-  every mode; the watermark and the commands it writes are the task's own and live
-  where `Ziwoas.Repo.write/2` points — the shadow database in a dry run, which
-  therefore keeps a watermark of its own instead of following Rails'.
+  The edge-driven scheduler (`schedule_tick`, every minute, ADR-0001). Per
+  switchable plug the latest edge between its watermark and now is switched,
+  unless a manual command came after it; the watermark then moves to now. A
+  missed edge is made up within `grace_s/0` only. A failed switch leaves its
+  plug's watermark, so the next tick retries that plug alone.
   """
   @behaviour Ziwoas.Scheduler.Job
 
@@ -21,7 +15,6 @@ defmodule Ziwoas.Switching.ScheduleTickJob do
   alias Ziwoas.{Clock, Repo}
   alias Ziwoas.Switching.{Command, Commander, EdgeCalculator, Rule, SchedulerState}
 
-  @task :switching
   # Switching a running appliance off late is worse than not switching it at all.
   @grace_s 10 * 60
 
@@ -47,8 +40,7 @@ defmodule Ziwoas.Switching.ScheduleTickJob do
 
       # Every plug of the tick advances, not just the ones with an edge, or an
       # untouched plug would drag an ancient watermark along.
-      if outcome != :failed,
-        do: Repo.write(@task, fn -> SchedulerState.advance!(plug.id, now) end)
+      if outcome != :failed, do: SchedulerState.advance!(plug.id, now)
 
       if edge, do: [{plug.id, edge, outcome}], else: []
     end)
@@ -59,7 +51,7 @@ defmodule Ziwoas.Switching.ScheduleTickJob do
     floor = DateTime.add(now, -@grace_s)
 
     from =
-      case Repo.write(@task, fn -> SchedulerState.last_tick_at(plug_id) end) do
+      case SchedulerState.last_tick_at(plug_id) do
         nil -> floor
         watermark -> if DateTime.compare(watermark, floor) == :gt, do: watermark, else: floor
       end

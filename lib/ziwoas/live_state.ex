@@ -1,9 +1,8 @@
 defmodule Ziwoas.LiveState do
   @moduledoc """
-  The live picture of the house (Rails' `LiveState`): every configured plug
-  with its latest measurement, and the energy flow built from the consumers'
-  draw and the inverter's fresh reading. `now` is truncated to whole seconds,
-  as Rails' `Time.zone.at(now.to_i)` does.
+  The live picture of the house: every configured plug with its latest
+  measurement, and the energy flow built from the consumers' draw and the
+  inverter's fresh reading. `now` is truncated to whole seconds.
   """
   alias Ziwoas.{Config, EnergyFlow}
   alias Ziwoas.Plugs.{Measurement, Roster}

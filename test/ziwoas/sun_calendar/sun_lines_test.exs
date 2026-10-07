@@ -1,5 +1,4 @@
 defmodule Ziwoas.SunCalendar.SunLinesTest do
-  # Mirrors test/models/sun_calendar/sun_lines_test.rb.
   use ExUnit.Case, async: true
 
   alias Ziwoas.Location

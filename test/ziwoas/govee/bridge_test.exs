@@ -1,6 +1,6 @@
 defmodule Ziwoas.Govee.BridgeTest do
-  # test/govees/bridge_test.rb as a process: bootstrap from the Platform API, LAN
-  # replies on the listener, set verbs, and what a shadow bridge leaves alone.
+  # The bridge as a process: bootstrap from the Platform API, LAN replies on the
+  # listener, set verbs, API polls.
   use ExUnit.Case, async: true
 
   alias Ziwoas.Config.Govee
@@ -85,7 +85,7 @@ defmodule Ziwoas.Govee.BridgeTest do
     :gen_udp.close(socket)
   end
 
-  defp await(fun, timeout \\ 1_000) do
+  defp await(fun, timeout) do
     cond do
       fun.() -> :ok
       timeout <= 0 -> flunk("condition not met")
@@ -95,14 +95,21 @@ defmodule Ziwoas.Govee.BridgeTest do
 
   defp status(data), do: JSON.encode!(%{"msg" => %{"cmd" => "devStatus", "data" => data}})
 
-  test "as owner: bootstrap, LAN replies and a set verb" do
-    bridge = start_bridge!(owner: true, listen_port: 0)
+  test "bootstrap, LAN replies and a set verb" do
+    bridge = start_bridge!(listen_port: 0)
 
     assert_receive {:published, "govees/" <> @key <> "/config", config}, 1_000
 
-    assert config ==
-             ~s({"sku":"H60B0","name":"Uplighter","supports_color":true,"supports_color_temp":true,) <>
-               ~s("color_temp_min_k":2700,"color_temp_max_k":6500,"zones":["rippleLightToggle"],"scenes":[]})
+    assert JSON.decode!(config) == %{
+             "sku" => "H60B0",
+             "name" => "Uplighter",
+             "supports_color" => true,
+             "supports_color_temp" => true,
+             "color_temp_min_k" => 2700,
+             "color_temp_max_k" => 6500,
+             "zones" => ["rippleLightToggle"],
+             "scenes" => []
+           }
 
     assert_receive {:datagram, %{host: "239.255.255.250", port: 4001}}
 
@@ -118,13 +125,13 @@ defmodule Ziwoas.Govee.BridgeTest do
     udp(port, status(%{"onOff" => 0, "brightness" => 30}))
 
     assert_receive {:published, "govees/" <> @key <> "/state",
-                    ~s({"on":false,"reachable":true,"brightness":30})},
+                    ~s({"brightness":30,"on":false,"reachable":true})},
                    1_000
 
     send(bridge, {:set, @key, ~s({"brightness":40})})
 
     assert_receive {:published, "govees/" <> @key <> "/state",
-                    ~s({"on":true,"reachable":true,"brightness":40})},
+                    ~s({"brightness":40,"on":true,"reachable":true})},
                    1_000
 
     assert_received {:datagram,
@@ -145,10 +152,10 @@ defmodule Ziwoas.Govee.BridgeTest do
     assert_receive {:api, "/router/api/v1/device/control", body}, 1_000
 
     assert body =~
-             ~s("capability":{"type":"devices.capabilities.toggle","instance":"rippleLightToggle","value":1})
+             ~s("capability":{"instance":"rippleLightToggle","type":"devices.capabilities.toggle","value":1})
   end
 
-  test "as owner a failing API control publishes nothing" do
+  test "a failing API control publishes nothing" do
     test = self()
 
     failing = fn conn ->
@@ -157,7 +164,7 @@ defmodule Ziwoas.Govee.BridgeTest do
         else: api(test).(conn)
     end
 
-    bridge = start_bridge!(owner: true, listen_port: false, api_req: [plug: failing])
+    bridge = start_bridge!(listen_port: false, api_req: [plug: failing])
     assert_receive {:published, _config_topic, _}, 1_000
 
     send(bridge, {:set, @key, ~s({"power":"on"})})
@@ -166,13 +173,13 @@ defmodule Ziwoas.Govee.BridgeTest do
   end
 
   test "an API poll publishes the cloud's state" do
-    bridge = start_bridge!(owner: true, listen_port: false)
+    bridge = start_bridge!(listen_port: false)
     assert_receive {:published, _config_topic, _}, 1_000
 
     send(bridge, :api_poll)
 
     assert_receive {:published, "govees/" <> @key <> "/state",
-                    ~s({"on":true,"reachable":true,"brightness":70})},
+                    ~s({"brightness":70,"on":true,"reachable":true})},
                    1_000
   end
 
@@ -190,7 +197,6 @@ defmodule Ziwoas.Govee.BridgeTest do
 
     bridge =
       start_bridge!(
-        owner: true,
         listen_port: false,
         api_req: [plug: exiting],
         govee: %{@govee | api_poll_seconds: 1}
@@ -209,13 +215,13 @@ defmodule Ziwoas.Govee.BridgeTest do
     assert Process.alive?(bridge)
   end
 
-  test "as owner a LAN port held elsewhere is retried until it binds" do
+  test "a LAN port held elsewhere is retried until it binds" do
     {:ok, blocker} = :gen_udp.open(0, [:binary, ip: {0, 0, 0, 0}])
     {:ok, port} = :inet.port(blocker)
 
     log =
       ExUnit.CaptureLog.capture_log(fn ->
-        bridge = start_bridge!(owner: true, listen_port: port)
+        bridge = start_bridge!(listen_port: port)
         assert Bridge.listen_port(bridge) == nil
 
         :gen_udp.close(blocker)
@@ -223,32 +229,5 @@ defmodule Ziwoas.Govee.BridgeTest do
       end)
 
     assert log =~ "Govee bridge listener: :eaddrinuse; retrying in 1000 ms"
-  end
-
-  test "in shadow mode: no LAN port, no datagram, no command, only API reads" do
-    test = self()
-
-    bridge =
-      start_supervised!(
-        {Bridge,
-         name: nil,
-         govee: @govee,
-         api_req: [plug: api(test)],
-         send: &send(test, {:datagram, &1}),
-         owner: false}
-      )
-
-    assert_receive {:api, "/router/api/v1/user/devices", _}, 1_000
-    await(fn -> :sys.get_state(bridge).bootstrapped end)
-    send(bridge, :api_poll)
-    assert_receive {:api, "/router/api/v1/device/state", _}, 1_000
-    send(bridge, :lan_poll)
-    send(bridge, {:set, @key, ~s({"power":"on"})})
-    :sys.get_state(bridge)
-
-    assert Bridge.listen_port(bridge) == nil
-    refute_received {:datagram, _}
-    refute_received {:api, "/router/api/v1/device/control", _}
-    assert Process.alive?(bridge)
   end
 end

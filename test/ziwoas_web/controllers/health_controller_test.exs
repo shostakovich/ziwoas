@@ -1,5 +1,4 @@
 defmodule ZiwoasWeb.HealthControllerTest do
-  # Rails' rails/health#show; expected bodies from Rails at 2026-10-05 12:00 Berlin.
   use ZiwoasWeb.ConnCase
 
   alias Ziwoas.TestClock
@@ -25,8 +24,10 @@ defmodule ZiwoasWeb.HealthControllerTest do
           conn |> put_req_header("accept", "application/json") |> get(~p"/up"),
           get(conn, "/up.json")
         ] do
-      assert response(conn, 200) == ~s({"status":"up","timestamp":"2026-10-05T12:00:00+02:00"})
-      assert response_content_type(conn, :json) =~ "application/json; charset=utf-8"
+      assert json_response(conn, 200) == %{
+               "status" => "up",
+               "timestamp" => "2026-10-05T12:00:00+02:00"
+             }
     end
   end
 end

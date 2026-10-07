@@ -1,17 +1,15 @@
 import Config
 
 # Ecto's migrations own the schema; `mix ecto.migrate` and Ziwoas.Release.migrate/0
-# first adopt a database the Rails app left behind.
+# first adopt a database from the former Rails app (Ziwoas.Release).
 config :ziwoas, ecto_repos: [Ziwoas.Repo]
 
 # Read at runtime, where Mix.env/0 is gone (a release).
 config :ziwoas, env: config_env()
 
-# Pragmas mirror what Rails 8 sets on its SQLite connections (WAL, synchronous NORMAL,
-# foreign keys, 64 MiB journal limit, 128 MiB mmap). busy_timeout matches the
-# `timeout: 15000` in Rails' config/database.yml. The path is set in
-# config/runtime.exs. Tables get Rails' primary key, `id INTEGER NOT NULL PRIMARY KEY
-# AUTOINCREMENT`: ids are never reused.
+# SQLite for one writer app: WAL, synchronous NORMAL, foreign keys, 64 MiB journal
+# limit, 128 MiB mmap, 15 s busy timeout. The path is set in config/runtime.exs.
+# Tables get `id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT`: ids are never reused.
 config :ziwoas, Ziwoas.Repo,
   journal_mode: :wal,
   synchronous: :normal,
@@ -25,56 +23,43 @@ config :ziwoas, Ziwoas.Repo,
   pool_size: 5,
   migration_primary_key: [type: :serial, null: false]
 
-# The recurring jobs (Ziwoas.Scheduler): name => [task:, schedule:, job:], schedules in
-# Fugit's syntax (Ziwoas.Scheduler.Schedule). A job runs only while its ownership task
-# is not rails.
+# The recurring jobs (Ziwoas.Scheduler): name => [schedule:, job:], schedules in the
+# syntax of Ziwoas.Scheduler.Schedule.
 config :ziwoas, Ziwoas.Scheduler,
   jobs: [
     aggregate_energy_samples: [
-      task: :aggregator,
       schedule: "at 3:15am every day",
       job: Ziwoas.Plugs.AggregatorJob
     ],
     fetch_current_weather: [
-      task: :weather,
       schedule: "every 15 minutes",
       job: Ziwoas.Weather.CurrentJob
     ],
     push_trmnl_widget: [
-      task: :trmnl_push,
       schedule: "every 15 minutes",
       job: Ziwoas.Trmnl.EnergyPushJob
     ],
-    fetch_today_weather: [task: :weather, schedule: "every hour", job: Ziwoas.Weather.TodayJob],
+    fetch_today_weather: [schedule: "every hour", job: Ziwoas.Weather.TodayJob],
     fetch_weather_forecast: [
-      task: :weather,
       schedule: "every 3 hours",
       job: Ziwoas.Weather.ForecastJob
     ],
     fetch_historic_weather: [
-      task: :weather,
       schedule: "at 3:45am every day",
       job: Ziwoas.Weather.HistoricJob
     ],
-    poll_sensors: [task: :sensor_poll, schedule: "every 15 minutes", job: Ziwoas.Sensors.PollJob],
+    poll_sensors: [schedule: "every 15 minutes", job: Ziwoas.Sensors.PollJob],
     schedule_tick: [
-      task: :switching,
       schedule: "every minute",
       job: Ziwoas.Switching.ScheduleTickJob
     ],
-    # A shadowing monitor reads 10 s (snapshot: 40 s) after Rails' does, so the two
-    # apps never open a Modbus connection to the inverter at the same moment.
     solakon_monitor: [
-      task: :solakon_monitor,
       schedule: "every 30 seconds",
-      job: Ziwoas.Solakon.MonitorJob,
-      shadow_offset: 10
+      job: Ziwoas.Solakon.MonitorJob
     ],
     solakon_snapshot: [
-      task: :solakon_monitor,
       schedule: "every 2 minutes",
-      job: Ziwoas.Solakon.SnapshotJob,
-      shadow_offset: 40
+      job: Ziwoas.Solakon.SnapshotJob
     ]
   ]
 

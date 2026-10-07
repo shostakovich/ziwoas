@@ -1,5 +1,5 @@
 defmodule Ziwoas.Sensors do
-  @moduledoc "Queries over `sensor_readings` (Rails' `SensorReading` scopes)."
+  @moduledoc "Queries over `sensor_readings`."
   import Ecto.Query
 
   alias Ziwoas.Repo
@@ -19,8 +19,8 @@ defmodule Ziwoas.Sensors do
   end
 
   @doc """
-  Each device's newest readings, keyed by device (`SensorReading.latest_per_device`
-  plus `index_by`): readings sharing the newest `taken_at` leave the last one.
+  Each device's newest reading, keyed by device: of readings sharing the newest
+  `taken_at`, the last one wins.
   """
   @spec latest_per_device([String.t()]) :: %{String.t() => Reading.t()}
   def latest_per_device([]), do: %{}

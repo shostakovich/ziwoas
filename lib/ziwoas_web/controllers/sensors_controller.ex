@@ -1,13 +1,12 @@
 defmodule ZiwoasWeb.SensorsController do
   @moduledoc """
-  `/sensors/series` (Rails' `SensorsController#series`): the last 24 hours of
-  every configured sensor as chart points, byte-identical through
-  `Ziwoas.RubyJSON`. Like Rails' `render json:`, it answers whatever the
-  request accepts. The page itself is `ZiwoasWeb.SensorsLive`.
+  `/sensors/series`: the last 24 hours of every configured sensor as chart points
+  (`[unix_ms, value]`), read by the `SensorsChart` hook. The page itself is
+  `ZiwoasWeb.SensorsLive`.
   """
   use ZiwoasWeb, :controller
 
-  alias Ziwoas.{Clock, Config, RubyJSON, Sensors}
+  alias Ziwoas.{Clock, Config, Sensors}
 
   @window_seconds 24 * 3600
 
@@ -20,15 +19,11 @@ defmodule ZiwoasWeb.SensorsController do
 
     co2_sensors = Enum.filter(sensors, &(&1.type == :meter_pro_co2))
 
-    payload = [
-      {"temperature", series(grouped, sensors, :temperature)},
-      {"humidity", series(grouped, sensors, :humidity)},
-      {"co2", series(grouped, co2_sensors, :co2)}
-    ]
-
-    conn
-    |> put_resp_content_type("application/json")
-    |> send_resp(200, RubyJSON.encode!(payload))
+    json(conn, %{
+      temperature: series(grouped, sensors, :temperature),
+      humidity: series(grouped, sensors, :humidity),
+      co2: series(grouped, co2_sensors, :co2)
+    })
   end
 
   defp series(grouped, sensors, field) do
@@ -37,9 +32,9 @@ defmodule ZiwoasWeb.SensorsController do
         for reading <- Map.get(grouped, sensor.id, []),
             value = Map.fetch!(reading, field),
             not is_nil(value),
-            do: [DateTime.to_unix(reading.taken_at) * 1000, value]
+            do: [DateTime.to_unix(reading.taken_at, :millisecond), value]
 
-      [{"device_id", sensor.id}, {"name", sensor.name}, {"points", points}]
+      %{device_id: sensor.id, name: sensor.name, points: points}
     end
   end
 end

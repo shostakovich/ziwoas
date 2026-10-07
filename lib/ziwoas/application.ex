@@ -14,30 +14,9 @@ defmodule Ziwoas.Application do
         Ziwoas.Repo,
         {Phoenix.PubSub, name: Ziwoas.PubSub},
         ZiwoasWeb.Endpoint
-      ] ++ live_watchers() ++ collector(config) ++ scheduler(config)
+      ] ++ collector(config) ++ scheduler(config)
 
     Supervisor.start_link(children, strategy: :one_for_one, name: Ziwoas.Supervisor)
-  end
-
-  # The dashboard's minute summary beat (Rails' `DashboardSummaryJob`), under its own
-  # supervisor: a burst of watcher crashes exhausts its restarts, not the Endpoint's.
-  # The Shelly handler broadcasts the live deltas itself.
-  defp live_watchers do
-    if Application.get_env(:ziwoas, :live_watchers, true) do
-      watchers = [{Ziwoas.Live.DashboardWatcher, live: false}]
-
-      [
-        %{
-          id: Ziwoas.Live.Supervisor,
-          type: :supervisor,
-          start:
-            {Supervisor, :start_link,
-             [watchers, [strategy: :one_for_one, name: Ziwoas.Live.Supervisor]]}
-        }
-      ]
-    else
-      []
-    end
   end
 
   # Device connections; none in tests.
@@ -45,7 +24,7 @@ defmodule Ziwoas.Application do
 
   defp collector(config) do
     if Application.get_env(:ziwoas, :collector, true),
-      do: [{Ziwoas.Collector, config: config, owners: Ziwoas.Ownership.owners()}],
+      do: [{Ziwoas.Collector, config: config}],
       else: []
   end
 

@@ -1,6 +1,4 @@
 defmodule ZiwoasWeb.LightLiveTest do
-  # Mirrors the show half of test/controllers/lights_controller_test.rb and
-  # test/models/light_snapshot_test.rb.
   use ZiwoasWeb.ConnCase
 
   import Phoenix.LiveViewTest
@@ -83,10 +81,9 @@ defmodule ZiwoasWeb.LightLiveTest do
     light!(%{key: "ABCDEF05", firmware_scenes: ["Forest", "Aurora"]})
     doc = page(conn, "ABCDEF05")
 
-    assert doc |> LazyHTML.query("form input[name=effect]") |> LazyHTML.attribute("value") == [
-             "Forest",
-             "Aurora"
-           ]
+    assert doc
+           |> LazyHTML.query("button[phx-value-command=effect]")
+           |> LazyHTML.attribute("phx-value-effect") == ["Forest", "Aurora"]
 
     light!(%{key: "ABCDEF06", firmware_scenes: []})
 
@@ -108,15 +105,18 @@ defmodule ZiwoasWeb.LightLiveTest do
 
     doc = page(conn, "UP1")
 
-    assert count(doc, "#light_power [aria-label=Zonen] .row-cols-3 > form[id^=zone_] button") == 3
+    assert count(doc, "#light_power [aria-label=Zonen] .row-cols-3 > .col > button[id^=zone_]") ==
+             3
+
     assert count(doc, "[aria-label=Zonen][hidden]") == 1
     assert count(doc, "button[role=tab][data-tab=zones]") == 0
 
     state!("UP1", %{on: true, zone_states: %{"sideLightToggle" => true}})
     doc = page(conn, "UP1")
     assert count(doc, "[aria-label=Zonen]:not([hidden])") == 1
-    assert count(doc, "form#zone_sideLightToggle button.active[aria-pressed=true]") == 1
-    assert count(doc, "form#zone_bottomLightToggle button:not(.active)[aria-pressed=false]") == 1
+    assert count(doc, "button#zone_sideLightToggle.active[aria-pressed=true]") == 1
+    assert count(doc, "button#zone_sideLightToggle[phx-value-on=false]") == 1
+    assert count(doc, "button#zone_bottomLightToggle:not(.active)[aria-pressed=false]") == 1
   end
 
   test "a simple lamp renders no zone buttons; the gear opens the sheet", %{conn: conn} do
@@ -125,10 +125,9 @@ defmodule ZiwoasWeb.LightLiveTest do
 
     assert count(doc, "[aria-label=Zonen]") == 0
 
-    assert count(doc, "a[aria-label=Einstellungen][href='/lights/S1/edit'][data-turbo-stream]") ==
-             1
-
+    assert count(doc, "button[aria-label=Einstellungen][phx-click=open_settings]") == 1
     assert count(doc, "#light_settings") == 1
+    assert count(doc, "#light_settings dialog") == 0
   end
 
   test "a lamp update re-renders the power hero", %{conn: conn} do

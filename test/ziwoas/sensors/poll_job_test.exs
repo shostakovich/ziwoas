@@ -1,11 +1,11 @@
 defmodule Ziwoas.Sensors.PollJobTest do
-  # test/jobs/sensor_poll_job_test.rb; PubSub topics are global, hence not async.
+  # PubSub topics are global, hence not async.
   use Ziwoas.DataCase
 
   import Ecto.Query
   import ExUnit.CaptureLog
 
-  alias Ziwoas.{Ownership, Repo, TestConfigs}
+  alias Ziwoas.{Repo, TestConfigs}
   alias Ziwoas.Sensors.{PollJob, Reading, SwitchBotClient}
   alias Ziwoas.Trmnl.Push
 
@@ -32,7 +32,7 @@ defmodule Ziwoas.Sensors.PollJobTest do
   end
 
   defp context(config \\ TestConfigs.plugs(@sensors)),
-    do: %{task: :sensor_poll, mode: Ownership.mode(:sensor_poll), config: config}
+    do: %{at: Ziwoas.Clock.now(), config: config}
 
   # Each device answers `status.(id)`: a body map, or an HTTP status.
   defp stub_switchbot(status) do
@@ -87,13 +87,26 @@ defmodule Ziwoas.Sensors.PollJobTest do
     assert b.taken_at == a.taken_at
   end
 
-  test "casts as Rails: an Integer temperature to Float, a Float humidity to Integer" do
-    stub_switchbot(fn _id -> %{"temperature" => 21, "humidity" => 52.7, "battery" => 99.9} end)
+  test "an Integer temperature becomes a Float, a Float humidity a rounded Integer" do
+    stub_switchbot(fn _id -> %{"temperature" => 21, "humidity" => 52.7, "battery" => 99.4} end)
     stub_trmnl()
 
     PollJob.perform(context())
 
-    assert [%{temperature: 21.0, humidity: 52, battery_pct: 99} | _] = readings()
+    assert [%{temperature: 21.0, humidity: 53, battery_pct: 99} | _] = readings()
+  end
+
+  test "a reading that does not cast is logged and skipped" do
+    stub_switchbot(fn id ->
+      if id == "A", do: %{status(id) | "temperature" => "warm"}, else: status(id)
+    end)
+
+    stub_trmnl()
+
+    assert capture_log(fn -> PollJob.perform(context()) end) =~
+             "SensorPoll[A]: invalid reading"
+
+    assert [%{device_id: "B"}] = readings()
   end
 
   test "a failing sensor is logged and skipped" do
@@ -113,7 +126,7 @@ defmodule Ziwoas.Sensors.PollJobTest do
     refute_received {:sensors_updated}
   end
 
-  test "as owner pushes the TRMNL sensor widget, then tells the pages" do
+  test "pushes the TRMNL sensor widget, then tells the pages" do
     stub_switchbot(&status/1)
     stub_trmnl()
 

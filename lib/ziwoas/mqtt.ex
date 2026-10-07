@@ -1,23 +1,16 @@
 defmodule Ziwoas.Mqtt do
   @moduledoc """
-  The collector's MQTT connections (Tortoise311, MQTT 3.1.1, QoS 0 like Rails' `mqtt`
-  gem). Tortoise reconnects by itself with exponential backoff (`@backoff`, 1 s to
-  60 s like Rails' `MqttRouter`), so a connection is just a supervised child.
+  The collector's MQTT connections (Tortoise311, MQTT 3.1.1, QoS 0). Tortoise
+  reconnects by itself with exponential backoff (`@backoff`, 1 s to 60 s), so a
+  connection is just a supervised child.
 
   Client ids are fixed per component (`ziwoas-phoenix-<component>`); the broker
   drops an older session that reuses an id, so two Phoenix instances must not share
-  a broker. Rails' clients use random ids and never collide with these.
+  a broker.
 
-  Publishing is a device write: `publish/5` calls `Ziwoas.Ownership.ensure_owner!/1`
-  first, so a task in shadow mode cannot reach the shared broker.
-
-  The web side's commands (plug switches, lamp commands: Rails' `Switching::Commander`
-  and `Govees::Commander`, which open a connection per command) share one
-  connection, `command_client_id/0`, started while `switching` or `lights` is
-  Phoenix's (`Ziwoas.Collector`).
+  The web side's commands (plug switches, lamp commands) share one connection,
+  `command_client_id/0`, started by `Ziwoas.Collector`.
   """
-  alias Ziwoas.Ownership
-
   @backoff [min_interval: 1_000, max_interval: 60_000]
   @publish_timeout_ms 5_000
   @command_client_id "ziwoas-phoenix-command"
@@ -40,14 +33,11 @@ defmodule Ziwoas.Mqtt do
   end
 
   @doc """
-  Publishes `payload` on `topic` for `task` (QoS 0, `retain:` as given). Raises
-  `Ziwoas.Ownership.NotOwnerError` unless Phoenix owns the task; returns
+  Publishes `payload` on `topic` (QoS 0, `retain:` as given); returns
   `{:error, reason}` while the broker is unreachable.
   """
-  @spec publish(Ownership.task(), String.t(), String.t(), iodata, keyword) :: :ok | {:error, term}
-  def publish(task, client_id, topic, payload, opts \\ []) do
-    Ownership.ensure_owner!(task)
-
+  @spec publish(String.t(), String.t(), iodata, keyword) :: :ok | {:error, term}
+  def publish(client_id, topic, payload, opts \\ []) do
     retain = Keyword.get(opts, :retain, false)
 
     case recorder() do
@@ -70,7 +60,7 @@ defmodule Ziwoas.Mqtt do
   # `config :ziwoas, mqtt_recorder: {module, function}`: a 0-arity function that answers
   # the recorder or `nil` (`Ziwoas.TestMqtt` in test/support). The application never
   # sets it. A recorder takes `(client_id, topic, payload)` or, with arity 4, `retain`
-  # too, and returns what `publish/5` returns.
+  # too, and returns what `publish/4` returns.
   defp recorder do
     case Application.get_env(:ziwoas, :mqtt_recorder) do
       nil -> nil

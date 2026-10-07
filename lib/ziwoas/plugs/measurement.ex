@@ -1,10 +1,10 @@
 defmodule Ziwoas.Plugs.Measurement do
   @moduledoc """
-  A plug's latest measurement and whether it still describes the plug now
-  (Rails' `Plugs::Measurement`). A plug is offline once no sample arrived for
+  A plug's latest measurement and whether it still describes the plug now.
+  A plug is offline once no sample arrived for
   `offline_after_s`; an offline plug reports no watts, not zero.
   """
-  alias Ziwoas.{Repo, RubyNumeric}
+  alias Ziwoas.Repo
 
   @offline_after_s 120
 
@@ -48,11 +48,11 @@ defmodule Ziwoas.Plugs.Measurement do
   def total_w(measurements, plug_ids) do
     case for(id <- plug_ids, m = Map.fetch!(measurements, id), not m.offline, do: m.watt) do
       [] -> nil
-      watts -> RubyNumeric.sum(watts)
+      watts -> Enum.sum(watts)
     end
   end
 
-  # Rails' `Plugs::Sample.latest_per_plug`: the newest sample of every plug.
+  # The newest sample of every plug.
   defp latest_per_plug([]), do: []
 
   defp latest_per_plug(plug_ids) do
@@ -67,6 +67,6 @@ defmodule Ziwoas.Plugs.Measurement do
       )
 
     for [plug_id, ts, apower_w] <- rows,
-        do: %{plug_id: plug_id, ts: ts, apower_w: RubyNumeric.to_f(apower_w)}
+        do: %{plug_id: plug_id, ts: ts, apower_w: apower_w && apower_w * 1.0}
   end
 end

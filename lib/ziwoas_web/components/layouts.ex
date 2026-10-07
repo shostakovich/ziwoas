@@ -24,6 +24,7 @@ defmodule ZiwoasWeb.Layouts do
   attr :look, :string, required: true
   attr :current_path, :string, required: true
   attr :main_class, :any, default: nil
+  attr :flash, :map, default: %{}
   slot :inner_block, required: true
 
   def app(assigns) do
@@ -72,6 +73,7 @@ defmodule ZiwoasWeb.Layouts do
     </div>
 
     <main class={["container app-main", @main_class]} id="main">
+      <.flash_group flash={@flash} />
       {render_slot(@inner_block)}
     </main>
 
@@ -97,8 +99,7 @@ defmodule ZiwoasWeb.Layouts do
   # A full page load: the look lives on <html>.
   defp look_toggle(assigns) do
     ~H"""
-    <form class="button_to" method="post" action="/look">
-      <input type="hidden" name="_method" value="patch" />
+    <.form for={%{}} action={~p"/look"} method="patch">
       <button
         class={["btn btn-sm btn-outline-secondary app-look-toggle", @look == "felt" && "active"]}
         aria-pressed={to_string(@look == "felt")}
@@ -106,13 +107,12 @@ defmodule ZiwoasWeb.Layouts do
       >
         Filz-Look
       </button>
-      <input type="hidden" name="_csrf_token" value={Plug.CSRFProtection.get_csrf_token()} />
       <input type="hidden" name="look" value={if @look == "felt", do: "clean", else: "felt"} />
-    </form>
+    </.form>
     """
   end
 
-  @doc "The zone Rails exposes as `ziwoas-time-zone` (its `Time.zone`, from the config)."
+  @doc "The configured time zone, exposed to the page as `ziwoas-time-zone`."
   def time_zone, do: Config.app_config().location.timezone
 
   def theme_colors(look), do: Look.theme_colors(look)

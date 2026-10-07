@@ -1,19 +1,15 @@
 defmodule ZiwoasWeb.SolakonLive do
   @moduledoc """
-  The PV page (Rails' `SolakonController#index`). Like Rails, it listens to
-  the dashboard's live beat: `{:dashboard_live, _}` and `{:solakon_reading, _}`
-  replace the energy-flow state, the only live region on this page. The
-  Solakon-Verlauf reloads itself every minute, as its Turbo frame does, and
-  its range tabs swap it in place.
+  The PV page. It listens to the dashboard's live beat: `{:dashboard_live, _}`
+  and `{:solakon_reading, _}` replace the energy-flow state, the only live
+  region on this page. The Solakon-Verlauf reloads itself every minute, and its
+  range tabs swap it in place.
 
-  The EPS and Auto-Regelung switches are LiveView events (`"toggle_eps"`,
-  `"toggle_control"`), not PATCHes: no CSRF token crosses apps. They switch only
-  while Phoenix owns `solakon_control`; `/solakon`, both PATCH routes and the tasks
-  `solakon_control` and `solakon_monitor` change hands together.
+  The EPS and Auto-Regelung switches are the events `"toggle_eps"` and
+  `"toggle_control"`.
   """
   use ZiwoasWeb, :live_view
 
-  import ZiwoasWeb.CoreComponents
   import ZiwoasWeb.DashboardComponents
   import ZiwoasWeb.EconomicsComponents
   import ZiwoasWeb.SolakonComponents
@@ -21,11 +17,11 @@ defmodule ZiwoasWeb.SolakonLive do
 
   require Logger
 
-  alias Ziwoas.{Clock, Config, LiveState, Ownership}
+  alias Ziwoas.{Clock, Config, LiveState}
   alias Ziwoas.Economics.Overview
   alias Ziwoas.Plugs.{Measurement, Roster}
   alias Ziwoas.Shading
-  alias Ziwoas.Solakon.{Control, History, Reading, Snapshot}
+  alias Ziwoas.Solakon.{Control, Reading, Snapshot}
   alias Ziwoas.SunCalendar
   alias ZiwoasWeb.{DashboardComponents, SolakonHistoryLive}
 
@@ -57,7 +53,6 @@ defmodule ZiwoasWeb.SolakonLive do
        attempts: 0,
        reading: Reading.newest(),
        snapshot: Snapshot.latest(),
-       history: History.payload("24h", now, zone),
        sun_calendar:
          SunCalendar.Builder.build(
            config.location,
@@ -87,11 +82,10 @@ defmodule ZiwoasWeb.SolakonLive do
   end
 
   @impl true
-  def handle_event("history_range", %{"range" => range}, socket),
-    do: {:noreply, SolakonHistoryLive.reload_history(socket, range)}
+  def handle_params(params, _uri, socket),
+    do: {:noreply, SolakonHistoryLive.reload_history(socket, params["range"])}
 
-  # The two switches: what Rails' `solakon` controller did with its PATCHes,
-  # as events. Only the owner of solakon_control switches (`ZiwoasWeb.Owned`'s rule).
+  @impl true
   def handle_event("toggle_eps", _params, socket) do
     desired = not eps_on?(socket.assigns)
 
@@ -124,30 +118,21 @@ defmodule ZiwoasWeb.SolakonLive do
   end
 
   defp eps_switch(desired) do
-    cond do
-      not Ownership.acting?(:solakon_control) ->
+    if is_nil(Config.app_config().solakon) do
+      {:error, "Solakon nicht konfiguriert"}
+    else
+      with {:error, reason} <- Control.set_eps_output(desired) do
+        Logger.warning("solakon_controls: EPS switch failed: #{inspect(reason)}")
         {:error, "Schalten fehlgeschlagen"}
-
-      is_nil(Config.app_config().solakon) ->
-        {:error, "Solakon nicht konfiguriert"}
-
-      true ->
-        with {:error, reason} <- Ziwoas.Solakon.Control.set_eps_output(desired) do
-          Logger.warning("solakon_controls: EPS switch failed: #{inspect(reason)}")
-          {:error, "Schalten fehlgeschlagen"}
-        end
+      end
     end
   end
 
   defp control_switch(desired) do
-    if Ownership.acting?(:solakon_control) do
-      case Ziwoas.Solakon.Control.set_active(Config.app_config(), desired) do
-        {:ok, state} -> {:ok, state}
-        {:error, :not_configured} -> {:error, "Solakon nicht konfiguriert"}
-        {:error, :disabled} -> {:error, "in Konfiguration deaktiviert"}
-      end
-    else
-      {:error, "Umschalten fehlgeschlagen"}
+    case Control.set_active(Config.app_config(), desired) do
+      {:ok, state} -> {:ok, state}
+      {:error, :not_configured} -> {:error, "Solakon nicht konfiguriert"}
+      {:error, :disabled} -> {:error, "in Konfiguration deaktiviert"}
     end
   end
 
@@ -159,7 +144,7 @@ defmodule ZiwoasWeb.SolakonLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app look={@look} current_path={@current_path} main_class="app-main-wide">
+    <Layouts.app flash={@flash} look={@look} current_path={@current_path} main_class="app-main-wide">
       <h1 class="h2 mb-3">PV</h1>
 
       <div
@@ -191,7 +176,7 @@ defmodule ZiwoasWeb.SolakonLive do
         <.storage reading={@reading} snapshot={@snapshot} />
 
         <.card title="Solakon-Verlauf" subtitle="Leistung in Watt">
-          <.history history={@history} />
+          <.history history={@history} path={~p"/solakon"} />
         </.card>
 
         <.overview_card result={@economics} />

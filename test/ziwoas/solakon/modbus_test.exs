@@ -9,7 +9,7 @@ defmodule Ziwoas.Solakon.ModbusTest do
              <<0x01, 0x02, 0, 0, 0, 6, 1, 0x03, 39424::16, 0, 2>>
   end
 
-  test "write requests are rmodbus' FC06 and FC16 frames" do
+  test "write requests are FC06 and FC16 frames" do
     assert Base.encode16(Modbus.write_single_request(2, 1, 46001, 1), case: :lower) ==
              "0002000000060106b3b10001"
 
@@ -75,7 +75,7 @@ defmodule Ziwoas.Solakon.ModbusTest do
   defp frame(transaction, unit, pdu),
     do: <<transaction::16, 0::16, byte_size(pdu) + 1::16, unit::8, pdu::binary>>
 
-  test "like rmodbus, a late answer to an earlier request is skipped and the unit id ignored" do
+  test "a late answer to an earlier request is skipped and the unit id ignored" do
     port =
       raw_server(fn <<transaction::16, _::binary>> ->
         frame(transaction - 1, 1, <<0x03, 2, 0, 99>>) <>

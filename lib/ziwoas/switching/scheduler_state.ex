@@ -21,7 +21,7 @@ defmodule Ziwoas.Switching.SchedulerState do
     end
   end
 
-  @doc "`find_or_initialize_by(plug_id).update!(last_tick_at:)`: no write when nothing changes."
+  @doc "Moves the plug's watermark to `time`, creating the row; no write when nothing changes."
   @spec advance!(String.t(), DateTime.t()) :: t when t: %__MODULE__{}
   def advance!(plug_id, time) do
     (Repo.get_by(__MODULE__, plug_id: plug_id) || %__MODULE__{plug_id: plug_id})

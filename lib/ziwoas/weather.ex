@@ -1,12 +1,11 @@
 defmodule Ziwoas.Weather do
   @moduledoc """
-  The weather records the Wetter page shows (Rails' `WeatherRecord` scopes and
-  helpers). `timestamp` is the end of the period a record sums up: 10 minutes
+  The weather records the Wetter page shows. `timestamp` is the end of the period a record sums up: 10 minutes
   for `current`, 60 for `forecast` and `historic`.
   """
   import Ecto.Query
 
-  alias Ziwoas.{Repo, RubyNumeric}
+  alias Ziwoas.Repo
   alias Ziwoas.Weather.{Day, Icon, Record}
 
   @doc "The newest `current` record, or nil."
@@ -79,15 +78,15 @@ defmodule Ziwoas.Weather do
   def solar_w_per_m2(%Record{solar: solar} = record),
     do: solar * 1000.0 * (60.0 / period_minutes(record))
 
-  @doc "Sum of `precipitation`, missing values as 0; the Integer 0 for none (Ruby's `sum`)."
+  @doc "Sum of `precipitation`, missing values as 0."
   @spec precip_sum([Record.t()]) :: number
-  def precip_sum(records), do: records |> Enum.map(&(&1.precipitation || 0)) |> RubyNumeric.sum()
+  def precip_sum(records), do: records |> Enum.map(&(&1.precipitation || 0)) |> Enum.sum()
 
   @spec min_of([Record.t()], atom) :: number | nil
-  def min_of(records, field), do: records |> present(field) |> extreme(&RubyNumeric.min/1)
+  def min_of(records, field), do: records |> present(field) |> extreme(&Enum.min/1)
 
   @spec max_of([Record.t()], atom) :: number | nil
-  def max_of(records, field), do: records |> present(field) |> extreme(&RubyNumeric.max/1)
+  def max_of(records, field), do: records |> present(field) |> extreme(&Enum.max/1)
 
   defp present(records, field),
     do: records |> Enum.map(&Map.fetch!(&1, field)) |> Enum.reject(&is_nil/1)
@@ -95,7 +94,7 @@ defmodule Ziwoas.Weather do
   defp extreme([], _fun), do: nil
   defp extreme(values, fun), do: fun.(values)
 
-  # Date#end_of_day in the zone: 23:59:59.999999 local.
+  # The last microsecond of the local day.
   defp end_of_day(date, zone) do
     {:ok, naive} = NaiveDateTime.new(date, ~T[23:59:59.999999])
     naive |> Ziwoas.LocalDay.to_instant(zone) |> utc()

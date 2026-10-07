@@ -1,5 +1,4 @@
 defmodule Ziwoas.SensorsTest do
-  # Mirrors the scopes of test/models/sensor_reading_test.rb.
   use Ziwoas.DataCase
 
   alias Ziwoas.{Repo, Sensors}

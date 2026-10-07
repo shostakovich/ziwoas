@@ -1,8 +1,8 @@
 defmodule Ziwoas.SunCalendar do
   @moduledoc """
-  A year of the PV plant hour by hour (Rails' `SunCalendar`): PV power,
-  irradiance and cloud cover as strips of day × local hour, the daily energy,
-  and the lines of sunrise, sunset and solar noon.
+  A year of the PV plant hour by hour: PV power, irradiance and cloud cover as
+  strips of day × local hour, the daily energy, and the lines of sunrise,
+  sunset and solar noon.
   """
   @base_hours {3, 22}
 

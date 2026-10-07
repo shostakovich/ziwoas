@@ -1,14 +1,13 @@
 defmodule Ziwoas.Trmnl.PushTest do
-  # test/jobs/trmnl_push_job_test.rb and trmnl_sensor_push_job_test.rb
   use Ziwoas.DataCase
 
   import ExUnit.CaptureLog
 
-  alias Ziwoas.{RubyJSON, TestConfigs}
+  alias Ziwoas.TestConfigs
   alias Ziwoas.Trmnl.{EnergyPushJob, Push}
   alias Ziwoas.Trmnl.Push.PayloadTooLarge
 
-  @payload [{"merge_variables", [{"ts", 1}, {"pv_kwh", 0}]}]
+  @payload %{merge_variables: %{ts: 1, pv_kwh: 0, stand: "12:00"}}
 
   defp stub_trmnl(status \\ 200) do
     test = self()
@@ -31,14 +30,14 @@ defmodule Ziwoas.Trmnl.PushTest do
     Req.Test.stub(Push, fn _conn -> flunk("posted") end)
 
     for url <- [nil, ""] do
-      assert Push.run(:trmnl_push, :energy, url, fn -> flunk("built") end) == :skipped
+      assert Push.run(:energy, url, fn -> flunk("built") end) == :skipped
     end
   end
 
-  test "POSTs the payload as Rails' JSON to the URL" do
+  test "POSTs the payload as JSON to the URL" do
     stub_trmnl()
 
-    assert Push.run(:trmnl_push, :energy, "https://trmnl.com/api/custom_plugins/abc", fn ->
+    assert Push.run(:energy, "https://trmnl.com/api/custom_plugins/abc", fn ->
              @payload
            end) ==
              :ok
@@ -46,14 +45,16 @@ defmodule Ziwoas.Trmnl.PushTest do
     assert_received {:posted, "POST", "https://trmnl.com/api/custom_plugins/abc",
                      ["application/json"], body}
 
-    assert body == RubyJSON.encode!(@payload)
+    assert JSON.decode!(body) == %{
+             "merge_variables" => %{"ts" => 1, "pv_kwh" => 0, "stand" => "12:00"}
+           }
   end
 
   test "a payload over 2 kB raises" do
-    huge = [{"merge_variables", [{"blob", String.duplicate("x", 4000)}]}]
+    huge = %{merge_variables: %{blob: String.duplicate("x", 4000)}}
 
     assert_raise PayloadTooLarge, ~r/TRMNL sensor payload is \d+ B, exceeds 2048 B limit/, fn ->
-      Push.run(:trmnl_push, :sensors, "https://example/", fn -> huge end)
+      Push.run(:sensors, "https://example/", fn -> huge end)
     end
   end
 
@@ -62,18 +63,18 @@ defmodule Ziwoas.Trmnl.PushTest do
 
     log =
       capture_log(fn ->
-        assert Push.run(:trmnl_push, :sensors, "https://example/", fn -> @payload end) == :failed
+        assert Push.run(:sensors, "https://example/", fn -> @payload end) == :failed
       end)
 
     assert log =~ "TRMNL sensor push errored"
     assert log =~ "connection refused"
   end
 
-  test "an HTTP error is a warning with Rails' wording" do
+  test "an HTTP error is a warning with the status" do
     stub_trmnl(500)
 
     assert capture_log(fn ->
-             Push.run(:trmnl_push, :energy, "https://example/", fn -> @payload end)
+             Push.run(:energy, "https://example/", fn -> @payload end)
            end) =~
              "TRMNL push failed: HTTP 500 Internal Server Error"
   end
@@ -83,7 +84,7 @@ defmodule Ziwoas.Trmnl.PushTest do
     stub_trmnl()
     config = TestConfigs.plugs("trmnl:\n  energy_webhook_url: https://example.test/energy\n")
 
-    EnergyPushJob.perform(%{task: :trmnl_push, mode: :phoenix, config: config})
+    EnergyPushJob.perform(%{config: config})
 
     assert_received {:posted, "POST", "https://example.test/energy", _, body}
     assert %{"merge_variables" => %{"stand" => "12:00", "pv_kwh" => +0.0}} = JSON.decode!(body)

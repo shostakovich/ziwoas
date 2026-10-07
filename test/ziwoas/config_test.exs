@@ -1,5 +1,4 @@
 defmodule Ziwoas.ConfigTest do
-  # Mirrors test/config_loader_test.rb.
   use ExUnit.Case, async: true
 
   import ExUnit.CaptureLog
@@ -272,7 +271,7 @@ defmodule Ziwoas.ConfigTest do
              ~r/producer.*switchable/
   end
 
-  test "YAML 1.1 booleans read like Psych's" do
+  test "YAML 1.1 booleans: an unquoted yes is true" do
     switchable = String.replace(@valid, "role: consumer", "role: consumer\n    switchable: yes")
     assert [_, %{switchable: true}] = load(switchable).plugs
   end
@@ -348,6 +347,46 @@ defmodule Ziwoas.ConfigTest do
 
     assert log =~ "electricity_price_eur_per_kwh"
     assert log =~ "Wirtschaftlichkeit"
+  end
+
+  test "an old migration block is ignored with a warning, even one that would not parse" do
+    for block <- [
+          "migration:\n  owners:\n    weather: shadow\n    switching: dry_run\n",
+          "migration:\n  owners:\n    weather: dry_run\n",
+          "migration: nonsense\n"
+        ] do
+      log = capture_log(fn -> assert %Config{} = load(@valid <> block) end)
+
+      assert log =~ "the 'migration' block is no longer read"
+    end
+
+    refute Map.has_key?(load(@valid), :owners)
+    assert capture_log(fn -> load(@valid) end) == ""
+  end
+
+  test "numbers may be quoted, but must be numbers" do
+    quoted = String.replace(@valid, "port: 1883", ~s(port: "1883"))
+    assert load(quoted).mqtt.port == 1883
+
+    assert error(String.replace(@valid, "port: 1883", "port: abc")) =~
+             "mqtt.port must be a number"
+
+    assert error(String.replace(@valid, "port: 1883", "port: 0")) =~ "mqtt.port must be > 0"
+
+    assert error(@valid <> @solakon <> "  port: x\n") =~ "solakon.port must be a number"
+
+    assert error(@valid <> "govee:\n  lan_poll_seconds: soon\n") =~
+             "govee.lan_poll_seconds must be a number"
+  end
+
+  test "an idle threshold of zero is allowed, a negative one is not" do
+    zero = String.replace(@valid <> @fritz, "idle_threshold_w: 10", "idle_threshold_w: 0")
+    assert load(zero).fritz_poll.idle_threshold_w == 0.0
+
+    negative = String.replace(@valid <> @fritz, "idle_threshold_w: 10", "idle_threshold_w: -1")
+
+    assert error(negative) =~
+             "fritz_poll.idle_threshold_w must be > 0"
   end
 
   @minimal "location: { timezone: Europe/Berlin }\nmqtt: { host: h, port: 1883, topic_prefix: shellies }\nplugs: []\n"

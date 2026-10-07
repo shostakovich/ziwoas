@@ -1,10 +1,9 @@
 defmodule Ziwoas.Trmnl.SensorPayloadTest do
-  # Mirrors test/models/trmnl_sensor_payload_builder_test.rb.
   use Ziwoas.DataCase
 
-  alias Ziwoas.{Repo, RubyJSON, TestConfigs}
+  alias Ziwoas.{Repo, TestConfigs}
   alias Ziwoas.Sensors.Reading
-  alias Ziwoas.Trmnl.SensorPayload
+  alias Ziwoas.Trmnl.{Push, SensorPayload}
 
   # 16:56 Europe/Berlin
   @now ~U[2026-05-12 14:56:00.000000Z]
@@ -32,23 +31,18 @@ defmodule Ziwoas.Trmnl.SensorPayloadTest do
     })
   end
 
-  defp payload(config),
-    do:
-      config
-      |> SensorPayload.build(@now)
-      |> Map.new()
-      |> Map.fetch!("merge_variables")
-      |> Map.new()
+  defp json(config), do: config |> SensorPayload.build(@now) |> JSON.encode!()
 
-  defp sensor(config, id),
-    do: payload(config)["sensors"] |> Enum.map(&Map.new/1) |> Enum.find(&(&1["id"] == id))
+  defp payload(config), do: config |> json() |> JSON.decode!() |> Map.fetch!("merge_variables")
+
+  defp sensor(config, id), do: Enum.find(payload(config)["sensors"], &(&1["id"] == id))
 
   test "one entry per configured sensor, in config order", %{config: config} do
     reading("INDOOR1", 4, co2: 1230, temp: 22.4, humidity: 48)
     reading("INDOOR2", 3, co2: 740, temp: 21.8, humidity: 51)
     reading("OUTDOOR", 5, temp: 12.4, humidity: 64, battery: 73)
 
-    sensors = Enum.map(payload(config)["sensors"], &Map.new/1)
+    sensors = payload(config)["sensors"]
     assert Enum.map(sensors, & &1["id"]) == ~w[INDOOR1 INDOOR2 OUTDOOR]
     assert Enum.map(sensors, & &1["name"]) == ~w[Wohnzimmer Küche Balkon]
     assert Enum.map(sensors, & &1["type"]) == ~w[indoor indoor outdoor]
@@ -114,11 +108,38 @@ defmodule Ziwoas.Trmnl.SensorPayloadTest do
     assert payload(config)["stand"] == "16:52"
   end
 
-  test "the serialised payload stays under 2 kB with three full trends", %{config: config} do
-    for id <- ~w[INDOOR1 INDOOR2 OUTDOOR], i <- 0..11 do
-      reading(id, i * 15, co2: 800 + i, temp: 20.0 + i * 0.1)
+  test "an indoor trend averages to whole ppm, an outdoor one to a tenth of a degree", %{
+    config: config
+  } do
+    reading("INDOOR1", 1, co2: 801)
+    reading("INDOOR1", 2, co2: 802)
+    reading("OUTDOOR", 1, temp: -3.04)
+    reading("OUTDOOR", 2, temp: -3.12)
+
+    assert List.last(sensor(config, "INDOOR1")["trend"]) === 802
+    assert List.last(sensor(config, "OUTDOOR")["trend"]) === -3.1
+  end
+
+  test "the payload stays under 2 kB for five sensors with long names and full trends" do
+    sensors =
+      for {id, type} <- [
+            {"INDOOR1", "meter_pro_co2"},
+            {"INDOOR2", "meter_pro_co2"},
+            {"INDOOR3", "meter_pro_co2"},
+            {"INDOOR4", "meter_pro_co2"},
+            {"OUTDOOR", "outdoor_meter"}
+          ] do
+        "  - { id: #{id}, name: Schlafzimmer Dachgeschoss Nord #{id}, type: #{type} }\n"
+      end
+
+    config = TestConfigs.plugs("sensors:\n" <> Enum.join(sensors))
+
+    for id <- ~w[INDOOR1 INDOOR2 INDOOR3 INDOOR4 OUTDOOR], i <- 0..11 do
+      reading(id, 1 + i * 15, co2: 1999 + i, temp: -12.34 - i, humidity: 100, battery: 100)
     end
 
-    assert byte_size(RubyJSON.encode!(SensorPayload.build(config, @now))) <= 2048
+    mv = payload(config)
+    assert Enum.all?(mv["sensors"], &(length(&1["trend"]) == 12 and not &1["offline"]))
+    assert byte_size(json(config)) <= Push.max_payload_bytes()
   end
 end

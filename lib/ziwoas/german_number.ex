@@ -2,11 +2,12 @@ defmodule Ziwoas.GermanNumber do
   @moduledoc """
   Numbers as German UI text: a decimal comma, dots between thousands and a
   true minus (U+2212), which is as wide as a plus in tabular figures. The twin
-  of formatNumber and formatFlow in app/javascript/lib/format.js.
+  of formatNumber and formatFlow in assets/js/lib/format.js.
 
   Takes integers, floats, `Decimal`s, `:nan` and nil; NaN and nil read as a dash.
+  Rounds half away from zero on the shortest decimal form of a float, like
+  `Intl.NumberFormat`: 2.675 reads as 2,68.
   """
-  alias Ziwoas.RubyNumeric
 
   @minus "−"
   @missing "—"
@@ -25,56 +26,47 @@ defmodule Ziwoas.GermanNumber do
   @spec flow(value, keyword) :: String.t()
   def flow(value, opts) do
     unit = Keyword.get(opts, :unit, "W")
-    magnitude = value |> magnitude() |> digits(Keyword.get(opts, :precision, 0))
+    precision = Keyword.get(opts, :precision, 0)
 
-    if magnitude =~ ~r/[1-9]/ do
-      direction =
-        if positive?(value),
-          do: Keyword.fetch!(opts, :positive),
-          else: Keyword.fetch!(opts, :negative)
+    case to_decimal(value) do
+      nil ->
+        with_unit(@missing, unit)
 
-      "#{direction} #{with_unit(magnitude, unit)}"
-    else
-      with_unit(magnitude, unit)
+      decimal ->
+        magnitude = decimal |> Decimal.abs() |> digits(precision) |> with_unit(unit)
+
+        cond do
+          not (magnitude =~ ~r/[1-9]/) -> magnitude
+          Decimal.positive?(decimal) -> "#{Keyword.fetch!(opts, :positive)} #{magnitude}"
+          true -> "#{Keyword.fetch!(opts, :negative)} #{magnitude}"
+        end
     end
   end
 
   defp digits(value, precision) do
-    case to_float(value) do
+    case to_decimal(value) do
       nil ->
         @missing
 
-      number ->
-        rounded = RubyNumeric.round(number, precision)
-        {integer, fraction} = split(rounded, precision)
+      decimal ->
+        rounded = Decimal.round(decimal, precision, :half_up)
+
+        [integer | fraction] =
+          rounded |> Decimal.abs() |> Decimal.to_string(:normal) |> String.split(".")
+
         grouped = Regex.replace(~r/\B(?=(\d{3})+\z)/, integer, ".")
-        # -0.0 is not negative: a value that rounds to zero carries no sign.
-        sign = if rounded < 0, do: @minus, else: ""
-        sign <> Enum.join(Enum.reject([grouped, fraction], &is_nil/1), ",")
+        # A value that rounds to zero carries no sign.
+        sign = if Decimal.negative?(rounded) and not Decimal.eq?(rounded, 0), do: @minus, else: ""
+        sign <> Enum.join([grouped | fraction], ",")
     end
   end
 
-  defp split(rounded, 0), do: {Integer.to_string(abs(rounded)), nil}
-
-  defp split(rounded, precision) do
-    [integer, fraction] =
-      rounded |> abs() |> RubyNumeric.format_fixed(precision) |> String.split(".")
-
-    {integer, fraction}
-  end
-
-  defp to_float(nil), do: nil
-  defp to_float(:nan), do: nil
-  defp to_float(%Decimal{coef: :NaN}), do: nil
-  defp to_float(%Decimal{} = value), do: Decimal.to_float(value)
-  defp to_float(value) when is_number(value), do: :erlang.float(value)
-
-  defp magnitude(%Decimal{} = value), do: Decimal.abs(value)
-  defp magnitude(value) when is_number(value), do: abs(value)
-  defp magnitude(value), do: value
-
-  defp positive?(%Decimal{} = value), do: Decimal.gt?(value, 0)
-  defp positive?(value), do: value > 0
+  defp to_decimal(nil), do: nil
+  defp to_decimal(:nan), do: nil
+  defp to_decimal(%Decimal{coef: coef}) when coef in [:NaN, :inf], do: nil
+  defp to_decimal(%Decimal{} = value), do: value
+  defp to_decimal(value) when is_integer(value), do: Decimal.new(value)
+  defp to_decimal(value) when is_float(value), do: Decimal.from_float(value)
 
   defp with_unit(text, nil), do: text
   defp with_unit(text, unit), do: "#{text} #{unit}"

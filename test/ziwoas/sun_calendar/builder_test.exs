@@ -1,5 +1,4 @@
 defmodule Ziwoas.SunCalendar.BuilderTest do
-  # Mirrors test/models/sun_calendar/builder_test.rb.
   use Ziwoas.DataCase
 
   alias Ziwoas.{LocalDay, Location, Repo}

@@ -1,5 +1,5 @@
 defmodule Ziwoas.Weather.ForecastJob do
-  @moduledoc "Rails' `WeatherForecastJob` (`fetch_weather_forecast`): the days after today."
+  @moduledoc "The `fetch_weather_forecast` job: the days after today."
   @behaviour Ziwoas.Scheduler.Job
 
   alias Ziwoas.Weather.Sync

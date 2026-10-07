@@ -1,6 +1,6 @@
 defmodule ZiwoasWeb.SolakonComponents do
   @moduledoc """
-  The PV page's parts (`app/views/solakon/`): status, controls, panels,
+  The PV page's parts: status, controls, panels,
   storage and the Solakon-Verlauf. The charts of the sun calendar and the
   shading report live in `ZiwoasWeb.SunChartComponents`.
 
@@ -9,25 +9,22 @@ defmodule ZiwoasWeb.SolakonComponents do
   """
   use ZiwoasWeb, :html
 
-  import ZiwoasWeb.CoreComponents
   import ZiwoasWeb.DashboardComponents, only: [tile: 1]
 
-  alias Ziwoas.{GermanNumber, RubyJSON, RubyNumeric}
+  alias Ziwoas.GermanNumber
   alias Ziwoas.Solakon.{History, Reading, Snapshot}
 
-  # --- Solakon-Verlauf (solakon/_history) -------------------------------------
+  # --- Solakon-Verlauf -----------------------------------------------------------
 
   @doc """
   The history, the `SolakonHistory` hook: it draws the chart from the payload
   island and redraws it in place whenever the LiveView renders a new one (a
   refresh, or a range tab). The canvas sits in a `phx-update="ignore"` frame,
-  the payload and the range outside it.
-
-  The range tabs keep Rails' href as the fallback; with LiveView connected,
-  `app.js` keeps the browser on the page and the `"history_range"` event swaps
-  the history in place.
+  the payload and the range outside it. The range tabs patch `?range=` on `path`,
+  so the range survives a reload and the refresh keeps it.
   """
   attr :history, :map, required: true
+  attr :path, :string, required: true
 
   def history(assigns) do
     ~H"""
@@ -37,18 +34,15 @@ defmodule ZiwoasWeb.SolakonComponents do
         role="group"
         aria-label="Zeitraum"
       >
-        <a
+        <.link
           :for={{key, label} <- History.range_labels()}
-          href={"/solakon/history?range=#{key}"}
-          phx-click="history_range"
-          phx-value-range={key}
+          patch={"#{@path}?range=#{key}"}
+          replace
           class={["btn btn-outline-primary flex-fill", key == @history.range && "active"]}
           aria-current={key == @history.range && "true"}
-        ><span><span class="d-none d-sm-inline">Letzte </span>{String.replace_prefix(
-          label,
-          "Letzte ",
-          ""
-        )}</span></a>
+        >
+          <span class="d-none d-sm-inline">Letzte </span>{String.replace_prefix(label, "Letzte ", "")}
+        </.link>
       </div>
       <div class="chart-frame" id="solakon_history_frame" phx-update="ignore">
         <canvas></canvas>
@@ -68,7 +62,7 @@ defmodule ZiwoasWeb.SolakonComponents do
             <div class="progress" style="height: .5rem" aria-hidden="true">
               <div
                 class="progress-bar"
-                style={"width: #{RubyNumeric.to_s(row.share)}%; background-color: var(--viz-#{row.role})"}
+                style={"width: #{row.share}%; background-color: var(--viz-#{row.role})"}
               >
               </div>
             </div>
@@ -89,15 +83,10 @@ defmodule ZiwoasWeb.SolakonComponents do
     """
   end
 
-  # A <script> written whole: the HEEx formatter would wrap its body. ERB's
-  # json_escape on top of ActiveSupport's escaping adds the line separators.
+  # A <script> written whole: HEEx does not interpolate inside one. An escaped
+  # "<" keeps a "</script>" in a label from closing it.
   defp payload_script(chart) do
-    json =
-      chart
-      |> RubyJSON.encode!()
-      |> String.replace(<<0x2028::utf8>>, "\\u2028")
-      |> String.replace(<<0x2029::utf8>>, "\\u2029")
-
+    json = chart |> JSON.encode!() |> String.replace("<", "\\u003c")
     Phoenix.HTML.raw(~s(<script type="application/json" data-chart-payload>#{json}</script>))
   end
 
@@ -127,8 +116,8 @@ defmodule ZiwoasWeb.SolakonComponents do
       for(r <- [reading, latest], r, do: [r.alarm1, r.alarm2, r.alarm3]) |> List.flatten()
 
     battery_fault =
-      Enum.any?(alarms, &(RubyNumeric.to_i(&1) > 0)) or
-        Enum.any?((latest && latest.bms_faults) || [], &(RubyNumeric.to_i(&1) > 0))
+      Enum.any?(alarms, &((&1 || 0) > 0)) or
+        Enum.any?((latest && latest.bms_faults) || [], &((&1 || 0) > 0))
 
     {state, asset, summary} =
       battery_character(battery_fault, battery_temp_c, battery_soc_pct, battery_power_w)
@@ -203,9 +192,9 @@ defmodule ZiwoasWeb.SolakonComponents do
   # --- Steuerung ----------------------------------------------------------------
 
   @doc """
-  The Steuerung cards. Before the first event they read as Rails renders them;
-  afterwards `eps_enabled`, the help text and the error lines follow the events,
-  as Rails' client-side controller rewrote them. `attempts` changes with every event,
+  The Steuerung cards. Before the first event they read from the reading and the
+  stored state; afterwards `eps_enabled`, the help text and the error lines follow
+  the events. `attempts` changes with every event,
   so the switch is re-rendered and LiveView resets its `checked` state even when a
   failed switch leaves the assigns as they were.
   """

@@ -1,9 +1,8 @@
 defmodule Ziwoas.Weather.Segment do
   @moduledoc """
   A quarter of a forecast day (Nacht, Vormittag, Nachmittag, Abend) and its
-  hourly records (Rails' `WeatherSegment`).
+  hourly records.
   """
-  alias Ziwoas.RubyNumeric
   alias Ziwoas.Weather
   alias Ziwoas.Weather.{Icon, Record}
 
@@ -32,7 +31,7 @@ defmodule Ziwoas.Weather.Segment do
   def avg_solar_w_per_m2(%__MODULE__{records: records}) do
     case records |> Enum.map(&Weather.solar_w_per_m2/1) |> Enum.reject(&is_nil/1) do
       [] -> nil
-      values -> RubyNumeric.sum(values) / length(values)
+      values -> Enum.sum(values) / length(values)
     end
   end
 

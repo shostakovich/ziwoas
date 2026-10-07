@@ -1,5 +1,4 @@
 defmodule Ziwoas.Lights.GoveeSubscriberTest do
-  # test/govees/subscriber_test.rb beyond the replay vectors.
   use Ziwoas.DataCase
 
   alias Ziwoas.Repo

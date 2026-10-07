@@ -1,7 +1,7 @@
 defmodule Ziwoas.Solakon.Control.Policy do
   @moduledoc """
-  The control's state machine (Rails' `Solakon::Control::Policy`, ADR-0002): from a
-  reading, the household load and the previous decision to the next target.
+  The control's state machine (ADR-0002): from a reading, the household load and
+  the previous decision to the next target.
 
     * **Load following**: the measured load (else the guaranteed floor), rising by at
       most 200 W per tick, falling at once.
@@ -14,11 +14,9 @@ defmodule Ziwoas.Solakon.Control.Policy do
       towards slight charging within PV and load; from 45 °C a linear thermal
       ceiling falls to zero at 49 °C.
 
-  Pure: `test/vectors/solakon_policy.json` pins it against Rails. Numbers follow
-  Ruby's (`nil.to_f` is 0.0, the target rounds half away from zero). A negative
-  measured load while trimming makes Rails' `Comparable#clamp` raise; so does this.
+  Pure. A missing power reads as 0 W, a negative load as none; the target rounds
+  half away from zero.
   """
-  alias Ziwoas.RubyNumeric
   alias Ziwoas.Solakon.Control.{Decision, Load}
   alias Ziwoas.Solakon.Reading
 
@@ -47,7 +45,7 @@ defmodule Ziwoas.Solakon.Control.Policy do
         else: unprotected_decision(reading, load, previous)
 
     target =
-      [RubyNumeric.to_f(raw), thermal_ceiling_w(reading)]
+      [to_float(raw), thermal_ceiling_w(reading)]
       |> Enum.min()
       |> clamp(0.0, @max_output_w)
       |> round()
@@ -82,7 +80,7 @@ defmodule Ziwoas.Solakon.Control.Policy do
 
   @doc false
   def normal_target(load, previous) do
-    demand = load |> Load.effective_w() |> RubyNumeric.to_f()
+    demand = load |> Load.effective_w() |> max(0.0)
 
     case target_of(previous) do
       nil -> demand
@@ -190,7 +188,7 @@ defmodule Ziwoas.Solakon.Control.Policy do
 
   @doc false
   def trimmed_target(reading, load, previous) do
-    ceiling = min(RubyNumeric.to_f(reading.pv_power_w), Load.effective_w(load))
+    ceiling = min(to_float(reading.pv_power_w), max(Load.effective_w(load), 0.0)) |> max(0.0)
 
     if previous && previous.trim && not is_nil(previous.target_w) do
       error = battery_w(reading) - @charge_bias_w
@@ -211,18 +209,16 @@ defmodule Ziwoas.Solakon.Control.Policy do
     end
   end
 
-  # Ruby's Comparable#clamp, which refuses an empty range.
-  defp clamp(_value, min, max) when min > max,
-    do: raise(ArgumentError, "min argument must be less than or equal to max argument")
-
   defp clamp(value, min, _max) when value < min, do: min
   defp clamp(value, _min, max) when value > max, do: max
   defp clamp(value, _min, _max), do: value
 
-  # Ruby: `previous&.target_w` is truthy for 0.
   defp target_of(nil), do: nil
   defp target_of(%Decision{target_w: target}), do: target
 
   defp soc(%Reading{battery_soc_pct: soc}), do: soc
-  defp battery_w(%Reading{battery_power_w: watts}), do: RubyNumeric.to_f(watts)
+  defp battery_w(%Reading{battery_power_w: watts}), do: to_float(watts)
+
+  defp to_float(nil), do: 0.0
+  defp to_float(value), do: value * 1.0
 end

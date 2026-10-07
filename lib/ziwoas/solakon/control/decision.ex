@@ -1,8 +1,7 @@
 defmodule Ziwoas.Solakon.Control.Decision do
   @moduledoc """
-  What one control tick decided (Rails' `Solakon::Control::Decision`): the policy
-  state, the target in whole watts (nil only when read back without one), and
-  whether low-SoC trimming is running.
+  What one control tick decided: the policy state, the target in whole watts
+  (nil only when read back without one), and whether low-SoC trimming is running.
   """
   @states [:normal, :surplus, :surplus_exhausted, :probe, :probe_blocked, :protected]
 
@@ -15,8 +14,8 @@ defmodule Ziwoas.Solakon.Control.Decision do
   def states, do: @states
 
   @doc """
-  The state as stored in `decision_state`. An unknown name raises, as Rails'
-  enum type does: it would otherwise fall through the policy into `:normal`.
+  The state as stored in `decision_state`. An unknown name raises: it would
+  otherwise fall through the policy into `:normal`.
   """
   @spec state!(String.t() | atom) :: state
   def state!(name) when is_atom(name) and name in @states, do: name
@@ -29,9 +28,8 @@ end
 
 defmodule Ziwoas.Solakon.Control.Load do
   @moduledoc """
-  The household load a tick regulates against (Rails' `Solakon::Control::Load`):
-  the live sum of the consumer plugs, nil when none is online, and the guaranteed
-  floor that stands in for it.
+  The household load a tick regulates against: the live sum of the consumer
+  plugs, nil when none is online, and the guaranteed floor that stands in for it.
   """
   @enforce_keys [:current_w, :floor_w]
   defstruct @enforce_keys

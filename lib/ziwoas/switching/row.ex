@@ -1,12 +1,12 @@
 defmodule Ziwoas.Switching.Row do
   @moduledoc """
-  One switchable plug on the Schalten page (`Switching::Row`): its schedule
+  One switchable plug on the Schalten page: its schedule
   folded into entries, its relay state, the latest command, the next edge
   within a week and its latest measurement.
   """
   import Ecto.Query
 
-  alias Ziwoas.{Repo, RubyNumeric}
+  alias Ziwoas.Repo
   alias Ziwoas.Plugs.{Plug, State}
   alias Ziwoas.Switching.{Command, EdgeCalculator, Rule, Schedule}
 
@@ -102,7 +102,7 @@ defmodule Ziwoas.Switching.Row do
     do: entries |> Enum.map(&length(Schedule.rules(&1))) |> Enum.sum()
 
   # Each plug's newest command: of the commands at its newest inserted_at, the last
-  # by id wins (Rails' `Command.latest_per_plug(ids).order(:created_at, :id)`).
+  # by id wins.
   defp latest_commands([]), do: %{}
 
   defp latest_commands(ids) do
@@ -121,7 +121,7 @@ defmodule Ziwoas.Switching.Row do
     |> Map.new(&{&1.plug_id, &1})
   end
 
-  # Rails' `Plugs::Sample.latest_per_plug`: the newest sample's ts and watts per plug.
+  # The newest sample's ts and watts per plug.
   defp latest_samples([]), do: %{}
 
   defp latest_samples(ids) do
@@ -135,6 +135,9 @@ defmodule Ziwoas.Switching.Row do
         ids ++ ids
       )
 
-    Map.new(rows, fn [plug_id, ts, apower_w] -> {plug_id, {ts, RubyNumeric.to_f(apower_w)}} end)
+    Map.new(rows, fn [plug_id, ts, apower_w] -> {plug_id, {ts, to_float(apower_w)}} end)
   end
+
+  defp to_float(nil), do: nil
+  defp to_float(value), do: value * 1.0
 end

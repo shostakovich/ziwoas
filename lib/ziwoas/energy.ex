@@ -4,8 +4,6 @@ defmodule Ziwoas.Energy do
   subtracted and compared in Wh, and kilowatt-hours are a display conversion
   the caller rounds itself.
   """
-  alias Ziwoas.RubyNumeric
-
   @enforce_keys [:wh]
   defstruct [:wh]
 
@@ -20,9 +18,9 @@ defmodule Ziwoas.Energy do
   @spec zero() :: t
   def zero, do: wh(0.0)
 
-  @doc "Compensated like Ruby's `Array#sum`; the empty sum is 0.0 Wh."
+  @doc "The empty sum is 0.0 Wh."
   @spec sum([t]) :: t
-  def sum(energies), do: energies |> Enum.map(& &1.wh) |> RubyNumeric.sum() |> wh()
+  def sum(energies), do: energies |> Enum.map(& &1.wh) |> Enum.sum() |> wh()
 
   @spec kwh(t) :: float
   def kwh(%__MODULE__{wh: wh}), do: wh / 1000.0

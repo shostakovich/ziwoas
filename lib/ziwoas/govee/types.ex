@@ -1,14 +1,14 @@
 defmodule Ziwoas.Govee.Types do
   @moduledoc """
-  Rails' `Govees::Types`: the liberal wire primitives, as dry-types' `params`
-  coercions accept them (`params.bool`, `params.integer`) with their constraints.
-  Each returns `{:ok, value}` or `:error` (dry-types' coercion or constraint error).
+  The liberal wire primitives of the Govee messages and the lamp events: booleans
+  and integers in their usual string forms, with range constraints. Each returns
+  `{:ok, value}` or `:error`.
   """
 
   @true_words ~w[1 on On ON t true True TRUE T y yes Yes YES Y]
   @false_words ~w[0 off Off OFF f false False FALSE F n no No NO N]
 
-  @doc "`params.bool`: true/false, 1/0 and their word forms."
+  @doc "true/false, 1/0 and their word forms (on/off, yes/no, t/f, y/n)."
   def bool(value) when is_boolean(value), do: {:ok, value}
   def bool(1), do: {:ok, true}
   def bool(0), do: {:ok, false}
@@ -16,7 +16,7 @@ defmodule Ziwoas.Govee.Types do
   def bool(value) when value in @false_words, do: {:ok, false}
   def bool(_), do: :error
 
-  @doc "`params.integer`: Ruby's `Integer(value)` (`Integer(string, 10)` for strings)."
+  @doc "An integer, a float (truncated) or a decimal string (surrounding whitespace, `_` separators)."
   def integer(value) when is_integer(value), do: {:ok, value}
   def integer(value) when is_float(value), do: {:ok, trunc(value)}
 
@@ -33,15 +33,15 @@ defmodule Ziwoas.Govee.Types do
   def kelvin(value), do: ranged(integer(value), 0, nil)
   def rgb_component(value), do: ranged(integer(value), 0, 255)
 
-  @doc "`params.string` with `min_size: 1`: a non-empty string, never coerced."
+  @doc "A non-empty string, never coerced."
   def name(value) when is_binary(value) and value != "", do: {:ok, value}
   def name(_), do: :error
 
-  @doc "A strict string (`Types::String`)."
+  @doc "A string, never coerced."
   def string(value) when is_binary(value), do: {:ok, value}
   def string(_), do: :error
 
-  @doc "A strict, optional integer (`Types::Integer.optional`)."
+  @doc "An integer or nil, never coerced."
   def optional_integer(value) when is_integer(value) or is_nil(value), do: {:ok, value}
   def optional_integer(_), do: :error
 

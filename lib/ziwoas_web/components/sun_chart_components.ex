@@ -1,17 +1,13 @@
 defmodule ZiwoasWeb.SunChartComponents do
   @moduledoc """
-  The PV page's SVG charts, ported from `Solakon::SunCalendarComponent`,
-  `Solakon::ShadingComponent` (yield map, daily profiles, panel curves) and
-  their `ChartParts`. Every chart is drawn twice: a wide frame, and a narrow
-  one for the phone, where the 720-unit drawing would shrink to a strip.
-  Numbers print as Ruby prints them (`Ziwoas.RubyNumeric.to_s/1`).
+  The PV page's SVG charts: the sun calendar and the shading report (yield
+  map, daily profiles, panel curves). Every chart is drawn twice: a wide
+  frame, and a narrow one for the phone, where the 720-unit drawing would
+  shrink to a strip.
   """
   use ZiwoasWeb, :html
 
-  import Bitwise
-  import ZiwoasWeb.CoreComponents
-
-  alias Ziwoas.{GermanNumber, Plot, Ramp, RubyNumeric, Shading, SunCalendar}
+  alias Ziwoas.{GermanNumber, Plot, Ramp, Shading, SunCalendar}
   alias Ziwoas.Shading.{Curve, YieldMap}
 
   @months ~w[Jan Feb Mär Apr Mai Jun Jul Aug Sep Okt Nov Dez]
@@ -19,7 +15,7 @@ defmodule ZiwoasWeb.SunChartComponents do
   @frame_classes %{wide: "d-none d-sm-block", narrow: "d-sm-none"}
   @legend_classes "legend list-unstyled d-flex flex-wrap align-items-center column-gap-3 row-gap-1 small text-body-secondary"
 
-  defp n(value), do: RubyNumeric.to_s(value)
+  defp n(value), do: to_string(value)
   defp frame_classes(frame), do: Map.fetch!(@frame_classes, frame)
   # A phone shows no SVG tooltips.
   defp tooltips?(frame), do: frame == :wide
@@ -292,7 +288,7 @@ defmodule ZiwoasWeb.SunChartComponents do
     hours = Enum.to_list(first_hour..last_hour//1)
     doys = Enum.map(calendar.days, & &1.doy)
     day_axis = {List.first(doys), List.last(doys) + 1}
-    bars_max = max(ceil(RubyNumeric.to_f(calendar.max_kwh)), 1)
+    bars_max = max(ceil(calendar.max_kwh || 0), 1)
 
     strip_plots =
       for {frame, row_height} <- @row_heights do
@@ -362,7 +358,7 @@ defmodule ZiwoasWeb.SunChartComponents do
       end,
       cells: fn strip -> cells(strip, hours, doys, wide_plot) end,
       cells_transform:
-        "matrix(1 0 0 #{RubyNumeric.format_g(scale)} 0 #{n(Plot.number(@top * (1 - scale)))})",
+        "matrix(1 0 0 #{n(Float.round(scale * 1.0, 6))} 0 #{n(Plot.number(@top * (1 - scale)))})",
       lines?: not SunCalendar.Lines.empty?(calendar.lines),
       sun_segments: fn plot, key -> Plot.polylines(plot, Map.fetch!(calendar.lines, key)) end,
       seam: calendar.seam,
@@ -681,12 +677,12 @@ defmodule ZiwoasWeb.SunChartComponents do
       degrees.(&elem(&1, 0)) ++ Enum.flat_map(map.bins, &[&1.azimuth, &1.azimuth + bin_size])
 
     azimuths =
-      {Plot.round_down(RubyNumeric.min(az_values), @axis_rounding_deg),
-       Plot.round_up(RubyNumeric.max(az_values), @axis_rounding_deg)}
+      {Plot.round_down(Enum.min(az_values), @axis_rounding_deg),
+       Plot.round_up(Enum.max(az_values), @axis_rounding_deg)}
 
     top_elevation =
       Plot.round_up(
-        RubyNumeric.max(degrees.(&elem(&1, 1)) ++ Enum.map(map.bins, &(&1.elevation + bin_size))),
+        Enum.max(degrees.(&elem(&1, 1)) ++ Enum.map(map.bins, &(&1.elevation + bin_size))),
         @axis_rounding_deg
       )
 
@@ -766,7 +762,7 @@ defmodule ZiwoasWeb.SunChartComponents do
 
   defp sky_paths(paths, plot, frame) do
     drawn = Enum.reject(paths, &(&1.points == []))
-    peak_of = fn path -> path.points |> Enum.map(&elem(&1, 1)) |> RubyNumeric.max() end
+    peak_of = fn path -> path.points |> Enum.map(&elem(&1, 1)) |> Enum.max() end
     lowest = if length(drawn) > 1, do: Enum.min_by(drawn, peak_of)
 
     drawn
@@ -778,7 +774,7 @@ defmodule ZiwoasWeb.SunChartComponents do
 
   # The sun never stands under the lowest arc, so its date hangs there, clear of every field.
   defp path_view(path, plot, frame, hours, beneath) do
-    peak = max_by_first(path.points, &elem(&1, 1))
+    peak = Enum.max_by(path.points, &elem(&1, 1))
     {peak_az, peak_el} = peak
     offset = if beneath, do: @path_label_offset, else: -@path_label_offset
 
@@ -837,7 +833,7 @@ defmodule ZiwoasWeb.SunChartComponents do
   defp outwards(plot, at_x, at_y, middle_x) do
     dx = at_x - middle_x
     dy = at_y - Plot.y(plot, 0)
-    length = hypot(dx, dy)
+    length = :math.sqrt(dx * dx + dy * dy)
     if length == 0, do: {0, -1}, else: {dx / length, dy / length}
   end
 
@@ -854,61 +850,6 @@ defmodule ZiwoasWeb.SunChartComponents do
       true -> "start"
     end
   end
-
-  # Ruby's `max_by`: the first of equal maxima wins.
-  defp max_by_first([first | rest], fun) do
-    Enum.reduce(rest, first, fn item, best -> if fun.(item) > fun.(best), do: item, else: best end)
-  end
-
-  @doc false
-  # C's hypot(3), taken as correctly rounded: the exact square root of the
-  # exact sum of squares, rounded half to even. Erlang's :math has no hypot.
-  def hypot(x, y) when x == 0, do: abs(:erlang.float(y))
-  def hypot(x, y) when y == 0, do: abs(:erlang.float(x))
-
-  def hypot(x, y) do
-    {xn, xd} = RubyNumeric.exact(:erlang.float(x))
-    {yn, yd} = RubyNumeric.exact(:erlang.float(y))
-    # Both denominators are powers of two: scale to the larger one, 2^m.
-    d = max(xd, yd)
-    m = bit_length(d) - 1
-    sum = Integer.pow(xn * div(d, xd), 2) + Integer.pow(yn * div(d, yd), 2)
-    {keep, exponent} = sqrt_int(sum)
-    keep * :math.pow(2, exponent - m)
-  end
-
-  # The square root of a positive integer as `{53-bit mantissa, binary exponent}`, rounded half to even.
-  defp sqrt_int(n) do
-    k = max(0, div(110 - bit_length(n), 2))
-    scaled = n <<< (2 * k)
-    r = isqrt(scaled)
-    inexact = r * r != scaled
-    s = bit_length(r) - 53
-    keep = r >>> s
-    rest = r &&& (1 <<< s) - 1
-    half = 1 <<< (s - 1)
-
-    keep =
-      cond do
-        rest > half -> keep + 1
-        rest == half and (inexact or (keep &&& 1) == 1) -> keep + 1
-        true -> keep
-      end
-
-    {keep, s - k}
-  end
-
-  defp isqrt(n) do
-    x = 1 <<< div(bit_length(n) + 1, 2)
-    isqrt_iter(n, x)
-  end
-
-  defp isqrt_iter(n, x) do
-    y = div(x + div(n, x), 2)
-    if y >= x, do: x, else: isqrt_iter(n, y)
-  end
-
-  defp bit_length(n), do: length(Integer.digits(n, 2))
 
   # --- Daily profiles -----------------------------------------------------------
 
@@ -939,7 +880,7 @@ defmodule ZiwoasWeb.SunChartComponents do
           profiles
           |> Enum.map(&Shading.max/1)
           |> Enum.reject(&is_nil/1)
-          |> then(&if(&1 == [], do: 0.0, else: RubyNumeric.to_f(RubyNumeric.max(&1))))
+          |> Enum.max(fn -> 0.0 end)
 
         scale = Plot.nice_scale(peak, @dp_nice_steps_w, @dp_max_grid_steps)
         hours = Plot.extent(Enum.flat_map(profiles, &Shading.hours/1))
@@ -1296,7 +1237,7 @@ defmodule ZiwoasWeb.SunChartComponents do
       |> spread()
 
     overflow =
-      RubyNumeric.to_f(placed |> Enum.map(& &1.y) |> RubyNumeric.max()) -
+      (placed |> Enum.map(& &1.y) |> Enum.max(fn -> 0.0 end)) -
         (Plot.bottom(plot) - @label_margin)
 
     if placed == [] or overflow <= 0,
@@ -1319,7 +1260,7 @@ defmodule ZiwoasWeb.SunChartComponents do
   end
 
   defp end_label(plot, curve) do
-    {hour, watts} = max_by_first(curve.points, &elem(&1, 0))
+    {hour, watts} = Enum.max_by(curve.points, &elem(&1, 0))
     line_y = Plot.number(Plot.y(plot, watts))
 
     %{

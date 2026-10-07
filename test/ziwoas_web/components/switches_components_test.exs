@@ -1,6 +1,4 @@
 defmodule ZiwoasWeb.SwitchesComponentsTest do
-  # Mirrors test/components/switches/schedule_entry_component_test.rb and
-  # test/helpers/switches_helper_test.rb.
   use ExUnit.Case, async: true
 
   import Phoenix.LiveViewTest
@@ -59,30 +57,40 @@ defmodule ZiwoasWeb.SwitchesComponentsTest do
     assert LazyHTML.text(LazyHTML.query(entry(single("on")), "span.badge .fw-bold")) == "→ an"
   end
 
+  defp count(doc, selector), do: doc |> LazyHTML.query(selector) |> Enum.count()
+
   test "the buttons address the group or the rule and name what they act on" do
     window = entry(window())
+    addressed = "[phx-value-plug_id=fridge][phx-value-kind=window][phx-value-id=g-1]"
 
-    assert Enum.count(
-             LazyHTML.query(window, "form[action='/plugs/fridge/switch_windows/g-1/enabled']")
-           ) == 1
-
-    assert Enum.count(LazyHTML.query(window, "a[href='/plugs/fridge/switch_windows/g-1/edit']")) ==
+    assert count(window, "button[phx-click=set_enabled][phx-value-enabled=false]#{addressed}") ==
              1
 
-    assert Enum.count(LazyHTML.query(window, "form[action='/plugs/fridge/switch_windows/g-1']")) ==
-             1
+    assert count(window, "button[phx-click=edit_entry]#{addressed}") == 1
+    assert count(window, "button[phx-click=delete_entry]#{addressed}") == 1
 
     assert LazyHTML.attribute(LazyHTML.query(window, "[aria-label]"), "aria-label") ==
              ["Zeitfenster pausieren", "Zeitfenster bearbeiten", "Zeitfenster löschen"]
 
     single = entry(single())
 
-    assert Enum.count(
-             LazyHTML.query(single, "form[action='/plugs/fridge/switch_rules/7/enabled']")
-           ) == 1
+    assert count(single, "button[phx-click=set_enabled][phx-value-kind=rule][phx-value-id='7']") ==
+             1
 
     assert LazyHTML.attribute(LazyHTML.query(single, "[aria-label]"), "aria-label") ==
              ["Schaltzeit pausieren", "Schaltzeit bearbeiten", "Schaltzeit löschen"]
+  end
+
+  test "deleting asks first" do
+    assert LazyHTML.attribute(
+             LazyHTML.query(entry(window()), "button[phx-click=delete_entry]"),
+             "data-confirm"
+           ) == ["Zeitfenster wirklich löschen?"]
+
+    assert LazyHTML.attribute(
+             LazyHTML.query(entry(single()), "button[phx-click=delete_entry]"),
+             "data-confirm"
+           ) == ["Schaltzeit wirklich löschen?"]
   end
 
   test "a paused row is struck through, colourless, and its button resumes" do
@@ -94,11 +102,9 @@ defmodule ZiwoasWeb.SwitchesComponentsTest do
     assert hd(LazyHTML.attribute(LazyHTML.query(doc, "button[aria-label]"), "aria-label")) ==
              "Zeitfenster aktivieren"
 
-    assert Enum.count(
-             LazyHTML.query(doc, "form[action$='/enabled'] input[name=enabled][value=true]")
-           ) == 1
+    assert count(doc, "button[phx-click=set_enabled][phx-value-enabled=true]") == 1
 
-    assert LazyHTML.attribute(LazyHTML.query(doc, "form[action$='/enabled'] svg"), "data-icon") ==
+    assert LazyHTML.attribute(LazyHTML.query(doc, "[phx-click=set_enabled] svg"), "data-icon") ==
              ["play"]
   end
 

@@ -1,6 +1,6 @@
 defmodule Ziwoas.Collector.MqttIntegrationTest do
   # Tortoise311 against a broker on a socket: the ingest connection subscribes and
-  # writes what arrives, an owner publishes, commands reach the Govee bridge. Client
+  # writes what arrives, a publisher publishes, commands reach the Govee bridge. Client
   # ids are global names, so this module runs alone. The connections' handlers write
   # from processes of Tortoise's own, hence the shared sandbox.
   use Ziwoas.DataCase
@@ -49,7 +49,7 @@ defmodule Ziwoas.Collector.MqttIntegrationTest do
     assert [%Sample{plug_id: "fridge", apower_w: 12.5, aenergy_wh: 3.0}] = Repo.all(Sample)
   end
 
-  test "an owner publishes to the broker", ctx do
+  test "a publisher connection publishes to the broker", ctx do
     start_supervised!(
       Mqtt.connection_spec("ziwoas-phoenix-fritz", ctx.mqtt, {Tortoise311.Handler.Logger, []})
     )
@@ -58,16 +58,13 @@ defmodule Ziwoas.Collector.MqttIntegrationTest do
 
     assert :ok =
              Mqtt.publish(
-               :fritz_bridge,
                "ziwoas-phoenix-fritz",
                "shellies/washer/status/switch:0",
                ~s({"apower":1.0})
              )
 
     assert :ok =
-             Mqtt.publish(:fritz_bridge, "ziwoas-phoenix-fritz", "govees/K/state", "{}",
-               retain: true
-             )
+             Mqtt.publish("ziwoas-phoenix-fritz", "govees/K/state", "{}", retain: true)
 
     assert FakeMqttBroker.await(ctx.broker, &(length(FakeMqttBroker.published(&1)) == 2))
 

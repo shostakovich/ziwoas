@@ -1,31 +1,37 @@
 defmodule ZiwoasWeb.ReportsComponents do
   @moduledoc """
-  The partials of the Berichte page (`app/views/reports/`): range picker,
-  plug ranking, chart cards and the chart payload the `EnergyReport` hook
-  reads.
+  The parts of the Berichte page: range picker, plug ranking, chart cards and
+  the chart payload the `EnergyReport` hook reads.
   """
   use ZiwoasWeb, :html
 
-  import ZiwoasWeb.CoreComponents
   import ZiwoasWeb.DashboardComponents, only: [tile: 1]
 
   alias ZiwoasWeb.DashboardComponents
 
   alias Ziwoas.EnergyReport
-  alias Ziwoas.RubyJSON
 
   @presets [{"last_7", "7 Tage"}, {"last_30", "30 Tage"}]
 
+  @doc """
+  Presets as patch links, a custom range as a form that submits `apply_range`
+  to the LiveView. The fields keep what was asked for, else the report's range.
+  """
   attr :report, EnergyReport, required: true
   attr :params, :map, required: true
 
   def range_picker(assigns) do
+    form =
+      to_form(%{
+        "start_date" => presence(assigns.params["start_date"]) || assigns.report.start_date,
+        "end_date" => presence(assigns.params["end_date"]) || assigns.report.end_date
+      })
+
     assigns =
       assign(assigns,
         presets: @presets,
         custom: assigns.report.preset not in Enum.map(@presets, &elem(&1, 0)),
-        start_value: presence(assigns.params["start_date"]) || assigns.report.start_date,
-        end_value: presence(assigns.params["end_date"]) || assigns.report.end_date
+        form: form
       )
 
     ~H"""
@@ -34,61 +40,48 @@ defmodule ZiwoasWeb.ReportsComponents do
       aria-label="Zeitraum"
     >
       <div class="btn-group" role="group" aria-label="Schnellauswahl">
-        <a
+        <.link
           :for={{preset, label} <- @presets}
           class={["btn btn-outline-primary flex-fill", @report.preset == preset && "active"]}
           aria-current={@report.preset == preset && "page"}
-          href={"/reports?preset=#{preset}"}
-        ><span><span class="d-none d-sm-inline">Letzte </span>{label}</span></a>
+          patch={~p"/reports?#{[preset: preset]}"}
+        ><span><span class="d-none d-sm-inline">Letzte </span>{label}</span></.link>
         <span :if={@custom} class="btn btn-outline-primary flex-fill active" aria-current="true">
           Benutzerdefiniert
         </span>
       </div>
 
-      <form class="row g-2 align-items-end" action="/reports" accept-charset="UTF-8" method="get">
-        <div class="col-6 col-sm-auto">
-          <label class="form-label small text-body-secondary mb-1" for="start_date">Von</label>
-          <input
-            type="date"
-            name="start_date"
-            id="start_date"
-            value={@start_value}
-            max={@report.end_date}
-            class="form-control"
-          />
-        </div>
-        <div class="col-6 col-sm-auto">
-          <label class="form-label small text-body-secondary mb-1" for="end_date">Bis</label>
-          <input
-            type="date"
-            name="end_date"
-            id="end_date"
-            value={@end_value}
-            min={@report.start_date}
-            max={@report.end_date}
-            class="form-control"
-          />
-        </div>
+      <.form for={@form} id="range_form" class="row g-2 align-items-end" phx-submit="apply_range">
+        <.input
+          field={@form[:start_date]}
+          type="date"
+          label="Von"
+          max={@report.end_date}
+          wrapper_class="col-6 col-sm-auto"
+        />
+        <.input
+          field={@form[:end_date]}
+          type="date"
+          label="Bis"
+          min={@report.start_date}
+          max={@report.end_date}
+          wrapper_class="col-6 col-sm-auto"
+        />
         <div class="col-12 col-sm-auto">
-          <input
-            type="submit"
-            value="Anwenden"
-            class="btn btn-primary w-100"
-            data-disable-with="Anwenden"
-          />
+          <.button type="submit" class="w-100" phx-disable-with="Anwenden">Anwenden</.button>
         </div>
-      </form>
+      </.form>
     </section>
     """
   end
 
   @plug_colors for n <- 1..10, do: "var(--viz-#{n})"
 
-  # Dashboard::PlugBarComponent: consumers by config position, producers in the sun's colour.
+  # As on the dashboard's plug bar: consumers by config position, producers in the sun's colour.
   defp plug_color(position), do: Enum.at(@plug_colors, Integer.mod(position || 0, 10))
   defp producer_color, do: "var(--viz-solar)"
 
-  # Dashboard::TileComponent.energy/money/share, without an id off the dashboard.
+  # The dashboard's energy, money and share tiles, without an id.
   defp energy_tile(label, kwh, signed \\ false),
     do: DashboardComponents.measure(nil, label, kwh, "kWh", 2, signed)
 
@@ -185,11 +178,8 @@ defmodule ZiwoasWeb.ReportsComponents do
     """
   end
 
-  # Ruby interpolates the Float (`100.0`), or the Integer 0 when nothing ran.
-  defp share(kwh, max_kwh) when max_kwh > 0,
-    do: Float.to_string(Ziwoas.RubyNumeric.round(kwh * 1.0 / max_kwh * 100, 1))
-
-  defp share(_kwh, _max_kwh), do: "0"
+  defp share(kwh, max_kwh) when max_kwh > 0, do: Float.round(kwh * 1.0 / max_kwh * 100, 1)
+  defp share(_kwh, _max_kwh), do: 0
 
   @doc "The switch that overlays weather on a chart (`daily` or `detail`)."
   attr :chart, :string, required: true
@@ -224,16 +214,8 @@ defmodule ZiwoasWeb.ReportsComponents do
   def weather?(%EnergyReport{chart_payload: payload}, chart),
     do: Map.has_key?(Map.fetch!(payload, chart), :weather)
 
-  # Rails' chart_payload hashes keep insertion order; every key in the order
-  # the payload builds it, which is one global order.
-  @key_order ~w[daily detail chart_type labels produced_kwh consumed_kwh balance_kwh
-                consumer_series ratios times series weather plug_id name role data date
-                autarky_pct self_consumption_pct solar_kwh_per_m2 solar_w_per_m2 icons
-                label_index asset_name alt]a
-  @key_rank @key_order |> Enum.with_index() |> Map.new()
-
-  @doc "The payload as `json_escape(chart_payload.to_json)`."
-  def payload_json(%EnergyReport{chart_payload: payload}), do: json_escape(ordered(payload))
+  @doc "The chart payload as JSON for the `payload` island."
+  def payload_json(%EnergyReport{chart_payload: payload}), do: json_escape(payload)
 
   @doc "Every weather icon's asset path by name, daily icons first (the `weather-assets` island)."
   def weather_assets(%EnergyReport{chart_payload: payload}) do
@@ -245,7 +227,7 @@ defmodule ZiwoasWeb.ReportsComponents do
     end)
   end
 
-  def weather_assets_json(assets), do: json_escape(assets)
+  def weather_assets_json(assets), do: json_escape(Map.new(assets))
 
   @doc """
   A JSON data island for the `EnergyReport` hook, written whole: the HEEx
@@ -255,19 +237,13 @@ defmodule ZiwoasWeb.ReportsComponents do
     raw(~s(<script type="application/json" data-island="#{name}">#{json}</script>))
   end
 
-  defp ordered(map) when is_map(map) do
-    map
-    |> Enum.sort_by(fn {key, _} -> Map.fetch!(@key_rank, key) end)
-    |> Enum.map(fn {key, value} -> {Atom.to_string(key), ordered(value)} end)
-  end
-
-  defp ordered(list) when is_list(list), do: Enum.map(list, &ordered/1)
-  defp ordered(value), do: value
-
-  # ERB's json_escape on top of ActiveSupport's escaping: the line separators too.
+  # Safe inside <script>: no "</script>" or HTML comment can close it early.
   defp json_escape(data) do
     data
-    |> RubyJSON.encode!()
+    |> JSON.encode!()
+    |> String.replace("<", "\\u003c")
+    |> String.replace(">", "\\u003e")
+    |> String.replace("&", "\\u0026")
     |> String.replace(<<0x2028::utf8>>, "\\u2028")
     |> String.replace(<<0x2029::utf8>>, "\\u2029")
   end

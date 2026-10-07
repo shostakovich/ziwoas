@@ -1,51 +1,188 @@
 defmodule Ziwoas.Fritz.DectClientTest do
-  # test/fritz_dect_client_test.rb beyond the replay vectors (fritz_dect.json).
   use ExUnit.Case, async: true
 
   alias Ziwoas.Fritz.DectClient
 
-  test "an MD5 challenge is answered over UTF-16LE, as Rails does" do
-    md5 =
-      :crypto.hash(
-        :md5,
-        :unicode.characters_to_binary("deadbeef-testpass", :utf8, {:utf16, :little})
-      )
+  @ain "08761 0500475"
+  @sid "abc123def456abcd"
 
-    assert DectClient.response("deadbeef", "testpass") ==
-             "deadbeef-" <> Base.encode16(md5, case: :lower)
+  defp session(sid, challenge \\ "deadbeef"),
+    do:
+      ~s(<?xml version="1.0" encoding="utf-8"?><SessionInfo><SID>#{sid}</SID>) <>
+        ~s(<Challenge>#{challenge}</Challenge><BlockTime>0</BlockTime></SessionInfo>)
+
+  # A Fritz!Box: `routes` maps a request to `{status, body}`; every request goes to
+  # the test as `{:request, path, query_params}`.
+  defp client(routes) do
+    test = self()
+
+    plug = fn conn ->
+      conn = Plug.Conn.fetch_query_params(conn)
+      send(test, {:request, conn.request_path, conn.query_params})
+      {status, body} = routes.(conn.request_path, conn.query_params)
+      Plug.Conn.send_resp(conn, status, body)
+    end
+
+    DectClient.new(host: "fritz.box", user: "u", password: "p", req: [plug: plug])
   end
 
-  # AVM's worked example ("Session-IDs im FRITZ!Box Webinterface"), recomputed with
-  # Ruby's OpenSSL::KDF.pbkdf2_hmac.
-  test "a PBKDF2 challenge is answered with salt2 and the twice-derived hash" do
-    assert DectClient.response("2$10000$5A1711$2000$5A1722", "1example!") ==
-             "5A1722$1798a1672bca7c6463d6b245f82b53703b0f50813401b03e4045a5861e689adb"
+  defp healthy_box(power \\ "42500\n", energy \\ "1234\n") do
+    fn
+      "/login_sid.lua", %{"response" => _} -> {200, session(@sid)}
+      "/login_sid.lua", _ -> {200, session("0000000000000000")}
+      _, %{"switchcmd" => "getswitchpower"} -> {200, power}
+      _, %{"switchcmd" => "getswitchenergy"} -> {200, energy}
+    end
   end
 
-  test "integers parse as Ruby's Integer(string)" do
-    assert DectClient.parse_integer("342000") == {:ok, 342_000}
-    assert DectClient.parse_integer("-7") == {:ok, -7}
-    assert DectClient.parse_integer("+1_500") == {:ok, 1500}
-    assert DectClient.parse_integer("0x10") == {:ok, 16}
-    assert DectClient.parse_integer("0b101") == {:ok, 5}
-    assert DectClient.parse_integer("010") == {:ok, 8}
-    assert DectClient.parse_integer("0") == {:ok, 0}
+  describe "fetch/2" do
+    test "logs in, then reads power in watts and energy in watt-hours" do
+      assert {:ok, %{apower_w: 42.5, aenergy_wh: 1234.0}, %DectClient{sid: @sid}} =
+               DectClient.fetch(client(healthy_box()), @ain)
 
-    for bad <- ["inval", "", "1_", "_1", "12ab", "1.5", "0x"],
-        do: assert(DectClient.parse_integer(bad) == :error)
+      assert_received {:request, "/login_sid.lua", challenge_request}
+      refute Map.has_key?(challenge_request, "response")
+
+      assert_received {:request, "/login_sid.lua",
+                       %{"username" => "u", "response" => "deadbeef-" <> _}}
+
+      assert_received {:request, "/webservices/homeautoswitch.lua",
+                       %{"switchcmd" => "getswitchpower", "ain" => @ain, "sid" => @sid}}
+    end
+
+    test "reuses a session it already holds" do
+      client = %{client(healthy_box()) | sid: @sid}
+
+      assert {:ok, _reading, %DectClient{sid: @sid}} = DectClient.fetch(client, @ain)
+      refute_received {:request, "/login_sid.lua", _}
+    end
+
+    test "a 403 logs in again once and retries the command" do
+      {:ok, calls} = Agent.start_link(fn -> 0 end)
+
+      routes = fn
+        "/login_sid.lua", %{"response" => _} ->
+          {200, session("fresh00000000001")}
+
+        "/login_sid.lua", _ ->
+          {200, session("0000000000000000")}
+
+        _, %{"sid" => "expired000000000"} ->
+          Agent.update(calls, &(&1 + 1))
+          {403, ""}
+
+        _, %{"switchcmd" => "getswitchpower"} ->
+          {200, "1000"}
+
+        _, %{"switchcmd" => "getswitchenergy"} ->
+          {200, "7"}
+      end
+
+      client = %{client(routes) | sid: "expired000000000"}
+
+      assert {:ok, %{apower_w: 1.0, aenergy_wh: 7.0}, %DectClient{sid: "fresh00000000001"}} =
+               DectClient.fetch(client, @ain)
+
+      assert Agent.get(calls, & &1) == 1
+    end
+
+    test "a 403 after the new login is an error" do
+      routes = fn
+        "/login_sid.lua", %{"response" => _} -> {200, session(@sid)}
+        "/login_sid.lua", _ -> {200, session("0000000000000000")}
+        _, _ -> {403, ""}
+      end
+
+      assert {:error, "HTTP 403 from fritz.box after re-auth", %DectClient{sid: @sid}} =
+               DectClient.fetch(%{client(routes) | sid: "expired000000000"}, @ain)
+    end
+
+    test "a rejected password is an authentication error and keeps no session" do
+      routes = fn "/login_sid.lua", _ -> {200, session("0000000000000000")} end
+
+      assert {:error, "authentication failed for user u", %DectClient{sid: nil}} =
+               DectClient.fetch(client(routes), @ain)
+    end
+
+    test "an empty session id is an authentication error" do
+      routes = fn "/login_sid.lua", _ -> {200, session("")} end
+
+      assert {:error, "authentication failed for user u", %DectClient{sid: nil}} =
+               DectClient.fetch(client(routes), @ain)
+    end
+
+    test "an HTTP error during login names the status" do
+      routes = fn "/login_sid.lua", _ -> {500, ""} end
+
+      assert {:error, "HTTP 500 during auth", %DectClient{sid: nil}} =
+               DectClient.fetch(client(routes), @ain)
+    end
+
+    test "an invalid login page reads as a missing challenge" do
+      routes = fn "/login_sid.lua", _ -> {200, "<html>no xml"} end
+
+      assert {:error, "no challenge in auth response", _} = DectClient.fetch(client(routes), @ain)
+    end
+
+    test "an HTTP error from a command names the status and the host" do
+      routes = fn
+        "/login_sid.lua", %{"response" => _} -> {200, session(@sid)}
+        "/login_sid.lua", _ -> {200, session("0000000000000000")}
+        _, _ -> {500, "oops"}
+      end
+
+      assert {:error, "HTTP 500 from fritz.box", %DectClient{sid: @sid}} =
+               DectClient.fetch(client(routes), @ain)
+    end
+
+    test "a blank answer is an error" do
+      assert {:error, "blank response from fritz.box", _} =
+               DectClient.fetch(client(healthy_box(" \n")), @ain)
+    end
+
+    test "an unknown plug answers inval, which is an unexpected response" do
+      assert {:error, "unexpected response from fritz.box: inval", _} =
+               DectClient.fetch(client(healthy_box("inval\n")), @ain)
+
+      assert {:error, "unexpected response from fritz.box: 1.5", _} =
+               DectClient.fetch(client(healthy_box("1000", "1.5")), @ain)
+    end
+
+    test "a timeout is a network error" do
+      plug = fn conn -> Req.Test.transport_error(conn, :timeout) end
+      client = DectClient.new(host: "fritz.box", user: "u", password: "p", req: [plug: plug])
+
+      assert {:error, "network: " <> _, %DectClient{sid: nil}} = DectClient.fetch(client, "1")
+    end
+
+    test "a timeout during a command keeps the session" do
+      plug = fn conn -> Req.Test.transport_error(conn, :timeout) end
+
+      client = %{
+        DectClient.new(host: "fritz.box", user: "u", password: "p", req: [plug: plug])
+        | sid: @sid
+      }
+
+      assert {:error, "network: " <> _, %DectClient{sid: @sid}} = DectClient.fetch(client, @ain)
+    end
   end
 
-  test "a timeout is a network error" do
-    plug = fn conn -> Req.Test.transport_error(conn, :timeout) end
-    client = DectClient.new(host: "fritz.box", user: "u", password: "p", req: [plug: plug])
+  describe "response/2" do
+    test "an MD5 challenge is answered over UTF-16LE" do
+      md5 =
+        :crypto.hash(
+          :md5,
+          :unicode.characters_to_binary("deadbeef-testpass", :utf8, {:utf16, :little})
+        )
 
-    assert {:error, "network: " <> _, %DectClient{sid: nil}} = DectClient.fetch(client, "1")
-  end
+      assert DectClient.response("deadbeef", "testpass") ==
+               "deadbeef-" <> Base.encode16(md5, case: :lower)
+    end
 
-  test "an invalid login page reads as a missing challenge" do
-    plug = fn conn -> Plug.Conn.send_resp(conn, 200, "<html>no xml") end
-    client = DectClient.new(host: "fritz.box", user: "u", password: "p", req: [plug: plug])
-
-    assert {:error, "no challenge in auth response", _} = DectClient.fetch(client, "1")
+    # AVM's worked example ("Session-IDs im FRITZ!Box Webinterface").
+    test "a PBKDF2 challenge is answered with salt2 and the twice-derived hash" do
+      assert DectClient.response("2$10000$5A1711$2000$5A1722", "1example!") ==
+               "5A1722$1798a1672bca7c6463d6b245f82b53703b0f50813401b03e4045a5861e689adb"
+    end
   end
 end

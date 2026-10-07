@@ -1,13 +1,12 @@
 defmodule Ziwoas.EnergyReport.WeatherLoader do
   @moduledoc """
-  The weather behind the energy report's chart overlays (Rails'
-  `WeatherReportLoader`): `historic` records of the configured location
-  between the local midnights of a date range. A location without
-  coordinates has none.
+  The weather behind the energy report's chart overlays: `historic` records
+  of the configured location between the local midnights of a date range. A
+  location without coordinates has none.
   """
   import Ecto.Query
 
-  alias Ziwoas.{LocalDay, Location, Repo, RubyNumeric, Weather}
+  alias Ziwoas.{LocalDay, Location, Repo, Weather}
   alias Ziwoas.Weather.{Record, Segment}
 
   @type day :: %{solar_kwh_per_m2: float | nil, asset_name: String.t(), alt: String.t()}
@@ -70,7 +69,7 @@ defmodule Ziwoas.EnergyReport.WeatherLoader do
   defp day_solar_kwh(records) do
     case for(%Record{solar: solar} <- records, not is_nil(solar), do: solar) do
       [] -> nil
-      values -> values |> RubyNumeric.sum() |> RubyNumeric.round(3)
+      values -> Float.round(Enum.sum(values) * 1.0, 3)
     end
   end
 

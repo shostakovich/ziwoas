@@ -1,7 +1,6 @@
 defmodule Ziwoas.Govee.DeviceRegistry do
   @moduledoc """
-  Rails' `Govees::DeviceRegistry`: the canonical lamp list, built from the Platform
-  API (id, sku, name, capabilities, scenes) and curated — segment capabilities
+  The canonical lamp list, built from the Platform API (id, sku, name, capabilities, scenes) and curated — segment capabilities
   dropped, zones limited to `zone_keys/0`, scenes reduced to names plus an internal
   name → `%{id, param_id}` index, Govee's virtual DreamView scene "devices" left
   out. LAN discovery only contributes the IP. Pure: `build/3` takes the API's raw
@@ -11,7 +10,7 @@ defmodule Ziwoas.Govee.DeviceRegistry do
 
   alias Ziwoas.Govee.Device
 
-  # Light::ZONE_META's keys, in its order.
+  # The zone toggles `Ziwoas.Lights.Light` knows, in its order.
   @zone_keys ~w[bottomLightToggle rippleLightToggle sideLightToggle baseLightToggle
                 pillarLightToggle leftLightToggle rightLightToggle mainLightToggle
                 backgroundLightToggle]
@@ -37,8 +36,8 @@ defmodule Ziwoas.Govee.DeviceRegistry do
   def find_by_ip(%__MODULE__{devices: devices}, ip), do: Enum.find(devices, &(&1.ip == ip))
 
   @doc """
-  `refresh!` with the API's device list: rebuilds every device, keeping a LAN IP
-  found earlier. `scenes` is `fn raw -> {:ok, options} | {:error, message} end`.
+  Rebuilds every device from the API's device list, keeping a LAN IP found
+  earlier. `scenes` is `fn raw -> {:ok, options} | {:error, message} end`.
   """
   @spec refresh(t, [map], (map -> {:ok, [map]} | {:error, String.t()})) :: t
   def refresh(%__MODULE__{} = registry, raw_devices, scenes) do
@@ -50,7 +49,7 @@ defmodule Ziwoas.Govee.DeviceRegistry do
         end
       end
 
-    # Rails builds a Hash by key: a repeated key keeps its first place, the last value.
+    # A repeated key keeps its first place and its last value.
     devices =
       built
       |> Enum.map(& &1.key)
@@ -60,7 +59,7 @@ defmodule Ziwoas.Govee.DeviceRegistry do
     %{registry | devices: devices}
   end
 
-  @doc "`record_lan_ip`: the IP of the device with this MAC (separators ignored)."
+  @doc "Records the IP of the device with this MAC (separators ignored)."
   @spec record_lan_ip(t, String.t(), String.t()) :: t
   def record_lan_ip(%__MODULE__{} = registry, mac, ip) do
     key = normalize_mac(mac)
@@ -74,9 +73,9 @@ defmodule Ziwoas.Govee.DeviceRegistry do
   end
 
   defp build(registry, raw, scenes) do
-    api_id = ruby_to_s(raw["device"])
+    api_id = text(raw["device"])
 
-    if api_id == "" or ruby_to_s(raw["sku"]) in @virtual_skus do
+    if api_id == "" or text(raw["sku"]) in @virtual_skus do
       nil
     else
       key = normalize_mac(api_id)
@@ -90,8 +89,8 @@ defmodule Ziwoas.Govee.DeviceRegistry do
       %Device{
         key: key,
         api_id: api_id,
-        sku: ruby_to_s(raw["sku"]),
-        name: present(registry.names[key]) || ruby_to_s(raw["deviceName"]),
+        sku: text(raw["sku"]),
+        name: present(registry.names[key]) || text(raw["deviceName"]),
         ip: nil,
         supports_color: "colorRgb" in instances,
         supports_color_temp: not is_nil(ct_cap),
@@ -112,7 +111,7 @@ defmodule Ziwoas.Govee.DeviceRegistry do
     case scenes.(raw) do
       {:ok, options} ->
         Enum.reduce(List.wrap(options), {[], %{}}, fn option, {names, index} ->
-          name = ruby_to_s(option["name"])
+          name = text(option["name"])
           value = if is_map(option["value"]), do: option["value"], else: %{}
 
           if name == "",
@@ -131,8 +130,8 @@ defmodule Ziwoas.Govee.DeviceRegistry do
   defp present(nil), do: nil
   defp present(name), do: if(String.trim(name) == "", do: nil, else: name)
 
-  defp ruby_to_s(nil), do: ""
-  defp ruby_to_s(value) when is_binary(value), do: value
-  defp ruby_to_s(value) when is_integer(value), do: Integer.to_string(value)
-  defp ruby_to_s(value), do: to_string(value)
+  defp text(nil), do: ""
+  defp text(value) when is_binary(value), do: value
+  defp text(value) when is_number(value) or is_atom(value), do: to_string(value)
+  defp text(_value), do: ""
 end

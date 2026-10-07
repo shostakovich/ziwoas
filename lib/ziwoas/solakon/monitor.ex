@@ -1,18 +1,16 @@
 defmodule Ziwoas.Solakon.Monitor do
   @moduledoc """
-  The one Modbus TCP connection to the Solakon ONE (task `solakon_monitor`): every
-  read and write of the inverter goes through this process, so requests never
-  interleave. `Ziwoas.Solakon.MonitorJob` (every 30 s) and `SnapshotJob` (every 2
-  min) call `read_state/1` and `read_snapshot/1`; the control tick and the PV page's
-  switches call `apply_control/3`, `release_control/1` and `set_eps_output/2`, whose
-  frames `Ziwoas.Solakon.Modbus` refuses to send unless Phoenix owns
-  `solakon_control` (answered `{:error, {:not_owner, mode}}`).
+  The one Modbus TCP connection to the Solakon ONE: every read and write of the
+  inverter goes through this process, so requests never interleave.
+  `Ziwoas.Solakon.MonitorJob` (every 30 s) and `SnapshotJob` (every 2 min) call
+  `read_state/1` and `read_snapshot/1`; the control tick and the PV page's
+  switches call `apply_control/3`, `release_control/1` and `set_eps_output/2`.
 
   The connection stays open between requests; a reused connection that fails is
   retried once on a fresh one (the inverter may have dropped it while idle; every
   write sets an absolute value, so repeating one is harmless). With `keep_open:
-  false` it is opened per request and closed again, as Rails' rmodbus did.
-  Transaction ids count from 1 on every connection, as rmodbus'.
+  false` it is opened per request and closed again. Transaction ids count from 1
+  on every connection.
 
   After a failed connect or request the next attempt waits: 1 s, doubling to 60 s,
   back to 1 s after a success. A request inside that wait answers `{:error,
@@ -23,7 +21,6 @@ defmodule Ziwoas.Solakon.Monitor do
 
   require Logger
 
-  alias Ziwoas.Ownership
   alias Ziwoas.Solakon.{Client, Modbus}
 
   @min_backoff_ms 1_000
@@ -41,16 +38,16 @@ defmodule Ziwoas.Solakon.Monitor do
   @spec read_snapshot(GenServer.server()) :: {:ok, map} | {:error, term}
   def read_snapshot(server \\ __MODULE__), do: request(server, :snapshot)
 
-  @doc "`Solakon::Client#apply_control!`: minimum SoC guard, remote control on, watchdog, setpoint."
+  @doc "Minimum SoC guard, remote control on, watchdog, setpoint (`Client.apply_control/4`)."
   @spec apply_control(GenServer.server(), integer, integer) :: :ok | {:error, term}
   def apply_control(server \\ __MODULE__, power_w, min_soc),
     do: request(server, {:apply_control, power_w, min_soc})
 
-  @doc "`Solakon::Client#release_control!`: remote control off."
+  @doc "Remote control off."
   @spec release_control(GenServer.server()) :: :ok | {:error, term}
   def release_control(server \\ __MODULE__), do: request(server, :release_control)
 
-  @doc "`Solakon::Client#set_eps_output!`: the outdoor socket on or off."
+  @doc "The outdoor socket on or off."
   @spec set_eps_output(GenServer.server(), boolean | nil) :: :ok | {:error, term}
   def set_eps_output(server \\ __MODULE__, enabled),
     do: request(server, {:set_eps_output, enabled})
@@ -96,9 +93,6 @@ defmodule Ziwoas.Solakon.Monitor do
     reused = not is_nil(state.socket)
 
     case attempt(operation, state) do
-      {{:error, {:not_owner, _}} = refused, state} ->
-        {refused, release(state)}
-
       # The inverter answered and refused: no retry, no wait before the next
       # command — the tick releases control right after its third failed write.
       {{:error, {:modbus_exception, _}} = error, state} when operation not in @reads ->
@@ -119,22 +113,11 @@ defmodule Ziwoas.Solakon.Monitor do
 
   defp attempt(operation, state) do
     with {:ok, state} <- ensure_socket(state) do
-      case run(operation, reader(state), writer(state)) do
-        {:error, {:not_owner, _}} = refused -> {refused, state}
+      case operate(operation, reader(state), writer(state)) do
         {:error, _} = error -> {error, close(state)}
         result -> {result, state}
       end
     end
-  end
-
-  # The guard sits in Modbus, right before the bytes; this only turns its raise
-  # into an answer, so a refused write never takes the connection down.
-  defp run(operation, read, write) do
-    operate(operation, read, write)
-  rescue
-    error in Ownership.NotOwnerError ->
-      Logger.error("Solakon.Monitor: refused a register write: #{Exception.message(error)}")
-      {:error, {:not_owner, error.mode}}
   end
 
   defp operate(:state, read, _write), do: Client.read_state(read)
@@ -185,7 +168,7 @@ defmodule Ziwoas.Solakon.Monitor do
     end
   end
 
-  # rmodbus: 1, 2, … 65535, then 1 again.
+  # 1, 2, … 65535, then 1 again.
   defp next_transaction(state),
     do: rem(:atomics.add_get(state.transactions, 1, 1) - 1, 0xFFFF) + 1
 

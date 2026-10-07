@@ -1,6 +1,4 @@
 defmodule ZiwoasWeb.ApiControllerTest do
-  # Mirrors test/controllers/api_controller_test.rb; byte parity with Rails is the
-  # golden master's job (script/golden_master).
   use ZiwoasWeb.ConnCase
 
   alias Ziwoas.{Clock, TestClock}
@@ -71,12 +69,20 @@ defmodule ZiwoasWeb.ApiControllerTest do
     assert body["date"] == "2026-10-05"
   end
 
-  test "GET /api/today/summary keeps Rails' key order", %{conn: conn} do
-    raw = conn |> get(~p"/api/today/summary") |> response(200)
+  test "GET /api/today/summary answers numbers as numbers, the date as ISO 8601", %{conn: conn} do
+    conn = get(conn, ~p"/api/today/summary")
 
-    assert raw ==
-             ~s({"date":"2026-10-05","produced_wh_today":0.0,"consumed_wh_today":0.0,"self_consumed_wh_today":0.0,) <>
-               ~s("autarky_ratio":0.0,"self_consumption_ratio":0.0,"savings_eur_today":0.0})
+    assert response_content_type(conn, :json) =~ "application/json"
+
+    assert json_response(conn, 200) == %{
+             "date" => "2026-10-05",
+             "produced_wh_today" => 0.0,
+             "consumed_wh_today" => 0.0,
+             "self_consumed_wh_today" => 0.0,
+             "autarky_ratio" => 0.0,
+             "self_consumption_ratio" => 0.0,
+             "savings_eur_today" => 0.0
+           }
   end
 
   test "GET /api/today/summary includes self-consumption", %{conn: conn} do
@@ -123,7 +129,7 @@ defmodule ZiwoasWeb.ApiControllerTest do
     assert hd(points)["date"] < List.last(points)["date"]
   end
 
-  test "GET /api/history reads days like Ruby's to_i and clamps it to 1..365", %{conn: conn} do
+  test "GET /api/history clamps days to 1..365; anything but an integer is 14", %{conn: conn} do
     days = fn query ->
       conn |> get("/api/history" <> query) |> json_response(200) |> Map.fetch!("days")
     end
@@ -131,12 +137,28 @@ defmodule ZiwoasWeb.ApiControllerTest do
     assert days.("") == 14
     assert days.("?days=0") == 1
     assert days.("?days=-3") == 1
-    assert days.("?days=7abc") == 7
-    assert days.("?days=abc") == 1
+    assert days.("?days=%207%20") == 7
+    assert days.("?days=7abc") == 14
+    assert days.("?days=abc") == 14
+    assert days.("?days[]=3") == 14
     assert days.("?days=1000") == 365
   end
 
-  test "an HTML request is not acceptable, as in Rails", %{conn: conn} do
+  test "GET /api/history points carry the ISO date and the energy as a number", %{conn: conn} do
+    Ziwoas.Repo.insert!(%Ziwoas.Plugs.DailyTotal{
+      plug_id: "fridge",
+      date: "2026-10-04",
+      energy_wh: 812.5
+    })
+
+    body = conn |> get(~p"/api/history") |> json_response(200)
+
+    assert series(body, "fridge")["points"] == [%{"date" => "2026-10-04", "energy_wh" => 812.5}]
+    assert series(body, "fridge")["role"] == "consumer"
+    assert series(body, "bkw")["points"] == []
+  end
+
+  test "an HTML request is not acceptable", %{conn: conn} do
     conn = put_req_header(conn, "accept", "text/html")
     assert_error_sent 406, fn -> get(conn, ~p"/api/today") end
   end

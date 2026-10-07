@@ -1,5 +1,4 @@
 defmodule Ziwoas.Collector.MqttRouterTest do
-  # test/mqtt_router_test.rb
   use ExUnit.Case, async: true
 
   import ExUnit.CaptureLog
@@ -45,7 +44,6 @@ defmodule Ziwoas.Collector.MqttRouterTest do
     assert log =~ "no handler for unknown/topic"
   end
 
-  # Rails' router reconnected after an escaping error; here the handler keeps its state.
   test "a raising handler is logged and keeps its state" do
     router = router(["boom"])
     log = capture_log(fn -> assert MqttRouter.dispatch(router, "boom/x", "{") == router end)

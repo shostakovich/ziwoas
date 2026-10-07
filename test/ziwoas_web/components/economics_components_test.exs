@@ -1,5 +1,4 @@
 defmodule ZiwoasWeb.EconomicsComponentsTest do
-  # Mirrors test/components/economics/overview_card_component_test.rb.
   use ExUnit.Case, async: true
 
   import Phoenix.LiveViewTest, only: [render_component: 2]

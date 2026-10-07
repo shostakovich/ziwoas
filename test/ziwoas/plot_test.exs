@@ -1,5 +1,4 @@
 defmodule Ziwoas.PlotTest do
-  # Mirrors test/models/plot_test.rb.
   use ExUnit.Case, async: true
 
   alias Ziwoas.Plot

@@ -1,27 +1,25 @@
 defmodule Ziwoas.Scheduler.Job do
   @moduledoc """
-  What a recurring job implements. `Ziwoas.Scheduler` calls `perform/1` only while
-  the job's task is not `:rails`, with the mode in effect:
+  What a recurring job implements. `Ziwoas.Scheduler` calls `perform/1` each time
+  the job's schedule falls due:
 
       defmodule Ziwoas.Weather.CurrentJob do
         @behaviour Ziwoas.Scheduler.Job
 
         @impl true
-        def perform(%{task: task}) do
-          records = fetch()                                  # reading is always fine
-          Ziwoas.Repo.write(task, fn -> upsert(records) end) # main or shadow by mode
+        def perform(context) do
+          config = Ziwoas.Scheduler.Job.config(context)
+          config.location |> fetch() |> upsert(context.at)
         end
       end
 
-  `:shadow`/`:dry_run` must neither send to devices nor push out nor broadcast;
-  `Ziwoas.Ownership.may_write_devices?/1` tells. The return value is ignored, an
+  The context carries the due instant `:at`. The return value is ignored, an
   exception is logged and the next run comes as scheduled.
   """
 
   @type context :: %{
-          task: Ziwoas.Ownership.task(),
-          mode: :shadow | :dry_run | :phoenix,
-          at: DateTime.t()
+          required(:at) => DateTime.t(),
+          optional(:config) => Ziwoas.Config.t()
         }
 
   @callback perform(context) :: any

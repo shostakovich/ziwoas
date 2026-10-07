@@ -1,9 +1,9 @@
 defmodule Ziwoas.Trmnl.EnergyPayloadTest do
-  # Mirrors test/models/trmnl_payload_builder_test.rb.
   use Ziwoas.DataCase
 
-  alias Ziwoas.{RubyJSON, TestConfigs}
-  alias Ziwoas.Trmnl.EnergyPayload
+  alias Ziwoas.{Repo, TestConfigs}
+  alias Ziwoas.Plugs.Sample
+  alias Ziwoas.Trmnl.{EnergyPayload, Push}
 
   # 16:56 Europe/Berlin: the window ends at the 17:00 boundary.
   @now ~U[2026-05-12 14:56:00Z]
@@ -14,13 +14,10 @@ defmodule Ziwoas.Trmnl.EnergyPayloadTest do
     %{config: TestConfigs.plugs(), midnight: berlin_midnight(~D[2026-05-12])}
   end
 
+  defp json(config), do: config |> EnergyPayload.build(@now) |> JSON.encode!()
+
   defp merge_variables(config),
-    do:
-      config
-      |> EnergyPayload.build(@now)
-      |> Map.new()
-      |> Map.fetch!("merge_variables")
-      |> Map.new()
+    do: config |> json() |> JSON.decode!() |> Map.fetch!("merge_variables")
 
   test "today's aggregate fields", %{config: config, midnight: midnight} do
     insert_sample!("bkw", midnight + 60, 0, 0.0)
@@ -62,6 +59,15 @@ defmodule Ziwoas.Trmnl.EnergyPayloadTest do
     assert mv["pv_w"] |> List.delete_at(10) |> Enum.all?(&(&1 === 0))
   end
 
+  test "watts are whole and a consumer's negative glitch reads as 0", %{config: config} do
+    insert_sample!("fridge", @start_ts + 60, -250.4, 0.0)
+    insert_sample!("fridge", @start_ts + 660, 99.6, 0.0)
+
+    mv = merge_variables(config)
+
+    assert Enum.take(mv["cons_w"], 2) == [0, 100]
+  end
+
   test "ts is the newest sample in the window, stand its local time", %{config: config} do
     insert_sample!("bkw", @end_ts - 60, 0, 0.0)
     insert_sample!("bkw", @end_ts - 3660, 0, 0.0)
@@ -79,19 +85,53 @@ defmodule Ziwoas.Trmnl.EnergyPayloadTest do
     assert mv["stand"] == "16:56"
   end
 
-  test "an ambiguous local slot takes the summer-time instant, as TZInfo's dst default" do
-    # 2026-10-25 02:30 CET (the second 02:30) floors to the slot 02:30, read as CEST.
-    second_half = ~U[2026-10-25 01:35:00Z]
-    {_start, end_ts} = EnergyPayload.window(second_half, "Europe/Berlin")
-    assert end_ts == DateTime.to_unix(~U[2026-10-25 00:40:00Z])
-  end
+  describe "the window around daylight-saving changes" do
+    test "both passes of the repeated hour end at the next boundary after now" do
+      # 2026-10-25: 02:35 CEST, then 02:35 CET an hour later.
+      for now <- [~U[2026-10-25 00:35:00Z], ~U[2026-10-25 01:35:00Z]] do
+        {start_ts, end_ts} = EnergyPayload.window(now, "Europe/Berlin")
 
-  test "the serialised payload stays under TRMNL's 2 kB limit", %{config: config} do
-    for t <- @start_ts..(@end_ts - 1)//300 do
-      insert_sample!("bkw", t, 999.0, 0.0)
-      insert_sample!("fridge", t, 999.0, 0.0)
+        assert end_ts == DateTime.to_unix(now) + 300
+        assert end_ts - start_ts == 86_400
+      end
     end
 
-    assert byte_size(RubyJSON.encode!(EnergyPayload.build(config, @now))) <= 2048
+    test "the skipped hour does not shift the boundary" do
+      # 2026-03-29 03:05 CEST, just after the clocks jumped from 02:00.
+      {_start_ts, end_ts} = EnergyPayload.window(~U[2026-03-29 01:05:00Z], "Europe/Berlin")
+      assert end_ts == DateTime.to_unix(~U[2026-03-29 01:10:00Z])
+    end
+  end
+
+  describe "the 2 kB limit" do
+    # Every bucket at the four-digit maximum is the realistic worst case (a Shelly
+    # plug switches at most 16 A); five digits in all 288 values would not fit.
+    test "holds for every plug at four-digit watts in every bucket and big totals" do
+      producers =
+        for i <- 1..2,
+            do:
+              "  - id: producer_#{i}\n    name: Balkonkraftwerk Süddach #{i}\n    role: producer\n"
+
+      consumers =
+        for i <- 1..11,
+            do:
+              "  - id: consumer_#{i}\n    name: Wärmepumpe Kellergeschoss #{i}\n    role: consumer\n"
+
+      config = TestConfigs.plugs(Enum.join(producers ++ consumers))
+
+      rows =
+        for plug <- config.plugs, {ts, n} <- Enum.with_index(@start_ts..(@end_ts - 1)//600) do
+          watts = if plug.role == :producer, do: -3_333.0, else: 833.25
+          %{plug_id: plug.id, ts: ts, apower_w: watts, aenergy_wh: n * 3_000.0}
+        end
+
+      rows |> Enum.chunk_every(500) |> Enum.each(&Repo.insert_all(Sample, &1))
+
+      mv = merge_variables(config)
+      assert Enum.all?(mv["pv_w"] ++ mv["cons_w"], &(&1 == 9_999))
+      assert mv["pv_kwh"] > 100 and mv["cons_kwh"] > 1000
+
+      assert byte_size(json(config)) <= Push.max_payload_bytes()
+    end
   end
 end

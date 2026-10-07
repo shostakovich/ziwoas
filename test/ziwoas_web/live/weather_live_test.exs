@@ -1,6 +1,5 @@
 defmodule ZiwoasWeb.WeatherLiveTest do
-  # Mirrors test/controllers/weather_controller_test.rb on the disconnected render;
-  # markup parity with Rails is the golden master's job.
+  # The disconnected render.
   use ZiwoasWeb.ConnCase
 
   alias Ziwoas.{Clock, Repo, TestClock}

@@ -5,8 +5,6 @@ defmodule Ziwoas.Economics.Payback do
   record: savings before the data start are never estimated, so the payback is
   reckoned late rather than early.
   """
-  alias Ziwoas.RubyNumeric
-
   # Below this many days on record a projection says more about the season
   # than about the plant, so none is made.
   @min_projection_days 90
@@ -31,7 +29,7 @@ defmodule Ziwoas.Economics.Payback do
   def costed?(%__MODULE__{cost: cost}), do: cost > 0
 
   @spec saved_eur(t) :: number
-  def saved_eur(%__MODULE__{days: days}), do: days |> Enum.map(&elem(&1, 1)) |> RubyNumeric.sum()
+  def saved_eur(%__MODULE__{days: days}), do: days |> Enum.map(&elem(&1, 1)) |> sum()
 
   @spec data_start(t) :: Date.t() | nil
   def data_start(%__MODULE__{days: [{date, _} | _]}), do: date
@@ -39,16 +37,14 @@ defmodule Ziwoas.Economics.Payback do
 
   @spec covered_ratio(t) :: float | nil
   def covered_ratio(payback) do
-    if costed?(payback), do: RubyNumeric.min([saved_eur(payback) / payback.cost, 1.0])
+    if costed?(payback), do: min(saved_eur(payback) / payback.cost, 1.0)
   end
 
   @spec reached?(t) :: boolean
   def reached?(payback), do: costed?(payback) and saved_eur(payback) >= payback.cost
 
   @doc """
-  The day the running total first reached the cost. The running total adds up
-  naively, unlike `saved_eur/1`, so a compensated sum can reach the cost while
-  no single day does.
+  The day the running total first reached the cost.
   """
   @spec reached_on(t) :: Date.t() | nil
   def reached_on(%__MODULE__{} = payback) do
@@ -83,6 +79,8 @@ defmodule Ziwoas.Economics.Payback do
 
   defp average_daily_eur(payback) do
     window = projection_window(payback)
-    RubyNumeric.sum(Enum.map(window, &elem(&1, 1))) / length(window)
+    sum(Enum.map(window, &elem(&1, 1))) / length(window)
   end
+
+  defp sum(values), do: Enum.reduce(values, 0.0, &+/2)
 end

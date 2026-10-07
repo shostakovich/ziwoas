@@ -2,19 +2,11 @@ defmodule Ziwoas.Solakon.Modbus do
   @moduledoc """
   Modbus TCP on `:gen_tcp`: function code 03 (read holding registers), 06 (write
   single register) and 16 (write multiple registers), which is how the Solakon ONE
-  serves every register (`docs/solakon-modbus-protokoll.md` §1). Replaces the
-  `rmodbus` gem; the frames are rmodbus' byte for byte (`test/vectors/solakon_modbus_writes.json`).
+  serves every register (`docs/solakon-modbus-protokoll.md` §1).
 
   A frame is the MBAP header — transaction id, protocol 0, length, unit id — and
-  the PDU. Registers are big-endian 16-bit words; the address is the PDU address,
-  as rmodbus sends it.
-
-  Every write calls `Ziwoas.Ownership.ensure_owner!(:solakon_control)` right
-  before its frame goes on the socket: in `rails`, `shadow` or `dry_run` no write
-  frame ever leaves Phoenix.
+  the PDU. Registers are big-endian 16-bit words; the address is the PDU address.
   """
-  alias Ziwoas.Ownership
-
   @read_holding 0x03
   @write_single 0x06
   @write_multiple 0x10
@@ -88,8 +80,7 @@ defmodule Ziwoas.Solakon.Modbus do
   end
 
   @doc """
-  Writes one holding register (FC06): `:ok` or `{:error, reason}`. Raises
-  `Ziwoas.Ownership.NotOwnerError` unless Phoenix owns `solakon_control`.
+  Writes one holding register (FC06): `:ok` or `{:error, reason}`.
   """
   @spec write_single_register(
           socket,
@@ -104,7 +95,7 @@ defmodule Ziwoas.Solakon.Modbus do
     write(socket, frame, transaction, timeout, @write_single)
   end
 
-  @doc "Writes consecutive holding registers (FC16); guarded like `write_single_register/6`."
+  @doc "Writes consecutive holding registers (FC16): `:ok` or `{:error, reason}`."
   @spec write_multiple_registers(
           socket,
           non_neg_integer,
@@ -119,15 +110,13 @@ defmodule Ziwoas.Solakon.Modbus do
   end
 
   defp write(socket, frame, transaction, timeout, function) do
-    Ownership.ensure_owner!(:solakon_control)
-
     with :ok <- :gen_tcp.send(socket, frame),
          {:ok, pdu} <- response(socket, transaction, timeout) do
       decode_write_pdu(pdu, function)
     end
   end
 
-  # rmodbus checks neither the echoed address nor the value: any answer with the
+  # Neither the echoed address nor the value is checked: any answer with the
   # function code is success, an exception code is the error.
   defp decode_write_pdu(<<function, _rest::binary>>, function), do: :ok
 
@@ -136,9 +125,9 @@ defmodule Ziwoas.Solakon.Modbus do
 
   defp decode_write_pdu(pdu, _function), do: {:error, {:unexpected_pdu, pdu}}
 
-  # rmodbus 2.1.3 (`TCPSlave#read_pdu`): reads frame after frame until one carries
-  # the request's transaction id, skipping late answers to earlier requests; the
-  # protocol and unit ids are not checked. `timeout` bounds the whole search.
+  # Reads frame after frame until one carries the request's transaction id,
+  # skipping late answers to earlier requests; the protocol and unit ids are not
+  # checked. `timeout` bounds the whole search.
   defp response(socket, transaction, timeout),
     do: read_response(socket, transaction, System.monotonic_time(:millisecond) + timeout)
 

@@ -1,7 +1,7 @@
 defmodule Ziwoas.Plugs.Plug do
   @moduledoc """
   A configured plug (`config/ziwoas.yml`, not the database): rows reference it
-  only by its string `id`. Built by `Ziwoas.Config` (Rails' `ConfigLoader::PlugCfg`).
+  only by its string `id`. Built by `Ziwoas.Config`.
   """
   @enforce_keys [:id, :role]
   defstruct [:id, :name, :role, :ain, :room, driver: :shelly, switchable: false]

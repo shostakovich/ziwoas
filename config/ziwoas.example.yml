@@ -74,7 +74,7 @@ plugs:
 #   secret: "..."
 #
 # sensors:
-#   - id: "ABCDEF123456"           # 'bin/rails switchbot:list_devices' zeigt IDs
+#   - id: "ABCDEF123456"           # Geräte-ID aus GET /v1.1/devices der SwitchBot-API
 #     name: "Wohnzimmer"
 #     type: meter_pro_co2           # meter_pro_co2 | outdoor_meter
 #     room: "Wohnzimmer"            # optional
@@ -83,6 +83,5 @@ plugs:
 #     name: "Balkon"
 #     type: outdoor_meter
 
-# The `migration:` section from the Rails → Phoenix handover (ADR-0006) no longer decides
-# anything: Phoenix runs every task. It is still parsed, so a bad one stops the config;
-# remove it.
+# A `migration:` section from the Rails → Phoenix handover (ADR-0006) is ignored with a
+# warning; remove it.

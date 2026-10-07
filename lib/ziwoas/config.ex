@@ -1,8 +1,7 @@
 defmodule Ziwoas.Config do
   @moduledoc """
-  The device configuration both apps read: `config/ziwoas.yml` (Rails'
-  `lib/config_loader.rb`, mirrored check for check). Raw YAML is typed into
-  structs at this boundary; nothing downstream sees a map from the file.
+  The device configuration: `config/ziwoas.yml`. Raw YAML is checked and typed
+  into structs at this boundary; nothing downstream sees a map from the file.
 
   `app_config/0` reads the file once per path (`:ziwoas, :config_path`, set
   from `ZIWOAS_CONFIG` in `config/runtime.exs`) and keeps it in
@@ -10,7 +9,7 @@ defmodule Ziwoas.Config do
   """
   require Logger
 
-  alias Ziwoas.{Location, RubyNumeric}
+  alias Ziwoas.Location
   alias Ziwoas.Plugs.{Plug, Roster}
 
   defmodule Error do
@@ -80,8 +79,7 @@ defmodule Ziwoas.Config do
     :trmnl,
     :solakon,
     :govee,
-    sensors: [],
-    owners: Ziwoas.Ownership.all_rails()
+    sensors: []
   ]
 
   @type t :: %__MODULE__{
@@ -94,8 +92,7 @@ defmodule Ziwoas.Config do
           sensors: [Sensor.t()],
           trmnl: %Trmnl{},
           solakon: %Solakon{} | nil,
-          govee: %Govee{} | nil,
-          owners: Ziwoas.Ownership.owners()
+          govee: %Govee{} | nil
         }
 
   @id_regex ~r/\A[a-z0-9_]+\z/
@@ -155,8 +152,7 @@ defmodule Ziwoas.Config do
 
   defp parse_string(yaml), do: parse(fn opts -> :yamerl_constr.string(yaml, opts) end)
 
-  # Psych reads YAML 1.1, where unquoted yes/no/on/off are booleans; yamerl's
-  # bool_ext does the same (and also takes y/n, which Psych leaves as strings).
+  # YAML 1.1: unquoted yes/no/on/off (and y/n) are booleans.
   @yaml_opts [
     :str_node_as_binary,
     {:map_node_format, :map},
@@ -186,7 +182,6 @@ defmodule Ziwoas.Config do
     trmnl = build_trmnl(raw["trmnl"])
     solakon = build_solakon(raw["solakon"])
     govee = build_govee(raw["govee"])
-    owners = Ziwoas.Ownership.parse!(raw["migration"])
 
     fritz? = Enum.any?(plugs, &(&1.driver == :fritz_dect))
 
@@ -206,8 +201,7 @@ defmodule Ziwoas.Config do
       sensors: sensors,
       trmnl: trmnl,
       solakon: solakon,
-      govee: govee,
-      owners: owners
+      govee: govee
     }
   end
 
@@ -223,6 +217,12 @@ defmodule Ziwoas.Config do
     for {old, new} <- @obsolete, Map.has_key?(raw, old) do
       Logger.warning("config: '#{old}' is no longer read — it moved to #{new}. Remove the key.")
     end
+
+    if Map.has_key?(raw, "migration"),
+      do:
+        Logger.warning(
+          "config: the 'migration' block is no longer read — Phoenix runs every task. Remove it."
+        )
   end
 
   defp build_location(h) do
@@ -255,7 +255,7 @@ defmodule Ziwoas.Config do
 
     %Mqtt{
       host: require_string(h["host"], "mqtt.host"),
-      port: require_number(RubyNumeric.to_i(blank(h["port"])), "mqtt.port"),
+      port: require_number(to_integer(h["port"]), "mqtt.port"),
       topic_prefix: require_string(h["topic_prefix"], "mqtt.topic_prefix")
     }
   end
@@ -272,9 +272,7 @@ defmodule Ziwoas.Config do
         idle_interval_seconds:
           require_number(h["idle_interval_seconds"], "fritz_poll.idle_interval_seconds"),
         idle_threshold_w:
-          require_number(
-            RubyNumeric.to_f(blank(h["idle_threshold_w"])),
-            "fritz_poll.idle_threshold_w",
+          require_number(to_float(h["idle_threshold_w"]), "fritz_poll.idle_threshold_w",
             allow_zero: true
           ),
         timeout_seconds: require_number(h["timeout_seconds"], "fritz_poll.timeout_seconds")
@@ -326,7 +324,7 @@ defmodule Ziwoas.Config do
     role = Map.get(@roles, require_string(h["role"], "plugs[#{i}].role"))
     unless role, do: error!("plug '#{id}' role must be one of [:producer, :consumer]")
 
-    driver = Map.get(@drivers, ruby_to_s(if nil?(h["driver"]), do: "shelly", else: h["driver"]))
+    driver = Map.get(@drivers, to_text(if nil?(h["driver"]), do: "shelly", else: h["driver"]))
     unless driver, do: error!("plug '#{id}' driver must be one of [:shelly, :fritz_dect]")
 
     name = require_string(h["name"], "plugs[#{i}].name")
@@ -359,10 +357,10 @@ defmodule Ziwoas.Config do
   defp plug_ain(h, i, :fritz_dect) do
     ain = h["ain"]
 
-    if nil?(ain) or ruby_to_s(ain) == "",
+    if nil?(ain) or to_text(ain) == "",
       do: error!("plugs[#{i}].ain is required for driver: fritz_dect")
 
-    ruby_to_s(ain)
+    to_text(ain)
   end
 
   defp build_switchbot(h) do
@@ -431,8 +429,8 @@ defmodule Ziwoas.Config do
 
       %Solakon{
         host: require_string(h["host"], "solakon.host"),
-        port: RubyNumeric.to_i(default(h["port"], 502)),
-        unit_id: RubyNumeric.to_i(default(h["unit_id"], 1)),
+        port: require_number(to_integer(default(h["port"], 502)), "solakon.port"),
+        unit_id: require_number(to_integer(default(h["unit_id"], 1)), "solakon.unit_id"),
         # `enabled` is the legacy spelling of `monitoring_enabled`.
         monitoring_enabled: solakon_boolean(h, "monitoring_enabled", true, "enabled"),
         control_enabled: solakon_boolean(h, "control_enabled", false, nil)
@@ -456,28 +454,31 @@ defmodule Ziwoas.Config do
 
       names =
         h["devices"]
-        |> ruby_array()
+        |> list()
         |> Enum.reduce(%{}, fn device, acc ->
           key = require_string(device["key"], "govee.devices[].key")
-          Map.put(acc, key, %{name: ruby_to_s(device["name"])})
+          Map.put(acc, key, %{name: to_text(device["name"])})
         end)
 
       %Govee{
-        api_key: ruby_to_s(h["api_key"]),
-        lan_poll_seconds: RubyNumeric.to_i(default(h["lan_poll_seconds"], 8)),
-        api_poll_seconds: RubyNumeric.to_i(default(h["api_poll_seconds"], 180)),
-        pending_window_seconds: RubyNumeric.to_i(default(h["pending_window_seconds"], 5)),
+        api_key: to_text(h["api_key"]),
+        lan_poll_seconds: govee_seconds(h, "lan_poll_seconds", 8),
+        api_poll_seconds: govee_seconds(h, "api_poll_seconds", 180),
+        pending_window_seconds: govee_seconds(h, "pending_window_seconds", 5),
         names: names
       }
     end
   end
 
-  # --- Checks (ConfigLoader's require_* helpers) --------------------------------
+  defp govee_seconds(h, key, fallback),
+    do: require_number(to_integer(default(h[key], fallback)), "govee.#{key}")
+
+  # --- Checks ------------------------------------------------------------------
 
   defp require_map(v, key), do: if(is_map(v), do: v, else: error!("#{key} must be a mapping"))
 
   defp require_string(v, key) do
-    text = if nil?(v), do: "", else: ruby_to_s(v)
+    text = if nil?(v), do: "", else: to_text(v)
     if text == "", do: error!("#{key} is required"), else: text
   end
 
@@ -517,14 +518,13 @@ defmodule Ziwoas.Config do
     end
   end
 
-  # --- YAML values as Ruby sees them --------------------------------------------
+  # --- YAML scalars ------------------------------------------------------------
 
   defp nil?(v), do: v in [nil, :null]
-  defp blank(v), do: if(nil?(v), do: nil, else: v)
   defp default(v, fallback), do: if(nil?(v) or v == false, do: fallback, else: v)
   defp present_value?(v), do: not nil?(v) and v != false
 
-  defp ruby_array(v) do
+  defp list(v) do
     cond do
       nil?(v) -> []
       is_list(v) -> v
@@ -532,12 +532,27 @@ defmodule Ziwoas.Config do
     end
   end
 
-  defp ruby_to_s(v) when is_binary(v), do: v
-  defp ruby_to_s(v) when is_integer(v), do: Integer.to_string(v)
-  defp ruby_to_s(v) when is_float(v), do: Float.to_string(v)
-  defp ruby_to_s(v) when is_boolean(v), do: Atom.to_string(v)
-  defp ruby_to_s(v) when v in [nil, :null], do: ""
-  defp ruby_to_s(v), do: inspect(v)
+  defp to_text(v) when is_binary(v), do: v
+  defp to_text(v) when is_integer(v), do: Integer.to_string(v)
+  defp to_text(v) when is_float(v), do: Float.to_string(v)
+  defp to_text(v) when is_boolean(v), do: Atom.to_string(v)
+  defp to_text(v) when v in [nil, :null], do: ""
+  defp to_text(v), do: inspect(v)
+
+  defp to_integer(v) when is_integer(v), do: v
+
+  defp to_integer(v) when is_binary(v) do
+    case Integer.parse(String.trim(v)) do
+      {value, ""} -> value
+      _ -> nil
+    end
+  end
+
+  defp to_integer(_v), do: nil
+
+  defp to_float(v) when is_number(v), do: v * 1.0
+  defp to_float(v) when is_binary(v), do: parse_float(String.trim(v))
+  defp to_float(_v), do: nil
 
   defp error!(message), do: raise(Error, message)
 end

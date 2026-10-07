@@ -1,7 +1,4 @@
 defmodule Ziwoas.Solakon.MonitorTest do
-  # The connection owner: Rails' client tests (test/lib/solakon/client_test.rb) for
-  # decoding and error wrapping, plus what a long-lived connection adds — reuse,
-  # per-read connections on request, reconnect and backoff — and the writes.
   use ExUnit.Case, async: true
 
   alias Ziwoas.FakeModbusServer
@@ -119,7 +116,7 @@ defmodule Ziwoas.Solakon.MonitorTest do
     assert waits == [1_000, 2_000, 4_000, 8_000, 16_000, 32_000, 60_000, 60_000]
   end
 
-  test "read_snapshot reads Rails' snapshot registers" do
+  test "read_snapshot reads the snapshot registers" do
     registers =
       Map.merge(@fast, %{
         "39070:8" => [410, 512, 405, 488, 0, 0, 0, 0],
@@ -172,5 +169,67 @@ defmodule Ziwoas.Solakon.MonitorTest do
 
     assert Monitor.set_eps_output(monitor!(server), true) == :ok
     assert FakeModbusServer.frames(server) == [["0001000000060106b6150002"]]
+  end
+
+  describe "apply_control" do
+    test "arms remote control and writes the setpoint as one FC16 request" do
+      server = start_supervised!({FakeModbusServer, %{"46609:1" => [10]}})
+
+      assert Monitor.apply_control(monitor!(server), 500, 10) == :ok
+
+      assert FakeModbusServer.frames(server) == [
+               [
+                 "0001000000060103b6110001",
+                 "0002000000060106b3b10001",
+                 "0003000000060106b3b20096",
+                 "00040000000b0110b3b3000204000001f4"
+               ]
+             ]
+    end
+
+    test "writes the minimum SoC first only when the inverter holds another" do
+      server = start_supervised!({FakeModbusServer, %{"46609:1" => [20]}})
+
+      assert Monitor.apply_control(monitor!(server), 0, 10) == :ok
+
+      assert [["0001000000060103b6110001", "0002000000060106b611000a" | rest]] =
+               FakeModbusServer.frames(server)
+
+      assert List.last(rest) == "00050000000b0110b3b300020400000000"
+    end
+
+    test "a negative setpoint goes out as a two's-complement i32" do
+      server = start_supervised!({FakeModbusServer, %{"46609:1" => [10]}})
+
+      assert Monitor.apply_control(monitor!(server), -75, 10) == :ok
+      assert [frames] = FakeModbusServer.frames(server)
+      assert List.last(frames) == "00040000000b0110b3b3000204ffffffb5"
+    end
+
+    test "a refused write is neither retried nor waited for" do
+      server = start_supervised!({FakeModbusServer, {%{"46609:1" => [10]}, fail: ["16:*"]}})
+      monitor = monitor!(server)
+
+      assert Monitor.apply_control(monitor, 500, 10) == {:error, {:modbus_exception, 4}}
+      assert [first] = FakeModbusServer.frames(server)
+      assert length(first) == 4
+
+      assert Monitor.apply_control(monitor, 500, 10) == {:error, {:modbus_exception, 4}}
+      assert length(FakeModbusServer.frames(server)) == 2
+    end
+
+    test "a missing minimum-SoC register stops before any write" do
+      server = start_supervised!({FakeModbusServer, %{}})
+
+      assert Monitor.apply_control(monitor!(server), 500, 10) == {:error, {:modbus_exception, 2}}
+      assert FakeModbusServer.frames(server) == [["0001000000060103b6110001"]]
+    end
+  end
+
+  test "release_control switches remote control off" do
+    server = start_supervised!({FakeModbusServer, %{}})
+
+    assert Monitor.release_control(monitor!(server)) == :ok
+    assert FakeModbusServer.frames(server) == [["0001000000060106b3b10000"]]
   end
 end

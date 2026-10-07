@@ -4,12 +4,10 @@ defmodule Ziwoas.PowerSeries do
   Producers report with the opposite sign; the roster applies that convention
   once, so every reader sees production as a positive magnitude.
 
-  Readings are typed leniently like Ruby's `to_i`/`to_f` (a string bucket_ts
-  is truncated, a missing watt value is 0.0), because they arrive raw from SQL
-  rows and from callers alike.
+  A reading without a watt value counts as 0.0 W.
   """
   alias Ziwoas.Plugs.Roster
-  alias Ziwoas.{Repo, RubyNumeric}
+  alias Ziwoas.Repo
 
   defmodule Bucket do
     @moduledoc "Role totals of one bucket, in watts."
@@ -22,7 +20,7 @@ defmodule Ziwoas.PowerSeries do
   @enforce_keys [:bucket_seconds, :buckets, :watts_by_plug]
   defstruct @enforce_keys
 
-  @type reading :: {String.t(), term, term}
+  @type reading :: {String.t(), integer, number | nil}
   @type t :: %__MODULE__{
           bucket_seconds: integer,
           buckets: [Bucket.t()],
@@ -34,13 +32,13 @@ defmodule Ziwoas.PowerSeries do
 
   def sample_5min_bucket_seconds, do: @sample_5min_bucket_seconds
 
-  @spec new([reading], Roster.t() | list, integer | float | String.t()) :: t
-  def new(readings, plugs, bucket_seconds) do
+  @spec new([reading], Roster.t() | list, pos_integer) :: t
+  def new(readings, plugs, bucket_seconds) when is_integer(bucket_seconds) do
     roster = Roster.new(plugs)
     readings = normalize(readings, roster)
 
     %__MODULE__{
-      bucket_seconds: RubyNumeric.integer!(bucket_seconds),
+      bucket_seconds: bucket_seconds,
       buckets: buckets(readings, roster),
       watts_by_plug: watts_by_plug(readings, roster)
     }
@@ -67,11 +65,9 @@ defmodule Ziwoas.PowerSeries do
   end
 
   @doc "SQL that floors `ts` to the bucket width (SQLite integer division truncates toward zero)."
-  @spec bucket_ts_sql(integer | float | String.t()) :: String.t()
-  def bucket_ts_sql(bucket_seconds) do
-    seconds = RubyNumeric.integer!(bucket_seconds)
-    "(ts / #{seconds}) * #{seconds}"
-  end
+  @spec bucket_ts_sql(pos_integer) :: String.t()
+  def bucket_ts_sql(bucket_seconds) when is_integer(bucket_seconds),
+    do: "(ts / #{bucket_seconds}) * #{bucket_seconds}"
 
   defp sample_readings([], _start_ts, _end_ts, _bucket_seconds), do: []
 
@@ -99,27 +95,24 @@ defmodule Ziwoas.PowerSeries do
 
   @doc """
   The energy the consumers drew straight from production: the per-bucket
-  overlap of both, clamped to what the meters counted. The Integer 0 without
-  buckets, like Ruby's empty sum.
+  overlap of both, clamped to what the meters counted; 0.0 without buckets.
   """
-  @spec self_consumed_wh(t, number, number) :: number
+  @spec self_consumed_wh(t, number, number) :: float
   def self_consumed_wh(%__MODULE__{} = series, produced_wh, consumed_wh),
-    do: RubyNumeric.min([overlap_wh(series), produced_wh, consumed_wh])
+    do: Enum.min([overlap_wh(series), produced_wh * 1.0, consumed_wh * 1.0])
 
   defp overlap_wh(%__MODULE__{buckets: buckets, bucket_seconds: bucket_seconds}) do
     bucket_hours = bucket_seconds / @seconds_per_hour
 
-    buckets
-    |> Enum.map(&(RubyNumeric.min([&1.production_w, &1.consumption_w]) * bucket_hours))
-    |> RubyNumeric.sum()
+    Enum.reduce(buckets, 0.0, fn bucket, sum ->
+      sum + min(bucket.production_w, bucket.consumption_w) * bucket_hours
+    end)
   end
 
   defp normalize(readings, roster) do
     readings
     |> Enum.filter(fn {plug_id, _ts, _watt} -> Roster.measured?(roster, plug_id) end)
-    |> Enum.map(fn {plug_id, ts, watt} ->
-      {plug_id, RubyNumeric.to_i(ts), RubyNumeric.to_f(watt)}
-    end)
+    |> Enum.map(fn {plug_id, ts, watt} -> {plug_id, ts, if(watt, do: watt * 1.0, else: 0.0)} end)
     |> Enum.sort_by(fn {_plug_id, ts, _watt} -> ts end)
   end
 

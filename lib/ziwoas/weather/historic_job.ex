@@ -1,7 +1,7 @@
 defmodule Ziwoas.Weather.HistoricJob do
   @moduledoc """
-  Rails' `WeatherHistoricJob` (`fetch_historic_weather`): yesterday's observations,
-  then every day with energy totals that still lacks them.
+  The `fetch_historic_weather` job: yesterday's observations, then every day
+  with energy totals that still lacks them.
   """
   @behaviour Ziwoas.Scheduler.Job
 

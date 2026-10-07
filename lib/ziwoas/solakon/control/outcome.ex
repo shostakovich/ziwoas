@@ -1,11 +1,8 @@
 defmodule Ziwoas.Solakon.Control.Outcome do
   @moduledoc """
-  One answer per control tick (Rails' `Solakon::Control::Outcome`): applied, paused,
-  failed or released, and the line the monitor logs for it — Rails' wording, so both
-  apps' logs read alike. A dry run's tick is `applied` with `dry_run: true` and the
-  writes it would have sent.
+  One answer per control tick: applied, paused, failed or released, and the line
+  the monitor logs for it.
   """
-  alias Ziwoas.RubyNumeric
   alias Ziwoas.Solakon.Control.{Decision, Load}
   alias Ziwoas.Solakon.Reading
 
@@ -16,9 +13,7 @@ defmodule Ziwoas.Solakon.Control.Outcome do
             load: nil,
             reading: nil,
             failures: 0,
-            error: nil,
-            dry_run: false,
-            writes: []
+            error: nil
 
   @type status :: :applied | :paused | :failed | :released
   @type t :: %__MODULE__{
@@ -27,9 +22,7 @@ defmodule Ziwoas.Solakon.Control.Outcome do
           load: Load.t() | nil,
           reading: Reading.t() | nil,
           failures: non_neg_integer,
-          error: String.t() | nil,
-          dry_run: boolean,
-          writes: [term]
+          error: String.t() | nil
         }
 
   def max_consecutive_failures, do: @max_consecutive_failures
@@ -44,8 +37,8 @@ defmodule Ziwoas.Solakon.Control.Outcome do
 
     "state=#{decision.state} target=#{decision.target_w}W load=#{measured_load(load)} " <>
       "floor=#{round(load.floor_w)}W " <>
-      "soc=#{reading.battery_soc_pct}% temp=#{ruby_s(reading.battery_temperature_c)}C " <>
-      "pv=#{ruby_s(reading.pv_power_w)}W battery=#{ruby_s(reading.battery_power_w)}W"
+      "soc=#{reading.battery_soc_pct}% temp=#{reading.battery_temperature_c}C " <>
+      "pv=#{reading.pv_power_w}W battery=#{reading.battery_power_w}W"
   end
 
   def log_line(%__MODULE__{status: :paused}), do: "runtime paused"
@@ -59,7 +52,4 @@ defmodule Ziwoas.Solakon.Control.Outcome do
 
   defp failure_line(outcome),
     do: "Modbus failure #{outcome.failures}/#{@max_consecutive_failures}: #{outcome.error}"
-
-  defp ruby_s(nil), do: ""
-  defp ruby_s(value), do: RubyNumeric.to_s(value)
 end

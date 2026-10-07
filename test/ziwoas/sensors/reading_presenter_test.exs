@@ -1,5 +1,4 @@
 defmodule Ziwoas.Sensors.ReadingPresenterTest do
-  # Mirrors test/models/sensors_reading_presenter_test.rb.
   use ExUnit.Case, async: true
 
   alias Ziwoas.Sensors.{Reading, ReadingPresenter}

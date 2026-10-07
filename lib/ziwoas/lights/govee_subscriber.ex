@@ -1,32 +1,27 @@
 defmodule Ziwoas.Lights.GoveeSubscriber do
   @moduledoc """
-  Rails' `Govees::Subscriber` (task `light_ingest`), a `Ziwoas.Collector.MqttRouter`
-  handler: `govees/<key>/config` upserts a `lights` row, `govees/<key>/state`
-  records `light_states` (native units; absent fields stay untouched). Writes go
-  through `Ziwoas.Repo.write/2`.
+  A `Ziwoas.Collector.MqttRouter` handler: `govees/<key>/config` upserts a
+  `lights` row, `govees/<key>/state` records `light_states` (native units; absent
+  fields stay untouched). After every state message `{:light_updated, key}` goes
+  out on `light_<key>` (`ZiwoasWeb.LightLive`) and `lights` (`ZiwoasWeb.SwitchesLive`).
 
-  Rails also re-renders the light card and the detail hero over Turbo after every
-  state message; here `{:light_updated, key}` goes out on `light_<key>` (`LightLive`)
-  and `lights` (`SwitchesLive`), only as owner (`Ziwoas.Live.broadcast/3`). Rails'
-  pages stop hearing from the ingest once Phoenix owns it (see the README).
-
-  Rails' serialized columns store an empty list or map as NULL; so does this.
+  An empty zone or scene list is stored as NULL.
   """
   @behaviour Ziwoas.Collector.MqttRouter
 
   require Logger
 
-  alias Ziwoas.{Clock, Live, Repo}
+  alias Ziwoas.{Clock, Repo}
   alias Ziwoas.Govee.Messages
   alias Ziwoas.Lights.{Light, State}
 
-  defstruct task: :light_ingest
+  defstruct []
 
-  @type t :: %__MODULE__{task: atom}
+  @type t :: %__MODULE__{}
 
   @key_format ~r/\A[0-9A-Za-z]+\z/
 
-  def new(opts \\ []), do: %__MODULE__{task: Keyword.get(opts, :task, :light_ingest)}
+  def new(_opts \\ []), do: %__MODULE__{}
 
   @impl Ziwoas.Collector.MqttRouter
   def subscriptions(_state), do: ["govees/+/config", "govees/+/state"]
@@ -42,17 +37,17 @@ defmodule Ziwoas.Lights.GoveeSubscriber do
     key = Enum.at(String.split(topic, "/"), 1)
 
     cond do
-      String.ends_with?(topic, "/config") -> handle_config(state, key, topic, payload)
-      String.ends_with?(topic, "/state") -> handle_state(state, key, topic, payload)
+      String.ends_with?(topic, "/config") -> handle_config(key, topic, payload)
+      String.ends_with?(topic, "/state") -> handle_state(key, topic, payload)
     end
 
     state
   end
 
-  defp handle_config(state, key, topic, payload) do
+  defp handle_config(key, topic, payload) do
     with {:ok, %{} = hash} <- JSON.decode(payload),
          {:ok, config} <- Messages.config(hash),
-         :ok <- Repo.write(state.task, fn -> upsert_light(key, config) end) do
+         :ok <- upsert_light(key, config) do
       :ok
     else
       _ -> Logger.warning("Govee subscriber: invalid config on #{topic}")
@@ -88,23 +83,23 @@ defmodule Ziwoas.Lights.GoveeSubscriber do
 
   defp valid_light?(key, name), do: present(name) != nil and Regex.match?(@key_format, key || "")
 
-  defp handle_state(state, key, topic, payload) do
+  defp handle_state(key, topic, payload) do
     with {:ok, %{} = hash} <- JSON.decode(payload),
          {:ok, message} <- Messages.state(hash),
-         :ok <- Repo.write(state.task, fn -> record_state(key, message) end) do
-      broadcast(state.task, key)
+         :ok <- record_state(key, message) do
+      broadcast(key)
       :ok
     else
       _ -> Logger.warning("Govee subscriber: invalid state on #{topic}")
     end
   end
 
-  defp broadcast(task, key) do
-    Live.broadcast(task, "light_#{key}", {:light_updated, key})
-    Live.broadcast(task, "lights", {:light_updated, key})
+  defp broadcast(key) do
+    Phoenix.PubSub.broadcast(Ziwoas.PubSub, "light_#{key}", {:light_updated, key})
+    Phoenix.PubSub.broadcast(Ziwoas.PubSub, "lights", {:light_updated, key})
   end
 
-  # LightState.record_state + record_zone_state, merged into one write.
+  # Power, readings and zone bits in one write.
   defp record_state(key, message) when key not in [nil, ""] do
     row = Repo.get_by(State, light_key: key) || %State{light_key: key}
 

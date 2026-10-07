@@ -5,11 +5,8 @@ defmodule Ziwoas.SunCalc do
   (https://gml.noaa.gov/grad/solcalc/solareqns.PDF). Sunrise and sunset are a
   single pass at solar noon, accurate to a few minutes at mid latitudes —
   sufficient for deciding whether a weather record falls into "day" or "night".
-
-  Event times keep Ruby's arithmetic: midnight UTC plus the exact binary value
-  of `minutes * 60.0` seconds, truncated to microseconds.
+  Event times are truncated to microseconds.
   """
-  alias Ziwoas.RubyNumeric
 
   @zenith_deg 90.833
   @deg :math.pi() / 180.0
@@ -45,7 +42,6 @@ defmodule Ziwoas.SunCalc do
         false
 
       true ->
-        # Ruby compares against the exact, untruncated event instant.
         at = DateTime.to_unix(timestamp, :microsecond)
 
         at >= event_microseconds(local_date, lon, cos_ha, :sunrise, :ceil) and
@@ -54,8 +50,7 @@ defmodule Ziwoas.SunCalc do
   end
 
   @doc """
-  Sun position at an instant. Only the instant counts, in whole seconds: like
-  Ruby's `utc.sec`, a sub-second part is ignored.
+  Sun position at an instant, in whole seconds: a sub-second part is ignored.
   """
   @spec position(DateTime.t(), number, number) :: Position.t()
   def position(%DateTime{} = time, lat, lon) do
@@ -144,16 +139,8 @@ defmodule Ziwoas.SunCalc do
   end
 
   defp event_microseconds(date, lon, cos_ha, event, rounding) do
-    {numerator, denominator} =
-      RubyNumeric.exact(solar_event_minutes_utc(date, lon, cos_ha, event) * 60)
-
-    offset = numerator * 1_000_000
-
-    offset =
-      case rounding do
-        :floor -> Integer.floor_div(offset, denominator)
-        :ceil -> -Integer.floor_div(-offset, denominator)
-      end
+    offset = solar_event_minutes_utc(date, lon, cos_ha, event) * 60_000_000
+    offset = if rounding == :floor, do: floor(offset), else: ceil(offset)
 
     midnight = date |> DateTime.new!(~T[00:00:00], "Etc/UTC") |> DateTime.to_unix(:microsecond)
     midnight + offset
@@ -161,7 +148,7 @@ defmodule Ziwoas.SunCalc do
 
   defp clamp(value), do: value |> max(-1.0) |> min(1.0)
 
-  # Ruby's Float#%: fmod, then shifted to the sign of the divisor.
+  # fmod, then shifted to the sign of the divisor.
   defp floored_mod(x, y) do
     mod = if x == 0.0, do: x, else: :math.fmod(x, y)
     if y * mod < 0, do: mod + y, else: mod

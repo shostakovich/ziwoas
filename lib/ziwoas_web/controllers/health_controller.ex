@@ -1,13 +1,12 @@
 defmodule ZiwoasWeb.HealthController do
   @moduledoc """
-  The health check (Rails' `rails/health#show` on `/up`): 200 once the app has
-  booted, a green page for HTML, `{"status":"up","timestamp":…}` for JSON (by
-  Accept or `/up.json`), the timestamp in the location's zone like
-  `Time.current.iso8601`.
+  The health check on `/up`: 200 once the app has booted, a green page for
+  HTML, `{"status":"up","timestamp":…}` for JSON (by Accept or `/up.json`),
+  the timestamp ISO 8601 in the location's zone.
   """
   use ZiwoasWeb, :controller
 
-  alias Ziwoas.{Clock, Config, RubyJSON}
+  alias Ziwoas.{Clock, Config}
 
   @page ~s(<!DOCTYPE html><html><body style="background-color: green"></body></html>)
 
@@ -25,8 +24,6 @@ defmodule ZiwoasWeb.HealthController do
       |> DateTime.truncate(:second)
       |> DateTime.to_iso8601()
 
-    conn
-    |> put_resp_content_type("application/json")
-    |> send_resp(200, RubyJSON.encode!([{"status", "up"}, {"timestamp", timestamp}]))
+    json(conn, %{status: "up", timestamp: timestamp})
   end
 end

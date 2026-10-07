@@ -1,5 +1,4 @@
 defmodule Ziwoas.RampTest do
-  # Mirrors test/models/ramp_test.rb.
   use ExUnit.Case, async: true
 
   alias Ziwoas.Ramp

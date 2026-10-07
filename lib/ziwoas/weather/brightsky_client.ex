@@ -1,11 +1,11 @@
 defmodule Ziwoas.Weather.BrightskyClient do
   @moduledoc """
-  Bright Sky, the DWD's open weather data (Rails' `BrightskyClient`): the current
+  Bright Sky, the DWD's open weather data: the current
   observation and the hours of a date, as `weather_records` attributes. Retries
   twice on a 5xx or a transport error, 0.5 s and 1 s apart; a date answered with
   404 is past the end of the forecast (`:range_end`). Other failures raise `Error`.
   """
-  alias Ziwoas.{Clock, Http, Location, RubyNumeric}
+  alias Ziwoas.{Clock, Http, Location}
   alias Ziwoas.Weather.Icon
 
   @base_url "https://api.brightsky.dev"
@@ -39,7 +39,7 @@ defmodule Ziwoas.Weather.BrightskyClient do
   end
 
   defp get_json!(location, path, params) do
-    params = [lat: RubyNumeric.to_s(location.lat), lon: RubyNumeric.to_s(location.lon)] ++ params
+    params = [lat: location.lat, lon: location.lon] ++ params
 
     request =
       Http.new(__MODULE__,

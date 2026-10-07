@@ -1,11 +1,9 @@
 defmodule Ziwoas.Solakon.Control.TickTest do
-  # The parts of test/models/solakon/control/{tick,state,load_reader,outcome}_test.rb
-  # the vectors do not reach.
   use Ziwoas.DataCase
 
-  alias Ziwoas.{Repo, TestClock}
+  alias Ziwoas.{FakeModbusServer, Repo, TestClock}
   alias Ziwoas.Plugs.{Plug, Roster}
-  alias Ziwoas.Solakon.Reading
+  alias Ziwoas.Solakon.{Monitor, Reading}
   alias Ziwoas.Solakon.Control.{Decision, Load, LoadReader, Outcome, State, Tick}
 
   @moduletag :capture_log
@@ -33,10 +31,8 @@ defmodule Ziwoas.Solakon.Control.TickTest do
   describe "the stored decision" do
     test "round-trips and expires with the inverter's watchdog" do
       state =
-        Repo.write(:solakon_control, fn ->
-          State.current!()
-          |> State.store!(%Decision{state: :protected, target_w: 85, trim: true}, @now)
-        end)
+        State.current!()
+        |> State.store!(%Decision{state: :protected, target_w: 85, trim: true}, @now)
 
       assert State.stored(state) == {%Decision{state: :protected, target_w: 85, trim: true}, @now}
 
@@ -61,18 +57,16 @@ defmodule Ziwoas.Solakon.Control.TickTest do
     end
 
     test "resume clears it, pause keeps it" do
-      Repo.write(:solakon_control, fn ->
-        state =
-          State.current!()
-          |> State.store!(%Decision{state: :surplus, target_w: 500, trim: false}, @now)
-          |> State.pause!()
+      state =
+        State.current!()
+        |> State.store!(%Decision{state: :surplus, target_w: 500, trim: false}, @now)
+        |> State.pause!()
 
-        assert State.stored(state)
-        state = State.resume!(state)
-        assert State.active?(state)
-        assert State.stored(state) == nil
-        assert {state.trim, state.last_target_w} == {false, nil}
-      end)
+      assert State.stored(state)
+      state = State.resume!(state)
+      assert State.active?(state)
+      assert State.stored(state) == nil
+      assert {state.trim, state.last_target_w} == {false, nil}
     end
   end
 
@@ -120,6 +114,121 @@ defmodule Ziwoas.Solakon.Control.TickTest do
 
       assert Outcome.log_line(%{failed | status: :released, failures: 3}) ==
                "Modbus failure 3/3: down — relinquished remote control"
+    end
+  end
+
+  describe "a tick" do
+    setup do
+      insert_sample!("fridge", DateTime.to_unix(@now) - 10, 300, 1)
+      :ok
+    end
+
+    # The inverter holds the minimum SoC already, so a tick writes 46001, 46002 and 46003.
+    defp inverter!(opts \\ []) do
+      server = start_supervised!({FakeModbusServer, {%{"46609:1" => [10]}, opts}})
+
+      monitor =
+        start_supervised!(
+          {Monitor,
+           name: nil, host: "127.0.0.1", port: FakeModbusServer.port(server), io_timeout_ms: 500}
+        )
+
+      {server, monitor}
+    end
+
+    defp frames(server), do: server |> FakeModbusServer.frames() |> List.flatten()
+    defp tick(monitor), do: Tick.run(reading([]), roster(), @now, monitor: monitor)
+
+    test "writes the target, then stores the decision that reached the inverter" do
+      {server, monitor} = inverter!()
+
+      assert %Outcome{status: :applied, decision: decision} = tick(monitor)
+      assert decision == %Decision{state: :normal, target_w: 300, trim: false}
+
+      assert frames(server) == [
+               "0001000000060103b6110001",
+               "0002000000060106b3b10001",
+               "0003000000060106b3b20096",
+               "00040000000b0110b3b30002040000012c"
+             ]
+
+      state = State.current()
+      assert State.stored(state) == {decision, @now}
+      assert state.consecutive_failures == 0
+    end
+
+    test "a refused write counts as a failure and stores no decision" do
+      {_server, monitor} = inverter!(fail: ["16:46003"])
+
+      assert tick(monitor) == %Outcome{
+               status: :failed,
+               failures: 1,
+               error: "{:modbus_exception, 4}"
+             }
+
+      state = State.current()
+      assert state.consecutive_failures == 1
+      assert State.stored(state) == nil
+    end
+
+    test "the third failure in a row hands control back and forgets the decision" do
+      {server, monitor} = inverter!(fail: ["16:46003"])
+      State.store!(State.current!(), %Decision{state: :normal, target_w: 250, trim: false}, @now)
+
+      assert [%{status: :failed, failures: 1}, %{status: :failed, failures: 2}] =
+               [tick(monitor), tick(monitor)]
+
+      assert State.stored(State.current())
+
+      assert %Outcome{status: :released, failures: 3, error: "{:modbus_exception, 4}"} =
+               tick(monitor)
+
+      assert List.last(frames(server)) == "0001000000060106b3b10000"
+
+      state = State.current()
+      assert state.consecutive_failures == 0
+      assert State.stored(state) == nil
+    end
+
+    test "a release the inverter refuses keeps counting and says so" do
+      {_server, monitor} = inverter!(fail: ["6:46001"])
+      Repo.insert!(%State{consecutive_failures: 2})
+
+      assert %Outcome{status: :failed, failures: 3, error: error} = tick(monitor)
+      assert error =~ "could not relinquish remote control: {:modbus_exception, 4}"
+
+      assert %Outcome{status: :failed, failures: 4} = tick(monitor)
+      assert State.current().consecutive_failures == 4
+    end
+
+    test "a successful write clears earlier failures" do
+      {_server, monitor} = inverter!()
+      Repo.insert!(%State{consecutive_failures: 2})
+
+      assert %Outcome{status: :applied} = tick(monitor)
+      assert State.current().consecutive_failures == 0
+    end
+
+    test "a paused loop decides nothing and writes nothing" do
+      {server, monitor} = inverter!()
+      Repo.insert!(%State{paused: true})
+
+      assert tick(monitor) == %Outcome{status: :paused}
+      assert FakeModbusServer.frames(server) == []
+      assert State.stored(State.current()) == nil
+    end
+
+    test "continues the stored decision while the watchdog holds it" do
+      {_server, monitor} = inverter!()
+      stored_at = DateTime.add(@now, -30)
+
+      State.store!(
+        State.current!(),
+        %Decision{state: :normal, target_w: 50, trim: false},
+        stored_at
+      )
+
+      assert %Outcome{decision: %Decision{target_w: 250}} = tick(monitor)
     end
   end
 end

@@ -1,7 +1,7 @@
 defmodule Ziwoas.Look do
   @moduledoc """
-  The page look (Rails' `Look`): plain felt-css ("clean") or the felt texture
-  ("felt"), kept in the unsigned `look` cookie both apps read.
+  The page look: plain felt-css ("clean") or the felt texture ("felt"), kept in
+  the unsigned `look` cookie.
   """
   @names ~w[clean felt]
   @default "clean"

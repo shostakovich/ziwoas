@@ -1,7 +1,6 @@
 defmodule Ziwoas.Scheduler.Schedule do
   @moduledoc """
-  The schedules of `config/recurring.yml`, as Solid Queue reads them (Fugit's
-  natural language), on the wall clock of a zone:
+  A job's schedule in a small natural language, on the wall clock of a zone:
 
     * `every 30 seconds`, `every minute`, `every 2 minutes`, `every hour`,
       `every hour at minute 12` — instants aligned to the local clock
@@ -10,8 +9,8 @@ defmodule Ziwoas.Scheduler.Schedule do
     * `every 3 hours` — local hours 0, 3, …, 21;
     * `at 3:15am every day`, `every day at 15:45` — once per local day.
 
-  A daily time in the spring gap runs an hour later (ActiveSupport's
-  `Time.zone.local`), an ambiguous one at its first occurrence.
+  A daily time in the spring gap runs an hour later, an ambiguous one at its
+  first occurrence.
   """
   alias Ziwoas.LocalDay
 
@@ -66,7 +65,7 @@ defmodule Ziwoas.Scheduler.Schedule do
   defp parse(["every", "day", "at", time]), do: daily(time)
   defp parse(_words), do: :error
 
-  # Fugit's */N: N must divide the unit above, else the cron would not be even.
+  # As in cron's */N: N must divide the unit above, else the cron would not be even.
   defp every(n, 1) when rem(60, n) == 0, do: {:interval, n, 0}
   defp every(n, 60) when rem(60, n) == 0, do: {:interval, n * 60, 0}
   defp every(1, 3600), do: {:interval, 3600, 0}

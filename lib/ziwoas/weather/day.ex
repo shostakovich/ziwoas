@@ -1,5 +1,5 @@
 defmodule Ziwoas.Weather.Day do
-  @moduledoc "One forecast day and its four segments (Rails' `WeatherDay`)."
+  @moduledoc "One forecast day and its four segments."
   alias Ziwoas.Weather
   alias Ziwoas.Weather.{Record, Segment}
 

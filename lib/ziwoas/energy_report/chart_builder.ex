@@ -5,7 +5,7 @@ defmodule Ziwoas.EnergyReport.ChartBuilder do
   Both carry a `:weather` overlay when the location has historic weather for
   the range (`WeatherLoader`).
   """
-  alias Ziwoas.{Energy, LocalDay, Location, PowerSeries, RubyNumeric}
+  alias Ziwoas.{Energy, LocalDay, Location, PowerSeries}
   alias Ziwoas.EnergyReport.{DailyPoint, Store, WeatherLoader}
   alias Ziwoas.Plugs.Roster
 
@@ -42,7 +42,7 @@ defmodule Ziwoas.EnergyReport.ChartBuilder do
   defp ratio_point(%DailyPoint{} = point),
     do: %{date: point.date, autarky_pct: nil, self_consumption_pct: nil}
 
-  defp pct(ratio), do: RubyNumeric.round(ratio * 100, 1)
+  defp pct(ratio), do: Float.round(ratio * 100, 1)
 
   defp consumer_daily_series(roster, dates) do
     for plug <- Roster.consumers(roster) do
@@ -82,7 +82,7 @@ defmodule Ziwoas.EnergyReport.ChartBuilder do
         watts_by_ts = PowerSeries.signed_watts_by_ts(series, plug.id)
 
         Enum.map(timestamps, fn ts ->
-          if watt = watts_by_ts[ts], do: RubyNumeric.round(watt, 1)
+          if watt = watts_by_ts[ts], do: Float.round(watt, 1)
         end)
       end)
 
@@ -103,7 +103,7 @@ defmodule Ziwoas.EnergyReport.ChartBuilder do
       present_series(roster, fn plug ->
         Enum.map(dates, fn date ->
           if row = row_by_plug_and_date[{plug.id, Date.to_iso8601(date)}],
-            do: RubyNumeric.round(row.energy_wh / 24.0, 1)
+            do: Float.round(row.energy_wh / 24.0, 1)
         end)
       end)
 
@@ -181,5 +181,5 @@ defmodule Ziwoas.EnergyReport.ChartBuilder do
     end
   end
 
-  defp rounded_kwh(energy), do: energy |> Energy.kwh() |> RubyNumeric.round(3)
+  defp rounded_kwh(energy), do: energy |> Energy.kwh() |> Float.round(3)
 end

@@ -1,6 +1,4 @@
 defmodule ZiwoasWeb.SensorsLiveTest do
-  # Mirrors test/controllers/sensors_controller_test.rb (the page) and the
-  # partial-level checks of test/sensors_broadcaster_test.rb (the live update).
   use ZiwoasWeb.ConnCase
 
   import Phoenix.LiveViewTest
@@ -52,7 +50,7 @@ defmodule ZiwoasWeb.SensorsLiveTest do
     assert texts(indoor, "li") == ["21,0 °C", "50 % rH", "1.200 ppm"]
     assert texts(indoor, ".small.text-body-secondary") == ["vor 5 Min"]
     assert count(outdoor, "svg.co2-gauge") == 0
-    assert count(doc, ".alert") == 0
+    assert count(doc, ".alert:not([hidden])") == 0
 
     assert count(doc, "section[aria-label=Sensoren].row-cols-sm-2.row-cols-lg-2") == 1,
            "two sensors fill a row of two on desktops instead of leaving a third slot empty"
@@ -100,7 +98,7 @@ defmodule ZiwoasWeb.SensorsLiveTest do
     {:ok, view, _html} = live(conn, ~p"/sensors")
 
     assert render(view) =~ "21,0"
-    refute has_element?(view, ".alert")
+    refute has_element?(view, ".alert:not([hidden])")
 
     reading!("TEST_INDOOR", 0, temperature: 23.4, humidity: 48, co2: 1500, battery_pct: 10)
     Phoenix.PubSub.broadcast(Ziwoas.PubSub, "sensors", {:sensors_updated})
@@ -115,7 +113,7 @@ defmodule ZiwoasWeb.SensorsLiveTest do
              "CO₂ 1.500 ppm, schlecht"
            ]
 
-    assert texts(doc, ".alert") == ["Batterie schwach: Test Wohnzimmer"]
+    assert texts(doc, ".alert:not([hidden])") == ["Batterie schwach: Test Wohnzimmer"]
     assert_push_event(view, "sensors_updated", %{})
   end
 

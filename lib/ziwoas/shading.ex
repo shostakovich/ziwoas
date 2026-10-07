@@ -1,11 +1,8 @@
 defmodule Ziwoas.Shading do
   @moduledoc """
-  How much of the sun the panels turn into power, hour by hour (Rails'
-  `Shading`): the PV hours against the station's irradiance and the sun's
+  How much of the sun the panels turn into power, hour by hour: the PV hours against the station's irradiance and the sun's
   position. `Ziwoas.Shading.Builder` assembles the report the PV page shows.
   """
-  alias Ziwoas.RubyNumeric
-
   defmodule Hour do
     @moduledoc false
     @enforce_keys [:time, :pv_w, :irradiance_w_per_m2, :panels, :azimuth, :elevation]
@@ -42,7 +39,7 @@ defmodule Ziwoas.Shading do
     def empty?(%__MODULE__{points: points}), do: points == []
 
     def max(%__MODULE__{points: points}),
-      do: points |> Enum.map(&elem(&1, 1)) |> RubyNumeric.max()
+      do: points |> Enum.map(&elem(&1, 1)) |> Enum.max()
   end
 
   defmodule Profile do
@@ -80,7 +77,7 @@ defmodule Ziwoas.Shading do
   def max(%{curves: curves}) do
     case curves |> Enum.reject(&Curve.empty?/1) |> Enum.map(&Curve.max/1) do
       [] -> nil
-      maxima -> RubyNumeric.max(maxima)
+      maxima -> Enum.max(maxima)
     end
   end
 
@@ -92,7 +89,7 @@ defmodule Ziwoas.Shading do
     hours =
       for curve <- curves, {hour, value} <- curve.points, value != 0, do: hour
 
-    if hours != [], do: {RubyNumeric.min(hours), RubyNumeric.max(hours)}
+    if hours != [], do: Enum.min_max(hours)
   end
 
   def trim(curves) do
@@ -112,7 +109,7 @@ defmodule Ziwoas.Shading do
     end
   end
 
-  @doc "Ruby's `group_by`: groups in the order their keys first appear, as `[{key, items}]`."
+  @doc "Groups in the order their keys first appear, as `[{key, items}]`."
   def group_by(items, fun) do
     {keys, groups} =
       Enum.reduce(items, {[], %{}}, fn item, {keys, groups} ->

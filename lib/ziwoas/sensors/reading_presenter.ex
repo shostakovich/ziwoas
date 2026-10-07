@@ -1,6 +1,6 @@
 defmodule Ziwoas.Sensors.ReadingPresenter do
   @moduledoc """
-  How a sensor's latest reading reads (Rails' `Sensors::ReadingPresenter`):
+  How a sensor's latest reading reads:
   CO₂ traffic light, low battery, age and whether the sensor is offline.
   A missing reading is offline and has no age.
   """

@@ -1,13 +1,12 @@
 defmodule Ziwoas.Plot do
   @moduledoc """
-  The geometry of an SVG chart (Rails' `Plot`): a frame with margins mapping
-  two domains onto pixels. Geometry is rounded to one decimal (`number/1`,
-  integral values as Integers, the way Ruby's ERB prints them); `x/2` and
-  `y/2` stay raw, so callers calculating on don't round twice.
+  The geometry of an SVG chart: a frame with margins mapping two domains onto
+  pixels. Geometry is rounded to one decimal (`number/1`, integral values as
+  Integers); `x/2` and `y/2` stay raw, so callers calculating on don't round
+  twice.
 
-  Domains are `{from, to}` pairs (Ruby ranges, `to` may be below `from`).
+  Domains are `{from, to}` pairs (`to` may be below `from`).
   """
-  alias Ziwoas.RubyNumeric
 
   @enforce_keys [:width, :height, :margins, :x_domain, :y_domain]
   defstruct @enforce_keys
@@ -62,7 +61,7 @@ defmodule Ziwoas.Plot do
   def number(value) when is_integer(value), do: value
 
   def number(value) when is_float(value) do
-    rounded = RubyNumeric.round(value, 1)
+    rounded = Float.round(value, 1)
     if rounded == trunc(rounded), do: trunc(rounded), else: rounded
   end
 
@@ -79,14 +78,14 @@ defmodule Ziwoas.Plot do
       Enum.find(steps, &(peak <= &1 * max_steps)) ||
         round_up(peak / max_steps, List.last(steps))
 
-    %Scale{step: step, top: RubyNumeric.max([round_up(peak, step), step])}
+    %Scale{step: step, top: max(round_up(peak, step), step)}
   end
 
   @spec extent([number]) :: domain
   def extent([]), do: {0, 0}
-  def extent(values), do: {RubyNumeric.min(values), RubyNumeric.max(values)}
+  def extent(values), do: Enum.min_max(values)
 
-  @doc "Every value of a domain, as Ruby iterates an Integer range."
+  @doc "Every integer of a domain, ascending; none when `to` is below `from`."
   @spec domain_values(domain) :: [integer]
   def domain_values({from, to}) when from <= to, do: Enum.to_list(from..to//1)
   def domain_values(_domain), do: []
@@ -140,7 +139,7 @@ defmodule Ziwoas.Plot do
   def columns(plot, values) do
     for value <- values do
       from = x(plot, value)
-      to = RubyNumeric.min([x(plot, value + 1), x_to(plot)])
+      to = min(x(plot, value + 1), x_to(plot))
 
       %Rect{
         x: number(from),
@@ -158,8 +157,8 @@ defmodule Ziwoas.Plot do
   def rect(plot, {x_from, x_to}, {y_from, y_to}, inset \\ 0) do
     xs = [number(x(plot, x_from)), number(x(plot, x_to))]
     ys = [number(y(plot, y_from)), number(y(plot, y_to))]
-    {x_min, x_max} = {RubyNumeric.min(xs), RubyNumeric.max(xs)}
-    {y_min, y_max} = {RubyNumeric.min(ys), RubyNumeric.max(ys)}
+    {x_min, x_max} = Enum.min_max(xs)
+    {y_min, y_max} = Enum.min_max(ys)
 
     %Rect{
       x: x_min,
@@ -169,8 +168,10 @@ defmodule Ziwoas.Plot do
     }
   end
 
-  @doc "A number as Ruby's ERB prints it."
-  defdelegate to_s(value), to: RubyNumeric
+  @doc "A number as SVG text: integers plain, floats in their shortest form."
+  @spec to_s(number) :: String.t()
+  def to_s(value) when is_integer(value), do: Integer.to_string(value)
+  def to_s(value) when is_float(value), do: Float.to_string(value)
 
   defp x_from(plot), do: plot.margins.left
   defp x_to(plot), do: plot.width - plot.margins.right

@@ -1,6 +1,4 @@
 defmodule Ziwoas.WeatherTest do
-  # Mirrors test/weather_icon_test.rb, test/models/weather_{record,day,segment}_test.rb
-  # for what the Wetter page uses.
   use ExUnit.Case, async: true
 
   alias Ziwoas.Weather

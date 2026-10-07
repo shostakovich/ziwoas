@@ -1,8 +1,7 @@
 defmodule Ziwoas.Sensors.SwitchBotClient do
   @moduledoc """
-  The SwitchBot cloud API v1.1 (Rails' `SwitchBotClient`): signed GETs that read
-  the air sensors. Reading only, so no ownership guard. Errors come back as
-  `{:error, message}` with Rails' messages: `HTTP 500`, `SwitchBot API: <message>`.
+  The SwitchBot cloud API v1.1: signed GETs that read the air sensors. Errors come
+  back as `{:error, message}`: `HTTP 500`, `SwitchBot API: <message>`.
   """
   alias Ziwoas.Config.Switchbot
   alias Ziwoas.Http

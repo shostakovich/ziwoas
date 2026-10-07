@@ -1,16 +1,13 @@
 defmodule Ziwoas.Switching.Rules do
   @moduledoc """
-  Writing the schedule (`Switching::Rules::SaveWindow`, `SaveSingle`,
-  `SetEnabled` and the controllers' lookups). Every write runs inside
-  `Ziwoas.Repo.write(:switch_schedule, …)`.
+  The schedule of the switchable plugs: Zeitfenster (two rules in a group) and
+  Einzelschaltungen (one rule), their forms, lookups and writes.
   """
   import Ecto.Query
 
-  alias Ziwoas.{Clock, Repo, RubyNumeric}
-  alias Ziwoas.Switching.Rule
-
-  @task :switch_schedule
-  @days_per_week 7
+  alias Ecto.Changeset
+  alias Ziwoas.{Clock, Repo}
+  alias Ziwoas.Switching.{Rule, Window}
 
   @doc "The rules of one group on one plug."
   @spec group(String.t(), String.t()) :: [Rule.t()]
@@ -28,13 +25,20 @@ defmodule Ziwoas.Switching.Rules do
     if on && off, do: {on, off}
   end
 
+  @doc "The Zeitfenster `group_id` names on this plug as its form, nil without both halves."
+  @spec window(String.t(), String.t()) :: Window.t() | nil
+  def window(plug_id, group_id) do
+    with {on, off} <- halves(group(plug_id, group_id)),
+         do: Window.from_rules(group_id, on, off)
+  end
+
   @doc """
   The Einzelschaltung `id` names on this plug — nil for a rule that is one
   half of an intact Zeitfenster, which only moves together with its partner.
   """
   @spec single(String.t(), term) :: Rule.t() | nil
   def single(plug_id, id) do
-    with {:ok, id} <- RubyNumeric.integer(id),
+    with {id, ""} <- Integer.parse(to_string(id)),
          %Rule{} = rule <- Repo.one(from r in Rule, where: r.plug_id == ^plug_id and r.id == ^id),
          false <- half_of_a_window?(rule) do
       rule
@@ -48,39 +52,32 @@ defmodule Ziwoas.Switching.Rules do
   defp half_of_a_window?(%Rule{group_id: group_id}),
     do: Repo.aggregate(from(r in Rule, where: r.group_id == ^group_id), :count) == 2
 
+  @doc "The Zeitfenster form's changeset."
+  @spec change_window(Window.t(), map) :: Changeset.t()
+  def change_window(window \\ %Window{}, attrs \\ %{}), do: Window.changeset(window, attrs)
+
   @doc """
   Writes a Zeitfenster: two rules, one group, one transaction. An off time
-  before the on time shifts the off rule's weekdays one day forward. Returns
-  the group id.
+  before the on time shifts the off rule's weekdays one day forward. With
+  `group_id` the existing halves are updated in place.
   """
-  @spec save_window(String.t(), map, String.t() | nil) :: String.t()
+  @spec save_window(String.t(), map, String.t() | nil) ::
+          {:ok, String.t()} | {:error, Changeset.t()}
   def save_window(plug_id, attrs, group_id \\ nil) do
-    on_minute = Rule.minutes_from(attrs.on_at_time)
-    off_minute = Rule.minutes_from(attrs.off_at_time)
-    group_id = group_id || Ecto.UUID.generate()
+    changeset = change_window(%Window{group_id: group_id}, attrs)
 
-    Repo.write(@task, fn ->
+    with {:ok, window} <- Changeset.apply_action(changeset, :insert) do
+      group_id = group_id || Ecto.UUID.generate()
+      on_minute = Rule.minutes_from(window.on_at_time)
+      off_minute = Rule.minutes_from(window.off_at_time)
+
       Repo.transaction(fn ->
-        write_half(plug_id, group_id, "on", on_minute, attrs.days)
-
-        write_half(
-          plug_id,
-          group_id,
-          "off",
-          off_minute,
-          off_days(attrs.days, on_minute, off_minute)
-        )
+        write_half(plug_id, group_id, "on", on_minute, window.days)
+        write_half(plug_id, group_id, "off", off_minute, Window.off_days(window))
       end)
-    end)
 
-    group_id
-  end
-
-  # `to_i` only keeps an unparseable time from raising here: the validation has the last word.
-  defp off_days(days, on_minute, off_minute) do
-    if (off_minute || 0) < (on_minute || 0),
-      do: days |> Enum.map(&(rem(&1, @days_per_week) + 1)) |> Enum.sort(),
-      else: days
+      {:ok, group_id}
+    end
   end
 
   defp write_half(plug_id, group_id, action, at_minute, days) do
@@ -91,35 +88,29 @@ defmodule Ziwoas.Switching.Rules do
     |> Repo.insert_or_update!()
   end
 
-  @doc "Writes an Einzelschaltung: one rule, no group (`SaveSingle`)."
-  @spec save_single(String.t(), map, Rule.t() | nil) :: Rule.t()
+  @doc "The Einzelschaltung form's changeset."
+  @spec change_single(Rule.t(), map) :: Changeset.t()
+  def change_single(rule \\ %Rule{}, attrs \\ %{}),
+    do: rule |> Rule.for_form() |> Rule.form_changeset(attrs)
+
+  @doc "Writes an Einzelschaltung: one rule, no group."
+  @spec save_single(String.t(), map, Rule.t() | nil) :: {:ok, Rule.t()} | {:error, Changeset.t()}
   def save_single(plug_id, attrs, rule \\ nil) do
-    Repo.write(@task, fn ->
-      (rule || %Rule{})
-      |> Rule.changeset(%{
-        plug_id: plug_id,
-        action: attrs.action,
-        at_minute: Rule.minutes_from(attrs.at_minute_time),
-        days: attrs.days
-      })
-      |> Repo.insert_or_update!()
-    end)
+    (rule || %Rule{})
+    |> change_single(attrs)
+    |> Changeset.put_change(:plug_id, plug_id)
+    |> Changeset.validate_required([:plug_id])
+    |> Repo.insert_or_update()
   end
 
-  @doc """
-  Pauses or resumes `rules` together — both halves of a Zeitfenster always
-  move as one. `enabled` is `ActiveModel::Type::Boolean`'s cast; nil (a blank
-  parameter) fails the NOT NULL column as in Rails.
-  """
-  @spec set_enabled([Rule.t()], boolean | nil) :: :ok
-  def set_enabled(rules, enabled) do
+  @doc "Pauses or resumes `rules` together — both halves of a Zeitfenster always move as one."
+  @spec set_enabled([Rule.t()], boolean) :: :ok
+  def set_enabled(rules, enabled) when is_boolean(enabled) do
     ids = Enum.map(rules, & &1.id)
 
-    Repo.write(@task, fn ->
-      Repo.update_all(from(r in Rule, where: r.id in ^ids),
-        set: [enabled: enabled, updated_at: Clock.now()]
-      )
-    end)
+    Repo.update_all(from(r in Rule, where: r.id in ^ids),
+      set: [enabled: enabled, updated_at: Clock.now()]
+    )
 
     :ok
   end
@@ -127,15 +118,8 @@ defmodule Ziwoas.Switching.Rules do
   @doc "Deletes `rules`."
   @spec delete([Rule.t()]) :: :ok
   def delete(rules) do
-    Repo.write(@task, fn -> Enum.each(rules, &Repo.delete!/1) end)
+    ids = Enum.map(rules, & &1.id)
+    Repo.delete_all(from r in Rule, where: r.id in ^ids)
     :ok
   end
-
-  @false_values ["0", "f", "F", "false", "FALSE", "off", "OFF"]
-
-  @doc "`ActiveModel::Type::Boolean.new.cast` for a request parameter."
-  @spec cast_boolean(term) :: boolean | nil
-  def cast_boolean(value) when value in [nil, ""], do: nil
-  def cast_boolean(value) when value in @false_values, do: false
-  def cast_boolean(_value), do: true
 end

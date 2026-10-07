@@ -1,15 +1,13 @@
 defmodule ZiwoasWeb.DashboardLive do
   @moduledoc """
-  The dashboard (Rails' `DashboardController#index`). Rails refreshes its live
-  regions over the `dashboard_live` Turbo stream (`DashboardBroadcaster`);
-  here the `dashboard` and `solakon` PubSub topics carry the same two
-  cadences (`Ziwoas.Plugs.ShellyStatusHandler`, `Ziwoas.Solakon.MonitorJob`,
-  `Ziwoas.Live.DashboardWatcher`):
+  The dashboard. Two cadences keep it current:
 
-    * `{:dashboard_live, deltas}` and `{:solakon_reading, id}` re-render the
-      hero, the live tiles, the plug bar and the energy-flow state, plus the
-      plug deltas for the 24 h chart when there are any (`broadcast_live`);
-    * `{:dashboard_summary}` recomputes the day's tiles (`broadcast_summary`).
+    * `{:dashboard_live, deltas}` on the `dashboard` topic
+      (`Ziwoas.Plugs.ShellyStatusHandler`) and `{:solakon_reading, id}` on
+      `solakon` (`Ziwoas.Solakon.MonitorJob`) re-render the hero, the live
+      tiles, the plug bar and the energy-flow state, and push the plug deltas
+      to the 24 h chart when there are any;
+    * a timer recomputes the day's tiles once a minute (`:refresh_summary`).
 
   Every live update moves `beat`, the `LiveFreshness` hook's heartbeat, and the
   energy flow's `data-state`; plug deltas go to the `TodayChart` hook as a
@@ -17,18 +15,20 @@ defmodule ZiwoasWeb.DashboardLive do
   """
   use ZiwoasWeb, :live_view
 
-  import ZiwoasWeb.CoreComponents
   import ZiwoasWeb.DashboardComponents
 
   alias Ziwoas.{Clock, Config, EnergySummary, LiveState, Weather}
   alias Ziwoas.Plugs.Measurement
   alias ZiwoasWeb.DashboardComponents
 
+  @summary_interval_ms 60_000
+
   @impl true
   def mount(_params, _session, socket) do
     if connected?(socket) do
       Phoenix.PubSub.subscribe(Ziwoas.PubSub, "dashboard")
       Phoenix.PubSub.subscribe(Ziwoas.PubSub, "solakon")
+      :timer.send_interval(@summary_interval_ms, :refresh_summary)
     end
 
     config = Config.app_config()
@@ -50,14 +50,14 @@ defmodule ZiwoasWeb.DashboardLive do
     socket =
       if deltas == [],
         do: socket,
-        else: push_event(socket, "plug_deltas", %{deltas: Enum.map(deltas, &Map.new/1)})
+        else: push_event(socket, "plug_deltas", %{deltas: deltas})
 
     {:noreply, socket}
   end
 
   def handle_info({:solakon_reading, _id}, socket), do: {:noreply, load_live(socket)}
 
-  def handle_info({:dashboard_summary}, socket) do
+  def handle_info(:refresh_summary, socket) do
     tiles = DashboardComponents.summary_tiles(EnergySummary.compute_today(Config.app_config()))
     {:noreply, assign(socket, :summary_tiles, tiles)}
   end
@@ -65,7 +65,7 @@ defmodule ZiwoasWeb.DashboardLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app look={@look} current_path={@current_path}>
+    <Layouts.app flash={@flash} look={@look} current_path={@current_path}>
       <h1 class="h2 mb-3">Dashboard</h1>
 
       <div

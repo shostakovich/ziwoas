@@ -45,8 +45,7 @@ if config_env() != :test do
 
   config :ziwoas, Ziwoas.Repo, database: database
 
-  # The aggregator's nightly backups (owner only, Ziwoas.Plugs.AggregatorJob): next to
-  # the database, which is Rails' storage/backup.
+  # The aggregator's nightly backups (Ziwoas.Plugs.AggregatorJob), next to the database.
   config :ziwoas, backup_dir: Path.join(Path.dirname(database), "backup")
 end
 

@@ -1,5 +1,4 @@
 defmodule Ziwoas.ShadingTest do
-  # Mirrors test/models/shading/{yield_map,daily_profiles,panel_curves,clear_sky,sun_paths}_test.rb.
   use ExUnit.Case, async: true
 
   alias Ziwoas.{Location, Shading}

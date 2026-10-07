@@ -1,5 +1,5 @@
 defmodule ZiwoasWeb.DashboardComponentsTest do
-  # Mirrors test/components/dashboard/*_test.rb: in-memory live states, no database.
+  # In-memory live states, no database.
   use ExUnit.Case, async: true
 
   import Phoenix.LiveViewTest, only: [render_component: 2]
@@ -139,11 +139,11 @@ defmodule ZiwoasWeb.DashboardComponentsTest do
       doc = bar([row("fridge", :consumer, apower_w: 80.0), row("tv", :consumer, apower_w: 240.0)])
       [tv, fridge] = segments(doc)
 
-      assert attr(tv, "style") == "width: 75.0%"
+      assert attr(tv, "style") == "width: 75%"
       assert attr(tv, "title") == "Tv · 240 W"
       assert attr(tv, "aria-label") == "Tv"
       assert attr(tv, "aria-valuenow") == "75"
-      assert attr(fridge, "style") == "width: 25.0%"
+      assert attr(fridge, "style") == "width: 25%"
       assert text(doc, "#dashboard_plug_bar strong") == "320 W"
     end
 

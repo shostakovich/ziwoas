@@ -1,12 +1,9 @@
 defmodule Ziwoas.Solakon do
   @moduledoc """
   The read side of the Solakon inverter: status bits decoded into German
-  messages (`Solakon::Client.decode_status_messages`). Modbus itself stays in
-  Rails until the collector moves (issue #158, Phase 4).
+  messages. Modbus itself lives in `Ziwoas.Solakon.Monitor`.
   """
   import Bitwise
-
-  alias Ziwoas.RubyNumeric
 
   @alarm_bit_labels [
     alarm1: [
@@ -42,8 +39,8 @@ defmodule Ziwoas.Solakon do
   """
   @spec status_messages(map, [integer]) :: [String.t()]
   def status_messages(registers, bms_faults) do
-    status1 = RubyNumeric.to_i(registers.status1)
-    status3 = RubyNumeric.to_i(registers.status3)
+    status1 = registers.status1 || 0
+    status3 = registers.status3 || 0
 
     status =
       [
@@ -57,13 +54,13 @@ defmodule Ziwoas.Solakon do
 
     alarms =
       for {key, labels} <- @alarm_bit_labels,
-          value = RubyNumeric.to_i(Map.fetch!(registers, key)),
+          value = Map.fetch!(registers, key) || 0,
           {bit, label} <- labels,
           (value &&& 1 <<< bit) > 0,
           do: label
 
     faults =
-      if Enum.any?(bms_faults, &(RubyNumeric.to_i(&1) > 0)), do: ["Batterie-Warnung"], else: []
+      if Enum.any?(bms_faults, &((&1 || 0) > 0)), do: ["Batterie-Warnung"], else: []
 
     case status ++ alarms ++ faults do
       [] -> ["Alles ruhig"]

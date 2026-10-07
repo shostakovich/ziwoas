@@ -1,6 +1,6 @@
 defmodule ZiwoasWeb.SolakonLiveTest do
-  # Mirrors test/controllers/solakon_controller_test.rb on the test config (no
-  # inverter configured); ZiwoasWeb.SolakonLiveConfigTest covers an inverter.
+  # On the test config (no inverter configured); ZiwoasWeb.SolakonLiveConfigTest
+  # covers an inverter.
   use ZiwoasWeb.ConnCase
 
   import Phoenix.LiveViewTest
@@ -216,7 +216,7 @@ defmodule ZiwoasWeb.SolakonLiveTest do
     Repo.insert!(%CostItem{
       label: "Anlage",
       amount_eur: Decimal.new("1000.00"),
-      spent_on: "2026-01-01"
+      spent_on: ~D[2026-01-01]
     })
 
     insert_price!("2026-01-01", "0.30")
@@ -296,8 +296,10 @@ defmodule ZiwoasWeb.SolakonLiveTest do
 
       assert texts(doc, "title") == ["Ziwoas"]
       assert count(doc, "h1") == 0
-      assert texts(doc, "a.btn.active") == ["Letzte 7 Tage"]
-      assert attrs(doc, "a.btn", "href") |> List.last() == "/solakon/history?range=30d"
+      assert texts(doc, "#solakon_history a.btn.active") == ["Letzte 7 Tage"]
+
+      assert attrs(doc, "#solakon_history a.btn", "href") ==
+               Enum.map(~w(24h 7d 30d), &"/solakon/history?range=#{&1}")
 
       assert attrs(doc, "#solakon_history[phx-hook=SolakonHistory]", "data-range") == ["7d"]
 
@@ -321,7 +323,7 @@ defmodule ZiwoasWeb.SolakonLiveTest do
       for path <- [~p"/solakon/history?range=1y", ~p"/solakon/history"] do
         doc = page(conn, path)
 
-        assert texts(doc, "a.btn.active") == ["Letzte 24 h"]
+        assert texts(doc, "#solakon_history a.btn.active") == ["Letzte 24 h"]
         assert "Keine Solakon-Historie" in texts(doc, ".text-body-secondary")
         assert count(doc, ".solakon-balance-row") == 0
         assert count(doc, "[data-role='outlet-average']") == 0
@@ -365,18 +367,25 @@ defmodule ZiwoasWeb.SolakonLiveTest do
       html = view |> element("#solakon_history a", "7 Tage") |> render_click()
 
       assert html =~ "Sonnenkalender"
+      assert_patch(view, ~p"/solakon?range=7d")
       assert has_element?(view, "#solakon_history a.btn.active", "Letzte 7 Tage")
       assert has_element?(view, "#solakon_history[phx-hook=SolakonHistory][data-range='7d']")
       assert render(view) =~ ~s("data":[300.0,100.0])
 
       send(view.pid, :refresh_history)
-      assert has_element?(view, "#solakon_history[data-range='7d'] a.btn.active", "Letzte 7 Tage")
+
+      assert has_element?(
+               view,
+               "#solakon_history[data-range='7d'] a.btn.active",
+               "Letzte 7 Tage"
+             )
     end
 
     test "the history page's range tabs swap it in place too", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/solakon/history")
 
-      view |> element("a", "30 Tage") |> render_click()
+      view |> element("#solakon_history a", "30 Tage") |> render_click()
+      assert_patch(view, ~p"/solakon/history?range=30d")
 
       assert has_element?(
                view,

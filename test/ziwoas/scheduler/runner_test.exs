@@ -11,7 +11,6 @@ defmodule Ziwoas.Scheduler.RunnerTest do
 
     opts = [
       id: :poll_sensors,
-      task: :sensor_poll,
       schedule: "every 15 minutes",
       job: TestJob,
       zone: "Europe/Berlin",
@@ -35,21 +34,16 @@ defmodule Ziwoas.Scheduler.RunnerTest do
     assert_receive {:armed, ^pid, {:due, ~U[2026-10-05 10:15:00Z]}, 900_000}
   end
 
-  test "runs with the mode in effect, then re-arms", %{clock: clock, opts: opts} do
+  test "runs with the due instant, then re-arms", %{clock: clock, opts: opts} do
     pid = start!(opts)
     assert_receive {:armed, ^pid, {:due, due}, _}
 
     set_clock(clock, ~U[2026-10-05 10:15:02.000000Z])
     send(pid, {:due, due})
 
-    assert_receive {:performed, %{task: :sensor_poll, mode: :phoenix, at: ^due}}
+    assert_receive {:performed, %{at: ^due} = context}
+    assert Map.keys(context) == [:at]
     assert_receive {:armed, ^pid, {:due, ~U[2026-10-05 10:30:00Z]}, 898_000}
-  end
-
-  test "the owner keeps the schedule's instants despite a shadow offset", %{opts: opts} do
-    pid = start!(Keyword.put(opts, :shadow_offset, 40))
-
-    assert_receive {:armed, ^pid, {:due, ~U[2026-10-05 10:15:00Z]}, 900_000}
   end
 
   test "a timer ahead of the clock waits out the rest without running", %{
@@ -95,24 +89,19 @@ defmodule Ziwoas.Scheduler.RunnerTest do
     log =
       capture_log(fn ->
         send(pid, {:due, due})
-        assert_receive {:performed, %{mode: :phoenix}}
+        assert_receive {:performed, %{at: _}}
         assert_receive {:armed, ^pid, {:due, ~U[2026-10-05 10:30:00Z]}, _}
       end)
 
-    assert log =~ "scheduler: poll_sensors (phoenix) failed"
+    assert log =~ "scheduler: poll_sensors failed"
     assert log =~ "job failed"
     assert Process.alive?(pid)
   end
 
-  test "an unknown task stops the runner from starting", %{opts: opts} do
-    assert {:error, {{%ArgumentError{message: "unknown task :wether"}, _}, _}} =
-             start_supervised({Runner, Keyword.put(opts, :task, :wether)})
-  end
-
   test "the supervisor starts one runner per configured job", %{opts: opts} do
     jobs = [
-      poll_sensors: [task: :sensor_poll, schedule: "every 15 minutes", job: TestJob],
-      fetch_current_weather: [task: :weather, schedule: "every 15 minutes", job: TestJob]
+      poll_sensors: [schedule: "every 15 minutes", job: TestJob],
+      fetch_current_weather: [schedule: "every 15 minutes", job: TestJob]
     ]
 
     sup =

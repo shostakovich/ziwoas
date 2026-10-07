@@ -8,12 +8,24 @@
 |---|---|
 | 0 Ruby raus, Phoenix nach oben | fertig (`cb73179`, `fcf5d1a`) |
 | 1 Datenschicht | P1a Migrations/Übernahme `f0d7162`, A1 esbuild `af0d0e9`, P1b Sandbox/Rückbau `714aa93`, P1c Zeitstempel `5ab6ba1`, A2 Stimulus → Hooks `88f2aea` – fertig |
-| 2 Scheiben S1–S4 | offen – nächster Schritt |
-| 3 Aufräumen, Credo, Doku | offen |
+| 2 Scheiben S1–S4 | Vorarbeit `7471286`, S4 `2c57be1`, S1 `be378b9`, S3 `e2e40af`, S2 `f6389b6`, Verlauf-Reiter `cd53497` – fertig |
+| 3 Aufräumen, Credo, Doku | Rückbau `c330250`; Credo und Doku laufen |
 | 4 Deployment, Generalprobe | offen – lokal mit Robert (Prod-Dump, MQTT nur lesend) |
 | 5 Umstieg | Robert |
 
 Arbeitsweise: Claude koordiniert, Opus-Subagenten in großen, disjunkten Paketen (parallele Pakete in eigenen Worktrees, weil `_build` und die Test-DB geteilt sind), Claude committet je Paket nach eigener Gate-Prüfung (Exit-Codes, nicht `| tail`). Push auf `claude/awesome-heisenberg-61irby` ist freigegeben. Validierung im Browser macht Robert am Ende gemeinsam mit Claude.
+
+**Geteilte Learnings mit dem FeatherPage-Port** (feather-page/cms#378) in Outline: „Allgemein › Rails → Phoenix: gemeinsame Learnings (ZiWoAS + FeatherPage)“, https://outline.rocu.de/doc/rails-phoenix-gemeinsame-learnings-ziwoas-featherpage-R2X16Cz128 – zu Beginn jeder Session und nach jeder Phase lesen; übertragbare Learnings dort unter „Gemeinsam“ oder „ZiWoAS“ eintragen.
+
+**Für Phase 4 und die Abnahme (aus den Scheiben):**
+
+- Browser-Abnahme: Zeitplan-Editor (Labels, Zeitfelder), Lampen-Sheet, Wirtschaftlichkeit (`/solakon/wirtschaftlichkeit`), Flash-Platzierung, `data-confirm` beim Löschen, Berichte-Formular (Labels jetzt ohne `small text-body-secondary`), Solakon-Verlauf-Reiter (`?range=`).
+- Generalprobe: `cost_items.spent_on` muss in Prod überall `YYYY-MM-DD` sein (jetzt `:date`); `lights.shelly_plug_id = ""` bleibt, bis die Lampe neu gespeichert wird.
+- MQTT-Probe: `ShellyStatusHandler` verwirft einen Status ohne numerisches `apower`/`aenergy.total` (früher Zählerstand 0). Govee-Bridge-Payloads haben jetzt alphabetische Schlüssel (`JSON`), inhaltlich gleich.
+- TRMNL-Energie-Payload bleibt unter 2 kB, solange nicht alle Werte fünfstellig sind (dann 2171 B → `PayloadTooLarge`).
+- Bekannt, unverändert: an einem 23-h-Tag gilt `historic_complete?` nie als vollständig (holt nachts erneut).
+- `config/runtime.exs` hat noch die Container-Pfade des Rails-Images (`/rails/config/ziwoas.yml`, `/rails/storage/production.sqlite3`) als Prod-Default – mit dem Dockerfile entscheiden.
+- Der Paritätstest (`schema_parity_test.exs`) und `test/fixtures/rails_schema.sql` bleiben, solange die Übernahme (`Ziwoas.Release.adopt_rails_database!/0`) im Code ist – bis nach dem Umstieg.
 
 Erkenntnisse aus Phase 0/1, die Phase 2 betreffen:
 

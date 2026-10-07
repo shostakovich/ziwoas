@@ -14,7 +14,6 @@ defmodule Ziwoas.EnergyReport.Store do
     end
   end
 
-  @doc "Unordered, like Rails' query: grouping and summing follow SQLite's row order."
   @spec daily_rows(Date.t(), Date.t()) :: [DailyTotal.t()]
   def daily_rows(start_date, end_date) do
     {first, last} = {Date.to_iso8601(start_date), Date.to_iso8601(end_date)}

@@ -1,15 +1,14 @@
 defmodule Ziwoas.Solakon.Control.LoadReader do
   @moduledoc """
-  The load a tick regulates against (Rails' `Solakon::Control::LoadReader`): the
-  consumer plugs' live sum — nil when none of them is online — and the guaranteed
-  floor, the lowest five-minute consumption total of the last 24 hours from raw
-  samples.
+  The load a tick regulates against: the consumer plugs' live sum — nil when
+  none of them is online — and the guaranteed floor, the lowest five-minute
+  consumption total of the last 24 hours from raw samples.
 
-  The floor's window aggregation is too heavy for every tick, so it is memoized for
-  an hour, in the calling process (Rails: `Rails.cache`). The monitor job runs in its
-  scheduler runner, which lives as long as the app; a restart recomputes it.
+  The floor's window aggregation is too heavy for every tick, so it is memoized
+  for an hour in the calling process. The monitor job runs in its scheduler
+  runner, which lives as long as the app; a restart recomputes it.
   """
-  alias Ziwoas.{PowerSeries, RubyNumeric}
+  alias Ziwoas.PowerSeries
   alias Ziwoas.Plugs.{Measurement, Roster}
   alias Ziwoas.Solakon.Control.Load
 
@@ -27,7 +26,7 @@ defmodule Ziwoas.Solakon.Control.LoadReader do
   @spec current_consumption_w(Roster.t(), DateTime.t(), number) :: float | nil
   def current_consumption_w(roster, now, offline_after_s \\ Measurement.offline_after_s()) do
     ids = Roster.consumer_ids(roster)
-    # Rails subtracts Times: the age keeps its fraction of a second.
+    # The age keeps its fraction of a second.
     now_s = DateTime.to_unix(now, :microsecond) / 1_000_000
     ids |> Measurement.for_plugs(now_s, offline_after_s) |> Measurement.total_w(ids)
   end
@@ -48,11 +47,11 @@ defmodule Ziwoas.Solakon.Control.LoadReader do
     |> Enum.map(& &1.consumption_w)
     |> case do
       [] -> 0.0
-      totals -> RubyNumeric.min(totals)
+      totals -> Enum.min(totals)
     end
   end
 
-  @doc "Seeds this process's memo, as a warm `Rails.cache` would hold it."
+  @doc "Seeds this process's memo of the floor."
   @spec cache_floor(float, DateTime.t()) :: :ok
   def cache_floor(floor_w, now) do
     Process.put(@floor_key, {floor_w, DateTime.to_unix(now) + @floor_cache_ttl_s})

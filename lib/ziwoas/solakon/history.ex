@@ -1,15 +1,15 @@
 defmodule Ziwoas.Solakon.History do
   @moduledoc """
-  The Solakon-Verlauf (Rails' `Solakon::History`): the snapshots of the last
-  24 hours, 7 or 30 days as chart series, the energy balance of the range and
-  the outlet's average flow. An unknown range reads as 24 h.
+  The Solakon-Verlauf: the snapshots of the last 24 hours, 7 or 30 days as
+  chart series, the energy balance of the range and the outlet's average
+  flow. An unknown range reads as 24 h.
   """
   import Ecto.Query
 
-  alias Ziwoas.{GermanNumber, LocalDay, Repo, RubyNumeric}
+  alias Ziwoas.{GermanNumber, LocalDay, Repo}
   alias Ziwoas.Solakon.{Reading, Snapshot}
 
-  # 24.hours is fixed seconds; 7.days and 30.days are calendar days on the local clock.
+  # 24 h is fixed seconds; 7 and 30 days are calendar days on the local clock.
   @ranges [{"24h", {:seconds, 24 * 3600}}, {"7d", {:days, 7}}, {"30d", {:days, 30}}]
   @range_labels [{"24h", "Letzte 24 h"}, {"7d", "Letzte 7 Tage"}, {"30d", "Letzte 30 Tage"}]
 
@@ -23,7 +23,7 @@ defmodule Ziwoas.Solakon.History do
     if List.keymember?(@ranges, key, 0), do: key, else: "24h"
   end
 
-  @doc "The payload the history partial renders; chart keys in Rails' order."
+  @doc "What the history renders: the chart's series, the balance and the outlet's average."
   @spec payload(term, DateTime.t(), String.t()) :: map
   def payload(range_key, now, zone) do
     range = range_key(range_key)
@@ -46,7 +46,7 @@ defmodule Ziwoas.Solakon.History do
     end
   end
 
-  @doc "Where the range starts (Rails' `@now - RANGES.fetch(range)` on a `TimeWithZone`)."
+  @doc "Where the range starts: 24 h back, or 7 or 30 days back on the local clock."
   @spec from_time(String.t(), DateTime.t(), String.t()) :: DateTime.t()
   def from_time(range, now, zone) do
     case List.keyfind(@ranges, range, 0) do
@@ -58,14 +58,10 @@ defmodule Ziwoas.Solakon.History do
   defp empty_payload(range) do
     %{
       range: range,
-      chart: [
-        {"times", []},
-        {"datasets",
-         for(
-           label <- ["PV", "Akku", "Außensteckdose", "0 W"],
-           do: [{"label", label}, {"data", []}]
-         )}
-      ],
+      chart: %{
+        times: [],
+        datasets: for(label <- ["PV", "Akku", "Außensteckdose", "0 W"], do: dataset(label, []))
+      },
       balance_rows: [],
       outlet_average: nil,
       message: "Keine Solakon-Historie"
@@ -74,29 +70,24 @@ defmodule Ziwoas.Solakon.History do
 
   # The client labels axis and tooltips on the household's clock from the instants alone.
   defp chart_payload(rows, outlets) do
-    [
-      {"times", Enum.map(rows, &epoch_ms(&1.taken_at))},
-      {"datasets",
-       [
-         dataset("PV", Enum.map(rows, &RubyNumeric.round(Snapshot.pv_power_w(&1), 1))),
-         dataset(
-           "Akku",
-           Enum.map(rows, &RubyNumeric.round(RubyNumeric.to_f(&1.battery_power_w), 1))
-         ),
-         dataset("Außensteckdose", Enum.map(outlets, &RubyNumeric.round(&1, 1))),
-         dataset("0 W", Enum.map(rows, fn _ -> 0 end))
-       ]}
-    ]
+    %{
+      times: Enum.map(rows, &epoch_ms(&1.taken_at)),
+      datasets: [
+        dataset("PV", Enum.map(rows, &Float.round(Snapshot.pv_power_w(&1), 1))),
+        dataset("Akku", Enum.map(rows, &Float.round(to_float(&1.battery_power_w), 1))),
+        dataset("Außensteckdose", Enum.map(outlets, &Float.round(&1, 1))),
+        dataset("0 W", Enum.map(rows, fn _ -> 0 end))
+      ]
+    }
   end
 
-  defp dataset(label, data), do: [{"label", label}, {"data", data}]
+  defp dataset(label, data), do: %{label: label, data: data}
 
-  defp epoch_ms(%DateTime{microsecond: {usec, _}} = time),
-    do: DateTime.to_unix(time) * 1000 + div(usec, 1000)
+  defp epoch_ms(%DateTime{} = time), do: DateTime.to_unix(time, :millisecond)
 
   # No active power on the snapshot: the reading nearest to it within two minutes stands in.
   defp outlet_power_w(%Snapshot{active_power_w: watts}) when not is_nil(watts),
-    do: RubyNumeric.to_f(watts)
+    do: to_float(watts)
 
   defp outlet_power_w(%Snapshot{taken_at: taken_at}) do
     unix = DateTime.to_unix(taken_at)
@@ -112,7 +103,7 @@ defmodule Ziwoas.Solakon.History do
           select: r.active_power_w
       )
 
-    RubyNumeric.to_f(nearest)
+    to_float(nearest)
   end
 
   defp balance_rows(rows, outlet) do
@@ -124,13 +115,7 @@ defmodule Ziwoas.Solakon.History do
 
     # No grid meter on this unit (grid_power reads 0): the outlet's integrated power stands in,
     # which is the inverter's feed/draw at the socket, not whole-house grid flow.
-    max =
-      RubyNumeric.max([
-        RubyNumeric.max([pv, charge, discharge]),
-        outlet.delivered_kwh,
-        outlet.drawn_kwh,
-        0.001
-      ])
+    max = Enum.max([pv, charge, discharge, outlet.delivered_kwh, outlet.drawn_kwh, 0.001])
 
     [
       row("PV-Erzeugung", pv, max, "solar"),
@@ -147,10 +132,10 @@ defmodule Ziwoas.Solakon.History do
       |> Enum.zip()
       |> Enum.chunk_every(2, 1, :discard)
       |> Enum.reduce({0.0, 0.0, 0.0}, fn [{a, pa}, {b, pb}], {delivered, drawn, total} ->
-        dt = seconds_between(a.taken_at, b.taken_at)
+        dt = DateTime.diff(b.taken_at, a.taken_at, :microsecond) / 1_000_000
 
         if dt > 0 do
-          dt = RubyNumeric.min([dt, @outlet_max_gap_s])
+          dt = min(dt, @outlet_max_gap_s)
           {pos_ws, neg_ws} = segment_energy_ws(pa, pb, dt)
           {delivered + pos_ws, drawn + neg_ws, total + dt}
         else
@@ -161,14 +146,11 @@ defmodule Ziwoas.Solakon.History do
     signed_ws = delivered_ws - drawn_ws
 
     %{
-      delivered_kwh: RubyNumeric.round(delivered_ws / 3_600_000.0, 2),
-      drawn_kwh: RubyNumeric.round(drawn_ws / 3_600_000.0, 2),
+      delivered_kwh: Float.round(delivered_ws / 3_600_000.0, 2),
+      drawn_kwh: Float.round(drawn_ws / 3_600_000.0, 2),
       avg_w: if(total_s > 0, do: signed_ws / total_s, else: 0.0)
     }
   end
-
-  # Ruby's `(Time - Time).to_f`: the exact difference, microseconds included.
-  defp seconds_between(a, b), do: DateTime.diff(b, a, :microsecond) / 1_000_000
 
   # A segment straddling zero splits at the crossing: averaging its ends would cancel both directions.
   defp segment_energy_ws(pa, pb, dt) do
@@ -189,17 +171,17 @@ defmodule Ziwoas.Solakon.History do
     end
   end
 
-  defp delta(first, last),
-    do:
-      RubyNumeric.max([RubyNumeric.to_f(last) - RubyNumeric.to_f(first), 0.0])
-      |> RubyNumeric.round(2)
+  defp delta(first, last), do: Float.round(max(to_float(last) - to_float(first), 0.0), 2)
 
   defp row(label, kwh, max, role) do
     %{
       label: label,
       value: GermanNumber.format(kwh, precision: 2, unit: "kWh"),
-      share: RubyNumeric.round(kwh / max * 100, 1),
+      share: Float.round(kwh / max * 100, 1),
       role: role
     }
   end
+
+  defp to_float(nil), do: 0.0
+  defp to_float(value), do: value * 1.0
 end

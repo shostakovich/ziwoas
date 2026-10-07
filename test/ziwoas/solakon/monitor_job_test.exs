@@ -1,11 +1,10 @@
 defmodule Ziwoas.Solakon.MonitorJobTest do
-  # test/jobs/solakon/monitor_job_test.rb and snapshot_job_test.rb: reading and storing,
-  # where the rows go by mode. The control tick behind it: test/vectors/solakon_control_test.exs.
   # Subscribes to a global PubSub topic another test broadcasts on.
   use Ziwoas.DataCase
 
   alias Ziwoas.{Config, FakeModbusServer, Repo, TestClock}
   alias Ziwoas.Solakon.{Monitor, MonitorJob, Reading, Snapshot, SnapshotJob}
+  alias Ziwoas.Solakon.Control.{Decision, Outcome, State}
 
   @moduletag :capture_log
 
@@ -84,22 +83,33 @@ defmodule Ziwoas.Solakon.MonitorJobTest do
     """)
   end
 
-  defp monitor!(registers \\ @registers) do
-    server = start_supervised!({FakeModbusServer, registers})
+  defp monitor!(registers \\ @registers), do: registers |> inverter!() |> elem(1)
 
-    start_supervised!(
-      {Monitor, name: nil, host: "127.0.0.1", port: FakeModbusServer.port(server)}
-    )
+  defp inverter!(registers, opts \\ []) do
+    server = start_supervised!({FakeModbusServer, {registers, opts}})
+
+    monitor =
+      start_supervised!(
+        {Monitor, name: nil, host: "127.0.0.1", port: FakeModbusServer.port(server)}
+      )
+
+    {server, monitor}
+  end
+
+  defp writes(server) do
+    for frame <- List.flatten(FakeModbusServer.frames(server)),
+        String.slice(frame, 14, 2) in ["06", "10"],
+        do: String.slice(frame, 4..-1//1)
   end
 
   defp context(opts),
     do:
       Map.merge(
-        %{task: :solakon_monitor, mode: :phoenix, at: DateTime.utc_now(), config: config()},
+        %{at: DateTime.utc_now(), config: config()},
         Map.new(opts)
       )
 
-  test "as owner a reading is stored and announced" do
+  test "a reading is stored and announced" do
     assert {:ok, %Reading{id: id}, nil} = MonitorJob.perform(context(monitor: monitor!()))
 
     reading = Repo.get!(Reading, id)
@@ -167,5 +177,75 @@ defmodule Ziwoas.Solakon.MonitorJobTest do
     assert_in_delta row.pv_total_kwh, 123.45, 0.001
     assert row.battery_soc_pct == nil
     refute_receive {:solakon_reading, _}
+  end
+
+  describe "with control enabled" do
+    @controlled Map.put(@registers, "46609:1", [10])
+
+    defp controlled, do: context(config: config("  control_enabled: true"))
+
+    test "the stored reading is regulated: the target goes out, the decision is kept" do
+      {server, monitor} = inverter!(@controlled)
+
+      assert {:ok, %Reading{id: id}, %Outcome{status: :applied, decision: decision}} =
+               MonitorJob.perform(Map.put(controlled(), :monitor, monitor))
+
+      # No consumer plugs configured: no load, no floor.
+      assert decision == %Decision{state: :normal, target_w: 0, trim: false}
+      assert List.last(writes(server)) == "0000000b0110b3b300020400000000"
+      assert {^decision, _at} = State.stored(State.current())
+      assert_receive {:solakon_reading, ^id}
+    end
+
+    test "a refused write keeps the reading and its announcement, and counts the failure" do
+      {_server, monitor} = inverter!(@controlled, fail: ["16:46003"])
+
+      assert {:ok, %Reading{id: id}, %Outcome{status: :failed, failures: 1}} =
+               MonitorJob.perform(Map.put(controlled(), :monitor, monitor))
+
+      assert Repo.aggregate(Reading, :count) == 1
+      assert_receive {:solakon_reading, ^id}
+      assert State.current().consecutive_failures == 1
+    end
+
+    test "the third refused write in a row hands control back" do
+      {server, monitor} = inverter!(@controlled, fail: ["16:46003"])
+      context = Map.put(controlled(), :monitor, monitor)
+
+      outcomes = for _ <- 1..3, do: context |> MonitorJob.perform() |> elem(2)
+
+      assert Enum.map(outcomes, &{&1.status, &1.failures}) ==
+               [failed: 1, failed: 2, released: 3]
+
+      assert List.last(writes(server)) == "000000060106b3b10000"
+      assert State.current().consecutive_failures == 0
+      assert Repo.aggregate(Reading, :count) == 3
+    end
+
+    test "a failed read stores nothing and writes nothing" do
+      {server, monitor} = inverter!(Map.delete(@controlled, "39424:1"))
+
+      assert {:error, {:modbus_exception, 2}} =
+               MonitorJob.perform(Map.put(controlled(), :monitor, monitor))
+
+      assert writes(server) == []
+      assert Repo.aggregate(State, :count) == 0
+    end
+
+    test "an invalid reading is not regulated" do
+      {server, monitor} = inverter!(%{@controlled | "39424:1" => [0xFFFF]})
+
+      assert {:error, %Ecto.Changeset{}} =
+               MonitorJob.perform(Map.put(controlled(), :monitor, monitor))
+
+      assert writes(server) == []
+    end
+  end
+
+  test "with control off nothing is written" do
+    {server, monitor} = inverter!(Map.put(@registers, "46609:1", [10]))
+
+    assert {:ok, _reading, nil} = MonitorJob.perform(context(monitor: monitor))
+    assert writes(server) == []
   end
 end

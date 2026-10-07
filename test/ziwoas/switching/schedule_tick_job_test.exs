@@ -1,7 +1,4 @@
 defmodule Ziwoas.Switching.ScheduleTickJobTest do
-  # Mirrors test/jobs/schedule_tick_job_test.rb where the decision vectors
-  # (test/vectors/schedule_tick_test.exs) do not reach: the job's entry point, its
-  # log.
   use Ziwoas.DataCase
 
   import Ecto.Query
@@ -41,8 +38,6 @@ defmodule Ziwoas.Switching.ScheduleTickJobTest do
     watermark!("2026-06-15T17:55:00+02:00")
 
     ScheduleTickJob.perform(%{
-      task: :switching,
-      mode: :phoenix,
       at: Clock.now(),
       config: ctx.config
     })

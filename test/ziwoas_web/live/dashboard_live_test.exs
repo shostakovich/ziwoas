@@ -1,6 +1,4 @@
 defmodule ZiwoasWeb.DashboardLiveTest do
-  # Mirrors test/controllers/dashboard_controller_test.rb (the page) and
-  # test/dashboard_broadcaster_test.rb (the live regions).
   use ZiwoasWeb.ConnCase
 
   import Phoenix.LiveViewTest
@@ -159,9 +157,7 @@ defmodule ZiwoasWeb.DashboardLiveTest do
 
       insert_sample!("fridge", now_ts() - 5, 82.4, 110.0)
 
-      deltas = [
-        [{"id", "fridge"}, {"avg_power_w", 82.4}, {"bucket_ts", div(now_ts() - 5, 60) * 60}]
-      ]
+      deltas = [%{id: "fridge", avg_power_w: 82.4, bucket_ts: div(now_ts() - 5, 60) * 60}]
 
       send(view.pid, {:dashboard_live, deltas})
       doc = from(render(view))
@@ -172,13 +168,7 @@ defmodule ZiwoasWeb.DashboardLiveTest do
       assert [state] = attrs(doc, "#energy_flow", "data-state")
       assert JSON.decode!(state)["home_w"] == 82.4
 
-      assert_push_event(view, "plug_deltas", %{deltas: [delta]})
-
-      assert delta == %{
-               "id" => "fridge",
-               "avg_power_w" => 82.4,
-               "bucket_ts" => div(now_ts() - 5, 60) * 60
-             }
+      assert_push_event(view, "plug_deltas", %{deltas: ^deltas})
     end
 
     test "a beat without deltas keeps the plug deltas, an inverter reading beats too", %{
@@ -194,14 +184,14 @@ defmodule ZiwoasWeb.DashboardLiveTest do
       assert attrs(doc, "#live_freshness", "data-beat") == ["2"]
     end
 
-    test "the summary beat recomputes the day's tiles", %{conn: conn} do
+    test "the minute timer recomputes the day's tiles", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/")
 
       insert_sample!("bkw", now_ts() - 600, -300.0, 1000.0)
       insert_sample!("bkw", now_ts() - 5, -412.6, 1500.0)
       assert texts(from(render(view)), "#tile_produced .stat-value") == ["0,00 kWh"]
 
-      send(view.pid, {:dashboard_summary})
+      send(view.pid, :refresh_summary)
       assert texts(from(render(view)), "#tile_produced .stat-value") == ["0,50 kWh"]
     end
 

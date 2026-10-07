@@ -2,9 +2,9 @@ defmodule Ziwoas.EnergyReport do
   @moduledoc """
   The energy report over a range of aggregated days: totals and ratios, a
   ranking per role, and the chart payloads. Days are summed in Wh and rounded
-  only where a number is shown, with Ruby's `Float#round`.
+  only where a number is shown.
   """
-  alias Ziwoas.{Economics, Energy, RubyDate, RubyNumeric}
+  alias Ziwoas.{Economics, Energy}
   alias Ziwoas.Economics.SavingsCalculator
   alias Ziwoas.EnergyReport.{ChartBuilder, DailyPoint, Store}
   alias Ziwoas.Plugs.Roster
@@ -28,13 +28,13 @@ defmodule Ziwoas.EnergyReport do
 
   @default_preset "last_7"
   @preset_days %{"last_7" => 7, "last_30" => 30}
-  @invalid_range_message "Der Datumsbereich war ungueltig und wurde auf die letzten 7 Tage zurueckgesetzt."
+  @invalid_range_message "Der Datumsbereich war ungültig und wurde auf die letzten 7 Tage zurückgesetzt."
 
   @doc """
   Options: `:params` (string keys: `preset`, `start_date`, `end_date`,
-  `selected_date`), `:plugs`, `:location` (weather overlays need its
-  coordinates), `:today` (the date an empty report shows; dates without a
-  year take it) and `:price_book` (default: the prices on record).
+  `selected_date`, dates as ISO 8601), `:plugs`, `:location` (weather
+  overlays need its coordinates), `:today` (the date an empty report shows)
+  and `:price_book` (default: the prices on record).
   """
   @spec build(keyword) :: t
   def build(opts) do
@@ -48,16 +48,16 @@ defmodule Ziwoas.EnergyReport do
 
     case Store.latest_aggregate_date() do
       nil -> empty_report(today, calculator)
-      latest -> report(params, latest, today, roster, location, calculator)
+      latest -> report(params, latest, roster, location, calculator)
     end
   end
 
   @spec empty?(t) :: boolean
   def empty?(%__MODULE__{daily_points: points}), do: points == []
 
-  defp report(params, latest, today, roster, location, calculator) do
+  defp report(params, latest, roster, location, calculator) do
     {%{start_date: first, end_date: last, preset: preset}, messages} =
-      resolve_range(params, latest, today)
+      resolve_range(params, latest)
 
     rows = Store.daily_rows(first, last)
     daily_points = daily_points(Store.daily_summaries(first, last), first, last)
@@ -65,7 +65,7 @@ defmodule Ziwoas.EnergyReport do
     %__MODULE__{
       start_date: first,
       end_date: last,
-      selected_date: selected_date(params, first, last, today),
+      selected_date: selected_date(params, first, last),
       preset: preset,
       summary: summarize(daily_points, calculator),
       daily_points: daily_points,
@@ -104,10 +104,10 @@ defmodule Ziwoas.EnergyReport do
     }
   end
 
-  defp resolve_range(params, latest, today) do
+  defp resolve_range(params, latest) do
     if present?(params["start_date"]) or present?(params["end_date"]) do
-      with %Date{} = first <- RubyDate.iso8601(params["start_date"], today),
-           %Date{} = last <- RubyDate.iso8601(params["end_date"], today),
+      with {:ok, first} <- parse_date(params["start_date"]),
+           {:ok, last} <- parse_date(params["end_date"]),
            true <- Date.compare(first, last) != :gt do
         last = Enum.min([last, latest], Date)
         {%{start_date: Enum.min([first, last], Date), end_date: last, preset: "custom"}, []}
@@ -126,17 +126,26 @@ defmodule Ziwoas.EnergyReport do
     %{start_date: Date.add(latest, -(@preset_days[preset] - 1)), end_date: latest, preset: preset}
   end
 
-  defp selected_date(params, first, last, today) do
-    case RubyDate.iso8601(params["selected_date"], today) do
-      %Date{} = date ->
+  defp selected_date(params, first, last) do
+    case parse_date(params["selected_date"]) do
+      {:ok, date} ->
         if Date.compare(date, first) != :lt and Date.compare(date, last) != :gt,
           do: date,
           else: last
 
-      nil ->
+      :error ->
         last
     end
   end
+
+  defp parse_date(value) when is_binary(value) do
+    case Date.from_iso8601(String.trim(value)) do
+      {:ok, date} -> {:ok, date}
+      {:error, _} -> :error
+    end
+  end
+
+  defp parse_date(_value), do: :error
 
   defp present?(value), do: is_binary(value) and String.trim(value) != ""
 
@@ -175,8 +184,8 @@ defmodule Ziwoas.EnergyReport do
       balance_kwh: rounded_kwh(Energy.subtract(produced, consumed)),
       avg_produced_kwh: average_kwh(produced, days),
       avg_consumed_kwh: average_kwh(consumed, days),
-      autarky_ratio: RubyNumeric.round(Energy.ratio_to(self_consumed, consumed), 4),
-      self_consumption_ratio: RubyNumeric.round(Energy.ratio_to(self_consumed, produced), 4)
+      autarky_ratio: Float.round(Energy.ratio_to(self_consumed, consumed), 4),
+      self_consumption_ratio: Float.round(Energy.ratio_to(self_consumed, produced), 4)
     }
   end
 
@@ -200,7 +209,7 @@ defmodule Ziwoas.EnergyReport do
 
     case SavingsCalculator.total_eur(calculator, dated) do
       nil -> nil
-      total -> RubyNumeric.round(total, 2)
+      total -> Float.round(total * 1.0, 2)
     end
   end
 
@@ -208,7 +217,7 @@ defmodule Ziwoas.EnergyReport do
   defp average_kwh(total, days), do: total |> Energy.divide(days) |> rounded_kwh()
 
   # position follows config order, the order the dashboard and charts colour plugs by.
-  # Ties in kWh have no defined order (Rails' sort_by is unstable).
+  # Ties in kWh keep config order.
   defp ranking(rows, roster, role) do
     peers =
       if role == :producer, do: Roster.producer_ids(roster), else: Roster.consumer_ids(roster)
@@ -219,6 +228,7 @@ defmodule Ziwoas.EnergyReport do
     rows
     |> Enum.map(& &1.plug_id)
     |> Enum.uniq()
+    |> Enum.sort_by(fn plug_id -> Enum.find_index(peers, &(&1 == plug_id)) end)
     |> Enum.map(fn plug_id ->
       %{
         plug_id: plug_id,
@@ -228,7 +238,7 @@ defmodule Ziwoas.EnergyReport do
         kwh:
           rows_by_plug[plug_id]
           |> Enum.map(& &1.energy_wh)
-          |> RubyNumeric.sum()
+          |> Enum.sum()
           |> Energy.wh()
           |> rounded_kwh()
       }
@@ -236,5 +246,5 @@ defmodule Ziwoas.EnergyReport do
     |> Enum.sort_by(& &1.kwh, :desc)
   end
 
-  defp rounded_kwh(energy), do: energy |> Energy.kwh() |> RubyNumeric.round(3)
+  defp rounded_kwh(energy), do: energy |> Energy.kwh() |> Float.round(3)
 end

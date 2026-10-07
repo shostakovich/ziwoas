@@ -4,9 +4,11 @@ defmodule Ziwoas.Plugs.EnergyDeltas do
 
   Emits `WITH window_samples AS (...), deltas AS (...)` over `samples`, exposing
   per-row `delta_wh` (plus plug_id/ts/apower_w). Callers append their own
-  SELECT and bind `params/3`. It stays SQL on SQLite on purpose: integer
-  division, the Integer 0 of a dropped delta and SUM's compensation are
-  SQLite's, exactly as Rails gets them.
+  SELECT and bind `params/3`.
+
+  A delta is dropped (0) for a plug's first sample in the window, when the
+  counter went backwards (a reset), and when it implies more than
+  `max_plausible_w/0` over the gap since the previous sample (a glitch).
   """
 
   # 20 kW is above any realistic single-circuit load, while counter glitches
@@ -44,7 +46,7 @@ defmodule Ziwoas.Plugs.EnergyDeltas do
   @spec params([String.t()] | nil, integer, integer) :: list
   def params(plug_ids \\ nil, start_ts, end_ts), do: List.wrap(plug_ids) ++ [start_ts, end_ts]
 
-  @doc "`IN (?, ?)` for a list of binds; `IN (NULL)` for none, as Rails expands an empty array."
+  @doc "`IN (?, ?)` for a list of binds; `IN (NULL)`, which matches nothing, for none."
   @spec placeholders([term]) :: String.t()
   def placeholders([]), do: "NULL"
   def placeholders(values), do: Enum.map_join(values, ", ", fn _ -> "?" end)

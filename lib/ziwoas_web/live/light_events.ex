@@ -1,26 +1,27 @@
 defmodule ZiwoasWeb.LightEvents do
   @moduledoc """
-  The lamp controls as a LiveView event (`"light_command"`): the forms that post to
-  `/lights/:key/command` on a Rails page submit their fields, plus `light_key`, to
-  the LiveView serving the page. Same commands as `ZiwoasWeb.LightCommandController`,
-  only as owner of `lights`.
+  The lamp controls' `"light_command"` event, shared by `ZiwoasWeb.SwitchesLive`
+  (the tile) and `ZiwoasWeb.LightLive`: `light_key`, `command` and the command's
+  parameters, run through `Ziwoas.Lights.Commands`.
   """
-  alias Ziwoas.{Lights, Ownership}
+  alias Ziwoas.Lights
   alias Ziwoas.Lights.Commands
+
+  @failed "Lampe nicht erreichbar — MQTT-Broker nicht erreichbar"
+
+  @doc "The flash for a command the broker did not take."
+  def failed_message, do: @failed
 
   @spec run(map) ::
           {:ok, Lights.Light.t(), Commands.result()}
-          | {:error, :not_owner | :not_found | :invalid | :commander}
+          | {:error, :not_found | :invalid | :commander}
   def run(params) do
-    with :ok <- owner(),
-         {:ok, light} <- light(params["light_key"]),
+    with {:ok, light} <- light(params["light_key"]),
          true <- Commands.command?(params["command"]) || {:error, :invalid},
          {:ok, result} <- Commands.run(light, params["command"], params) do
       {:ok, light, result}
     end
   end
-
-  defp owner, do: if(Ownership.acting?(:lights), do: :ok, else: {:error, :not_owner})
 
   defp light(key) when is_binary(key) do
     case Lights.get_by_key(key) do

@@ -1,24 +1,23 @@
 defmodule ZiwoasWeb.LightLive do
   @moduledoc """
-  A lamp's page (Rails' `LightsController#show`): power and zones, brightness,
-  white, colour and scenes, and the settings gear. Rails replaces only the power
-  hero over its `light_<key>` stream; here `{:light_updated, key}` from
-  `Ziwoas.Lights.GoveeSubscriber` reloads the hero's snapshot alone, so the sliders
-  keep what the hand is doing.
+  A lamp's page: power and zones, brightness, white, colour and scenes, and the
+  settings gear. `{:light_updated, key}` from `Ziwoas.Lights.GoveeSubscriber`
+  reloads the hero's snapshot alone, so the sliders keep what the hand is doing.
 
   Brightness, white and colour are the `LightDetail` hook's `"light_command"`
-  events; the forms — power, zones, scenes, the toast's undo — submit the same
-  event (`ZiwoasWeb.LightEvents`), which redraws the hero and the toast as Rails'
-  streams do. The gear opens the settings sheet in place (`"open_settings"`) and
-  saves it through `Ziwoas.Lights.update_settings/2` (`light_settings`).
+  events; power, zones, scenes and the toast's undo send the same event from
+  their buttons (`ZiwoasWeb.LightEvents`). The gear opens the settings sheet in
+  place.
   """
   use ZiwoasWeb, :live_view
 
   import ZiwoasWeb.LightsComponents
 
-  alias Ziwoas.{Config, Lights, Ownership}
-  alias Ziwoas.Lights.Light
+  alias Ziwoas.{Config, Lights}
   alias ZiwoasWeb.LightEvents
+
+  # The toast hides itself after 5 s.
+  @toast_ms 5_000
 
   @impl true
   def mount(%{"key" => key}, _session, socket) do
@@ -33,63 +32,72 @@ defmodule ZiwoasWeb.LightLive do
        snapshot: snapshot,
        power_snapshot: snapshot,
        toast: %{message: nil, undo: nil},
+       toast_timer: nil,
        settings: nil
      )}
   end
 
   @impl true
-  def handle_info({:light_updated, _key}, socket),
-    do: {:noreply, assign(socket, :power_snapshot, Lights.snapshot(socket.assigns.light))}
+  def handle_info({:light_updated, _key}, socket), do: {:noreply, refresh_power(socket)}
 
   def handle_info(:hide_toast, socket),
     do: {:noreply, assign(socket, toast: %{message: nil, undo: nil}, toast_timer: nil)}
 
   @impl true
   def handle_event("light_command", params, socket) do
+    params = Map.put(params, "light_key", socket.assigns.light.key)
+
     case LightEvents.run(params) do
       {:ok, light, {:zones, _keys, toast}} ->
-        socket = assign(socket, :power_snapshot, Lights.snapshot(socket.assigns.light))
+        socket = refresh_power(socket)
         {:noreply, if(toast, do: show_toast(socket, toast_assigns(light, toast)), else: socket)}
 
       {:ok, _light, :power} ->
-        {:noreply, assign(socket, :power_snapshot, Lights.snapshot(socket.assigns.light))}
+        {:noreply, refresh_power(socket)}
 
-      _ ->
+      {:ok, _light, _sent} ->
+        {:noreply, socket}
+
+      {:error, :commander} ->
+        {:noreply, put_flash(socket, :error, LightEvents.failed_message())}
+
+      {:error, _reason} ->
         {:noreply, socket}
     end
   end
 
   def handle_event("open_settings", _params, socket),
-    do: {:noreply, assign(socket, :settings, settings(socket.assigns.light, []))}
+    do:
+      {:noreply, assign(socket, :settings, to_form(Lights.change_settings(socket.assigns.light)))}
 
   def handle_event("close_settings", _params, socket),
     do: {:noreply, assign(socket, :settings, nil)}
 
-  def handle_event("save_settings", params, socket) do
-    attrs = Map.take(Map.get(params, "light", %{}), ~w[name shelly_plug_id])
+  def handle_event("validate_settings", %{"light" => params}, socket) do
+    changeset =
+      socket.assigns.light |> Lights.change_settings(params) |> Map.put(:action, :validate)
 
-    if Ownership.owner?(:light_settings) do
-      case Lights.update_settings(socket.assigns.light, attrs) do
-        {:ok, light} ->
-          {:noreply, assign(socket, light: light, page_title: light.name, settings: nil)}
+    {:noreply, assign(socket, :settings, to_form(changeset))}
+  end
 
-        {:error, changeset} ->
-          light = Ecto.Changeset.apply_changes(changeset)
-          {:noreply, assign(socket, :settings, settings(light, Light.full_messages(changeset)))}
-      end
-    else
-      {:noreply, socket}
+  def handle_event("save_settings", %{"light" => params}, socket) do
+    case Lights.update_settings(socket.assigns.light, params) do
+      {:ok, light} ->
+        {:noreply,
+         socket
+         |> assign(light: light, page_title: light.name, settings: nil)
+         |> put_flash(:info, "Lampe aktualisiert.")}
+
+      {:error, changeset} ->
+        {:noreply, assign(socket, :settings, to_form(changeset))}
     end
   end
 
-  defp settings(light, errors),
-    do: %{light: light, plugs: Config.app_config().plugs, errors: errors}
-
-  # The toast hides itself after 5 s, as Rails' toast controller hid it in the browser.
-  @toast_ms 5_000
+  defp refresh_power(socket),
+    do: assign(socket, :power_snapshot, Lights.snapshot(socket.assigns.light))
 
   defp show_toast(socket, toast) do
-    if timer = socket.assigns[:toast_timer], do: Process.cancel_timer(timer)
+    if timer = socket.assigns.toast_timer, do: Process.cancel_timer(timer)
     assign(socket, toast: toast, toast_timer: Process.send_after(self(), :hide_toast, @toast_ms))
   end
 
@@ -98,6 +106,7 @@ defmodule ZiwoasWeb.LightLive do
     assigns =
       assign(assigns,
         brightness: max(Lights.brightness(assigns.snapshot), 1),
+        plugs: Config.app_config().plugs,
         tabs:
           [{"white", "Weiß"}] ++
             if(assigns.light.supports_color, do: [{"color", "Farbe"}], else: []) ++
@@ -105,16 +114,21 @@ defmodule ZiwoasWeb.LightLive do
       )
 
     ~H"""
-    <Layouts.app look={@look} current_path={@current_path}>
+    <Layouts.app flash={@flash} look={@look} current_path={@current_path}>
       <div id="light_detail" phx-hook="LightDetail" data-key={@light.key}>
         <div class="d-flex align-items-center gap-2 mb-3">
-          <a class="btn btn-icon btn-light flex-shrink-0" aria-label="Zurück" href="/switches">←</a>
+          <.link
+            class="btn btn-icon btn-light flex-shrink-0"
+            aria-label="Zurück"
+            navigate={~p"/switches"}
+          >
+            ←
+          </.link>
           <h1 class="ld-title h2 mb-0 me-auto">{@light.name}</h1>
-          <a
+          <button
+            type="button"
             class="btn btn-icon flex-shrink-0"
-            data-turbo-stream="true"
             aria-label="Einstellungen"
-            href={"/lights/#{@light.key}/edit"}
             phx-click="open_settings"
           >
             <img
@@ -124,7 +138,7 @@ defmodule ZiwoasWeb.LightLive do
               aria-hidden="true"
               src={~p"/images/settings_plush.webp"}
             />
-          </a>
+          </button>
         </div>
 
         <.power snapshot={@power_snapshot} />
@@ -177,13 +191,7 @@ defmodule ZiwoasWeb.LightLive do
         </div>
 
         <div id="light_settings">
-          <.settings_sheet
-            :if={@settings}
-            light={@settings.light}
-            plugs={@settings.plugs}
-            errors={@settings.errors}
-            live
-          />
+          <.settings_sheet :if={@settings} form={@settings} plugs={@plugs} />
         </div>
       </div>
     </Layouts.app>

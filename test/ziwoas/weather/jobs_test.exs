@@ -1,12 +1,11 @@
 defmodule Ziwoas.Weather.JobsTest do
-  # test/jobs/weather_*_job_test.rb and test/weather_sync_test.rb. PubSub topics
-  # are global, hence not async.
+  # PubSub topics are global, hence not async.
   use Ziwoas.DataCase
 
   import Ecto.Query
   import ExUnit.CaptureLog
 
-  alias Ziwoas.{Ownership, Repo}
+  alias Ziwoas.Repo
   alias Ziwoas.Plugs.DailyTotal
   alias Ziwoas.Weather.{BrightskyClient, CurrentJob, ForecastJob, HistoricJob, Record, TodayJob}
 
@@ -19,7 +18,7 @@ defmodule Ziwoas.Weather.JobsTest do
   end
 
   defp context(extra \\ %{}),
-    do: Map.merge(%{task: :weather, mode: Ownership.mode(:weather), config: @config}, extra)
+    do: Map.merge(%{at: Ziwoas.Clock.now(), config: @config}, extra)
 
   defp hour(timestamp, extra \\ %{}),
     do: Map.merge(%{"timestamp" => timestamp, "source_id" => 7003, "icon" => "cloudy"}, extra)

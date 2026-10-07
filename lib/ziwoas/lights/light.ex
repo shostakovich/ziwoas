@@ -63,22 +63,13 @@ defmodule Ziwoas.Lights.Light do
     do: kelvin || elem(@default_kelvin, 1)
 
   @doc """
-  The settings form (`LightsController#update`): name and Shelly plug, nothing
-  the bridge manages. A blank plug choice stays `""`, as Rails stores it.
+  The settings form: name and Shelly plug, nothing the bridge manages. No plug
+  chosen is nil.
   """
   @spec settings_changeset(t, map) :: Ecto.Changeset.t()
   def settings_changeset(light, params) do
-    changeset = cast(light, params, [:name, :shelly_plug_id], empty_values: [])
-
-    if Ziwoas.Form.blank?(get_field(changeset, :name)),
-      do: add_error(changeset, :name, "can't be blank"),
-      else: changeset
-  end
-
-  @doc "Rails' `errors.full_messages` with their attribute: the humanised name, then the message."
-  @spec full_messages(Ecto.Changeset.t()) :: [{atom, String.t()}]
-  def full_messages(changeset) do
-    for {field, {message, _}} <- Enum.reverse(changeset.errors),
-        do: {field, "#{field |> Atom.to_string() |> String.capitalize()} #{message}"}
+    light
+    |> cast(params, [:name, :shelly_plug_id])
+    |> validate_required([:name])
   end
 end

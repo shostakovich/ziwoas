@@ -1,5 +1,6 @@
 defmodule Ziwoas.SchemaParityTest do
-  # Temporary: lives until Phase 3 deletes test/fixtures/rails_schema.sql. A database
+  # Lives as long as the Rails adoption (Ziwoas.Release) and its fixture
+  # test/fixtures/rails_schema.sql, i.e. until after the cutover. A database
   # the migrations build from nothing must have the schema Rails generated, so a fresh
   # install behaves like the production database Phoenix adopts. That holds up to the
   # migrations that follow the adoption: from UtcDatetimeUsecTimestamps on, both

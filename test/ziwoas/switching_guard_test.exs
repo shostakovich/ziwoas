@@ -44,7 +44,7 @@ defmodule Ziwoas.SwitchingGuardTest do
     LightCommander.publish("ABCDEF01", {:power, true})
   end
 
-  test "as owner the commands reach the broker", ctx do
+  test "the commands reach the broker", ctx do
     everything(ctx)
 
     assert FakeMqttBroker.await(ctx.broker, &(length(FakeMqttBroker.published(&1)) == 3))

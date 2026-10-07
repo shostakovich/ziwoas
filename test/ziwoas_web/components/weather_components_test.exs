@@ -1,5 +1,4 @@
 defmodule ZiwoasWeb.WeatherComponentsTest do
-  # Mirrors test/helpers/weather_helper_test.rb.
   use ExUnit.Case, async: true
 
   alias Ziwoas.Weather.{Record, Segment}

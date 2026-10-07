@@ -1,13 +1,10 @@
 defmodule ZiwoasWeb.WeatherComponents do
   @moduledoc """
-  The Wetter page's parts (`app/views/weather/_*.html.erb` and `WeatherHelper`):
-  current conditions, today's hours, the next days in four segments.
+  The Wetter page's parts: current conditions, today's hours, the next days in four segments.
   """
   use ZiwoasWeb, :html
 
-  import ZiwoasWeb.CoreComponents
-
-  alias Ziwoas.{RubyNumeric, Weather}
+  alias Ziwoas.Weather
   alias Ziwoas.Weather.{Day, Icon, Segment}
 
   defmodule Cell do
@@ -309,7 +306,7 @@ defmodule ZiwoasWeb.WeatherComponents do
     """
   end
 
-  # --- WeatherHelper -------------------------------------------------------------
+  # --- Cells and thresholds ------------------------------------------------------
 
   def icon_label(icon), do: Map.get(@icon_labels, Icon.normalized_icon(icon), "Wetter")
 
@@ -377,7 +374,7 @@ defmodule ZiwoasWeb.WeatherComponents do
           alt: @hour_units[:rain]
         }
 
-      RubyNumeric.to_i(record.precipitation_probability) >= 30 ->
+      at_least?(record.precipitation_probability, 30) ->
         %Cell{
           text: de_number(record.precipitation_probability, unit: "%"),
           icon: "weather_rain_day.webp",
@@ -425,6 +422,8 @@ defmodule ZiwoasWeb.WeatherComponents do
 
   def segment_cell(_segment, _row), do: nil
 
-  def windy?(km_per_h), do: RubyNumeric.to_i(km_per_h) >= @windy_km_per_h
-  def sunny?(w_per_m2), do: RubyNumeric.to_i(w_per_m2) >= @sunny_w_per_m2
+  def windy?(km_per_h), do: at_least?(km_per_h, @windy_km_per_h)
+  def sunny?(w_per_m2), do: at_least?(w_per_m2, @sunny_w_per_m2)
+
+  defp at_least?(value, threshold), do: is_number(value) and value >= threshold
 end

@@ -22,7 +22,7 @@ defmodule Ziwoas.Clock do
   @spec now(String.t()) :: DateTime.t()
   def now(zone), do: DateTime.shift_zone!(now(), zone)
 
-  @doc "Unix seconds, truncated like Ruby's `Time#to_i`."
+  @doc "Unix seconds, truncated."
   @spec unix_now() :: integer
   def unix_now, do: DateTime.to_unix(now())
 

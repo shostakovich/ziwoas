@@ -1,5 +1,5 @@
 defmodule Ziwoas.Weather.Icon do
-  @moduledoc "Bright Sky icon names to asset names (Rails' `WeatherIcon`)."
+  @moduledoc "Bright Sky icon names to asset names."
 
   @icons ~w[clear partly-cloudy cloudy fog wind rain sleet snow hail thunderstorm unknown]
 

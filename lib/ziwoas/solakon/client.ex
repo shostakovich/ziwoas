@@ -1,17 +1,15 @@
 defmodule Ziwoas.Solakon.Client do
   @moduledoc """
-  Rails' `Solakon::Client`: which holding registers make a reading (`read_state/1`,
-  the 30 s monitor) and a snapshot (`read_snapshot/1`, every two minutes), how their
-  words decode, and what the control writes (`apply_control/4`,
-  `set_eps_output/2`, `release_control/1`) — `docs/solakon-modbus-protokoll.md` §2
-  and §9. Registers are read one field at a time and written in Rails' order, so the
-  inverter sees the same requests from both apps.
+  Which holding registers make a reading (`read_state/1`, the 30 s monitor) and
+  a snapshot (`read_snapshot/1`, every two minutes), how their words decode, and
+  what the control writes (`apply_control/4`, `set_eps_output/2`,
+  `release_control/1`) — `docs/solakon-modbus-protokoll.md` §2 and §9. Registers
+  are read one field at a time.
 
   `read` is `fn address, count -> {:ok, words} | {:error, reason} end`, `write` is
   `fn {:single, address, word} | {:multiple, address, [word]} -> :ok | {:error,
-  reason} end` (`Ziwoas.Solakon.Monitor` runs both over its connection; its writes
-  are guarded by ownership). Values decode as Ruby's: Integers unscaled, Floats where
-  Rails divides.
+  reason} end`; `Ziwoas.Solakon.Monitor` runs both over its connection. Unscaled
+  values decode as integers, scaled ones as floats.
   """
   import Bitwise
 
@@ -33,7 +31,7 @@ defmodule Ziwoas.Solakon.Client do
   @doc "The inverter-side watchdog: without a command for this long it drops remote control."
   def remote_timeout_s, do: @remote_timeout_s
 
-  # Solakon::Client::FAST_FIELD_SPECS, in Rails' order.
+  # The reading's fields, in the order they are read.
   @fast [
     battery_soc: {39424, 1, :i16, nil},
     active_power_w: {39248, 2, :i32, nil},
@@ -64,7 +62,7 @@ defmodule Ziwoas.Solakon.Client do
     grid_power_w: {39168, 2, :i32, :negate}
   ]
 
-  # Ruby's Hash#merge: an overridden key keeps its place, new keys follow.
+  # An overridden key keeps its place, new keys follow.
   @snapshot Enum.map(@fast, fn {key, spec} ->
               {key, Keyword.get(@snapshot_overrides, key, spec)}
             end) ++
@@ -84,7 +82,7 @@ defmodule Ziwoas.Solakon.Client do
   @type write :: (write_op -> :ok | {:error, term})
 
   @doc """
-  `write_control!`: the minimum SoC only when the device holds another value (a
+  The minimum SoC only when the device holds another value (a
   persisted register, so flash is spared), then remote control on, the watchdog
   re-armed and the active-power setpoint last.
   """
@@ -102,7 +100,7 @@ defmodule Ziwoas.Solakon.Client do
     end
   end
 
-  @doc "The outdoor socket (EPS output, 46613): 2 on, 0 off; nil is off, as in Rails."
+  @doc "The outdoor socket (EPS output, 46613): 2 on, 0 off; nil is off."
   @spec set_eps_output(write, boolean | nil) :: :ok | {:error, term}
   def set_eps_output(write, enabled),
     do: write.({:single, @reg_eps_output, if(enabled, do: @eps_on, else: @eps_off)})
@@ -118,7 +116,7 @@ defmodule Ziwoas.Solakon.Client do
     [raw >>> 16 &&& 0xFFFF, raw &&& 0xFFFF]
   end
 
-  @doc "The fields of a `Solakon::Client::State` (the monitor's reading)."
+  @doc "The fields of the monitor's reading."
   @spec read_state(read) :: {:ok, map} | {:error, term}
   def read_state(read) do
     with {:ok, fields} <- read_fields(read, @fast),
@@ -133,7 +131,7 @@ defmodule Ziwoas.Solakon.Client do
     end
   end
 
-  @doc "The fields of a `Solakon::Client::SnapshotData`, panels as `%{index:, voltage_v:, current_a:, power_w:}`."
+  @doc "The fields of a snapshot, panels as `%{index:, voltage_v:, current_a:, power_w:}`."
   @spec read_snapshot(read) :: {:ok, map} | {:error, term}
   def read_snapshot(read) do
     with {:ok, fields} <- read_fields(read, @snapshot),

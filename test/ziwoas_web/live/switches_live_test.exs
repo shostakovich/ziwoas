@@ -1,5 +1,4 @@
 defmodule ZiwoasWeb.SwitchesLiveTest do
-  # Mirrors test/controllers/switches_controller_test.rb and the lamp tile's component test.
   use ZiwoasWeb.ConnCase
 
   import Phoenix.LiveViewTest
@@ -44,7 +43,11 @@ defmodule ZiwoasWeb.SwitchesLiveTest do
     assert text(doc, "#light_card_ABCDEF01 .small.text-body-secondary") == "An · Weiß"
     assert text(doc, "#light_card_ABCDEF01 span.badge") == "60 %"
     assert count(doc, "button.sw-lamp-knob img.sw-knob-plush[src*='lamp_floorlamp_']") == 1
-    assert count(doc, "form[action='/lights/ABCDEF01/command'] input[name=on][value=false]") == 1
+
+    assert count(
+             doc,
+             "button[phx-click=light_command][phx-value-light_key=ABCDEF01][phx-value-command=turn][phx-value-on=false]"
+           ) == 1
   end
 
   test "lists only switchable plugs", %{conn: conn} do
@@ -66,9 +69,9 @@ defmodule ZiwoasWeb.SwitchesLiveTest do
              "Mo–Fr · 18:00–23:00"
 
     assert doc
-           |> LazyHTML.query("#sw_card_fridge a[data-turbo-stream]")
+           |> LazyHTML.query("#sw_card_fridge button[phx-click=new_entry]")
            |> Enum.map(&String.trim(LazyHTML.text(&1))) ==
-             ["", "+ Zeitfenster", "+ Einzelschaltung"]
+             ["+ Zeitfenster", "+ Einzelschaltung"]
   end
 
   test "the summary counts Schaltzeiten, not rows; without any it is bare", %{conn: conn} do

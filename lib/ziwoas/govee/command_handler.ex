@@ -1,8 +1,7 @@
 defmodule Ziwoas.Govee.CommandHandler do
   @moduledoc """
   The Tortoise311 handler of the bridge's `ziwoas-phoenix-govee` connection: hands
-  every `govees/<key>/set` to `Ziwoas.Govee.Bridge`. Only started as owner — a
-  shadow bridge consumes no command.
+  every `govees/<key>/set` to `Ziwoas.Govee.Bridge`.
   """
   use Tortoise311.Handler
 

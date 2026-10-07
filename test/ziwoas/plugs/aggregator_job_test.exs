@@ -1,8 +1,7 @@
 defmodule Ziwoas.Plugs.AggregatorJobTest do
-  # test/jobs/aggregator_job_test.rb
   use Ziwoas.DataCase
 
-  alias Ziwoas.{Ownership, Repo, TestConfigs}
+  alias Ziwoas.{Repo, TestConfigs}
   alias Ziwoas.EnergyReport.DailyEnergySummary
   alias Ziwoas.Plugs.{AggregatorJob, DailyTotal}
   alias Ziwoas.Solakon.{PvHour, Reading}
@@ -18,8 +17,6 @@ defmodule Ziwoas.Plugs.AggregatorJobTest do
     test = self()
 
     AggregatorJob.perform(%{
-      task: :aggregator,
-      mode: Ownership.mode(:aggregator),
       config: TestConfigs.plugs(),
       backup_dir: "backups",
       backup: fn dir, today -> send(test, {:backup, dir, today}) end

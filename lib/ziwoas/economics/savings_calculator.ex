@@ -4,7 +4,7 @@ defmodule Ziwoas.Economics.SavingsCalculator do
   took straight from the array, priced at the electricity price in force that
   day. Exported energy earns nothing and never enters here (ADR-0003).
   """
-  alias Ziwoas.{Energy, RubyNumeric}
+  alias Ziwoas.Energy
   alias Ziwoas.Economics.PriceBook
 
   @enforce_keys [:price_book]
@@ -27,13 +27,13 @@ defmodule Ziwoas.Economics.SavingsCalculator do
     end
   end
 
-  @doc "Each day at its own price, summed like Ruby's `Array#sum` (the Integer 0 for no days)."
-  @spec total_eur(t, [{Date.t(), Energy.t()}]) :: number | nil
+  @doc "Each day at its own price, summed; nil without a price."
+  @spec total_eur(t, [{Date.t(), Energy.t()}]) :: float | nil
   def total_eur(calculator, dated_energies) do
     if priced?(calculator) do
-      dated_energies
-      |> Enum.map(fn {date, energy} -> savings_eur(calculator, energy, date) end)
-      |> RubyNumeric.sum()
+      Enum.reduce(dated_energies, 0.0, fn {date, energy}, total ->
+        total + savings_eur(calculator, energy, date)
+      end)
     end
   end
 end

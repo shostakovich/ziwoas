@@ -1,6 +1,4 @@
 defmodule ZiwoasWeb.ReportsLiveTest do
-  # Mirrors test/controllers/reports_controller_test.rb on the disconnected render;
-  # markup parity with Rails is the golden master's job.
   use ZiwoasWeb.ConnCase
 
   import Phoenix.LiveViewTest
@@ -45,14 +43,16 @@ defmodule ZiwoasWeb.ReportsLiveTest do
     assert count(doc, "input[name='end_date'][value='2026-04-07']") == 1
   end
 
-  test "the date fields echo what was typed, as Rails' params do", %{conn: conn} do
+  test "dates outside ISO 8601 are an invalid range; the fields echo what was asked", %{
+    conn: conn
+  } do
     total!("bkw", "2026-04-10", 2000)
     doc = page(conn, start_date: "20260401", end_date: "2026-W15-2")
 
     assert attr(doc, "#start_date", "value") == ["20260401"]
     assert attr(doc, "#end_date", "value") == ["2026-W15-2"]
-    assert attr(doc, "#end_date", "min") == ["2026-04-01"]
-    assert texts(doc, ".alert") == []
+    assert [warning] = texts(doc, ".alert.alert-warning")
+    assert warning =~ "ungültig"
   end
 
   test "the weather switch says what it does", %{conn: conn} do
@@ -107,15 +107,15 @@ defmodule ZiwoasWeb.ReportsLiveTest do
            ]
   end
 
-  test "the date form labels its fields and submits without a commit param", %{conn: conn} do
+  test "the date form labels its fields and submits to the LiveView", %{conn: conn} do
     doc = page(conn)
-    form = LazyHTML.query(doc, "form[action='/reports'][method='get']")
+    form = LazyHTML.query(doc, "form#range_form[phx-submit='apply_range']")
 
     assert texts(form, "label.form-label[for='start_date']") == ["Von"]
     assert texts(form, "label.form-label[for='end_date']") == ["Bis"]
     assert count(form, "input.form-control#start_date[type='date']") == 1
     assert count(form, "input.form-control#end_date[type='date']") == 1
-    assert count(form, "input[type='submit'][value='Anwenden']:not([name])") == 1
+    assert texts(form, "button[type='submit']:not([name])") == ["Anwenden"]
   end
 
   test "an invalid range is reported as a warning", %{conn: conn} do
@@ -123,7 +123,7 @@ defmodule ZiwoasWeb.ReportsLiveTest do
     doc = page(conn, start_date: "2026-04-07", end_date: "2026-04-01")
 
     assert [warning] = texts(doc, ".alert.alert-warning")
-    assert warning =~ "ungueltig"
+    assert warning =~ "ungültig"
   end
 
   test "reports page renders summary ranking and chart payload", %{conn: conn} do
@@ -159,16 +159,17 @@ defmodule ZiwoasWeb.ReportsLiveTest do
     assert count(doc, "#energy_report script[data-island='payload']") == 1
   end
 
-  test "the payload keeps Rails' key order and escaping", %{conn: conn} do
+  test "the payload island is JSON the script tag cannot end early", %{conn: conn} do
     total!("bkw", "2026-04-10", 2000)
     body = conn |> get(~p"/reports") |> html_response(200)
 
-    assert [_, json] =
-             Regex.run(~r{data-island="payload">(.*?)</script>}s, body)
+    assert [_, json] = Regex.run(~r{data-island="payload">(.*?)</script>}s, body)
 
-    assert json =~ ~r/\A\{"daily":\{"labels":\["04\.04\.",/
-    assert json =~ ~s("detail":{"chart_type":"line","labels":[)
-    assert JSON.decode!(json)["daily"]["produced_kwh"] == [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    payload = JSON.decode!(json)
+    assert hd(payload["daily"]["labels"]) == "04.04."
+    assert payload["daily"]["produced_kwh"] == [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    assert payload["detail"]["chart_type"] == "line"
+    refute json =~ "<"
   end
 
   test "the producer stands apart from the numbered consumers, each bar in its dashboard colour",
@@ -272,5 +273,53 @@ defmodule ZiwoasWeb.ReportsLiveTest do
 
     assert "Steckdosen" in texts(doc, "h2")
     assert attr(doc, ".btn-group a[aria-current=page]", "href") == ["/reports?preset=last_30"]
+  end
+
+  describe "connected" do
+    setup do
+      for i <- 0..29, do: total!("bkw", Date.to_iso8601(Date.add(~D[2026-03-12], i)), 2000)
+      :ok
+    end
+
+    defp island(view) do
+      [_, json] = Regex.run(~r{data-island="payload">(.*?)</script>}s, render(view))
+      JSON.decode!(json)
+    end
+
+    test "a preset link patches the page to its range", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/reports")
+      assert length(island(view)["daily"]["labels"]) == 7
+
+      view |> element(".btn-group a", "30 Tage") |> render_click()
+
+      assert_patched(view, ~p"/reports?preset=last_30")
+      assert length(island(view)["daily"]["labels"]) == 30
+
+      assert attr(LazyHTML.from_fragment(render(view)), ".btn-group a[aria-current=page]", "href") ==
+               [
+                 "/reports?preset=last_30"
+               ]
+    end
+
+    test "the range form patches to the chosen dates", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/reports")
+
+      view
+      |> form("#range_form", %{start_date: "2026-04-01", end_date: "2026-04-03"})
+      |> render_submit()
+
+      assert_patched(view, ~p"/reports?#{[end_date: "2026-04-03", start_date: "2026-04-01"]}")
+      assert island(view)["daily"]["labels"] == ["01.04.", "02.04.", "03.04."]
+
+      doc = LazyHTML.from_fragment(render(view))
+      assert texts(doc, ".btn-group .btn.active") == ["Benutzerdefiniert"]
+      assert attr(doc, "#start_date", "value") == ["2026-04-01"]
+    end
+
+    test "an end date past the newest aggregate stops at it", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/reports?start_date=2026-04-08&end_date=2026-04-30")
+
+      assert island(view)["daily"]["labels"] == ["08.04.", "09.04.", "10.04."]
+    end
   end
 end

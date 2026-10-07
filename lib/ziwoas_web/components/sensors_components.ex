@@ -1,18 +1,15 @@
 defmodule ZiwoasWeb.SensorsComponents do
   @moduledoc """
-  The Sensoren page's parts (`app/views/sensors/_*.html.erb`, `SensorsHelper`
-  and `Sensors::Co2GaugeComponent`): the dashboard Rails replaces on every
-  sensor poll, one card per sensor, the battery warning and the chart cards
+  The Sensoren page's parts: the dashboard `ZiwoasWeb.SensorsLive` reloads after
+  every sensor poll, one card per sensor, the battery warning and the chart cards
   the `SensorsChart` hook fills from `/sensors/series`.
   """
   use ZiwoasWeb, :html
 
-  import ZiwoasWeb.CoreComponents
-
-  alias Ziwoas.{GermanNumber, RubyNumeric}
+  alias Ziwoas.GermanNumber
   alias Ziwoas.Sensors.{Reading, ReadingPresenter}
 
-  @doc "Everything below the heading: what Rails' `sensors_dashboard` frame holds."
+  @doc "Everything below the heading."
   attr :sensors, :list, required: true
   attr :latest, :map, required: true
   attr :now, DateTime, required: true
@@ -167,7 +164,7 @@ defmodule ZiwoasWeb.SensorsComponents do
   @stitch_scale "1.15"
   @stitch_pitch 11
 
-  @doc "A felt CO₂ gauge (`Sensors::Co2GaugeComponent`): three zones, the needle at `ppm`."
+  @doc "A felt CO₂ gauge: three zones, the needle at `ppm`."
   attr :ppm, :integer, required: true
 
   def co2_gauge(assigns) do
@@ -182,7 +179,7 @@ defmodule ZiwoasWeb.SensorsComponents do
         label: "CO₂ #{GermanNumber.format(ppm, unit: "ppm")}, #{@level_labels[level]}",
         zones: zones(level),
         stitches: stitches(),
-        needle_angle: RubyNumeric.format_fixed(share(ppm) * 180, 1),
+        needle_angle: fixed(share(ppm) * 180),
         texture_size: @texture_size,
         felt_texture: @felt_texture,
         center: @center,
@@ -300,16 +297,19 @@ defmodule ZiwoasWeb.SensorsComponents do
     for i <- 0..(count - 1) do
       at = (i + 0.5) / count
 
-      "translate(#{point(at)}) rotate(#{RubyNumeric.format_fixed(at * 180 - 90, 1)}) scale(#{@stitch_scale})"
+      "translate(#{point(at)}) rotate(#{fixed(at * 180 - 90)}) scale(#{@stitch_scale})"
     end
   end
 
   defp point(at) do
     angle = :math.pi() * (1 - at)
 
-    RubyNumeric.format_fixed(@center + @radius * :math.cos(angle), 1) <>
-      " " <> RubyNumeric.format_fixed(@center - @radius * :math.sin(angle), 1)
+    fixed(@center + @radius * :math.cos(angle)) <>
+      " " <> fixed(@center - @radius * :math.sin(angle))
   end
+
+  # SVG coordinates and angles to a tenth.
+  defp fixed(number), do: :erlang.float_to_binary(number * 1.0, decimals: 1)
 
   defp share(ppm),
     do: ((ppm |> max(@min_ppm) |> min(@max_ppm)) - @min_ppm) / (@max_ppm - @min_ppm)

@@ -1,14 +1,11 @@
 defmodule ZiwoasWeb.DashboardComponents do
   @moduledoc """
-  The dashboard's parts, ported from the `Dashboard::*` ViewComponents and the
-  `shared/_energy_flow` partial (with `EnergyFlowHelper`). The PV page reuses
-  the tile and the energy flow. Ids and classes stay verbatim: the live updates
-  patch these regions by id, as Rails' `DashboardBroadcaster` replaced them over
-  Turbo Streams.
+  The dashboard's parts: hero, tiles, plug bar and the energy flow. The PV page
+  reuses the tile and the energy flow.
   """
   use ZiwoasWeb, :html
 
-  alias Ziwoas.{EnergyFlow, EnergySummary, Energy, GermanNumber, LiveState, RubyNumeric}
+  alias Ziwoas.{EnergyFlow, EnergySummary, Energy, GermanNumber, LiveState}
 
   @battery_assets [
     {"normal", "solakon_battery_normal.webp"},
@@ -67,7 +64,7 @@ defmodule ZiwoasWeb.DashboardComponents do
   end
 
   defp pv_watt(%LiveState{energy_flow: %{solakon_online: true} = flow}),
-    do: RubyNumeric.max([flow.solar_w || 0, 0])
+    do: max(flow.solar_w || 0, 0)
 
   defp pv_watt(%LiveState{plugs: plugs}) do
     case Enum.find(plugs, &(&1.role == :producer)) do
@@ -85,7 +82,7 @@ defmodule ZiwoasWeb.DashboardComponents do
 
   # --- Tiles -----------------------------------------------------------------
 
-  @doc "A stat tile (`Dashboard::TileComponent`); values sit at the foot, so a row lines them up."
+  @doc "A stat tile; values sit at the foot, so a row lines them up."
   attr :id, :string, default: nil
   attr :label, :string, required: true
   attr :number, :string, required: true
@@ -111,7 +108,7 @@ defmodule ZiwoasWeb.DashboardComponents do
     """
   end
 
-  @doc "The day's tiles, recomputed once a minute (`TileComponent.summary_tiles`)."
+  @doc "The day's tiles, recomputed once a minute."
   @spec summary_tiles(EnergySummary.t()) :: [map]
   def summary_tiles(summary) do
     [
@@ -133,7 +130,7 @@ defmodule ZiwoasWeb.DashboardComponents do
     ]
   end
 
-  @doc "The live tiles, replaced with every live beat (`TileComponent.live_tiles`)."
+  @doc "The live tiles, replaced with every live beat."
   @spec live_tiles(LiveState.t()) :: [map]
   def live_tiles(%LiveState{energy_flow: flow, plugs: plugs}) do
     any_online = flow.solakon_online or Enum.any?(plugs, & &1.online)
@@ -177,11 +174,11 @@ defmodule ZiwoasWeb.DashboardComponents do
 
     consumers =
       plugs
-      |> Enum.filter(&(&1.role == :consumer and &1.online and RubyNumeric.to_f(&1.apower_w) > 0))
+      |> Enum.filter(&(&1.role == :consumer and &1.online and (&1.apower_w || 0) > 0))
       |> Enum.sort_by(&(-&1.apower_w))
 
     order = for plug <- plugs, plug.role == :consumer, do: plug.id
-    total_w = consumers |> Enum.map(& &1.apower_w) |> RubyNumeric.sum()
+    total_w = consumers |> Enum.map(& &1.apower_w) |> Enum.sum()
 
     assigns =
       assign(assigns,
@@ -206,7 +203,7 @@ defmodule ZiwoasWeb.DashboardComponents do
           :for={bar <- @consumers}
           class="progress h-100"
           role="progressbar"
-          style={"width: #{RubyNumeric.to_s(bar.width)}%"}
+          style={"width: #{css_number(bar.width)}%"}
           aria-label={bar.plug.name}
           aria-valuenow={round(bar.width)}
           aria-valuemin="0"
@@ -229,7 +226,7 @@ defmodule ZiwoasWeb.DashboardComponents do
       >
         <span>{plug.name}</span>
         <span class="text-body tabular-nums text-nowrap">
-          erzeugt {GermanNumber.format(abs(RubyNumeric.to_f(plug.apower_w)), unit: "W")}
+          erzeugt {GermanNumber.format(plug.apower_w && abs(plug.apower_w), unit: "W")}
         </span>
       </div>
       <ul
@@ -261,7 +258,7 @@ defmodule ZiwoasWeb.DashboardComponents do
       "data-state": EnergyFlow.to_json(live.energy_flow)
     ]
 
-  # --- Energy flow (shared/_energy_flow) -------------------------------------
+  # --- Energy flow -------------------------------------------------------------
 
   @width 400
   @height 320
@@ -427,7 +424,16 @@ defmodule ZiwoasWeb.DashboardComponents do
     """
   end
 
-  defp percent(units, extent), do: RubyNumeric.format_g(units * 100.0 / extent) <> "%"
+  defp percent(units, extent), do: css_number(units * 100.0 / extent) <> "%"
+
+  # Three decimals are finer than a pixel; an integral value drops its ".0".
+  defp css_number(value) do
+    rounded = Float.round(value * 1.0, 3)
+
+    if rounded == trunc(rounded),
+      do: Integer.to_string(trunc(rounded)),
+      else: Float.to_string(rounded)
+  end
 
   defp clip_path do
     holes =

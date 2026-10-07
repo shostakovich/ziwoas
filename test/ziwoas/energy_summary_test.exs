@@ -1,5 +1,4 @@
 defmodule Ziwoas.EnergySummaryTest do
-  # Mirrors test/models/energy_summary_test.rb.
   use Ziwoas.DataCase
 
   alias Ziwoas.{EnergySummary, TestConfigs}

@@ -1,10 +1,10 @@
 defmodule Ziwoas.EnergySummary do
   @moduledoc """
-  Today's energy balance from the raw samples (Rails' `EnergySummary`): what
+  Today's energy balance from the raw samples: what
   the producers made and the consumers drew since local midnight, the share
   of it consumed at the same time, and what that saved at today's price.
   """
-  alias Ziwoas.{Clock, Config, Economics, Energy, LocalDay, PowerSeries, Repo, RubyNumeric}
+  alias Ziwoas.{Clock, Config, Economics, Energy, LocalDay, PowerSeries, Repo}
   alias Ziwoas.Economics.SavingsCalculator
   alias Ziwoas.Plugs.{EnergyDeltas, Roster}
 
@@ -66,7 +66,7 @@ defmodule Ziwoas.EnergySummary do
 
     rows
     |> Enum.map(fn [_plug_id, delta] -> delta || 0 end)
-    |> RubyNumeric.sum()
-    |> RubyNumeric.to_f()
+    |> Enum.sum()
+    |> Kernel.*(1.0)
   end
 end

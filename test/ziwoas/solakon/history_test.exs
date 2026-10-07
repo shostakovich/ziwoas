@@ -1,5 +1,4 @@
 defmodule Ziwoas.Solakon.HistoryTest do
-  # Mirrors test/models/solakon/history_test.rb.
   use Ziwoas.DataCase
 
   alias Ziwoas.Repo
@@ -21,9 +20,9 @@ defmodule Ziwoas.Solakon.HistoryTest do
   defp payload(range \\ "24h"), do: History.payload(range, @now, "Europe/Berlin")
   defp shares(payload), do: Enum.map(payload.balance_rows, & &1.share)
   defp dataset(payload, index), do: payload.chart |> datasets() |> Enum.at(index) |> data()
-  defp datasets(chart), do: chart |> List.keyfind("datasets", 0) |> elem(1)
-  defp data(dataset), do: dataset |> List.keyfind("data", 0) |> elem(1)
-  defp label(dataset), do: dataset |> List.keyfind("label", 0) |> elem(1)
+  defp datasets(chart), do: chart.datasets
+  defp data(dataset), do: dataset.data
+  defp label(dataset), do: dataset.label
 
   test "payload builds signed chart series and balance rows from snapshots" do
     # 40 + 10 Wh each way: the middle interval straddles zero and splits into two triangles.
@@ -180,8 +179,7 @@ defmodule Ziwoas.Solakon.HistoryTest do
     assert payload(nil).range == "24h"
   end
 
-  # Rails' `@now - 7.days` on a TimeWithZone steps calendar days on the local clock. Expected
-  # bounds from Ruby (Time.zone = "Europe/Berlin"; (now - n.days).utc and now - (now - n.days)):
+  # 7 and 30 days step calendar days on the local clock (Europe/Berlin):
   #   2026-11-01 12:00 - 30.days = 2026-10-02 10:00 UTC, 2_595_600 s
   #   2026-11-01 12:00 -  7.days = 2026-10-25 11:00 UTC,   604_800 s
   #   2026-03-29 12:00 -  7.days = 2026-03-22 11:00 UTC,   601_200 s
@@ -261,7 +259,6 @@ defmodule Ziwoas.Solakon.HistoryTest do
 
     payload = payload()
 
-    assert Enum.map(payload.chart, &elem(&1, 0)) == ["times", "datasets"]
     assert dataset(payload, 0) == [123.5]
     assert dataset(payload, 1) == [45.7]
     assert dataset(payload, 2) == [12.3]
@@ -273,7 +270,7 @@ defmodule Ziwoas.Solakon.HistoryTest do
       taken_at = DateTime.add(@now, -usec_ago, :microsecond)
       Repo.insert!(%Snapshot{taken_at: taken_at, pv1_power_w: 100.0})
 
-      assert payload().chart |> List.keyfind("times", 0) |> elem(1) ==
+      assert payload().chart.times ==
                [DateTime.to_unix(taken_at) * 1000 + ms]
     end
   end
@@ -282,8 +279,7 @@ defmodule Ziwoas.Solakon.HistoryTest do
     payload = payload("7d")
 
     assert payload.range == "7d"
-    assert Enum.map(payload.chart, &elem(&1, 0)) == ["times", "datasets"]
-    assert payload.chart |> List.keyfind("times", 0) |> elem(1) == []
+    assert payload.chart.times == []
     assert Enum.map(datasets(payload.chart), &label/1) == ["PV", "Akku", "Außensteckdose", "0 W"]
     assert Enum.map(datasets(payload.chart), &data/1) == [[], [], [], []]
     assert payload.balance_rows == []

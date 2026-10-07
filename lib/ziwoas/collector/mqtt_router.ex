@@ -1,14 +1,13 @@
 defmodule Ziwoas.Collector.MqttRouter do
   @moduledoc """
-  Rails' `MqttRouter`: one MQTT connection subscribed to the union of its handlers'
+  One MQTT connection subscribed to the union of its handlers'
   topic filters, each message going to the first handler whose `matches?/2` says
   yes. Here the Tortoise311 handler of the `ziwoas-phoenix-ingest` connection; its
   state is the handlers' states, so they live in the connection's process.
 
-  A handler implements this module's behaviour and is pure apart from its writes
-  (`Ziwoas.Repo.write/2`): it returns its next state. A handler that raises is
-  logged and keeps its previous state — one bad payload never drops the
-  connection (Rails' router reconnected on an escaping error).
+  A handler implements this module's behaviour and is pure apart from its database
+  writes: it returns its next state. A handler that raises is logged and keeps its
+  previous state — one bad payload never drops the connection.
   """
   use Tortoise311.Handler
 

@@ -1,5 +1,5 @@
 defmodule Ziwoas.Plugs.AggregatorBackupTest do
-  # Aggregator#backup! from test/aggregator_test.rb. VACUUM INTO cannot run inside a
+  # Aggregator.backup!/3. VACUUM INTO cannot run inside a
   # transaction, so this test takes a connection outside the SQL sandbox and only
   # reads the test database; the backups go to files of their own.
   use ExUnit.Case, async: false

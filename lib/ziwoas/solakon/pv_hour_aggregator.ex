@@ -1,12 +1,9 @@
 defmodule Ziwoas.Solakon.PvHourAggregator do
   @moduledoc """
   Condenses a finished local day of inverter readings into hourly PV means
-  (`solakon_pv_hours`, Rails' `Solakon::PvHourAggregator`), with the four panel
-  means from the snapshots of the same hour. Hours with fewer than 20 readings
-  are dropped. Averages stay in SQLite (`test/vectors/pv_hour_aggregator.json`).
-
-  Writes through the process's repo: the aggregator job wraps it in
-  `Ziwoas.Repo.write/2`.
+  (`solakon_pv_hours`), with the four panel means from the snapshots of the same
+  hour. Hours with fewer than 20 readings are dropped. The averages are taken in
+  SQLite.
   """
   import Ecto.Query
 

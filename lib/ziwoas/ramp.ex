@@ -1,10 +1,8 @@
 defmodule Ziwoas.Ramp do
   @moduledoc """
-  A colour ramp over CSS tokens (Rails' `Ramp`). Colours between stops are
+  A colour ramp over CSS tokens. Colours between stops are
   `color-mix()`, so the browser resolves them and dark mode follows.
   """
-  alias Ziwoas.RubyNumeric
-
   @stops %{
     amber: ~w[var(--ramp-amber-0) var(--ramp-amber-1) var(--ramp-amber-2)],
     blue: ~w[var(--ramp-blue-0) var(--ramp-blue-1) var(--ramp-blue-2)],
@@ -46,12 +44,15 @@ defmodule Ziwoas.Ramp do
   defp clamp(fraction), do: fraction |> max(0.0) |> min(1.0) |> :erlang.float()
 
   defp mix(from, to, share) do
-    percent = RubyNumeric.round(share * 100, 1)
+    percent = Float.round(share * 100, 1)
 
     cond do
       percent == 0 -> from
       percent == 100 -> to
-      true -> "color-mix(in oklab, #{to} #{RubyNumeric.format_g(percent)}%, #{from})"
+      true -> "color-mix(in oklab, #{to} #{percent_text(percent)}%, #{from})"
     end
   end
+
+  defp percent_text(percent) when percent == trunc(percent), do: Integer.to_string(trunc(percent))
+  defp percent_text(percent), do: Float.to_string(percent)
 end

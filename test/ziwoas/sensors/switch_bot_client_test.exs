@@ -1,5 +1,4 @@
 defmodule Ziwoas.Sensors.SwitchBotClientTest do
-  # test/switch_bot_client_test.rb
   use ExUnit.Case, async: true
 
   alias Ziwoas.Config.Switchbot

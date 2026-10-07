@@ -1,6 +1,5 @@
 defmodule Ziwoas.Fritz.BridgeTest do
-  # test/fritz_mqtt_bridge_test.rb: polling, payload, interval and errors. The
-  # broker connection and its backoff are Tortoise's (MqttIntegrationTest).
+  # The broker connection and its backoff are Tortoise's (MqttIntegrationTest).
   use ExUnit.Case, async: true
 
   import ExUnit.CaptureLog
@@ -55,8 +54,8 @@ defmodule Ziwoas.Fritz.BridgeTest do
     test = self()
     state = Bridge.poll_and_publish(state(client(42_500), &send(test, {:published, &1, &2})))
 
-    assert_received {:published, "shellies/robbebike/status/switch:0",
-                     ~s({"apower":42.5,"aenergy":{"total":100.0}})}
+    assert_received {:published, "shellies/robbebike/status/switch:0", payload}
+    assert Jason.decode!(payload) == %{"apower" => 42.5, "aenergy" => %{"total" => 100.0}}
 
     assert state.client.sid == "abc123def456abcd"
     assert state.last_apower_w == 42.5
@@ -107,19 +106,46 @@ defmodule Ziwoas.Fritz.BridgeTest do
     assert_receive {:armed, ^pid, :poll, _delay}, 5_000
   end
 
-  # owner: false stands for the shadow mode the bridge keeps until Phase 2.
-  test "in shadow mode the default publisher polls but never reaches the broker" do
-    poll = %{@poll | idle_interval_seconds: 3600}
+  test "the default publisher sends on the bridge's own connection" do
+    test = self()
+
+    Ziwoas.TestMqtt.record(fn client_id, topic, payload ->
+      send(test, {:mqtt, client_id, topic, payload})
+      :ok
+    end)
 
     pid =
       start_supervised!(
         {Bridge,
-         plug: @plug, client: client(1000), poll: poll, topic_prefix: "shellies", owner: false}
+         plug: @plug,
+         client: client(1000),
+         poll: %{@poll | idle_interval_seconds: 3600},
+         topic_prefix: "shellies"}
       )
+
+    assert_receive {:mqtt, "ziwoas-phoenix-fritz", "shellies/robbebike/status/switch:0", _}
 
     assert %{last_apower_w: 1.0, client: %DectClient{sid: "abc123def456abcd"}} =
              :sys.get_state(pid)
+  end
 
-    assert Process.alive?(pid)
+  test "a failed publish is logged and the bridge keeps polling" do
+    Ziwoas.TestMqtt.record(fn _client_id, _topic, _payload -> {:error, :timeout} end)
+
+    log =
+      capture_log(fn ->
+        pid =
+          start_supervised!(
+            {Bridge,
+             plug: @plug,
+             client: client(1000),
+             poll: %{@poll | idle_interval_seconds: 3600},
+             topic_prefix: "shellies"}
+          )
+
+        assert %{last_apower_w: 1.0} = :sys.get_state(pid)
+      end)
+
+    assert log =~ "FritzBridge: publish on shellies/robbebike/status/switch:0 failed: :timeout"
   end
 end

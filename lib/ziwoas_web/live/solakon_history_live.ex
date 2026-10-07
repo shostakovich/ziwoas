@@ -1,9 +1,7 @@
 defmodule ZiwoasWeb.SolakonHistoryLive do
   @moduledoc """
-  The Solakon-Verlauf on its own (Rails' `SolakonController#history`, the
-  Turbo frame's source): one of the ranges 24h, 7d or 30d, anything else
-  reads as 24h. It reloads every minute, as the frame does; a range tab swaps
-  it in place.
+  The Solakon-Verlauf on its own: one of the ranges 24h, 7d or 30d, anything
+  else reads as 24h. It reloads every minute; a range tab patches `?range=`.
   """
   use ZiwoasWeb, :live_view
 
@@ -13,19 +11,18 @@ defmodule ZiwoasWeb.SolakonHistoryLive do
   alias Ziwoas.Solakon.History
   @refresh_ms 60_000
 
-  @doc "The history's minute refresh, as Rails' frame reloaded itself."
+  @doc "The history's minute refresh."
   def schedule_refresh, do: Process.send_after(self(), :refresh_history, @refresh_ms)
 
   @impl true
-  def mount(params, _session, socket) do
+  def mount(_params, _session, socket) do
     if connected?(socket), do: schedule_refresh()
 
-    {:ok, assign(socket, history: History.payload(params["range"], Clock.now(), zone()))}
+    {:ok, socket}
   end
 
   @impl true
-  def handle_event("history_range", %{"range" => range}, socket),
-    do: {:noreply, reload_history(socket, range)}
+  def handle_params(params, _uri, socket), do: {:noreply, reload_history(socket, params["range"])}
 
   @impl true
   def handle_info(:refresh_history, socket) do
@@ -34,7 +31,7 @@ defmodule ZiwoasWeb.SolakonHistoryLive do
   end
 
   @doc """
-  Renders the history for `range` afresh (a refresh, or a range tab); the
+  Renders the history for `range` afresh (a refresh, or a range patch); the
   `SolakonHistory` hook redraws its chart in place from the new payload.
   """
   def reload_history(socket, range),
@@ -45,8 +42,8 @@ defmodule ZiwoasWeb.SolakonHistoryLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app look={@look} current_path={@current_path}>
-      <.history history={@history} />
+    <Layouts.app flash={@flash} look={@look} current_path={@current_path}>
+      <.history history={@history} path={~p"/solakon/history"} />
     </Layouts.app>
     """
   end

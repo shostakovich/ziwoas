@@ -1,8 +1,8 @@
 defmodule ZiwoasWeb.AssumeSSL do
   @moduledoc """
-  Rails' production `assume_ssl` + `force_ssl`: TLS ends at the reverse proxy, so
-  every request counts as HTTPS (no redirect, whatever the proxy forwards), and
-  every response carries Rails' HSTS header (2 years, subdomains) and flags its
+  TLS ends at the reverse proxy, so every request counts as HTTPS (no redirect,
+  whatever the proxy forwards), and every response carries an HSTS header (2 years,
+  subdomains) and flags its
   cookies `Secure`. The endpoint plugs it first when `config :ziwoas,
   assume_ssl: true` (prod).
   """

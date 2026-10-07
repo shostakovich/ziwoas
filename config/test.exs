@@ -24,7 +24,7 @@ config :phoenix, sort_verified_routes_query_params: true
 
 # No dashboard beat, no scheduler and no device connections in tests: they run on
 # their own schedule.
-config :ziwoas, live_watchers: false, scheduler: false, collector: false
+config :ziwoas, scheduler: false, collector: false
 
 # Outbound HTTP goes to Req.Test stubs named after the client (Ziwoas.Http), and
 # Bright Sky's retries do not wait.

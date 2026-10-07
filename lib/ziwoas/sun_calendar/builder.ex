@@ -1,12 +1,11 @@
 defmodule Ziwoas.SunCalendar.Builder do
   @moduledoc """
-  One calendar year of the PV plant (Rails' `SunCalendar::Builder`). Before
-  the inverter's PV hours begin (the seam), the producer plugs' five-minute
-  energy stands in for the PV power.
+  One calendar year of the PV plant. Before the inverter's PV hours begin (the
+  seam), the producer plugs' five-minute energy stands in for the PV power.
   """
   import Ecto.Query
 
-  alias Ziwoas.{LocalDay, Location, Repo, RubyNumeric, Weather}
+  alias Ziwoas.{LocalDay, Location, Repo, Weather}
   alias Ziwoas.Solakon.PvHour
   alias Ziwoas.SunCalendar
   alias Ziwoas.SunCalendar.{Day, Strip, SunLines, Year}
@@ -59,7 +58,7 @@ defmodule Ziwoas.SunCalendar.Builder do
       max_kwh:
         case Enum.reject(Enum.map(days, & &1.pv_kwh), &is_nil/1) do
           [] -> nil
-          kwh -> RubyNumeric.max(kwh)
+          kwh -> Enum.max(kwh)
         end,
       lines: lines,
       seam: if(plug != [], do: seam)
@@ -88,7 +87,7 @@ defmodule Ziwoas.SunCalendar.Builder do
     from_ts = DateTime.to_unix(from)
     to_ts = DateTime.to_unix(to)
 
-    # Unordered, like Rails' pluck: the naive running sums follow SQLite's row order.
+    # Unordered: the running sums follow SQLite's row order.
     %{rows: rows} =
       Repo.query!(
         "SELECT bucket_ts, energy_delta_wh FROM samples_5min WHERE plug_id IN (#{marks(producer_ids)}) " <>
@@ -105,7 +104,7 @@ defmodule Ziwoas.SunCalendar.Builder do
         else
           hour = beginning_of_hour(time)
           key = DateTime.to_unix(hour)
-          energy = RubyNumeric.to_f(energy_wh)
+          energy = (energy_wh || 0) * 1.0
 
           case totals do
             %{^key => {_, sum}} -> {order, %{totals | key => {hour, sum + energy}}}
@@ -161,7 +160,7 @@ defmodule Ziwoas.SunCalendar.Builder do
 
   defp rounded_max(values) do
     peak =
-      if values == %{}, do: 0.0, else: values |> Map.values() |> Enum.max() |> RubyNumeric.to_f()
+      if values == %{}, do: 0.0, else: values |> Map.values() |> Enum.max()
 
     :erlang.float(max(ceil(peak / @max_step) * @max_step, @max_step))
   end
@@ -179,15 +178,15 @@ defmodule Ziwoas.SunCalendar.Builder do
     kwh =
       pv
       |> by_day()
-      |> Map.new(fn {doy, values} -> {doy, RubyNumeric.sum(values) / @watts_per_kilowatt} end)
+      |> Map.new(fn {doy, values} -> {doy, Enum.sum(values) / @watts_per_kilowatt} end)
 
     irradiance =
-      solar |> by_day() |> Map.new(fn {doy, values} -> {doy, RubyNumeric.sum(values)} end)
+      solar |> by_day() |> Map.new(fn {doy, values} -> {doy, Enum.sum(values)} end)
 
     cloud_avg =
       cloud
       |> by_day()
-      |> Map.new(fn {doy, values} -> {doy, RubyNumeric.sum(values) / length(values)} end)
+      |> Map.new(fn {doy, values} -> {doy, Enum.sum(values) / length(values)} end)
 
     for date <- Date.range(Date.new!(year, 1, 1), Date.new!(year, 12, 31)) do
       doy = Date.day_of_year(date)

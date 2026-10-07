@@ -1,5 +1,4 @@
 defmodule ZiwoasWeb.SensorsControllerTest do
-  # Mirrors the series test of test/controllers/sensors_controller_test.rb.
   use ZiwoasWeb.ConnCase
 
   alias Ziwoas.{Clock, Repo, TestClock}
@@ -33,23 +32,41 @@ defmodule ZiwoasWeb.SensorsControllerTest do
     refute "TEST_OUTDOOR" in Enum.map(body["co2"], & &1["device_id"])
   end
 
-  test "points are the last 24 hours in milliseconds, in Rails' key order, without gaps",
+  test "points are the last 24 hours in milliseconds, oldest first, without gaps",
        %{conn: conn} do
     reading!("TEST_INDOOR", 24 * 60 + 1, temperature: 19.0, humidity: 40, co2: 500)
     reading!("TEST_INDOOR", 24 * 60, temperature: 20.0, humidity: 41, co2: nil)
     reading!("TEST_INDOOR", 10, temperature: 21.5, humidity: nil, co2: 650)
 
-    body = conn |> get(~p"/sensors/series") |> response(200)
-    since_ms = (@now |> Clock.parse!() |> DateTime.to_unix()) * 1000 - 24 * 3600 * 1000
+    body = conn |> get(~p"/sensors/series") |> json_response(200)
+    since_ms = (@now |> Clock.parse!() |> DateTime.to_unix(:millisecond)) - 24 * 3600 * 1000
+    recent_ms = since_ms + 1430 * 60_000
 
-    assert body ==
-             ~s({"temperature":[{"device_id":"TEST_INDOOR","name":"Test Wohnzimmer","points":) <>
-               ~s([[#{since_ms},20.0],[#{since_ms + 1430 * 60_000},21.5]]},) <>
-               ~s({"device_id":"TEST_OUTDOOR","name":"Test Balkon","points":[]}],) <>
-               ~s("humidity":[{"device_id":"TEST_INDOOR","name":"Test Wohnzimmer","points":) <>
-               ~s([[#{since_ms},41]]},{"device_id":"TEST_OUTDOOR","name":"Test Balkon","points":[]}],) <>
-               ~s("co2":[{"device_id":"TEST_INDOOR","name":"Test Wohnzimmer","points":) <>
-               ~s([[#{since_ms + 1430 * 60_000},650]]}]})
+    assert body == %{
+             "temperature" => [
+               %{
+                 "device_id" => "TEST_INDOOR",
+                 "name" => "Test Wohnzimmer",
+                 "points" => [[since_ms, 20.0], [recent_ms, 21.5]]
+               },
+               %{"device_id" => "TEST_OUTDOOR", "name" => "Test Balkon", "points" => []}
+             ],
+             "humidity" => [
+               %{
+                 "device_id" => "TEST_INDOOR",
+                 "name" => "Test Wohnzimmer",
+                 "points" => [[since_ms, 41]]
+               },
+               %{"device_id" => "TEST_OUTDOOR", "name" => "Test Balkon", "points" => []}
+             ],
+             "co2" => [
+               %{
+                 "device_id" => "TEST_INDOOR",
+                 "name" => "Test Wohnzimmer",
+                 "points" => [[recent_ms, 650]]
+               }
+             ]
+           }
   end
 
   test "answers JSON whatever the request accepts", %{conn: conn} do

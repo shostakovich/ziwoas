@@ -1,15 +1,13 @@
 defmodule Ziwoas.Govee.Lan do
   @moduledoc """
-  Rails' `Govees::LanClient`: the Govee LAN protocol. Commands are JSON datagrams
-  to a lamp's port 4003; a scan goes to the multicast group 239.255.255.250:4001;
-  lamps answer scans and `devStatus` on port 4002, where the bridge listens.
+  The Govee LAN protocol. Commands are JSON datagrams to a lamp's port 4003; a
+  scan goes to the multicast group 239.255.255.250:4001; lamps answer scans and
+  `devStatus` on port 4002, where the bridge listens.
 
-  `datagram/2` builds what to send (pure); `send_datagram/1` sends it from a
-  throwaway UDP socket, as Rails opens one per command. Sending is a device write:
-  `send_datagram/1` calls `Ziwoas.Ownership.ensure_owner!(:govee_bridge)` first.
+  `datagram/1` builds what to send (pure); `send_datagram/1` sends it from a
+  throwaway UDP socket, one per command.
   """
   alias Ziwoas.Govee.Types
-  alias Ziwoas.{Ownership, RubyJSON}
 
   @cmd_port 4003
   @scan_group ~c"239.255.255.250"
@@ -26,41 +24,39 @@ defmodule Ziwoas.Govee.Lan do
   `{:request_status, ip}` or `:discover`.
   """
   @spec datagram(tuple | :discover) :: datagram
-  def datagram({:turn, ip, on}), do: command(ip, "turn", [{"value", if(on, do: 1, else: 0)}])
-  def datagram({:brightness, ip, value}), do: command(ip, "brightness", [{"value", value}])
+  def datagram({:turn, ip, on}), do: command(ip, "turn", %{"value" => if(on, do: 1, else: 0)})
+  def datagram({:brightness, ip, value}), do: command(ip, "brightness", %{"value" => value})
   def datagram({:request_status, ip}), do: command(ip, "devStatus", %{})
 
   def datagram({:color, ip, %{r: r, g: g, b: b}}),
     do:
-      command(ip, "colorwc", [{"color", [{"r", r}, {"g", g}, {"b", b}]}, {"colorTemInKelvin", 0}])
+      command(ip, "colorwc", %{
+        "color" => %{"r" => r, "g" => g, "b" => b},
+        "colorTemInKelvin" => 0
+      })
 
   def datagram({:color_temp, ip, kelvin}),
     do:
-      command(ip, "colorwc", [
-        {"color", [{"r", 0}, {"g", 0}, {"b", 0}]},
-        {"colorTemInKelvin", kelvin}
-      ])
+      command(ip, "colorwc", %{
+        "color" => %{"r" => 0, "g" => 0, "b" => 0},
+        "colorTemInKelvin" => kelvin
+      })
 
   def datagram(:discover) do
     %{
       host: List.to_string(@scan_group),
       port: @scan_port,
-      data: encode("scan", [{"account_topic", "reserve"}])
+      data: encode("scan", %{"account_topic" => "reserve"})
     }
   end
 
   defp command(ip, cmd, data), do: %{host: ip, port: @cmd_port, data: encode(cmd, data)}
 
-  defp encode(cmd, data), do: RubyJSON.generate!([{"msg", [{"cmd", cmd}, {"data", data}]}])
+  defp encode(cmd, data), do: JSON.encode!(%{"msg" => %{"cmd" => cmd, "data" => data}})
 
-  @doc """
-  Sends one datagram from a fresh socket (multicast TTL 2 for the scan, as Rails).
-  Raises `Ziwoas.Ownership.NotOwnerError` unless Phoenix owns `govee_bridge`.
-  """
+  @doc "Sends one datagram from a fresh socket (multicast TTL 2, for the scan)."
   @spec send_datagram(datagram) :: :ok | {:error, term}
   def send_datagram(%{host: host, port: port, data: data}) do
-    Ownership.ensure_owner!(:govee_bridge)
-
     with {:ok, address} <- :inet.parse_address(String.to_charlist(host)),
          {:ok, socket} <- :gen_udp.open(0, [:binary, multicast_ttl: 2]) do
       try do
@@ -74,7 +70,7 @@ defmodule Ziwoas.Govee.Lan do
   # --- Replies --------------------------------------------------------------------
 
   @doc """
-  `LanClient.parse_status`: a `devStatus` reply as `%{on:, brightness:, color_r:,
+  A `devStatus` reply as `%{on:, brightness:, color_r:,
   color_g:, color_b:, color_temp_k:, sku:}`, or nil for anything else, including
   out-of-range values (never crashes the listener).
   """
@@ -102,7 +98,7 @@ defmodule Ziwoas.Govee.Lan do
     end
   end
 
-  @doc "`LanClient.parse_scan`: `%{ip:, mac:, sku:}` from a scan reply, else nil."
+  @doc "`%{ip:, mac:, sku:}` from a scan reply, else nil."
   @spec parse_scan(binary) :: map | nil
   def parse_scan(payload) do
     case reply_data(payload) do
@@ -126,8 +122,8 @@ defmodule Ziwoas.Govee.Lan do
   defp optional(value, fun), do: fun.(value)
 
   @doc """
-  `Reconciler.lan_to_telemetry`: a parsed status as store telemetry. Kelvin wins
-  when positive, else the colour (when the lamp sent one).
+  A parsed status as store telemetry. Kelvin wins when positive, else the
+  colour (when the lamp sent one).
   """
   @spec telemetry(map) :: map
   def telemetry(status) do
@@ -139,7 +135,7 @@ defmodule Ziwoas.Govee.Lan do
         else: Map.put(telemetry, :brightness, status.brightness)
 
     cond do
-      Ziwoas.RubyNumeric.to_i(status.color_temp_k) > 0 ->
+      (status.color_temp_k || 0) > 0 ->
         Map.put(telemetry, :color_temp_k, status.color_temp_k)
 
       not is_nil(status.color_r) ->

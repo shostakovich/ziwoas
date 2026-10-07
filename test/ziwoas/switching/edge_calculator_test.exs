@@ -1,5 +1,5 @@
 defmodule Ziwoas.Switching.EdgeCalculatorTest do
-  # Mirrors test/models/switching/edge_calculator_test.rb: plain rules, no database.
+  # Plain rules, no database.
   use ExUnit.Case, async: true
 
   alias Ziwoas.Switching.{EdgeCalculator, Rule}

@@ -1,22 +1,22 @@
 defmodule Ziwoas.Trmnl.SensorPayload do
   @moduledoc """
-  The TRMNL sensor widget's `merge_variables` (Rails' `TrmnlSensorPayloadBuilder`):
-  one entry per configured sensor, in config order, with a 3-hour trend in
-  twelve 15-minute buckets. An ordered pair list for `Ziwoas.RubyJSON`.
+  The TRMNL sensor widget's `merge_variables`: one entry per configured
+  sensor, in config order, with a 3-hour trend in twelve 15-minute buckets.
   """
-  alias Ziwoas.{Clock, Config, LocalDay, RubyNumeric, Sensors}
+  alias Ziwoas.{Clock, Config, Sensors}
   alias Ziwoas.Config.Sensor
   alias Ziwoas.Sensors.ReadingPresenter
+  alias Ziwoas.Trmnl.Window
 
   @bucket_seconds 15 * 60
   @buckets 12
 
-  @spec build(Config.t(), DateTime.t()) :: [{String.t(), term}]
+  @spec build(Config.t(), DateTime.t()) :: %{merge_variables: map}
   def build(%Config{} = config, now \\ Clock.now()) do
     zone = config.location.timezone
     entries = Enum.map(config.sensors, &entry(&1, now, zone))
 
-    [{"merge_variables", [{"stand", stand(config.sensors, now, zone)}, {"sensors", entries}]}]
+    %{merge_variables: %{stand: stand(config.sensors, now, zone), sensors: entries}}
   end
 
   defp entry(%Sensor{} = sensor, now, zone) do
@@ -37,38 +37,31 @@ defmodule Ziwoas.Trmnl.SensorPayload do
     values =
       if offline, do: base, else: Map.merge(base, readings(sensor, latest, now, zone, outdoor))
 
-    [
-      {"id", sensor.id},
-      {"name", sensor.name},
-      {"type", if(outdoor, do: "outdoor", else: "indoor")},
-      {"primary", values.primary},
-      {"unit", if(outdoor, do: "°C", else: "ppm CO₂")},
-      {"ampel", values.ampel},
-      {"trend", values.trend},
-      {"trend_min", values.trend_min},
-      {"trend_max", values.trend_max},
-      {"temperature", values.temperature},
-      {"humidity", values.humidity},
-      {"battery_low", ReadingPresenter.battery_low?(latest)},
-      {"battery_pct", latest && latest.battery_pct},
-      {"age_label", ReadingPresenter.age_label(latest, now)},
-      {"offline", offline}
-    ]
+    Map.merge(values, %{
+      id: sensor.id,
+      name: sensor.name,
+      type: if(outdoor, do: "outdoor", else: "indoor"),
+      unit: if(outdoor, do: "°C", else: "ppm CO₂"),
+      battery_low: ReadingPresenter.battery_low?(latest),
+      battery_pct: latest && latest.battery_pct,
+      age_label: ReadingPresenter.age_label(latest, now),
+      offline: offline
+    })
   end
 
   defp readings(sensor, latest, now, zone, outdoor) do
-    temperature = RubyNumeric.round(RubyNumeric.to_f(latest.temperature), 1)
+    temperature = latest.temperature && Float.round(latest.temperature * 1.0, 1)
     trend = trend(sensor, now, zone, outdoor)
     present = Enum.reject(trend, &is_nil/1)
 
     %{
-      primary: if(outdoor, do: temperature, else: RubyNumeric.to_i(latest.co2)),
+      primary: if(outdoor, do: temperature, else: latest.co2),
       ampel: if(outdoor, do: nil, else: co2_level(latest)),
       temperature: temperature,
       humidity: latest.humidity,
       trend: trend,
-      trend_min: if(present == [], do: nil, else: RubyNumeric.min(present)),
-      trend_max: if(present == [], do: nil, else: RubyNumeric.max(present))
+      trend_min: if(present == [], do: nil, else: Enum.min(present)),
+      trend_max: if(present == [], do: nil, else: Enum.max(present))
     }
   end
 
@@ -107,25 +100,13 @@ defmodule Ziwoas.Trmnl.SensorPayload do
   end
 
   defp average(values, outdoor) do
-    avg = RubyNumeric.to_f(RubyNumeric.sum(values)) / length(values)
-    if outdoor, do: RubyNumeric.round(avg, 1), else: RubyNumeric.round(avg, 0)
+    avg = Enum.sum(values) / length(values)
+    if outdoor, do: Float.round(avg, 1), else: round(avg)
   end
 
-  @doc "`{start_ts, end_ts}`: 3 hours up to the 15-minute boundary after `now`, local time."
+  @doc "`{start_ts, end_ts}`: 3 hours up to the local 15-minute boundary after `now`."
   @spec window(DateTime.t(), String.t()) :: {integer, integer}
-  def window(now, zone) do
-    local = DateTime.shift_zone!(now, zone)
-
-    slot = %{
-      DateTime.to_naive(local)
-      | minute: div(local.minute, 15) * 15,
-        second: 0,
-        microsecond: {0, 0}
-    }
-
-    end_ts = DateTime.to_unix(LocalDay.to_instant(slot, zone)) + @bucket_seconds
-    {end_ts - @buckets * @bucket_seconds, end_ts}
-  end
+  def window(now, zone), do: Window.ending_after(now, zone, @bucket_seconds, @buckets)
 
   defp stand(sensors, now, zone) do
     sensors

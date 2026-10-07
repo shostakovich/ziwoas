@@ -1,7 +1,7 @@
 defmodule Ziwoas.Lights do
   @moduledoc """
-  The Govee lights as the Schalten page and a lamp's page show them
-  (`Light`, `LightState`, `LightSnapshot`), and the lamp settings form.
+  The Govee lights as the Schalten page and a lamp's page show them, and the
+  lamp settings form.
   """
   import Ecto.Query
 
@@ -9,14 +9,14 @@ defmodule Ziwoas.Lights do
   alias Ziwoas.Lights.{Light, State}
 
   defmodule Zone do
-    @moduledoc "One zone of a zone lamp (`Lights::Zone`)."
+    @moduledoc "One zone of a zone lamp."
     @enforce_keys [:key, :label, :role, :on]
     defstruct @enforce_keys
     @type t :: %__MODULE__{key: String.t(), label: String.t(), role: String.t(), on: boolean}
   end
 
   defmodule Snapshot do
-    @moduledoc "A light and its last known state (`LightSnapshot`)."
+    @moduledoc "A light and its last known state."
     @enforce_keys [:light, :state]
     defstruct @enforce_keys
     @type t :: %__MODULE__{light: Light.t(), state: State.t() | nil}
@@ -25,7 +25,7 @@ defmodule Ziwoas.Lights do
   @spec get_by_key(String.t()) :: Light.t() | nil
   def get_by_key(key), do: Repo.get_by(Light, key: key)
 
-  @doc "Every light by name with its state (`LightSnapshot.build_all(Light.order(:name))`)."
+  @doc "Every light by name with its state."
   @spec snapshots() :: [Snapshot.t()]
   def snapshots do
     lights = Repo.all(from l in Light, order_by: l.name)
@@ -38,12 +38,13 @@ defmodule Ziwoas.Lights do
   def snapshot(light),
     do: %Snapshot{light: light, state: Repo.get_by(State, light_key: light.key)}
 
+  @doc "The settings form's changeset: name and Shelly plug."
+  @spec change_settings(Light.t(), map) :: Ecto.Changeset.t()
+  def change_settings(light, params \\ %{}), do: Light.settings_changeset(light, params)
+
   @doc "Saves name and Shelly plug, or answers the changeset with its errors."
   @spec update_settings(Light.t(), map) :: {:ok, Light.t()} | {:error, Ecto.Changeset.t()}
-  def update_settings(light, params) do
-    changeset = Light.settings_changeset(light, params)
-    Repo.write(:light_settings, fn -> Repo.update(changeset) end)
-  end
+  def update_settings(light, params), do: light |> change_settings(params) |> Repo.update()
 
   # --- Snapshot readings -------------------------------------------------------
 
@@ -64,7 +65,6 @@ defmodule Ziwoas.Lights do
     end
   end
 
-  # Ruby's %02x: two digits at least, lower case.
   defp hex_byte(value),
     do: value |> Integer.to_string(16) |> String.downcase() |> String.pad_leading(2, "0")
 

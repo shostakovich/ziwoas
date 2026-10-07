@@ -1,13 +1,13 @@
 defmodule Ziwoas.Fritz.DectClient do
   @moduledoc """
-  Rails' `FritzDectClient`: power (mW) and energy (Wh) of a Fritz!DECT plug via the
-  Fritz!Box's AHA HTTP interface, with the challenge-response login of
-  `login_sid.lua`. A session id is reused until a 403 asks for a new login (once).
+  Power (mW) and energy (Wh) of a Fritz!DECT plug via the Fritz!Box's AHA HTTP
+  interface, with the challenge-response login of `login_sid.lua`. A session id is
+  reused until a 403 asks for a new login (once).
 
-  Rails answers the MD5 challenge (`<challenge>-<md5 of UTF-16LE
-  "challenge-password">`); a PBKDF2 challenge (`2$iter1$salt1$iter2$salt2`, Fritz!OS
-  7.24+ when asked with `version=2`) is answered too, so a box that stops offering
-  MD5 still logs in. The request itself is Rails' (no `version`).
+  The login asks without `version`, so the box offers an MD5 challenge
+  (`<challenge>-<md5 of UTF-16LE "challenge-password">`); a PBKDF2 challenge
+  (`2$iter1$salt1$iter2$salt2`, Fritz!OS 7.24+) is answered too, so a box that stops
+  offering MD5 still logs in.
 
   The client is a struct; `fetch/2` returns it with the session it ended on.
   """
@@ -51,43 +51,18 @@ defmodule Ziwoas.Fritz.DectClient do
           {:error, "blank response from #{client.host}", client}
 
         true ->
-          ruby_integer(body, client)
+          integer(body, client)
       end
     end
   end
 
-  defp ruby_integer(body, client) do
-    case parse_integer(body) do
-      {:ok, value} -> {:ok, value, client}
-      :error -> {:error, "unexpected response from #{client.host}: #{body}", client}
+  # The box answers "inval" for a plug it does not know.
+  defp integer(body, client) do
+    case Integer.parse(body) do
+      {value, ""} -> {:ok, value, client}
+      _ -> {:error, "unexpected response from #{client.host}: #{body}", client}
     end
   end
-
-  @doc "Ruby's `Integer(string)`: sign, underscores, `0x`/`0b`/`0o`/`0` prefixes."
-  @spec parse_integer(String.t()) :: {:ok, integer} | :error
-  def parse_integer(text) do
-    case Regex.run(
-           ~r/\A([+-]?)(0[xX]|0[bB]|0[oO]|0(?=[0-7_]))?([0-9a-fA-F]+(?:_[0-9a-fA-F]+)*)\z/,
-           text
-         ) do
-      [_, sign, prefix, digits] ->
-        base = base(String.downcase(prefix))
-
-        case Integer.parse(String.replace(digits, "_", ""), base) do
-          {value, ""} -> {:ok, if(sign == "-", do: -value, else: value)}
-          _ -> :error
-        end
-
-      nil ->
-        :error
-    end
-  end
-
-  defp base("0x"), do: 16
-  defp base("0b"), do: 2
-  defp base("0o"), do: 8
-  defp base("0"), do: 8
-  defp base(""), do: 10
 
   defp with_reauth(client, ain, cmd) do
     case homeauto(client, ain, cmd) do
@@ -177,7 +152,6 @@ defmodule Ziwoas.Fritz.DectClient do
     :exit, _ -> nil
   end
 
-  # REXML's #text of an empty element is nil.
   defp nil_if_blank(""), do: nil
   defp nil_if_blank(text), do: text
 

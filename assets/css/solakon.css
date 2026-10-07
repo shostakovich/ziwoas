@@ -1,4 +1,4 @@
-/* Ramp stops (app/models/ramp.rb) run away from the card surface; low ends are translucent. */
+/* Ramp stops (Ziwoas.Ramp) run away from the card surface; low ends are translucent. */
 .sun-charts {
   --ramp-amber-0: color-mix(in oklab, var(--viz-solar) 14%, transparent);
   --ramp-amber-1: var(--viz-solar);

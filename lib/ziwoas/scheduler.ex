@@ -1,18 +1,16 @@
 defmodule Ziwoas.Scheduler do
   @moduledoc """
-  Phoenix's `config/recurring.yml`: one `Ziwoas.Scheduler.Runner` per job, under
-  this supervisor. A job names its ownership task and runs only while that task is
-  not `:rails` (`Ziwoas.Ownership`). Jobs come from
+  The recurring jobs: one `Ziwoas.Scheduler.Runner` per job, under this supervisor.
+  Jobs come from
 
       config :ziwoas, Ziwoas.Scheduler,
         jobs: [
-          fetch_current_weather: [task: :weather, schedule: "every 15 minutes",
-                                  job: Ziwoas.Weather.CurrentJob]
+          fetch_current_weather: [schedule: "every 15 minutes", job: Ziwoas.Weather.CurrentJob]
         ]
 
-  (keys as in `recurring.yml`), schedules in the configured zone
-  (`location.timezone`). `Ziwoas.Application` starts it unless
-  `config :ziwoas, scheduler: false` (test) or no job is configured.
+  with schedules in the configured zone (`location.timezone`). Other keys of a job
+  are ignored. `Ziwoas.Application` starts it unless `config :ziwoas, scheduler: false`
+  (test) or no job is configured.
   """
   use Supervisor
 
@@ -28,9 +26,7 @@ defmodule Ziwoas.Scheduler do
 
     children =
       for {id, job} <- Keyword.fetch!(opts, :jobs) do
-        {Runner,
-         [id: id, zone: zone] ++
-           Keyword.take(job, [:task, :schedule, :job, :shadow_offset]) ++ extra}
+        {Runner, [id: id, zone: zone] ++ Keyword.take(job, [:schedule, :job]) ++ extra}
       end
 
     Supervisor.init(children, strategy: :one_for_one)

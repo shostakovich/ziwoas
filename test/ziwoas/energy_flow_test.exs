@@ -1,5 +1,4 @@
 defmodule Ziwoas.EnergyFlowTest do
-  # Mirrors test/models/energy_flow_test.rb.
   use ExUnit.Case, async: true
 
   alias Ziwoas.EnergyFlow
@@ -136,25 +135,48 @@ defmodule Ziwoas.EnergyFlowTest do
     assert split(50.0, -5.0, 2.0, 3.0) == expected([0.0, 0.0, 0.0, 3.0, 0.0, 0.0])
   end
 
-  test "an idle battery leaves -0.0 battery-to-home, as Ruby's [-0.0, 0.0].min does" do
+  test "an idle battery sends nothing to the house, not a negative zero" do
     flow =
       EnergyFlow.build(
         1.3,
         reading(active_power_w: 642.4, pv_power_w: 669.1, battery_soc_pct: 100)
       )
 
-    assert EnergyFlow.to_json(flow) ==
-             ~s({"solakon_online":true,"home_w":1.3,"solakon_ac_w":642.4,"solar_w":669.1,) <>
-               ~s("battery_soc_pct":100,"battery_w":0.0,"battery_state":"normal","grid_w":-641.1,) <>
-               ~s("flows":{"solar_to_home_w":1.3,"solar_to_grid_w":641.1,"solar_to_battery_w":0.0,) <>
-               ~s("grid_to_home_w":0.0,"grid_to_battery_w":0.0,"battery_to_home_w":-0.0}})
+    assert flow.flows.battery_to_home_w === 0.0
+
+    assert JSON.decode!(EnergyFlow.to_json(flow)) == %{
+             "solakon_online" => true,
+             "home_w" => 1.3,
+             "solakon_ac_w" => 642.4,
+             "solar_w" => 669.1,
+             "battery_soc_pct" => 100,
+             "battery_w" => 0.0,
+             "battery_state" => "normal",
+             "grid_w" => -641.1,
+             "flows" => %{
+               "solar_to_home_w" => 1.3,
+               "solar_to_grid_w" => 641.1,
+               "solar_to_battery_w" => 0.0,
+               "grid_to_home_w" => 0.0,
+               "grid_to_battery_w" => 0.0,
+               "battery_to_home_w" => 0.0
+             }
+           }
   end
 
-  test "an unknown flow serialises its nils in attribute order" do
-    assert EnergyFlow.to_json(EnergyFlow.build(nil, nil)) ==
-             ~s({"solakon_online":false,"home_w":null,"solakon_ac_w":null,"solar_w":null,) <>
-               ~s("battery_soc_pct":null,"battery_w":null,"battery_state":null,"grid_w":null,) <>
-               ~s("flows":{"solar_to_home_w":null,"solar_to_grid_w":null,"solar_to_battery_w":null,) <>
-               ~s("grid_to_home_w":null,"grid_to_battery_w":null,"battery_to_home_w":null}})
+  test "an unknown flow serialises its unknowns as null" do
+    json = JSON.decode!(EnergyFlow.to_json(EnergyFlow.build(nil, nil)))
+
+    assert json["solakon_online"] == false
+    assert json["home_w"] == nil
+    assert Map.values(json["flows"]) == List.duplicate(nil, 6)
+  end
+
+  test "integer inputs come out as floats" do
+    flow = EnergyFlow.build(200, reading(active_power_w: 150, pv_power_w: 100))
+
+    assert flow.home_w === 200.0
+    assert flow.grid_w === 50.0
+    assert flow.flows.solar_to_home_w === 100.0
   end
 end

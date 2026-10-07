@@ -1,11 +1,10 @@
 defmodule Ziwoas.EnergyFlow do
   @moduledoc """
-  Where the power goes right now (Rails' `EnergyFlow`): the house's draw from
+  Where the power goes right now: the house's draw from
   the consumer plugs, the inverter's fresh reading, and the six flows between
   PV, grid, battery and house. Without a fresh reading the inverter is
   offline and everything derived from it is unknown (nil), not zero.
   """
-  alias Ziwoas.{RubyJSON, RubyNumeric}
   alias Ziwoas.Solakon.Reading
 
   defmodule Flows do
@@ -28,46 +27,45 @@ defmodule Ziwoas.EnergyFlow do
         %__MODULE__{}
       else
         do_split(
-          RubyNumeric.max([RubyNumeric.to_f(home_w), 0.0]),
-          RubyNumeric.max([RubyNumeric.to_f(solar_w), 0.0]),
-          RubyNumeric.to_f(battery_w),
-          RubyNumeric.to_f(grid_w)
+          max(home_w * 1.0, 0.0),
+          max(solar_w * 1.0, 0.0),
+          battery_w * 1.0,
+          grid_w * 1.0
         )
       end
     end
 
     defp do_split(home, solar, battery, grid) do
-      grid_import = max_of(grid, 0.0)
-      solar_to_grid = max_of(-grid, 0.0)
-      grid_to_home = min_of(grid_import, home)
-      home_remaining = max_of(home - grid_to_home, 0.0)
-      solar_remaining = max_of(solar - solar_to_grid, 0.0)
+      grid_import = max(grid, 0.0)
+      solar_to_grid = max(-grid, 0.0)
+      grid_to_home = min(grid_import, home)
+      home_remaining = max(home - grid_to_home, 0.0)
+      solar_remaining = max(solar - solar_to_grid, 0.0)
 
-      solar_to_home = min_of(solar_remaining, home_remaining)
+      solar_to_home = min(solar_remaining, home_remaining)
       solar_remaining = solar_remaining - solar_to_home
       home_remaining = home_remaining - solar_to_home
 
       {solar_to_battery, grid_to_battery, battery_to_home} =
         if battery > 0 do
-          {solar_remaining,
-           min_of(grid_import - grid_to_home, max_of(battery - solar_remaining, 0.0)), 0.0}
+          {solar_remaining, min(grid_import - grid_to_home, max(battery - solar_remaining, 0.0)),
+           0.0}
         else
-          {0.0, 0.0, min_of(-battery, home_remaining)}
+          {0.0, 0.0, min(-battery, home_remaining)}
         end
 
       %__MODULE__{
-        solar_to_home_w: RubyNumeric.round(solar_to_home, 1),
-        solar_to_grid_w: RubyNumeric.round(solar_to_grid, 1),
-        solar_to_battery_w: RubyNumeric.round(solar_to_battery, 1),
-        grid_to_home_w: RubyNumeric.round(grid_to_home, 1),
-        grid_to_battery_w: RubyNumeric.round(grid_to_battery, 1),
-        battery_to_home_w: RubyNumeric.round(battery_to_home, 1)
+        solar_to_home_w: watts(solar_to_home),
+        solar_to_grid_w: watts(solar_to_grid),
+        solar_to_battery_w: watts(solar_to_battery),
+        grid_to_home_w: watts(grid_to_home),
+        grid_to_battery_w: watts(grid_to_battery),
+        battery_to_home_w: watts(battery_to_home)
       }
     end
 
-    # Ruby's `[a, b].max` / `.min`: the first of equal values wins (-0.0 vs 0.0).
-    defp max_of(a, b), do: RubyNumeric.max([a, b])
-    defp min_of(a, b), do: RubyNumeric.min([a, b])
+    # Adding 0.0 turns a negative zero (an idle battery's -0.0) into 0.0.
+    defp watts(value), do: Float.round(value, 1) + 0.0
   end
 
   @keys [
@@ -105,15 +103,15 @@ defmodule Ziwoas.EnergyFlow do
     }
   end
 
-  @doc "The state as Rails serialises the struct (`to_json`), keys in attribute order."
+  @doc "The state as JSON, for the `EnergyFlow` hook's `data-state`."
   @spec to_json(t) :: String.t()
   def to_json(%__MODULE__{} = flow) do
-    flows = for key <- Flows.keys(), do: {key, Map.fetch!(flow.flows, key)}
-    pairs = for key <- @keys, do: {key, if(key == :flows, do: flows, else: Map.fetch!(flow, key))}
-    RubyJSON.encode!(pairs)
+    flow
+    |> Map.from_struct()
+    |> Map.update!(:flows, &Map.from_struct/1)
+    |> JSON.encode!()
   end
 
-  # dry-types' coercible.float: Integers become Floats, nil stays.
   defp float(nil), do: nil
-  defp float(value), do: RubyNumeric.to_f(value)
+  defp float(value), do: value * 1.0
 end

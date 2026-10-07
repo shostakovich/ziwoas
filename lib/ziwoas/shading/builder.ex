@@ -1,6 +1,6 @@
 defmodule Ziwoas.Shading.Builder do
   @moduledoc """
-  The shading report of the PV page (Rails' `Shading::Builder`): every PV hour
+  The shading report of the PV page: every PV hour
   with the irradiance of the same hour and the sun's position at its middle,
   calibrated by the best hour's ratio of power to irradiance.
   """

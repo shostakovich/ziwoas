@@ -1,6 +1,4 @@
 defmodule Ziwoas.Lights.CommandsTest do
-  # Mirrors test/models/lights/operations/*_test.rb and the commander half of
-  # test/lib/govees/commander_test.rb.
   use Ziwoas.DataCase
 
   alias Ziwoas.{Repo, TestClock, TestMqtt}
@@ -81,19 +79,19 @@ defmodule Ziwoas.Lights.CommandsTest do
     setup do: %{light: light!(%{key: "C1", color_temp_min_k: 2700, color_temp_max_k: 6500})}
 
     test "brightness, colour, white and scenes are fire and forget", %{light: light} do
-      assert {:ok, :no_content} = Commands.run(light, "brightness", %{"value" => " 42 "})
+      assert {:ok, :sent} = Commands.run(light, "brightness", %{"value" => " 42 "})
 
-      assert {:ok, :no_content} =
+      assert {:ok, :sent} =
                Commands.run(light, "color", %{"r" => "10", "g" => "20", "b" => "30"})
 
-      assert {:ok, :no_content} = Commands.run(light, "color_temp", %{"temp_k" => "2200"})
-      assert {:ok, :no_content} = Commands.run(light, "color_temp", %{"temp_k" => "9000"})
-      assert {:ok, :no_content} = Commands.run(light, "effect", %{"effect" => "Forest"})
-      assert {:ok, :no_content} = Commands.run(light, "scene", %{"scene" => "Rock & <Roll>"})
+      assert {:ok, :sent} = Commands.run(light, "color_temp", %{"temp_k" => "2200"})
+      assert {:ok, :sent} = Commands.run(light, "color_temp", %{"temp_k" => "9000"})
+      assert {:ok, :sent} = Commands.run(light, "effect", %{"effect" => "Forest"})
+      assert {:ok, :sent} = Commands.run(light, "scene", %{"scene" => "Rock & <Roll>"})
 
       assert sent() == [
                {"govees/C1/set", ~s({"brightness":42})},
-               {"govees/C1/set", ~s({"color":{"r":10,"g":20,"b":30}})},
+               {"govees/C1/set", ~s({"color":{"b":30,"g":20,"r":10}})},
                {"govees/C1/set", ~s({"color_temp_k":2700})},
                {"govees/C1/set", ~s({"color_temp_k":6500})},
                {"govees/C1/set", ~s({"scene":"Forest"})},
@@ -172,16 +170,23 @@ defmodule Ziwoas.Lights.CommandsTest do
                }
     end
 
-    test "the stored key order is kept and a new key appended, as Ruby's Hash#merge" do
-      light!(%{key: "Z4", zones: ~w[mainLightToggle backgroundLightToggle]})
-
-      Repo.insert!(%State{light_key: "Z4"})
-      Repo.query!(~s(UPDATE light_states SET zone_states = '{"mainLightToggle":true}'))
+    test "a zone bit merges into the stored zones, creating the row when missing" do
+      Commands.record_zone_state("Z4", "mainLightToggle", true)
       Commands.record_zone_state("Z4", "backgroundLightToggle", false)
       Commands.record_zone_state("Z4", "mainLightToggle", false)
 
-      assert %{rows: [[~s({"mainLightToggle":false,"backgroundLightToggle":false})]]} =
-               Repo.query!("SELECT zone_states FROM light_states")
+      assert state("Z4").zone_states == %{
+               "mainLightToggle" => false,
+               "backgroundLightToggle" => false
+             }
+    end
+
+    test "an unchanged zone bit is not written again" do
+      Commands.record_zone_state("Z5", "mainLightToggle", true)
+      stamp = state("Z5").updated_at
+      TestClock.freeze("2026-06-15T19:00:00Z")
+      Commands.record_zone_state("Z5", "mainLightToggle", true)
+      assert state("Z5").updated_at == stamp
     end
 
     test "a commander failure leaves the stored zones alone" do
@@ -215,7 +220,7 @@ defmodule Ziwoas.Lights.CommandsTest do
     end
   end
 
-  test "the command names are Rails' Lights::Operations" do
+  test "the known command names" do
     for name <- ~w[turn zone brightness color color_temp effect scene zone_undo],
         do: assert(Commands.command?(name))
 

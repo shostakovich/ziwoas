@@ -1,42 +1,32 @@
 defmodule Ziwoas.Weather.Sync do
   @moduledoc """
-  Bright Sky into `weather_records` (Rails' `WeatherSync`): one `current` row per
-  location, `forecast` hours that a day's observations later replace as
-  `historic`. Rows are keyed by kind, location and timestamp; values are cast as
-  Rails casts them (`Ziwoas.RailsCast`), so both apps store the same bytes
-  (`test/vectors/weather_sync.json`).
-
-  Writes through the process's repo: the jobs wrap it in `Ziwoas.Repo.write/2`.
+  Bright Sky into `weather_records`: one `current` row per location, `forecast`
+  hours that a day's observations later replace as `historic`. Rows are keyed by
+  kind, location and timestamp (`idx_weather_records_identity`); syncing a known
+  hour again updates its row.
   """
   import Ecto.Query
 
   require Logger
 
-  alias Ziwoas.{Clock, Live, LocalDay, Location, RailsCast, Repo}
+  alias Ziwoas.{Clock, Live, LocalDay, Location, Repo}
   alias Ziwoas.Plugs.DailyTotal
   alias Ziwoas.Weather.{BrightskyClient, Record}
 
   @forecast_max_days 10
-
-  @floats ~w[precipitation pressure_msl sunshine temperature wind_speed dew_point wind_gust_speed solar]a
-  @integers ~w[source_id wind_direction cloud_cover relative_humidity visibility wind_gust_direction
-               precipitation_probability precipitation_probability_6h]a
-  @strings ~w[condition icon daytime]a
+  @identity [:kind, :lat, :lon, :timestamp]
 
   @doc """
-  A weather job's frame (Rails' `WeatherSync.from_app_config` and the
-  broadcast after it): runs `sync` with the configured location and today's
-  date inside `Repo.write(task, …)`, then tells the Wetter page — as owner only.
-  Without coordinates it logs and does nothing.
+  A weather job's frame: runs `sync` with the configured location and today's
+  date, then tells the Wetter page. Without coordinates it logs and does nothing.
   """
   @spec perform(Ziwoas.Scheduler.Job.context(), (Location.t(), Date.t() -> any)) :: :ok
-  def perform(%{task: task} = context, sync) do
+  def perform(context, sync) do
     location = Ziwoas.Scheduler.Job.config(context).location
 
     if Location.located?(location) do
-      today = Clock.today(location.timezone)
-      Repo.write(task, fn -> sync.(location, today) end)
-      Live.broadcast(task, "weather", {:weather_updated})
+      sync.(location, Clock.today(location.timezone))
+      Live.broadcast("weather", {:weather_updated})
     else
       Logger.info("weather: not configured")
     end
@@ -49,11 +39,16 @@ defmodule Ziwoas.Weather.Sync do
     row = BrightskyClient.current_weather(location)
     {lat, lon} = coordinates(location)
 
-    Repo.delete_all(
-      from r in Record, where: r.kind == "current" and r.lat == ^lat and r.lon == ^lon
-    )
+    {:ok, record} =
+      Repo.transact(fn ->
+        Repo.delete_all(
+          from r in Record, where: r.kind == "current" and r.lat == ^lat and r.lon == ^lon
+        )
 
-    Repo.insert!(struct(Record, attrs("current", row, location)))
+        {:ok, Repo.insert!(changeset("current", row, location))}
+      end)
+
+    record
   end
 
   @spec sync_today(Location.t(), Date.t()) :: :ok
@@ -114,50 +109,30 @@ defmodule Ziwoas.Weather.Sync do
   end
 
   defp upsert!(kind, row, location) do
-    {lat, lon} = coordinates(location)
-    attrs = attrs(kind, row, location)
-
-    existing =
-      Repo.one(
-        from r in Record,
-          where:
-            r.kind == ^kind and r.lat == ^lat and r.lon == ^lon and
-              r.timestamp == ^attrs.timestamp
-      )
-
-    case existing do
-      nil -> Repo.insert!(struct(Record, attrs))
-      record -> record |> Ecto.Changeset.change(Map.delete(attrs, :timestamp)) |> Repo.update!()
-    end
+    Repo.insert!(changeset(kind, row, location),
+      on_conflict: {:replace_all_except, [:id, :inserted_at]},
+      conflict_target: @identity
+    )
   end
 
-  defp attrs(kind, row, location) do
+  defp changeset(kind, row, location) do
     {lat, lon} = coordinates(location)
-
-    row
-    |> Map.new(fn
-      {key, value} when key in @floats -> {key, RailsCast.float(value)}
-      {key, value} when key in @integers -> {key, RailsCast.integer(value)}
-      {key, value} when key in @strings -> {key, RailsCast.string(value)}
-      {:timestamp, value} -> {:timestamp, value}
-    end)
-    |> Map.merge(%{kind: kind, lat: lat, lon: lon})
+    Record.changeset(Map.merge(row, %{kind: kind, lat: lat, lon: lon}))
   end
 
-  defp coordinates(location), do: {RailsCast.float(location.lat), RailsCast.float(location.lon)}
+  defp coordinates(%Location{lat: lat, lon: lon}), do: {lat * 1.0, lon * 1.0}
 
-  # Rails' `date.beginning_of_day..date.end_of_day` in the configured zone.
+  # The hours from local midnight to the next one.
   defp historic_complete?(location, date) do
     {lat, lon} = coordinates(location)
-    zone = location.timezone
-    from = LocalDay.midnight(date, zone) |> utc()
-    to = date |> NaiveDateTime.new!(~T[23:59:59.999999]) |> LocalDay.to_instant(zone) |> utc()
+    from = date |> LocalDay.midnight(location.timezone) |> utc()
+    to = date |> Date.add(1) |> LocalDay.midnight(location.timezone) |> utc()
 
     Repo.aggregate(
       from(r in Record,
         where:
           r.kind == "historic" and r.lat == ^lat and r.lon == ^lon and
-            r.timestamp >= ^from and r.timestamp <= ^to
+            r.timestamp >= ^from and r.timestamp < ^to
       ),
       :count
     ) >= 24

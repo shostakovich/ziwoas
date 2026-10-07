@@ -1,6 +1,4 @@
 defmodule Ziwoas.Solakon.ReadingTest do
-  # Mirrors the read side of test/models/solakon/reading_test.rb and
-  # snapshot_test.rb, and the status decoder of test/lib/solakon/client_test.rb.
   use Ziwoas.DataCase
 
   alias Ziwoas.{Repo, Solakon}

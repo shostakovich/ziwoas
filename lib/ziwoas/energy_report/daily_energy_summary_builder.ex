@@ -16,7 +16,6 @@ defmodule Ziwoas.EnergyReport.DailyEnergySummaryBuilder do
     roster = Roster.new(plugs)
     {start_ts, end_ts} = LocalDay.window(date, timezone)
 
-    # Unordered like Rails' query: the naive sums below follow SQLite's row order.
     rows =
       Repo.all(from s in Sample5min, where: s.bucket_ts >= ^start_ts and s.bucket_ts < ^end_ts)
 

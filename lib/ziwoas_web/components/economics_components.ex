@@ -1,12 +1,10 @@
 defmodule ZiwoasWeb.EconomicsComponents do
   @moduledoc """
-  The Wirtschaftlichkeit card (`Economics::OverviewCardComponent`): what the
+  The Wirtschaftlichkeit card: what the
   plant cost, what it saved, how much of it is earned back and when it pays
   for itself.
   """
   use ZiwoasWeb, :html
-
-  import ZiwoasWeb.CoreComponents
 
   alias Ziwoas.Economics.Overview
   alias Ziwoas.GermanNumber
@@ -66,9 +64,14 @@ defmodule ZiwoasWeb.EconomicsComponents do
 
       <p :if={@hint} class="small text-body-secondary">{@hint}</p>
 
-      <a :if={@link} class="btn btn-sm btn-outline-secondary" href="/solakon/wirtschaftlichkeit">
+      <.button
+        :if={@link}
+        variant="outline-secondary"
+        size="sm"
+        navigate={~p"/solakon/wirtschaftlichkeit"}
+      >
         {if @result.costed, do: "Kosten und Preise pflegen", else: "Kosten erfassen"}
-      </a>
+      </.button>
     </.card>
     """
   end

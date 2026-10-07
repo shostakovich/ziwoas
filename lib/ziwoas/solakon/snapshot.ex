@@ -1,13 +1,13 @@
 defmodule Ziwoas.Solakon.Snapshot do
   @moduledoc """
-  Full register snapshot of the Solakon inverter (`solakon_snapshots`), with
-  the read side of Rails' `Solakon::Snapshot`: the four panels and the status.
+  Full register snapshot of the Solakon inverter (`solakon_snapshots`): the four
+  panels and the status.
   """
   use Ziwoas.Schema
 
   import Ecto.Query
 
-  alias Ziwoas.{Repo, RubyNumeric}
+  alias Ziwoas.Repo
 
   @type t :: %__MODULE__{}
 
@@ -56,7 +56,7 @@ defmodule Ziwoas.Solakon.Snapshot do
   end
 
   @doc """
-  The row `Solakon::SnapshotJob` stores for a decoded
+  The row `Ziwoas.Solakon.SnapshotJob` stores for a decoded
   `Ziwoas.Solakon.Client.read_snapshot/1` taken at `taken_at`.
   """
   @spec from_data(map, DateTime.t()) :: Ecto.Changeset.t()
@@ -104,9 +104,9 @@ defmodule Ziwoas.Solakon.Snapshot do
         ] do
       %{
         label: "Panel #{idx}",
-        power_w: RubyNumeric.to_f(power),
-        voltage_v: RubyNumeric.to_f(voltage),
-        current_a: RubyNumeric.to_f(current)
+        power_w: to_float(power),
+        voltage_v: to_float(voltage),
+        current_a: to_float(current)
       }
     end
   end
@@ -115,9 +115,12 @@ defmodule Ziwoas.Solakon.Snapshot do
   @spec pv_power_w(t) :: float
   def pv_power_w(%__MODULE__{} = s) do
     [s.pv1_power_w, s.pv2_power_w, s.pv3_power_w, s.pv4_power_w]
-    |> Enum.map(&RubyNumeric.to_f/1)
-    |> RubyNumeric.sum()
+    |> Enum.map(&to_float/1)
+    |> Enum.sum()
   end
+
+  defp to_float(nil), do: 0.0
+  defp to_float(value), do: value * 1.0
 
   @spec status_messages(t) :: [String.t()]
   def status_messages(%__MODULE__{} = snapshot),

@@ -1,10 +1,10 @@
 defmodule ZiwoasWeb.LookController do
-  @moduledoc "Switches the look (Rails' `LooksController#update`): a permanent cookie, then back."
+  @moduledoc "Switches the look: a long-lived cookie, then back to the page."
   use ZiwoasWeb, :controller
 
   alias Ziwoas.Look
 
-  # Rails' `cookies.permanent`: 20 years.
+  # 20 years.
   @max_age 20 * 365 * 24 * 60 * 60
 
   def update(conn, params) do
@@ -25,7 +25,7 @@ defmodule ZiwoasWeb.LookController do
     end
   end
 
-  # redirect_back_or_to: the Referer when it points here, else the root.
+  # The Referer when it points here, else the root.
   defp back_url(conn) do
     with [referer | _] <- get_req_header(conn, "referer"),
          %URI{host: host} = uri when host in [nil, conn.host] <- URI.parse(referer) do

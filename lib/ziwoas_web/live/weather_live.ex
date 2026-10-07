@@ -1,8 +1,7 @@
 defmodule ZiwoasWeb.WeatherLive do
   @moduledoc """
-  The Wetter page (Rails' `WeatherController#index`). Rails refreshes it over
-  the `weather` Turbo stream; here a `{:weather_updated}` on the `weather`
-  PubSub topic reloads it once something publishes there.
+  The Wetter page. A `{:weather_updated}` on the `weather` PubSub topic (the
+  weather jobs, `Ziwoas.Sensors.PollJob`) reloads it.
 
   A segment tile of the next days opens that segment's hours below the tiles and
   closes the day's other segment (`"toggle_segment"`); the choice outlives a reload.
@@ -39,7 +38,7 @@ defmodule ZiwoasWeb.WeatherLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app look={@look} current_path={@current_path}>
+    <Layouts.app flash={@flash} look={@look} current_path={@current_path}>
       <h1 class="h2 mb-3">Wetter</h1>
 
       <.empty current={@current} today={@today} days={@days} />

@@ -1,5 +1,5 @@
 defmodule Ziwoas.Switching.ScheduleTest do
-  # Mirrors test/models/switching/rules/schedule_test.rb: folding is pure, no database.
+  # Folding is pure, no database.
   use ExUnit.Case, async: true
 
   alias Ziwoas.Switching.{Rule, Schedule}

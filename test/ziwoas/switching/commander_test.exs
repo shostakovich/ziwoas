@@ -1,5 +1,4 @@
 defmodule Ziwoas.Switching.CommanderTest do
-  # Mirrors test/models/switching/commander_test.rb.
   use Ziwoas.DataCase
 
   import Ecto.Query

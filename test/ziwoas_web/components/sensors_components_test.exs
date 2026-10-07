@@ -1,5 +1,4 @@
 defmodule ZiwoasWeb.SensorsComponentsTest do
-  # Mirrors test/components/sensors/co2_gauge_component_test.rb.
   use ExUnit.Case, async: true
 
   import Phoenix.LiveViewTest
