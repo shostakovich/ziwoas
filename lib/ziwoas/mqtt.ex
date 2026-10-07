@@ -10,10 +10,17 @@ defmodule Ziwoas.Mqtt do
 
   The web side's commands (plug switches, lamp commands) share one connection,
   `command_client_id/0`, started by `Ziwoas.Collector`.
+
+  `publish/4` goes through `config :ziwoas, :mqtt_publisher`, a module with
+  `publish/4` (this behaviour), fixed at compile time: `Ziwoas.Mqtt.Broker`, in
+  tests `Ziwoas.TestMqtt` (test/support), which can record publishes.
   """
   @backoff [min_interval: 1_000, max_interval: 60_000]
-  @publish_timeout_ms 5_000
   @command_client_id "ziwoas-phoenix-command"
+  @publisher Application.compile_env(:ziwoas, :mqtt_publisher, Ziwoas.Mqtt.Broker)
+
+  @callback publish(client_id :: String.t(), topic :: String.t(), payload :: binary, keyword) ::
+              :ok | {:error, term}
 
   @doc "The client id of the command connection."
   def command_client_id, do: @command_client_id
@@ -37,34 +44,22 @@ defmodule Ziwoas.Mqtt do
   `{:error, reason}` while the broker is unreachable.
   """
   @spec publish(String.t(), String.t(), iodata, keyword) :: :ok | {:error, term}
-  def publish(client_id, topic, payload, opts \\ []) do
-    retain = Keyword.get(opts, :retain, false)
+  def publish(client_id, topic, payload, opts \\ []),
+    do: @publisher.publish(client_id, topic, IO.iodata_to_binary(payload), opts)
 
-    case recorder() do
-      nil ->
-        Tortoise311.publish(client_id, topic, payload,
-          qos: 0,
-          retain: retain,
-          timeout: Keyword.get(opts, :timeout, @publish_timeout_ms)
-        )
+  defmodule Broker do
+    @moduledoc "Publishes through the Tortoise311 connection `client_id`."
+    @behaviour Ziwoas.Mqtt
 
-      record when is_function(record, 4) ->
-        record.(client_id, topic, IO.iodata_to_binary(payload), retain)
+    @publish_timeout_ms 5_000
 
-      record ->
-        record.(client_id, topic, IO.iodata_to_binary(payload))
-    end
-  end
-
-  # Tests hand publishes to a recorder instead of the broker through
-  # `config :ziwoas, mqtt_recorder: {module, function}`: a 0-arity function that answers
-  # the recorder or `nil` (`Ziwoas.TestMqtt` in test/support). The application never
-  # sets it. A recorder takes `(client_id, topic, payload)` or, with arity 4, `retain`
-  # too, and returns what `publish/4` returns.
-  defp recorder do
-    case Application.get_env(:ziwoas, :mqtt_recorder) do
-      nil -> nil
-      {module, function} -> apply(module, function, [])
+    @impl true
+    def publish(client_id, topic, payload, opts) do
+      Tortoise311.publish(client_id, topic, payload,
+        qos: 0,
+        retain: Keyword.get(opts, :retain, false),
+        timeout: Keyword.get(opts, :timeout, @publish_timeout_ms)
+      )
     end
   end
 end

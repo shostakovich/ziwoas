@@ -9,7 +9,6 @@ defmodule Ziwoas.SunCalendar.Builder do
   alias Ziwoas.Solakon.PvHour
   alias Ziwoas.SunCalendar
   alias Ziwoas.SunCalendar.{Day, Strip, SunLines, Year}
-  alias Ziwoas.Weather.Record
 
   @watts_per_kilowatt 1000.0
   @max_step 50
@@ -121,19 +120,7 @@ defmodule Ziwoas.SunCalendar.Builder do
   defp beginning_of_hour(%DateTime{} = time),
     do: %{time | minute: 0, second: 0, microsecond: {0, 0}}
 
-  defp weather_records(location, {from, to}) do
-    if Location.located?(location) do
-      Repo.all(
-        from r in Record,
-          where:
-            r.kind == "historic" and r.lat == ^location.lat and r.lon == ^location.lon and
-              r.timestamp >= ^from and r.timestamp < ^to,
-          order_by: r.timestamp
-      )
-    else
-      []
-    end
-  end
+  defp weather_records(location, {from, to}), do: Weather.historic_records(location, from, to)
 
   defp weather_points(records, zone, value) do
     for record <- records,

@@ -26,13 +26,13 @@ defmodule Ziwoas.Sensors.PollJobTest do
 
   setup do
     Ziwoas.TestClock.freeze("2026-10-05T12:00:00.250000+02:00")
+    Ziwoas.Sensors.subscribe()
     Phoenix.PubSub.subscribe(Ziwoas.PubSub, "sensors")
     Phoenix.PubSub.subscribe(Ziwoas.PubSub, "weather")
     :ok
   end
 
-  defp context(config \\ TestConfigs.plugs(@sensors)),
-    do: %{at: Ziwoas.Clock.now(), config: config}
+  defp context, do: [config: TestConfigs.plugs(@sensors), at: Ziwoas.Clock.now()]
 
   # Each device answers `status.(id)`: a body map, or an HTTP status.
   defp stub_switchbot(status) do
@@ -117,24 +117,21 @@ defmodule Ziwoas.Sensors.PollJobTest do
     assert [%{device_id: "B"}] = readings()
   end
 
-  test "does nothing without SwitchBot credentials" do
-    Req.Test.stub(SwitchBotClient, fn _conn -> flunk("asked SwitchBot") end)
-
-    PollJob.perform(context(TestConfigs.plugs()))
-
-    assert readings() == []
-    refute_received {:sensors_updated}
-  end
-
   test "pushes the TRMNL sensor widget, then tells the pages" do
     stub_switchbot(&status/1)
     stub_trmnl()
 
     PollJob.perform(context())
 
+    now = Ziwoas.Clock.now()
+
     assert {:messages,
-            [{:pushed, "example.test", "/sensors", body}, {:sensors_updated}, {:weather_updated}]} =
-             mailbox()
+            [
+              {:pushed, "example.test", "/sensors", body},
+              {:polled, ^now},
+              {:sensors_updated},
+              {:weather_updated}
+            ]} = mailbox()
 
     assert %{"merge_variables" => %{"sensors" => [%{"id" => "A"}, %{"id" => "B"}]}} =
              JSON.decode!(body)

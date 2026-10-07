@@ -13,12 +13,12 @@ defmodule Ziwoas.Weather.JobsTest do
 
   setup do
     Ziwoas.TestClock.freeze("2026-05-04T10:00:00+02:00")
+    Ziwoas.Weather.subscribe()
     Phoenix.PubSub.subscribe(Ziwoas.PubSub, "weather")
     :ok
   end
 
-  defp context(extra \\ %{}),
-    do: Map.merge(%{at: Ziwoas.Clock.now(), config: @config}, extra)
+  defp context, do: [config: @config, at: Ziwoas.Clock.now()]
 
   defp hour(timestamp, extra \\ %{}),
     do: Map.merge(%{"timestamp" => timestamp, "source_id" => 7003, "icon" => "cloudy"}, extra)
@@ -50,17 +50,8 @@ defmodule Ziwoas.Weather.JobsTest do
       CurrentJob.perform(context())
 
       assert kinds() == [{"current", ~U[2026-05-04 10:15:00.000000Z]}]
+      assert_received {:synced, ~D[2026-05-04]}
       assert_received {:weather_updated}
-    end
-
-    test "does nothing without coordinates" do
-      Req.Test.stub(BrightskyClient, fn _conn -> flunk("asked Bright Sky") end)
-      config = Ziwoas.TestConfigs.plugs()
-
-      assert CurrentJob.perform(context(%{config: config})) == :ok
-
-      assert kinds() == []
-      refute_received {:weather_updated}
     end
   end
 

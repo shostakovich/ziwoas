@@ -8,8 +8,8 @@ defmodule Ziwoas.Solakon.Control.LoadReader do
   for an hour in the calling process. The monitor job runs in its scheduler
   runner, which lives as long as the app; a restart recomputes it.
   """
+  alias Ziwoas.{Plugs, PowerSeries}
   alias Ziwoas.Plugs.{Measurement, Roster}
-  alias Ziwoas.PowerSeries
   alias Ziwoas.Solakon.Control.Load
 
   @floor_window_s 24 * 60 * 60
@@ -26,9 +26,7 @@ defmodule Ziwoas.Solakon.Control.LoadReader do
   @spec current_consumption_w(Roster.t(), DateTime.t(), number) :: float | nil
   def current_consumption_w(roster, now, offline_after_s \\ Measurement.offline_after_s()) do
     ids = Roster.consumer_ids(roster)
-    # The age keeps its fraction of a second.
-    now_s = DateTime.to_unix(now, :microsecond) / 1_000_000
-    ids |> Measurement.for_plugs(now_s, offline_after_s) |> Measurement.total_w(ids)
+    ids |> Plugs.latest_measurements(now, offline_after_s) |> Measurement.total_w(ids)
   end
 
   @doc "The lowest five-minute consumption total of the last 24 hours, 0.0 without samples."

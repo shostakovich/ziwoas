@@ -3,8 +3,8 @@ defmodule Ziwoas.Scheduler.TestJob do
   @behaviour Ziwoas.Scheduler.Job
 
   @impl true
-  def perform(context) do
-    send(List.last(Ziwoas.TestProcess.lineage()), {:performed, context})
+  def perform(opts) do
+    send(List.last(Ziwoas.TestProcess.lineage()), {:performed, opts})
     :ok
   end
 end
@@ -16,8 +16,8 @@ defmodule Ziwoas.Scheduler.FailingTestJob do
   alias Ziwoas.Scheduler.TestJob
 
   @impl true
-  def perform(context) do
-    TestJob.perform(context)
+  def perform(opts) do
+    TestJob.perform(opts)
     raise "job failed"
   end
 end

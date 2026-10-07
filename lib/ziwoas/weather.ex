@@ -1,12 +1,49 @@
 defmodule Ziwoas.Weather do
   @moduledoc """
-  The weather records the Wetter page shows. `timestamp` is the end of the period a record sums up: 10 minutes
-  for `current`, 60 for `forecast` and `historic`.
+  The weather records (`weather_records`). `timestamp` is the end of the period
+  a record sums up: 10 minutes for `current`, 60 for `forecast` and `historic`.
+
+  `subscribe/0` delivers `{:synced, local_date}` after a sync with Bright Sky.
   """
   import Ecto.Query
 
-  alias Ziwoas.Repo
+  alias Ziwoas.{Live, Location, Repo}
   alias Ziwoas.Weather.{Day, Icon, Record}
+
+  @topic inspect(__MODULE__)
+
+  @spec subscribe() :: :ok | {:error, term}
+  def subscribe, do: Phoenix.PubSub.subscribe(Ziwoas.PubSub, @topic)
+
+  @doc "Tells the subscribers that a sync on the local date `today` is stored."
+  @spec notify_synced(Date.t()) :: :ok
+  def notify_synced(%Date{} = today) do
+    broadcast(:synced, today)
+    Live.broadcast("weather", {:weather_updated})
+    :ok
+  end
+
+  defp broadcast(event, payload),
+    do: Phoenix.PubSub.broadcast(Ziwoas.PubSub, @topic, {event, payload})
+
+  @doc """
+  The `historic` records at `location` with timestamps in `[from, to)`, oldest
+  first; none without coordinates.
+  """
+  @spec historic_records(Location.t(), DateTime.t(), DateTime.t()) :: [Record.t()]
+  def historic_records(%Location{} = location, %DateTime{} = from, %DateTime{} = to) do
+    if Location.located?(location) do
+      Repo.all(
+        from r in Record,
+          where:
+            r.kind == "historic" and r.lat == ^location.lat and r.lon == ^location.lon and
+              r.timestamp >= ^from and r.timestamp < ^to,
+          order_by: r.timestamp
+      )
+    else
+      []
+    end
+  end
 
   @doc "The newest `current` record, or nil."
   @spec latest_current() :: Record.t() | nil

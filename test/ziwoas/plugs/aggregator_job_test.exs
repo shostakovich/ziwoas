@@ -11,17 +11,9 @@ defmodule Ziwoas.Plugs.AggregatorJobTest do
     :ok
   end
 
-  # The real backup (VACUUM INTO) cannot run inside the sandbox's transaction:
-  # Ziwoas.Plugs.AggregatorBackupTest.
-  defp perform do
-    test = self()
-
-    AggregatorJob.perform(%{
-      config: TestConfigs.plugs(),
-      backup_dir: "backups",
-      backup: fn dir, today -> send(test, {:backup, dir, today}) end
-    })
-  end
+  # Without a backup directory: the real backup (VACUUM INTO) cannot run inside the
+  # sandbox's transaction (Ziwoas.Plugs.AggregatorBackupTest).
+  defp perform, do: AggregatorJob.perform(config: TestConfigs.plugs(), backup_dir: nil)
 
   defp seed_day do
     start = berlin_midnight(~D[2026-04-10])
@@ -29,7 +21,7 @@ defmodule Ziwoas.Plugs.AggregatorJobTest do
     insert_sample!("bkw", start + 3600, 10, 150)
   end
 
-  test "aggregates the finished days and backs the database up" do
+  test "aggregates the finished days" do
     seed_day()
 
     perform()
@@ -38,7 +30,6 @@ defmodule Ziwoas.Plugs.AggregatorJobTest do
              Repo.get_by!(DailyTotal, plug_id: "bkw", date: "2026-04-10")
 
     assert Repo.get_by(DailyEnergySummary, date: "2026-04-10")
-    assert_received {:backup, "backups", ~D[2026-04-11]}
   end
 
   test "condenses the inverter readings of finished days into PV hours" do

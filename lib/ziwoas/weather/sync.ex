@@ -7,32 +7,24 @@ defmodule Ziwoas.Weather.Sync do
   """
   import Ecto.Query
 
-  require Logger
-
-  alias Ziwoas.{Clock, Live, LocalDay, Location, Repo}
+  alias Ziwoas.{Clock, LocalDay, Location, Repo, Weather}
   alias Ziwoas.Plugs.DailyTotal
-  alias Ziwoas.Scheduler.Job
   alias Ziwoas.Weather.{BrightskyClient, Record}
 
   @forecast_max_days 10
   @identity [:kind, :lat, :lon, :timestamp]
 
   @doc """
-  A weather job's frame: runs `sync` with the configured location and today's
-  date, then tells the Wetter page. Without coordinates it logs and does nothing.
+  A weather job's frame: runs `sync` with the configured location (which has
+  coordinates, else the scheduler starts no weather job) and today's date, then
+  tells the subscribers.
   """
-  @spec perform(Ziwoas.Scheduler.Job.context(), (Location.t(), Date.t() -> any)) :: :ok
-  def perform(context, sync) do
-    location = Job.config(context).location
-
-    if Location.located?(location) do
-      sync.(location, Clock.today(location.timezone))
-      Live.broadcast("weather", {:weather_updated})
-    else
-      Logger.debug("weather: not configured")
-    end
-
-    :ok
+  @spec perform(keyword, (Location.t(), Date.t() -> any)) :: :ok
+  def perform(opts, sync) do
+    location = Keyword.fetch!(opts, :config).location
+    today = Clock.today(location.timezone)
+    sync.(location, today)
+    Weather.notify_synced(today)
   end
 
   @spec sync_current(Location.t()) :: Record.t()

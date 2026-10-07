@@ -4,9 +4,7 @@ defmodule Ziwoas.EnergyReport.WeatherLoader do
   of the configured location between the local midnights of a date range. A
   location without coordinates has none.
   """
-  import Ecto.Query
-
-  alias Ziwoas.{LocalDay, Location, Repo, Weather}
+  alias Ziwoas.{LocalDay, Location, Weather}
   alias Ziwoas.Weather.{Record, Segment}
 
   @type day :: %{solar_kwh_per_m2: float | nil, asset_name: String.t(), alt: String.t()}
@@ -48,21 +46,10 @@ defmodule Ziwoas.EnergyReport.WeatherLoader do
     end
   end
 
-  defp historic_records(%Location{lat: lat, lon: lon, timezone: zone} = location, first, last) do
-    if Location.located?(location) do
-      from_ts = first |> LocalDay.midnight(zone) |> DateTime.shift_zone!("Etc/UTC")
-      to_ts = last |> Date.add(1) |> LocalDay.midnight(zone) |> DateTime.shift_zone!("Etc/UTC")
-
-      Repo.all(
-        from r in Record,
-          where:
-            r.kind == "historic" and r.lat == ^lat and r.lon == ^lon and
-              r.timestamp >= ^from_ts and r.timestamp < ^to_ts,
-          order_by: r.timestamp
-      )
-    else
-      []
-    end
+  defp historic_records(%Location{timezone: zone} = location, first, last) do
+    from = first |> LocalDay.midnight(zone) |> DateTime.shift_zone!("Etc/UTC")
+    to = last |> Date.add(1) |> LocalDay.midnight(zone) |> DateTime.shift_zone!("Etc/UTC")
+    Weather.historic_records(location, from, to)
   end
 
   # `historic` solar is kWh/m² per 60-minute period, so the day's total is the sum.

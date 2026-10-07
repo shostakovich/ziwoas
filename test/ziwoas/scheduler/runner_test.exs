@@ -11,8 +11,8 @@ defmodule Ziwoas.Scheduler.RunnerTest do
 
     opts = [
       id: :poll_sensors,
-      schedule: "every 15 minutes",
-      job: TestJob,
+      schedule: {:every, 15, :minute},
+      job: {TestJob, config: :config},
       zone: "Europe/Berlin",
       clock: fn -> Agent.get(clock, & &1) end,
       timer: fn pid, message, delay ->
@@ -41,8 +41,8 @@ defmodule Ziwoas.Scheduler.RunnerTest do
     set_clock(clock, ~U[2026-10-05 10:15:02.000000Z])
     send(pid, {:due, due})
 
-    assert_receive {:performed, %{at: ^due} = context}
-    assert Map.keys(context) == [:at]
+    assert_receive {:performed, opts}
+    assert opts == [at: due, config: :config]
     assert_receive {:armed, ^pid, {:due, ~U[2026-10-05 10:30:00Z]}, 898_000}
   end
 
@@ -77,19 +77,19 @@ defmodule Ziwoas.Scheduler.RunnerTest do
     set_clock(clock, ~U[2026-10-05 10:47:00.000000Z])
     send(pid, {:due, due})
 
-    assert_receive {:performed, %{at: ^due}}
+    assert_receive {:performed, [at: ^due, config: :config]}
     assert_receive {:armed, ^pid, {:due, ~U[2026-10-05 11:00:00Z]}, 780_000}
   end
 
   test "a failing job is logged and the schedule goes on", %{clock: clock, opts: opts} do
-    pid = start!(Keyword.put(opts, :job, FailingTestJob))
+    pid = start!(Keyword.put(opts, :job, {FailingTestJob, []}))
     assert_receive {:armed, ^pid, {:due, due}, _}
     set_clock(clock, due)
 
     log =
       capture_log(fn ->
         send(pid, {:due, due})
-        assert_receive {:performed, %{at: _}}
+        assert_receive {:performed, [at: _]}
         assert_receive {:armed, ^pid, {:due, ~U[2026-10-05 10:30:00Z]}, _}
       end)
 
@@ -98,18 +98,17 @@ defmodule Ziwoas.Scheduler.RunnerTest do
     assert Process.alive?(pid)
   end
 
-  test "the supervisor starts one runner per configured job", %{opts: opts} do
-    jobs = [
-      poll_sensors: [schedule: "every 15 minutes", job: TestJob],
-      fetch_current_weather: [schedule: "every 15 minutes", job: TestJob]
-    ]
+  test "the supervisor starts one runner per job the config enables", %{opts: opts} do
+    config = Ziwoas.TestConfigs.located()
 
     sup =
       start_supervised!(
-        {Ziwoas.Scheduler, [name: nil, jobs: jobs] ++ Keyword.take(opts, [:zone, :clock, :timer])}
+        {Ziwoas.Scheduler, [name: nil, config: config] ++ Keyword.take(opts, [:clock, :timer])}
       )
 
     assert sup |> Supervisor.which_children() |> Enum.map(&elem(&1, 0)) |> Enum.sort() ==
-             [:fetch_current_weather, :poll_sensors]
+             config |> Ziwoas.Scheduler.jobs() |> Enum.map(&elem(&1, 0)) |> Enum.sort()
+
+    assert Supervisor.count_children(sup).workers == 5
   end
 end

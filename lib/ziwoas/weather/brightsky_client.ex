@@ -11,6 +11,8 @@ defmodule Ziwoas.Weather.BrightskyClient do
   @base_url "https://api.brightsky.dev"
   @retries 2
   @timeout_ms 5_000
+  # Tests do not wait between retries (config/test.exs).
+  @retry_base_ms Application.compile_env(:ziwoas, :brightsky_retry_base_ms, 500)
 
   defmodule Error do
     @moduledoc "Bright Sky answered with an error, garbage or not at all."
@@ -65,7 +67,7 @@ defmodule Ziwoas.Weather.BrightskyClient do
   defp retry?(_request, _exception), do: true
 
   defp retry_delay(count),
-    do: Application.get_env(:ziwoas, :brightsky_retry_base_ms, 500) * (count + 1)
+    do: @retry_base_ms * (count + 1)
 
   defp decode!(body) do
     case JSON.decode(body) do

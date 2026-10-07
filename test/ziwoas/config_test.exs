@@ -276,18 +276,53 @@ defmodule Ziwoas.ConfigTest do
     assert [_, %{switchable: true}] = load(switchable).plugs
   end
 
-  test "a missing file is a config error" do
-    assert_raise Error, ~r/config file not found/, fn ->
-      Config.load!("/nonexistent/path/ziwoas.yml")
-    end
+  test "a missing file and broken YAML are config errors" do
+    assert {:error, "config file not found: /nonexistent/path/ziwoas.yml"} =
+             Config.load("/nonexistent/path/ziwoas.yml")
+
+    assert Config.from_yaml("location: [nope") == {:error, "config file is not valid YAML"}
+    assert Config.from_yaml("- a list") == {:error, "config root must be a mapping"}
+    assert Config.from_yaml("") == {:error, "config root must be a mapping"}
   end
 
-  test "app_config reads the configured file once until reset" do
-    first = Config.app_config()
-    assert Config.app_config() === first
-    assert first.location.timezone == "Europe/Berlin"
-    assert :ok = Config.reset()
-    assert Config.app_config() == first
+  test "the fixture loads" do
+    assert {:ok, %Config{location: %{timezone: "Europe/Berlin"}}} =
+             Config.load(Ziwoas.TestConfigs.file(:test))
+  end
+
+  test "one message lists every error, each with its path" do
+    yaml = """
+    timezone: Europe/Berlin
+    location:
+      timezone: Mars/Olympus
+    mqtt:
+      host: h
+      port: zero
+    plugs:
+      - id: Bad-Id
+        role: producer
+      - id: fridge
+        name: Fridge
+        role: freezer
+    sensors: nope
+    """
+
+    message = error(yaml)
+
+    for part <- [
+          "'timezone' has moved to location.timezone",
+          "location.timezone 'Mars/Olympus' is not a valid IANA timezone",
+          "mqtt.port must be a number",
+          "mqtt.topic_prefix is required",
+          "plugs[0].id must contain only a-z, 0-9 and _",
+          "plugs[0].name is required",
+          "plugs[1].role must be one of producer, consumer",
+          "sensors must be a list of mappings"
+        ] do
+      assert message =~ part
+    end
+
+    assert length(String.split(message, "; ")) == 8
   end
 
   @solakon "solakon:\n  host: 192.168.1.50\n"
@@ -361,7 +396,7 @@ defmodule Ziwoas.ConfigTest do
     end
 
     refute Map.has_key?(load(@valid), :owners)
-    assert capture_log(fn -> load(@valid) end) == ""
+    refute capture_log(fn -> load(@valid) end) =~ "config:"
   end
 
   test "numbers may be quoted, but must be numbers" do
@@ -387,7 +422,7 @@ defmodule Ziwoas.ConfigTest do
 
   test "a govee device that is not a mapping is a config error" do
     assert error(@valid <> "govee:\n  devices:\n    - 14ABDB4844064B60\n") =~
-             "govee.devices[] must be a mapping"
+             "govee.devices must be a list of mappings"
   end
 
   test "an idle threshold of zero is allowed, a negative one is not" do
@@ -397,7 +432,7 @@ defmodule Ziwoas.ConfigTest do
     negative = String.replace(@valid <> @fritz, "idle_threshold_w: 10", "idle_threshold_w: -1")
 
     assert error(negative) =~
-             "fritz_poll.idle_threshold_w must be > 0"
+             "fritz_poll.idle_threshold_w must be >= 0"
   end
 
   @minimal "location: { timezone: Europe/Berlin }\nmqtt: { host: h, port: 1883, topic_prefix: shellies }\nplugs: []\n"
@@ -417,5 +452,9 @@ defmodule Ziwoas.ConfigTest do
     assert %{api_key: "yml-secret-key", lan_poll_seconds: 8} = cfg.govee
     assert cfg.govee.names["14ABDB4844064B60"] == %{name: "Uplighter"}
     assert load(@minimal).govee == nil
+
+    assert load(@minimal <> "govee:\n  devices: { key: K1, name: Lampe }\n").govee.names == %{
+             "K1" => %{name: "Lampe"}
+           }
   end
 end

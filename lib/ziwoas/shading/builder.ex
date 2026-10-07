@@ -9,7 +9,6 @@ defmodule Ziwoas.Shading.Builder do
   alias Ziwoas.{Location, Repo, Sun, Weather}
   alias Ziwoas.Shading.{DailyProfiles, Hour, PanelCurves, Report, SunPaths, YieldMap}
   alias Ziwoas.Solakon.PvHour
-  alias Ziwoas.Weather.Record
 
   @calibration_min_irradiance_w_per_m2 300
   # "The best hour" as the 95th percentile rather than the single maximum: one
@@ -56,20 +55,13 @@ defmodule Ziwoas.Shading.Builder do
   defp irradiance_by_time(_location, []), do: %{}
 
   defp irradiance_by_time(location, rows) do
-    if Location.located?(location) do
-      from = DateTime.add(hd(rows).started_at, 3600)
-      to = DateTime.add(List.last(rows).started_at, 3600)
+    from = DateTime.add(hd(rows).started_at, 3600)
+    # Inclusive: the record stamped at the end of the last PV hour.
+    to = List.last(rows).started_at |> DateTime.add(3600) |> DateTime.add(1, :microsecond)
 
-      Repo.all(
-        from r in Record,
-          where:
-            r.kind == "historic" and r.lat == ^location.lat and r.lon == ^location.lon and
-              r.timestamp >= ^from and r.timestamp <= ^to
-      )
-      |> Enum.reduce(%{}, &put_irradiance/2)
-    else
-      %{}
-    end
+    location
+    |> Weather.historic_records(from, to)
+    |> Enum.reduce(%{}, &put_irradiance/2)
   end
 
   defp put_irradiance(record, out) do

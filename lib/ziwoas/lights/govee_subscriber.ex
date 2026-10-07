@@ -11,7 +11,7 @@ defmodule Ziwoas.Lights.GoveeSubscriber do
 
   require Logger
 
-  alias Ziwoas.{Clock, Repo}
+  alias Ziwoas.{Clock, Lights, Repo}
   alias Ziwoas.Govee.Messages
   alias Ziwoas.Lights.{Light, State}
 
@@ -87,16 +87,11 @@ defmodule Ziwoas.Lights.GoveeSubscriber do
     with {:ok, %{} = hash} <- JSON.decode(payload),
          {:ok, message} <- Messages.state(hash),
          :ok <- record_state(key, message) do
-      broadcast(key)
+      Lights.notify_updated(key)
       :ok
     else
       _ -> Logger.warning("Govee subscriber: invalid state on #{topic}")
     end
-  end
-
-  defp broadcast(key) do
-    Phoenix.PubSub.broadcast(Ziwoas.PubSub, "light_#{key}", {:light_updated, key})
-    Phoenix.PubSub.broadcast(Ziwoas.PubSub, "lights", {:light_updated, key})
   end
 
   # Power, readings and zone bits in one write.

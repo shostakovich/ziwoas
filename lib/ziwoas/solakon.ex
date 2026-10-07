@@ -1,9 +1,31 @@
 defmodule Ziwoas.Solakon do
   @moduledoc """
-  The read side of the Solakon inverter: status bits decoded into German
-  messages. Modbus itself lives in `Ziwoas.Solakon.Monitor`.
+  The Solakon inverter: status bits decoded into German messages, and the
+  readings' live updates. Modbus itself lives in `Ziwoas.Solakon.Monitor`.
+
+  `subscribe/0` delivers `{:reading, %Ziwoas.Solakon.Reading{}}` once a reading
+  is stored and the control tick on it has run.
   """
   import Bitwise
+
+  alias Ziwoas.Live
+  alias Ziwoas.Solakon.Reading
+
+  @topic inspect(__MODULE__)
+
+  @spec subscribe() :: :ok | {:error, term}
+  def subscribe, do: Phoenix.PubSub.subscribe(Ziwoas.PubSub, @topic)
+
+  @doc "Tells the subscribers about a stored reading."
+  @spec notify_reading(Reading.t()) :: :ok
+  def notify_reading(%Reading{} = reading) do
+    broadcast(:reading, reading)
+    Live.broadcast("solakon", {:solakon_reading, reading.id})
+    :ok
+  end
+
+  defp broadcast(event, payload),
+    do: Phoenix.PubSub.broadcast(Ziwoas.PubSub, @topic, {event, payload})
 
   @alarm_bit_labels [
     alarm1: [

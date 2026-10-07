@@ -3,20 +3,18 @@ defmodule Ziwoas.Clock do
   The one source of "now": every reading of the current instant or date goes
   through it, so tests can pin the instant.
 
-  Tests freeze it through `config :ziwoas, frozen_clock: {module, function}`: a
-  0-arity function that answers the frozen instant or `nil` (`Ziwoas.TestClock` in
-  test/support). The application never sets it and reads the system clock.
+  The instant comes from `config :ziwoas, :clock`, a module with `utc_now/0`
+  (this behaviour), fixed at compile time: `DateTime` itself, in tests
+  `Ziwoas.TestClock` (test/support), which can freeze it.
   """
+
+  @callback utc_now() :: DateTime.t()
+
+  @source Application.compile_env(:ziwoas, :clock, DateTime)
 
   @doc "The current instant in UTC, microsecond precision."
   @spec now() :: DateTime.t()
-  def now do
-    case frozen() do
-      nil -> DateTime.utc_now()
-      instant -> instant
-    end
-    |> with_usec_precision()
-  end
+  def now, do: with_usec_precision(@source.utc_now())
 
   @doc "The current instant in `zone`."
   @spec now(String.t()) :: DateTime.t()
@@ -46,13 +44,6 @@ defmodule Ziwoas.Clock do
     case DateTime.from_iso8601(text) do
       {:ok, instant, _offset} -> with_usec_precision(instant)
       {:error, reason} -> raise ArgumentError, "invalid instant #{inspect(text)}: #{reason}"
-    end
-  end
-
-  defp frozen do
-    case Application.get_env(:ziwoas, :frozen_clock) do
-      nil -> nil
-      {module, function} -> apply(module, function, [])
     end
   end
 

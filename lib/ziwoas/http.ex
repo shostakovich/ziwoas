@@ -8,10 +8,12 @@ defmodule Ziwoas.Http do
   `plug:` (the collector's clients, whose tests run them in other processes).
   """
 
+  @stubs Application.compile_env(:ziwoas, :http_stubs, false)
+
   @spec new(module, keyword) :: Req.Request.t()
   def new(client, opts) do
     stubs =
-      if Application.get_env(:ziwoas, :http_stubs, false) and not Keyword.has_key?(opts, :plug),
+      if @stubs and not Keyword.has_key?(opts, :plug),
         do: [plug: {Req.Test, client}],
         else: []
 

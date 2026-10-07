@@ -22,17 +22,15 @@ config :phoenix_live_view, enable_expensive_runtime_checks: true
 
 config :phoenix, sort_verified_routes_query_params: true
 
-# No dashboard beat, no scheduler and no device connections in tests: they run on
-# their own schedule.
+# No scheduler and no device connections in tests (read at compile time by
+# Ziwoas.Application): they run on their own schedule.
 config :ziwoas, scheduler: false, collector: false
 
-# Outbound HTTP goes to Req.Test stubs named after the client (Ziwoas.Http), and
-# Bright Sky's retries do not wait.
+# Read at compile time. Outbound HTTP goes to Req.Test stubs named after the client
+# (Ziwoas.Http), and Bright Sky's retries do not wait.
 config :ziwoas, http_stubs: true, brightsky_retry_base_ms: 0
 
-# A frozen clock (Ziwoas.TestClock.freeze/1) and an MQTT recorder
-# (Ziwoas.TestMqtt.record/1), both in test/support, seen by the processes a test
-# starts as well.
-config :ziwoas,
-  frozen_clock: {Ziwoas.TestClock, :frozen},
-  mqtt_recorder: {Ziwoas.TestMqtt, :recorder}
+# Read at compile time: a clock tests can freeze (Ziwoas.TestClock.freeze/1) and an
+# MQTT publisher tests can record (Ziwoas.TestMqtt.record/1), both in test/support,
+# seen by the processes a test starts as well.
+config :ziwoas, clock: Ziwoas.TestClock, mqtt_publisher: Ziwoas.TestMqtt

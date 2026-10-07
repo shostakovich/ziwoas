@@ -10,35 +10,48 @@ and the web endpoint run in the same VM under `Ziwoas.Application`. Domain vocab
 Ziwoas.Supervisor (one_for_one)
 ├── Ziwoas.Repo                 SQLite (ecto_sqlite3)
 ├── Phoenix.PubSub              Ziwoas.PubSub: live updates for the pages
-├── ZiwoasWeb.Endpoint          Bandit
 ├── Ziwoas.Collector            device connections (see Collector)
-└── Ziwoas.Scheduler            recurring jobs (see Scheduler)
+├── Ziwoas.Scheduler            recurring jobs (see Scheduler)
+└── ZiwoasWeb.Endpoint          Bandit, last: it serves what the others started
 ```
 
-`Ziwoas.Application.boot_config/0` reads `config/ziwoas.yml` once at boot. If it does not load,
-the error is logged and the app serves pages without the collector or the scheduler. Tests start
-neither (`config :ziwoas, collector: false, scheduler: false` in `config/test.exs`).
+`Ziwoas.Application.start/2` loads `config/ziwoas.yml` once and keeps the result
+(`Ziwoas.Config.put/1`). If it does not load, the error is logged and the app serves pages
+without the collector or the scheduler; `Config.fetch/0` answers the error. Collector and
+scheduler get the config as their start option `config:`. Tests start neither
+(`config :ziwoas, collector: false, scheduler: false` in `config/test.exs`, read at compile
+time).
 
 ## Configuration
 
 - **`config/ziwoas.yml`** (not in the repo; template `config/ziwoas.example.yml`) describes the
   devices: location, MQTT, plugs, Fritz!Box, Solakon, Govee, SwitchBot sensors, TRMNL webhooks.
-  `Ziwoas.Config` reads it with `yamerl`, checks it and turns it into structs (`Ziwoas.Config`,
-  `Ziwoas.Plugs.Plug`, `Ziwoas.Location`, …). `Config.app_config/0` keeps it in
-  `:persistent_term` per path. `Config.plug_roster/1` gives the **plug roster**. Retired keys
-  are refused with a pointer to their new place, and the old `electricity_price_eur_per_kwh`
-  key and a `migration:` block are ignored with a warning.
+  `Ziwoas.Config` reads it with `yamerl` and casts it into one embedded schema per section
+  (`Ziwoas.Config` with `Ziwoas.Location`, `Ziwoas.Plugs.Plug`, `Config.Mqtt`, …; lenient
+  scalar types in `Config.Types`). A config that does not validate is one message listing every
+  error with its path (`plugs[1].role must be one of producer, consumer; …`). The loaded
+  result lives in `:persistent_term`: `Config.fetch/0` gives `{:ok, config}` or
+  `{:error, message}`, `Config.get/0` the config or raises `Config.Error`.
+  `Config.plug_roster/1` gives the **plug roster**. Retired keys are refused with a pointer to
+  their new place, and the old `electricity_price_eur_per_kwh` key and a `migration:` block are
+  ignored with a warning.
 - **Cost items and electricity prices** live in the database (ADR-0004), maintained on
   `/solakon/wirtschaftlichkeit`.
 - **Paths**: `ZIWOAS_CONFIG` and `ZIWOAS_DB` (`config/runtime.exs`). Development defaults to
   `config/ziwoas.yml` and `storage/development.sqlite3`, tests to
   `test/fixtures/ziwoas.test.yml` and `tmp/test.sqlite3`. A release needs both variables.
-- **Time**: `Ziwoas.Clock` is the only source of "now" (`now/0,1`, `today/1`, `unix_now/0`). Tests
-  freeze it through `config :ziwoas, frozen_clock:` (`Ziwoas.TestClock`). Local days and zones
-  come from `tz` (`Ziwoas.LocalDay`, `Ziwoas.Location`); Elixir itself only knows UTC.
+- **Time**: `Ziwoas.Clock` is the only source of "now" (`now/0,1`, `today/1`, `unix_now/0`). Its
+  source is chosen at compile time (`config :ziwoas, :clock`): `DateTime`, in tests
+  `Ziwoas.TestClock`, which can freeze it. Local days and zones come from `tz`
+  (`Ziwoas.LocalDay`, `Ziwoas.Location`); Elixir itself only knows UTC.
 - **Outbound HTTP**: `Req` via `Ziwoas.Http` (Bright Sky, SwitchBot, TRMNL, Fritz!Box, Govee
   Platform API). Bodies stay raw and each client decodes its own answers. In tests every client
-  is a `Req.Test` stub under its module name (`config :ziwoas, http_stubs: true`).
+  is a `Req.Test` stub under its module name (`config :ziwoas, http_stubs: true`, compile time).
+- **Live updates**: each context owns its PubSub topic. `Ziwoas.Plugs.subscribe/0`
+  (`{:live, deltas}`), `Ziwoas.Solakon.subscribe/0` (`{:reading, reading}`),
+  `Ziwoas.Lights.subscribe/0,1` (`{:updated, key}`), `Ziwoas.Sensors.subscribe/0`
+  (`{:polled, instant}`), `Ziwoas.Weather.subscribe/0` (`{:synced, date}`). Until the pages
+  switch over, the same events also go out on the old topics below (`Ziwoas.Live`).
 
 ## Collector
 
@@ -59,11 +72,15 @@ Ziwoas.Collector
 ```
 
 - **MQTT** is `tortoise311` (MQTT 3.1.1, QoS 0), wrapped by `Ziwoas.Mqtt`: `connection_spec/4` for
-  a supervised connection, `publish` for a message. Tortoise reconnects with backoff (1 s to
-  60 s). Client ids are fixed, so two instances must not share a broker.
+  a supervised connection, `publish/4` for a message, through the publisher chosen at compile
+  time (`config :ziwoas, :mqtt_publisher`: `Mqtt.Broker`, in tests `Ziwoas.TestMqtt`). Tortoise
+  reconnects with backoff (1 s to 60 s). Client ids are fixed, so two instances must not share
+  a broker.
 - **Plugs.** Shelly plugs report `<prefix>/<plug>/status/switch:0`. `ShellyStatusHandler` writes
   a `samples` row per status (and `plug_states` when the status carries `output`), collects live
-  deltas per plug and sends them at most every 5 s as `{:dashboard_live, deltas}` on `dashboard`.
+  deltas per plug and sends them at most every 5 s through `Plugs.notify_live/1` (also
+  `{:dashboard_live, deltas}` on `dashboard`). `Plugs.latest_measurements/2,3` is the one query
+  for each plug's newest sample and whether it is offline.
   Fritz!DECT plugs are polled by `Ziwoas.Fritz.Bridge` through `Ziwoas.Fritz.DectClient` (AHA
   HTTP, MD5 or PBKDF2 challenge, `:xmerl`, `:crypto`) and published as Shelly-shaped status, so
   they take the same path.
@@ -72,7 +89,8 @@ Ziwoas.Collector
   the LAN (`Lan`, multicast 239.255.255.250:4001, replies on UDP 4002, commands to 4003), keeps
   the published state (`StateStore`) and publishes config and state retained. A `set` verb goes
   through `CommandRouter` to the LAN or the cloud. `GoveeSubscriber` turns `config`/`state` into
-  `lights`/`light_states` rows and sends `{:light_updated, key}` on `light_<key>` and `lights`.
+  `lights`/`light_states` rows and tells `Lights`' subscribers (also `{:light_updated, key}` on
+  `light_<key>` and `lights`).
   The LAN multicast needs host networking.
 - **Inverter.** `Ziwoas.Solakon.Monitor` holds the one Modbus TCP connection; every read and
   write goes through it, so requests never interleave. `Ziwoas.Solakon.Modbus` speaks FC03, FC06
@@ -83,29 +101,31 @@ Ziwoas.Collector
 
 ## Scheduler
 
-`Ziwoas.Scheduler` runs one `Ziwoas.Scheduler.Runner` per job from `config :ziwoas,
-Ziwoas.Scheduler, jobs:` (`config/config.exs`). Schedules are a small natural language on the
-local wall clock of `location.timezone` (`Ziwoas.Scheduler.Schedule`: `every 30 seconds`,
-`every 3 hours`, `at 3:15am every day`), correct across DST. A job implements
-`Ziwoas.Scheduler.Job.perform/1` and gets the due instant as `:at`. A run that overlaps the next
-due instant skips it, nothing is made up after downtime, and a failure is logged, not retried.
+`Ziwoas.Scheduler` runs one `Ziwoas.Scheduler.Runner` per job of `Scheduler.jobs/1`, the table
+below, and only the jobs the config enables. Schedules are data on the local wall clock of
+`location.timezone` (`Ziwoas.Scheduler.Schedule`: `{:every, 30, :second}`,
+`{:every, 3, :hour}`, `{:daily, ~T[03:15:00]}`), correct across DST. A job is
+`{module, opts}`; the module implements `Ziwoas.Scheduler.Job.perform/1` and gets its opts
+(always `:config`) plus the due instant as `:at`. A run that overlaps the next due instant
+skips it, nothing is made up after downtime, and a failure is logged, not retried.
 
-| Job | Schedule | Module | Does |
-| --- | --- | --- | --- |
-| `solakon_monitor` | every 30 s | `Solakon.MonitorJob` | reading → `solakon_readings`, control tick, `{:solakon_reading, id}` on `solakon` |
-| `solakon_snapshot` | every 2 min | `Solakon.SnapshotJob` | full register snapshot → `solakon_snapshots` |
-| `schedule_tick` | every minute | `Switching.ScheduleTickJob` | switches due edges (ADR-0001) |
-| `fetch_current_weather` | every 15 min | `Weather.CurrentJob` | Bright Sky current conditions |
-| `fetch_today_weather` | every hour | `Weather.TodayJob` | today's hours |
-| `fetch_weather_forecast` | every 3 h | `Weather.ForecastJob` | forecast hours |
-| `fetch_historic_weather` | 3:45 daily | `Weather.HistoricJob` | yesterday's observations, backfill of days with energy totals |
-| `poll_sensors` | every 15 min | `Sensors.PollJob` | SwitchBot → `sensor_readings`, TRMNL sensor push, `sensors`/`weather` broadcast |
-| `push_trmnl_widget` | every 15 min | `Trmnl.EnergyPushJob` | TRMNL energy widget |
-| `aggregate_energy_samples` | 3:15 daily | `Plugs.AggregatorJob` | daily roll-up, backup, PV hours |
+| Job | Schedule | Module | Runs when | Does |
+| --- | --- | --- | --- | --- |
+| `solakon_monitor` | every 30 s | `Solakon.MonitorJob` | `solakon.monitoring_enabled` | reading → `solakon_readings`, control tick, `Solakon` event |
+| `solakon_snapshot` | every 2 min | `Solakon.SnapshotJob` | `solakon.monitoring_enabled` | full register snapshot → `solakon_snapshots` |
+| `schedule_tick` | every minute | `Switching.ScheduleTickJob` | a switchable plug | switches due edges (ADR-0001) |
+| `fetch_current_weather` | every 15 min | `Weather.CurrentJob` | coordinates | Bright Sky current conditions |
+| `fetch_today_weather` | every hour | `Weather.TodayJob` | coordinates | today's hours |
+| `fetch_weather_forecast` | every 3 h | `Weather.ForecastJob` | coordinates | forecast hours |
+| `fetch_historic_weather` | 3:45 daily | `Weather.HistoricJob` | coordinates | yesterday's observations, backfill of days with energy totals |
+| `poll_sensors` | every 15 min | `Sensors.PollJob` | SwitchBot and sensors | SwitchBot → `sensor_readings`, TRMNL sensor push, `Sensors` event |
+| `push_trmnl_widget` | every 15 min | `Trmnl.EnergyPushJob` | `trmnl.energy_webhook_url` | TRMNL energy widget |
+| `aggregate_energy_samples` | 3:15 daily | `Plugs.AggregatorJob` | always | daily roll-up, backup (into `backup_dir`), PV hours |
 
 - **Weather.** `Ziwoas.Weather.Sync` over `BrightskyClient` writes `weather_records` (kinds
-  `current`, `forecast`, `historic`, keyed by kind, location and timestamp) and broadcasts
-  `{:weather_updated}` on `weather`. Without coordinates nothing is fetched.
+  `current`, `forecast`, `historic`, keyed by kind, location and timestamp) and tells
+  `Weather`'s subscribers. `Weather.historic_records/3` is the one query for observations in a
+  time range.
 - **Aggregation.** `Ziwoas.Plugs.Aggregator` folds each finished local day of `samples` into
   `samples_5min`, `daily_totals` and `daily_energy_summary` (in SQL), and purges raw samples older
   than 7 days. `Aggregator.backup!/3` writes `VACUUM INTO` copies to `config :ziwoas, :backup_dir`
@@ -243,10 +263,13 @@ and host networking for the Govee LAN multicast.
   connection, others need `Sandbox.allow/3` or `@moduletag :shared_sandbox`.
 - **Device configs**: `test/fixtures/ziwoas.test.yml` by default, `ziwoas.inverter.yml` with an
   inverter (`Ziwoas.TestConfigs`).
+- **The app's config**: the test fixture, loaded at boot. `Ziwoas.TestConfigs.put/1` makes
+  another config (or `{:error, message}`) the one `Config.get/0` answers until the test ends;
+  such a test module is not async.
 - **Fakes**: `Ziwoas.FakeModbusServer` (Modbus TCP), `Ziwoas.FakeMqttBroker` (Tortoise against a
   socket), `Ziwoas.TestMqtt.record/1` (records publishes), `Ziwoas.TestClock.freeze/1`, `Req.Test`
-  stubs for HTTP. Jobs take `:config` (and the aggregator `:backup_dir` or `:backup`) in their
-  context.
+  stubs for HTTP. Jobs are called with their opts (`config:`, the monitor jobs `monitor:`); the
+  aggregator backs up only with a `backup_dir:`.
 - **Adoption** is tested against `test/fixtures/rails_schema.sql`, the frozen last Rails schema
   (`Ziwoas.RailsDatabase`, `Ziwoas.ReleaseTest`).
 - LiveViews are tested with `Phoenix.LiveViewTest` (`lazy_html`): broadcast on the topic, then

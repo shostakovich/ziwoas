@@ -23,7 +23,7 @@ defmodule Ziwoas.Switching.ScheduleTickJobTest do
     end)
 
     # test/fixtures/ziwoas.test.yml: fridge switches.
-    %{config: Ziwoas.Config.app_config()}
+    %{config: Ziwoas.Config.get()}
   end
 
   defp window!(on, off) do
@@ -37,10 +37,7 @@ defmodule Ziwoas.Switching.ScheduleTickJobTest do
     window!("18:00", "23:00")
     watermark!("2026-06-15T17:55:00+02:00")
 
-    ScheduleTickJob.perform(%{
-      at: Clock.now(),
-      config: ctx.config
-    })
+    ScheduleTickJob.perform(config: ctx.config, at: Clock.now())
 
     assert_received {:published, "shellies/fridge/command/switch:0", "on"}
     assert [%Command{action: "on", source: "schedule"}] = Repo.all(Command)

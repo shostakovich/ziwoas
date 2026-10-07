@@ -21,6 +21,25 @@ defmodule Ziwoas.TestConfigs do
   def file(:test), do: Path.join(@fixtures, "ziwoas.test.yml")
   def file(:inverter), do: Path.join(@fixtures, "ziwoas.inverter.yml")
 
+  @doc "The config in test/fixtures named by `file/1`."
+  def load(name) do
+    {:ok, config} = Config.load(file(name))
+    config
+  end
+
+  @doc """
+  Makes `config` — a `%Ziwoas.Config{}`, `{:ok, config}` or `{:error, message}` —
+  the one `Ziwoas.Config.fetch/0` and `get/0` answer, until the test ends. The
+  config is VM-wide, so a test module that calls this cannot run async.
+  """
+  def put(%Config{} = config), do: put({:ok, config})
+
+  def put(result) do
+    previous = Config.fetch()
+    Config.put(result)
+    ExUnit.Callbacks.on_exit(fn -> Config.put(previous) end)
+  end
+
   @doc "`plugs/1` with coordinates (Berlin's centre), as the weather jobs need them."
   def located(extra \\ "") do
     @base
