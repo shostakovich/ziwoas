@@ -10,15 +10,15 @@ defmodule Ziwoas.Switching.Rule do
 
   @type t :: %__MODULE__{}
 
-  @actions ~w[on off]
   @iso_days 1..7
   @clock_time ~r/\A([01]?\d|2[0-3]):([0-5]\d)(?::[0-5]\d)?\z/
 
   @time_message "Uhrzeit im Format HH:MM angeben"
   @days_message "mindestens ein Wochentag muss gewählt sein"
+  @action_message "Richtung muss an oder aus sein"
 
   schema "switch_rules" do
-    field :action, :string, default: "off"
+    field :action, Ecto.Enum, values: [:on, :off], default: :off
     field :at_minute, :integer
     field :at_minute_time, :string, virtual: true
     field :days, {:array, :integer}, default: []
@@ -27,8 +27,6 @@ defmodule Ziwoas.Switching.Rule do
     field :plug_id, :string
     timestamps()
   end
-
-  def actions, do: @actions
 
   def iso_days, do: Enum.to_list(@iso_days)
 
@@ -64,13 +62,15 @@ defmodule Ziwoas.Switching.Rule do
   @spec form_changeset(t, map) :: Ecto.Changeset.t()
   def form_changeset(rule, attrs) do
     rule
-    |> cast(drop_blank_days(attrs), [:at_minute_time, :action, :days])
+    |> cast(drop_blank_days(attrs), [:at_minute_time, :action, :days], message: &cast_message/2)
     |> validate_clock(:at_minute_time)
-    |> validate_inclusion(:action, @actions, message: "Richtung muss an oder aus sein")
-    |> validate_required([:action], message: "Richtung muss an oder aus sein")
+    |> validate_required([:action], message: @action_message)
     |> validate_days()
     |> put_at_minute()
   end
+
+  defp cast_message(:action, _meta), do: @action_message
+  defp cast_message(_field, _meta), do: nil
 
   defp put_at_minute(changeset) do
     case minutes_from(get_field(changeset, :at_minute_time)) do
@@ -89,7 +89,6 @@ defmodule Ziwoas.Switching.Rule do
     |> cast(attrs, [:plug_id, :action, :at_minute, :days, :group_id])
     |> validate_required([:plug_id])
     |> validate_required([:action])
-    |> validate_inclusion(:action, @actions)
     |> validate_required([:at_minute], message: "muss zwischen 00:00 und 23:59 liegen")
     |> validate_number(:at_minute,
       greater_than_or_equal_to: 0,

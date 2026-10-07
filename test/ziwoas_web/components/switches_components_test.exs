@@ -18,12 +18,12 @@ defmodule ZiwoasWeb.SwitchesComponentsTest do
 
   defp window(enabled \\ true) do
     %Window{
-      on: rule(id: 1, action: "on", at_minute: 600, enabled: enabled, group_id: "g-1"),
-      off: rule(id: 2, action: "off", at_minute: 1200, enabled: enabled, group_id: "g-1")
+      on: rule(id: 1, action: :on, at_minute: 600, enabled: enabled, group_id: "g-1"),
+      off: rule(id: 2, action: :off, at_minute: 1200, enabled: enabled, group_id: "g-1")
     }
   end
 
-  defp single(action \\ "off", enabled \\ true),
+  defp single(action \\ :off, enabled \\ true),
     do: %Single{
       rule:
         rule(id: 7, action: action, at_minute: 1320, days: Enum.to_list(1..7), enabled: enabled)
@@ -54,7 +54,7 @@ defmodule ZiwoasWeb.SwitchesComponentsTest do
     assert Enum.count(LazyHTML.query(doc, "div#sw_entry_fridge_7")) == 1
     assert LazyHTML.text(LazyHTML.query(doc, "span.badge.border .fw-bold")) == "→ aus"
     assert squish(LazyHTML.text(LazyHTML.query(doc, "span.badge"))) == "täglich · 22:00 → aus"
-    assert LazyHTML.text(LazyHTML.query(entry(single("on")), "span.badge .fw-bold")) == "→ an"
+    assert LazyHTML.text(LazyHTML.query(entry(single(:on)), "span.badge .fw-bold")) == "→ an"
   end
 
   defp count(doc, selector), do: doc |> LazyHTML.query(selector) |> Enum.count()
@@ -136,6 +136,7 @@ defmodule ZiwoasWeb.SwitchesComponentsTest do
         next_edge: opts[:edge],
         watt: nil,
         last_seen_ts: seen && DateTime.to_unix(seen),
+        offline: is_nil(seen) or DateTime.diff(now, seen) > 120,
         now: now
       }
     end
@@ -159,21 +160,21 @@ defmodule ZiwoasWeb.SwitchesComponentsTest do
 
     test "a Zeitfenster past midnight reads back to the days that were typed" do
       window = %Window{
-        on: rule(action: "on", at_minute: 1320, days: [1, 2, 3, 4, 5]),
-        off: rule(action: "off", at_minute: 360, days: [2, 3, 4, 5, 6])
+        on: rule(action: :on, at_minute: 1320, days: [1, 2, 3, 4, 5]),
+        off: rule(action: :off, at_minute: 360, days: [2, 3, 4, 5, 6])
       }
 
       assert SwitchesComponents.entry_label(window) == "Mo–Fr · 22:00–06:00"
     end
 
     test "the status line" do
-      assert line(row(command: command("on", "schedule"), edge: edge(:off, 23, 0))) ==
+      assert line(row(command: command(:on, :schedule), edge: edge(:off, 23, 0))) ==
                "An seit 18:00 (Zeitplan) · nächste Schaltung: 23:00 → aus"
 
       assert line(row(on: false, edge: edge(:on, 6, 30))) == "Aus · nächste Schaltung: 06:30 → an"
-      assert line(row(on: false, command: command("on", "manual"))) == "Aus · kein Zeitplan"
+      assert line(row(on: false, command: command(:on, :manual))) == "Aus · kein Zeitplan"
 
-      assert line(row(on: true, command: %{command("off", "manual") | inserted_at: at(17, 0)})) ==
+      assert line(row(on: true, command: %{command(:off, :manual) | inserted_at: at(17, 0)})) ==
                "An · kein Zeitplan"
     end
 

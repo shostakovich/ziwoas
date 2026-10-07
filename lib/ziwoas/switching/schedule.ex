@@ -41,8 +41,8 @@ defmodule Ziwoas.Switching.Schedule do
 
   # A group that is not a pair becomes singles: visible and deletable rather than a blank row.
   defp entries_for_group(group) do
-    on = Enum.find(group, &(&1.action == "on"))
-    off = Enum.find(group, &(&1.action == "off"))
+    on = Enum.find(group, &(&1.action == :on))
+    off = Enum.find(group, &(&1.action == :off))
     if on && off, do: [%Window{on: on, off: off}], else: singles(group)
   end
 

@@ -5,27 +5,11 @@ defmodule Ziwoas.Switching.SchedulerState do
   """
   use Ziwoas.Schema
 
-  alias Ziwoas.Repo
-
   schema "scheduler_states" do
     field :last_tick_at, :utc_datetime_usec
     field :plug_id, :string
     timestamps()
   end
 
-  @spec last_tick_at(String.t()) :: DateTime.t() | nil
-  def last_tick_at(plug_id) do
-    case Repo.get_by(__MODULE__, plug_id: plug_id) do
-      nil -> nil
-      state -> state.last_tick_at
-    end
-  end
-
-  @doc "Moves the plug's watermark to `time`, creating the row; no write when nothing changes."
-  @spec advance!(String.t(), DateTime.t()) :: t when t: %__MODULE__{}
-  def advance!(plug_id, time) do
-    (Repo.get_by(__MODULE__, plug_id: plug_id) || %__MODULE__{plug_id: plug_id})
-    |> Ecto.Changeset.change(last_tick_at: time)
-    |> Repo.insert_or_update!()
-  end
+  @type t :: %__MODULE__{}
 end

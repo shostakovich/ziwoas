@@ -13,7 +13,7 @@ defmodule Ziwoas.Switching.EdgeCalculatorTest do
     %Rule{
       id: opts[:id],
       plug_id: Keyword.get(opts, :plug_id, "lamp"),
-      action: Keyword.get(opts, :action, "on"),
+      action: Keyword.get(opts, :action, :on),
       at_minute: Keyword.get(opts, :at_minute, 1080),
       days: Keyword.get(opts, :days, [1])
     }
@@ -26,10 +26,10 @@ defmodule Ziwoas.Switching.EdgeCalculatorTest do
     plug = Keyword.get(opts, :plug_id, "lamp")
 
     [
-      rule(plug_id: plug, action: "on", at_minute: Keyword.get(opts, :on_at, 1080), days: days),
+      rule(plug_id: plug, action: :on, at_minute: Keyword.get(opts, :on_at, 1080), days: days),
       rule(
         plug_id: plug,
-        action: "off",
+        action: :off,
         at_minute: Keyword.get(opts, :off_at, 1380),
         days: Keyword.get(opts, :off_days, days)
       )
@@ -54,7 +54,7 @@ defmodule Ziwoas.Switching.EdgeCalculatorTest do
   end
 
   test "a single rule fires exactly one edge, carrying its id" do
-    rules = [rule(id: 42, action: "off", at_minute: 1320, days: [1])]
+    rules = [rule(id: 42, action: :off, at_minute: 1320, days: [1])]
     assert [edge] = between(rules, local(2026, 6, 15, 0, 0), local(2026, 6, 17, 0, 0))
     assert {edge.action, edge.rule_id} == {:off, 42}
     assert same?(edge.at, local(2026, 6, 15, 22, 0))
@@ -110,7 +110,7 @@ defmodule Ziwoas.Switching.EdgeCalculatorTest do
   end
 
   test "fall-back repetition fires the edge only once, on the first pass" do
-    rules = [rule(action: "on", at_minute: 150, days: [7])]
+    rules = [rule(action: :on, at_minute: 150, days: [7])]
     assert [edge] = between(rules, local(2026, 10, 25, 0, 0), local(2026, 10, 25, 12, 0))
     assert edge.at.utc_offset + edge.at.std_offset == 7200
   end

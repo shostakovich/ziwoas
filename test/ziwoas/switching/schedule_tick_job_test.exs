@@ -5,7 +5,8 @@ defmodule Ziwoas.Switching.ScheduleTickJobTest do
   import ExUnit.CaptureLog
 
   alias Ziwoas.{Clock, Repo, TestClock, TestMqtt}
-  alias Ziwoas.Switching.{Command, Rules, SchedulerState, ScheduleTickJob}
+  alias Ziwoas.Switching
+  alias Ziwoas.Switching.{Command, SchedulerState, ScheduleTickJob}
 
   # Monday 2026-06-15 18:05 in Berlin.
   @now "2026-06-15T18:05:00+02:00"
@@ -27,7 +28,7 @@ defmodule Ziwoas.Switching.ScheduleTickJobTest do
   end
 
   defp window!(on, off) do
-    Rules.save_window("fridge", %{on_at_time: on, off_at_time: off, days: [1]})
+    Switching.save_window("fridge", %{on_at_time: on, off_at_time: off, days: [1]})
   end
 
   defp watermark!(time),
@@ -40,8 +41,8 @@ defmodule Ziwoas.Switching.ScheduleTickJobTest do
     ScheduleTickJob.perform(config: ctx.config, at: Clock.now())
 
     assert_received {:published, "shellies/fridge/command/switch:0", "on"}
-    assert [%Command{action: "on", source: "schedule"}] = Repo.all(Command)
-    assert SchedulerState.last_tick_at("fridge") == Clock.now()
+    assert [%Command{action: :on, source: :schedule}] = Repo.all(Command)
+    assert Switching.last_tick_at("fridge") == Clock.now()
   end
 
   test "the warning names the plug, the rule and the reason; the watermark stays", ctx do
@@ -58,7 +59,7 @@ defmodule Ziwoas.Switching.ScheduleTickJobTest do
     assert Repo.all(Command) == []
 
     assert DateTime.compare(
-             SchedulerState.last_tick_at("fridge"),
+             Switching.last_tick_at("fridge"),
              Clock.parse!("2026-06-15T17:55:00+02:00")
            ) == :eq
   end
