@@ -170,6 +170,28 @@ defmodule Ziwoas.Govee.BridgeTest do
     assert Bridge.command(@key, {:power, true}, busy) == {:error, :unavailable}
   end
 
+  test "a state Lights does not store is logged and the bridge runs on" do
+    test = self()
+
+    put_state = fn key, _state ->
+      send(test, {:refused, key})
+      {:error, :busy}
+    end
+
+    bridge = start_bridge!(listen_port: false, put_state: put_state)
+    assert_receive {:lamp, _lamp}, 1_000
+
+    log =
+      ExUnit.CaptureLog.capture_log(fn ->
+        assert Bridge.command(@key, {:power, true}, bridge) == :ok
+        assert_receive {:refused, @key}, 1_000
+        await(fn -> :sys.get_state(bridge).pending == %{} end, 1_000)
+      end)
+
+    assert log =~ "state of #{@key} not stored: :busy"
+    assert Process.alive?(bridge)
+  end
+
   test "a failing API control records nothing" do
     test = self()
 

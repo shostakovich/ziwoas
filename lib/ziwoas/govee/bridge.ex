@@ -396,7 +396,8 @@ defmodule Ziwoas.Govee.Bridge do
           into: %{on: false, reachable: true},
           do: {field, value}
 
-    state.put_state.(key, lamp_state)
+    with {:error, reason} <- state.put_state.(key, lamp_state),
+         do: Logger.error("Govee bridge: state of #{key} not stored: #{inspect(reason)}")
   end
 
   defp async(state, tag, fun) do

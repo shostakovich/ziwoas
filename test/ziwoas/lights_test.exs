@@ -19,7 +19,7 @@ defmodule Ziwoas.LightsTest do
 
   describe "put_lamp/1" do
     test "a lamp the bridge reports becomes a light; empty lists are NULL" do
-      assert Lights.put_lamp(@lamp) == :ok
+      assert {:ok, %Light{}} = Lights.put_lamp(@lamp)
 
       assert [
                %Light{
@@ -39,7 +39,7 @@ defmodule Ziwoas.LightsTest do
       Lights.put_lamp(%{@lamp | name: "Uplighter"})
       Repo.update_all(Light, set: [name: "Mein Name", updated_at: stamp])
 
-      assert Lights.put_lamp(@lamp) == :ok
+      assert {:ok, %Light{}} = Lights.put_lamp(@lamp)
       assert [%Light{name: "Mein Name", updated_at: ^stamp}] = Repo.all(Light)
     end
 
@@ -49,6 +49,11 @@ defmodule Ziwoas.LightsTest do
 
       assert Lights.put_lamp(%{@lamp | key: "14:AB"}) == {:error, :invalid}
       assert Repo.aggregate(Light, :count) == 1
+    end
+
+    test "a lamp whose values do not fit is refused" do
+      assert {:error, %Ecto.Changeset{}} = Lights.put_lamp(%{@lamp | color_temp_min_k: "warm"})
+      assert Repo.all(Light) == []
     end
   end
 
@@ -81,6 +86,16 @@ defmodule Ziwoas.LightsTest do
 
       assert %State{on: false, reachable: false, brightness: 40, color_temp_k: 2700} =
                Repo.get_by(State, light_key: "K")
+    end
+
+    test "a reading that does not fit is refused and tells nobody" do
+      Lights.subscribe()
+
+      assert {:error, %Ecto.Changeset{}} =
+               Lights.put_state("K", %{on: true, reachable: true, brightness: "hell"})
+
+      assert Repo.all(State) == []
+      refute_received {:updated, _}
     end
 
     test "tells the subscribers of all lamps and of that lamp" do

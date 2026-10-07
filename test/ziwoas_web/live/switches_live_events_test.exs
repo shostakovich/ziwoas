@@ -153,6 +153,7 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
       assert has_element?(view, "#flash-error", "Lampe nicht erreichbar")
     end
 
+    @tag :capture_log
     test "a busy bridge is a flash and the page stays", %{conn: conn} do
       stop_supervised!(Ziwoas.FakeGoveeBridge)
       start_supervised!({Ziwoas.FakeGoveeBridge, test: self(), sleep_ms: 1_000})

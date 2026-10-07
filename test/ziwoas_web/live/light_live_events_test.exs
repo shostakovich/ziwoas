@@ -59,6 +59,7 @@ defmodule ZiwoasWeb.LightLiveEventsTest do
     refute Repo.get_by(State, light_key: "UP1").on
   end
 
+  @tag :capture_log
   test "a busy bridge is a flash and the page stays", %{conn: conn} do
     bridge!(:ok, sleep_ms: 1_000)
     view = open_page(conn)
