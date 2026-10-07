@@ -213,9 +213,9 @@ re-checked). Each finding below names its package.
 | --- | --- |
 | F1 | done (b198206); `/up` and degraded web in the wave-1 glue commit |
 | F2 | done (11da0be) |
-| S1 | open |
-| S2 | open |
-| S3 | open |
-| S4 | open |
+| S1 | done (290f62b) |
+| S2 | done (d15be2b, f4bef12; `Ziwoas.Live` removed) |
+| S3 | done (366cdb9, 3727908) |
+| S4 | done (ad1aaac) |
 | R / X | open |
 | L | waiting for Robert's go |
