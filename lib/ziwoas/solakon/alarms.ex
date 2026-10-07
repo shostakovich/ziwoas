@@ -1,6 +1,6 @@
 defmodule Ziwoas.Solakon.Alarms do
   @moduledoc """
-  The status and alarm registers (39063–39069, `docs/solakon-modbus-protokoll.md`
+  The status and alarm registers (39063–39069, `docs/solakon-modbus-protocol.md`
   §7) and the battery management's faults, decoded into conditions: atoms in
   register and bit order, `:battery_warning` last. No condition means all is quiet.
   """
