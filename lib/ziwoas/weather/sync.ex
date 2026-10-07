@@ -29,7 +29,7 @@ defmodule Ziwoas.Weather.Sync do
       sync.(location, Clock.today(location.timezone))
       Live.broadcast("weather", {:weather_updated})
     else
-      Logger.info("weather: not configured")
+      Logger.debug("weather: not configured")
     end
 
     :ok

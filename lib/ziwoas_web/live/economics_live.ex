@@ -16,7 +16,7 @@ defmodule ZiwoasWeb.EconomicsLive do
   def mount(_params, _session, socket) do
     {:ok,
      socket
-     |> assign(page_title: "Wirtschaftlichkeit", today: today())
+     |> assign(page_title: "Wirtschaftlichkeit")
      |> load()
      |> reset_cost_form()
      |> reset_price_form()}
@@ -81,9 +81,13 @@ defmodule ZiwoasWeb.EconomicsLive do
     {:noreply, load(socket)}
   end
 
+  # Each load reads the day afresh: a page left open past midnight moves on.
   defp load(socket) do
+    today = today()
+
     assign(socket,
-      overview: Overview.build(socket.assigns.today),
+      today: today,
+      overview: Overview.build(today),
       cost_items: Economics.cost_items(),
       prices: Economics.prices()
     )

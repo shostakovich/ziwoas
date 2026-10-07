@@ -8,8 +8,8 @@ defmodule ZiwoasWeb.Endpoint do
     same_site: "Lax"
   ]
 
-  if Application.compile_env(:ziwoas, :assume_ssl, false) do
-    plug ZiwoasWeb.AssumeSSL
+  if Application.compile_env(:ziwoas, :forwarded_ssl, false) do
+    plug ZiwoasWeb.ForwardedSSL
   end
 
   socket "/live", Phoenix.LiveView.Socket,

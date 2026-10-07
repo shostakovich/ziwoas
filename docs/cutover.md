@@ -18,12 +18,19 @@ Er übernimmt die Rails-Datenbank einmalig (`Ziwoas.Release.adopt_rails_database
 2. **Image bauen**: `docker build -t ziwoas:probe .` (bzw. `docker buildx build --platform
    linux/amd64,linux/arm64 .` für beide Architekturen).
 3. **Gerätelose Config**: nur `location:`, `mqtt:` auf einen Host ohne Broker (z. B.
-   `127.0.0.1`, Port 1) und `plugs:` aus der echten Config. Kein `solakon:`, `fritz:`,
-   `govee:`, `switchbot:`, `trmnl:`.
+   `127.0.0.1`, Port 1) und `plugs:` aus der echten Config. Kein `solakon:`, `govee:`,
+   `switchbot:`, `trmnl:`. Plugs mit `driver: fritz_dect` brauchen `fritz_box:` und
+   `fritz_poll:`: dort `fritz_box.host` auf eine unerreichbare Adresse setzen
+   (z. B. `127.0.0.1`). Die echte `ziwoas.yml` nur parsen, nicht starten (spricht kein
+   Gerät an):
+   `docker run --rm -e SECRET_KEY_BASE=x -v $PWD/config/ziwoas.yml:/app/config/ziwoas.yml:ro ziwoas:probe
+   bin/ziwoas eval 'Ziwoas.Config.from_yaml!(File.read!("/app/config/ziwoas.yml")); IO.puts(:ok)'`.
+   Lädt eine Config im Betrieb nicht, antwortet `/up` mit 503 und das Log nennt den Schlüssel.
 4. **Starten** mit Zeitmessung:
    ```
    docker run --rm --name ziwoas-probe --network host -e PORT=3000 \
-     -e SECRET_KEY_BASE=$(openssl rand -hex 64) -e ZIWOAS_ALLOWED_HOSTS=localhost \
+     -e SECRET_KEY_BASE=$(openssl rand -hex 64) -e PHX_HOST=<echter Hostname> \
+     -e ZIWOAS_ALLOWED_HOSTS=localhost,<LAN-IP> \
      -v $PWD/probe/storage:/app/storage -v $PWD/probe/ziwoas.yml:/app/config/ziwoas.yml:ro \
      ziwoas:probe
    ```
@@ -39,7 +46,11 @@ Er übernimmt die Rails-Datenbank einmalig (`Ziwoas.Release.adopt_rails_database
      Schalten (Editor öffnen, speichern, löschen – nur in der Kopie!), eine Lampe.
      Konsole ohne Fehler, LiveView verbunden (kein „Keine Verbindung“).
    - `/api/today`, `/api/history`, `/up`, `/up.json`.
-   - Über den echten Hostnamen (Reverse Proxy) ohne Origin-Fehler im Log.
+   - Über den echten Hostnamen (Reverse Proxy) ohne Origin-Fehler im Log, und direkt per
+     `http://<LAN-IP>:3000`. Der Proxy muss `X-Forwarded-Proto: https` setzen; nur dann
+     gibt es HSTS und Secure-Cookies (`ZiwoasWeb.ForwardedSSL`).
+   - LiveView akzeptiert `PHX_HOST` und die Hosts aus `ZIWOAS_ALLOWED_HOSTS` (ohne Schema,
+     Port egal; `.example.org` gilt als `*.example.org`).
 6. **MQTT-Probe (nur lesend, optional)**: Config nur mit `mqtt:` (echter Broker) und
    `plugs:`, in der Kopie `DELETE FROM switch_rules`, keine Klicks auf Schalter oder Lampen.
    Phoenix nimmt Shelly-Status auf (`samples` wächst); mit einem zweiten Dump vergleichen,
@@ -55,7 +66,10 @@ Govee und Batterie werden gemeinsam live abgenommen. Zeitbedarf: rund 15 Minuten
    - Phoenix-Image per Tag ziehen (`docker.yml`, Tag z. B. `phoenix-2026-10-07`).
    - Alte Compose-Datei als `docker-compose.rails.yml` aufheben, die neue
      `docker-compose.yml` daneben legen; `.env` mit `ZIWOAS_TAG`, `SECRET_KEY_BASE`
-     (`openssl rand -hex 64`), `PHX_HOST`, `ZIWOAS_ALLOWED_HOSTS` (wie bisher).
+     (`openssl rand -hex 64`), `PHX_HOST` (Hostname hinter dem Proxy),
+     `ZIWOAS_ALLOWED_HOSTS` (wie bisher, z. B. die LAN-IP).
+   - Der Container bindet IPv4 (`0.0.0.0:3000`): ein Proxy auf `localhost:3000` muss
+     `127.0.0.1` erreichen (nginx und Caddy fallen von `::1` darauf zurück).
    - `migration:`-Block aus `config/ziwoas.yml` entfernen (sonst nur eine Warnung).
 2. **Rails stoppen**: `docker compose -f docker-compose.rails.yml down` – alle drei
    Container (`ziwoas`, `ziwoas_collector`, `ziwoas_jobs`), damit Modbus und UDP 4002 frei
@@ -64,7 +78,8 @@ Govee und Batterie werden gemeinsam live abgenommen. Zeitbedarf: rund 15 Minuten
    `sqlite3 storage/production.sqlite3 ".backup storage/backup/pre-phoenix-$(date +%F).sqlite3"`,
    dann `sqlite3 storage/backup/pre-phoenix-*.sqlite3 'PRAGMA integrity_check'` = `ok`.
 4. **Phoenix starten**: `docker compose up -d`, `docker compose logs -f` – Übernahme und vier
-   Migrationen, dann der Endpoint.
+   Migrationen, dann der Endpoint. Die Zeitstempel-Umschreibung kann auf der großen DB
+   etwas dauern (Generalprobe: Zeit messen); der Healthcheck wartet bis zu 5 Minuten.
 5. **Smoke** (binnen 15 Minuten):
    - `/up` = 200, Container `healthy`.
    - Alle Seiten, keine Origin-Fehler, LiveView verbunden.

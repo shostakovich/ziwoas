@@ -81,7 +81,9 @@ defmodule Ziwoas.Solakon.Monitor do
   def handle_call({:request, operation}, _from, state) do
     now = state.clock.()
 
-    if state.retry_at && now < state.retry_at do
+    # Handing control back must not wait out a backoff: it is what the tick does
+    # after its writes failed, often for the very reason that started the backoff.
+    if (operation != :release_control and state.retry_at) && now < state.retry_at do
       {:reply, {:error, {:backoff, state.retry_at - now}}, state}
     else
       {reply, state} = perform(operation, state)

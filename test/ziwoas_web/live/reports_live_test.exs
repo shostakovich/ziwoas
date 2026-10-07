@@ -36,6 +36,22 @@ defmodule ZiwoasWeb.ReportsLiveTest do
     assert count(doc, "main.app-main-wide") == 1
   end
 
+  test "the date fields span the aggregated days, and a range starts no earlier", %{conn: conn} do
+    total!("fridge", "2024-03-01", 100)
+    total!("fridge", "2026-04-09", 100)
+
+    doc = page(conn, start_date: "1026-04-01", end_date: "2026-04-07")
+
+    assert attr(doc, "#start_date", "min") == ["2024-03-01"]
+    assert attr(doc, "#end_date", "min") == ["2024-03-01"]
+    assert attr(doc, "#start_date", "max") == ["2026-04-09"]
+    assert attr(doc, "#end_date", "max") == ["2026-04-09"]
+    assert texts(doc, ".alert:not([hidden])") == []
+
+    {:ok, view, _html} = live(conn, ~p"/reports?start_date=1026-04-01&end_date=2026-04-07")
+    assert :sys.get_state(view.pid).socket.assigns.report.start_date == ~D[2024-03-01]
+  end
+
   test "reports page accepts custom range params", %{conn: conn} do
     doc = page(conn, start_date: "2026-04-01", end_date: "2026-04-07")
 

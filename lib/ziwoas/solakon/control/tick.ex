@@ -22,7 +22,7 @@ defmodule Ziwoas.Solakon.Control.Tick do
       decision = Policy.decide(reading, load, previous(control, now))
       monitor = Keyword.get(opts, :monitor, Monitor)
 
-      case Monitor.apply_control(monitor, decision.target_w, Reading.min_soc_pct()) do
+      case apply_control(monitor, decision.target_w) do
         :ok ->
           control |> State.store!(decision, now) |> State.reset_failures!()
           %Outcome{status: :applied, decision: decision, load: load, reading: reading}
@@ -45,6 +45,14 @@ defmodule Ziwoas.Solakon.Control.Tick do
     end
   end
 
+  # A monitor that is down or stuck counts as a failed write, so control is still
+  # handed back after the third one.
+  defp apply_control(monitor, target_w) do
+    Monitor.apply_control(monitor, target_w, Reading.min_soc_pct())
+  catch
+    :exit, reason -> {:error, {:monitor_down, reason}}
+  end
+
   # Write failures only: a failed read never reaches the tick.
   defp after_write_failure(control, monitor, reason) do
     control = State.count_failure!(control)
@@ -57,7 +65,7 @@ defmodule Ziwoas.Solakon.Control.Tick do
   end
 
   defp release(control, monitor, failures, error) do
-    case Monitor.release_control(monitor) do
+    case release_control(monitor) do
       :ok ->
         control |> State.clear!() |> State.reset_failures!()
         %Outcome{status: :released, failures: failures, error: error}
@@ -69,5 +77,11 @@ defmodule Ziwoas.Solakon.Control.Tick do
           error: "#{error}; could not relinquish remote control: #{inspect(reason)}"
         }
     end
+  end
+
+  defp release_control(monitor) do
+    Monitor.release_control(monitor)
+  catch
+    :exit, reason -> {:error, {:monitor_down, reason}}
   end
 end

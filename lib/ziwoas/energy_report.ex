@@ -21,6 +21,8 @@ defmodule Ziwoas.EnergyReport do
     :detail_start_date,
     :detail_end_date,
     :chart_payload,
+    :first_date,
+    :last_date,
     messages: []
   ]
 
@@ -46,18 +48,22 @@ defmodule Ziwoas.EnergyReport do
     calculator =
       SavingsCalculator.new(Keyword.get_lazy(opts, :price_book, &Economics.price_book/0))
 
-    case Store.latest_aggregate_date() do
+    case Store.aggregate_date_range() do
       nil -> empty_report(today, calculator)
-      latest -> report(params, latest, roster, location, calculator)
+      range -> report(params, range, roster, location, calculator)
     end
   end
 
   @spec empty?(t) :: boolean
   def empty?(%__MODULE__{daily_points: points}), do: points == []
 
-  defp report(params, latest, roster, location, calculator) do
+  defp report(params, {earliest, latest}, roster, location, calculator) do
     {%{start_date: first, end_date: last, preset: preset}, messages} =
       resolve_range(params, latest)
+
+    # A typo like 1026 would draw ~365,000 days: nothing before the first aggregated day,
+    # unless that is less than a year back.
+    first = Enum.max([first, Enum.min([earliest, Date.add(last, -365)], Date)], Date)
 
     rows = Store.daily_rows(first, last)
     daily_points = daily_points(Store.daily_summaries(first, last), first, last)
@@ -74,6 +80,8 @@ defmodule Ziwoas.EnergyReport do
       detail_start_date: first,
       detail_end_date: last,
       chart_payload: ChartBuilder.payload(roster, location, daily_points, rows, {first, last}),
+      first_date: earliest,
+      last_date: latest,
       messages: messages
     }
   end
@@ -82,6 +90,8 @@ defmodule Ziwoas.EnergyReport do
     %__MODULE__{
       start_date: today,
       end_date: today,
+      first_date: today,
+      last_date: today,
       selected_date: today,
       preset: @default_preset,
       summary: empty_summary(calculator),

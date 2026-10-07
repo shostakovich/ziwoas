@@ -450,7 +450,10 @@ defmodule Ziwoas.Config do
       %Solakon{
         host: require_string(h["host"], "solakon.host"),
         port: require_number(to_integer(default(h["port"], 502)), "solakon.port"),
-        unit_id: require_number(to_integer(default(h["unit_id"], 1)), "solakon.unit_id"),
+        unit_id:
+          require_number(to_integer(default(h["unit_id"], 1)), "solakon.unit_id",
+            allow_zero: true
+          ),
         # `enabled` is the legacy spelling of `monitoring_enabled`.
         monitoring_enabled: solakon_boolean(h, "monitoring_enabled", true, "enabled"),
         control_enabled: solakon_boolean(h, "control_enabled", false, nil)
@@ -476,6 +479,7 @@ defmodule Ziwoas.Config do
         h["devices"]
         |> list()
         |> Enum.reduce(%{}, fn device, acc ->
+          device = require_map(device, "govee.devices[]")
           key = require_string(device["key"], "govee.devices[].key")
           Map.put(acc, key, %{name: to_text(device["name"])})
         end)
@@ -559,12 +563,14 @@ defmodule Ziwoas.Config do
   defp to_text(v) when v in [nil, :null], do: ""
   defp to_text(v), do: inspect(v)
 
+  # As lenient as the config always was: 8.0 reads as 8, "1883 " as 1883.
   defp to_integer(v) when is_integer(v), do: v
+  defp to_integer(v) when is_float(v), do: trunc(v)
 
   defp to_integer(v) when is_binary(v) do
     case Integer.parse(String.trim(v)) do
-      {value, ""} -> value
-      _ -> nil
+      {value, _rest} -> value
+      :error -> nil
     end
   end
 

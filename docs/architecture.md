@@ -165,8 +165,9 @@ Router: `lib/ziwoas_web/router.ex`. Every page is a LiveView in `live_session :d
 
 Plain controllers: `GET /api/today`, `/api/today/summary`, `/api/history` (`ApiController`,
 JSON, internal consumers only), `GET /sensors/series` (the sensor chart's data), `GET /up` and
-`/up.json` (`HealthController`). In production `ZiwoasWeb.AssumeSSL` treats every request as
-HTTPS, because TLS ends at the reverse proxy.
+`/up.json` (`HealthController`). In production `ZiwoasWeb.ForwardedSSL` treats a request the
+reverse proxy forwarded as HTTPS (`X-Forwarded-Proto`) as HTTPS, with HSTS and Secure cookies;
+plain HTTP straight to port 3000 stays HTTP.
 
 **Hooks** (`assets/js/hooks/`, registered in `assets/js/app.js`): `EnergyFlow`, `TodayChart`,
 `HistoryChart`, `LiveFreshness` (dashboard, PV page), `SolakonHistory`, `EnergyReport`,

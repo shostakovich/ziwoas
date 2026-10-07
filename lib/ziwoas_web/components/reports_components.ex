@@ -56,15 +56,16 @@ defmodule ZiwoasWeb.ReportsComponents do
           field={@form[:start_date]}
           type="date"
           label="Von"
-          max={@report.end_date}
+          min={@report.first_date}
+          max={@report.last_date}
           wrapper_class="col-6 col-sm-auto"
         />
         <.input
           field={@form[:end_date]}
           type="date"
           label="Bis"
-          min={@report.start_date}
-          max={@report.end_date}
+          min={@report.first_date}
+          max={@report.last_date}
           wrapper_class="col-6 col-sm-auto"
         />
         <div class="col-12 col-sm-auto">

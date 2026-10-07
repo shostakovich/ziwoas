@@ -379,6 +379,17 @@ defmodule Ziwoas.ConfigTest do
              "govee.lan_poll_seconds must be a number"
   end
 
+  test "integers read as leniently as ever: 8.0 is 8, a trailing unit is dropped" do
+    assert load(@valid <> "govee:\n  lan_poll_seconds: 8.0\n").govee.lan_poll_seconds == 8
+    assert load(String.replace(@valid, "port: 1883", ~s(port: "1883 "))).mqtt.port == 1883
+    assert load(@valid <> @solakon <> "  unit_id: 0\n").solakon.unit_id == 0
+  end
+
+  test "a govee device that is not a mapping is a config error" do
+    assert error(@valid <> "govee:\n  devices:\n    - 14ABDB4844064B60\n") =~
+             "govee.devices[] must be a mapping"
+  end
+
   test "an idle threshold of zero is allowed, a negative one is not" do
     zero = String.replace(@valid <> @fritz, "idle_threshold_w: 10", "idle_threshold_w: 0")
     assert load(zero).fritz_poll.idle_threshold_w == 0.0

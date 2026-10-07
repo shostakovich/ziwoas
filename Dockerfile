@@ -93,7 +93,8 @@ USER ziwoas
 
 EXPOSE 3000
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=30s \
+# The first start rewrites every timestamp of an adopted database: give it time.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5m \
   CMD curl -fsS -o /dev/null "http://localhost:${PORT}/up" || exit 1
 
 # Adopt or migrate the database, then serve.

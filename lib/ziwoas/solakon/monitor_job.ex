@@ -24,7 +24,7 @@ defmodule Ziwoas.Solakon.MonitorJob do
     solakon = config.solakon
 
     cond do
-      is_nil(solakon) -> Logger.info("solakon_monitor: not configured")
+      is_nil(solakon) -> Logger.debug("solakon_monitor: not configured")
       not solakon.monitoring_enabled -> Logger.info("solakon_monitor: disabled")
       true -> run(config, Map.get(context, :monitor, Monitor))
     end

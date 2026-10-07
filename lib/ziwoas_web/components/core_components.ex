@@ -308,8 +308,8 @@ defmodule ZiwoasWeb.CoreComponents do
   """
   @spec translate_error({String.t(), keyword}) :: String.t()
   def translate_error({msg, opts}) do
-    opts
-    |> Keyword.get(:validation)
+    # unique_constraint/3 marks its error with `constraint: :unique`, not a validation.
+    (Keyword.get(opts, :validation) || Keyword.get(opts, :constraint))
     |> german(msg, opts)
     |> interpolate(opts)
   end

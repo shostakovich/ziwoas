@@ -201,6 +201,17 @@ defmodule Ziwoas.Solakon.Control.TickTest do
       assert State.current().consecutive_failures == 4
     end
 
+    test "a monitor that is down counts as a failed write" do
+      monitor = spawn(fn -> :ok end)
+      ref = Process.monitor(monitor)
+      assert_receive {:DOWN, ^ref, :process, _, _}
+      Repo.insert!(%State{consecutive_failures: 2})
+
+      assert %Outcome{status: :failed, failures: 3, error: error} = tick(monitor)
+      assert error =~ "monitor_down"
+      assert error =~ "could not relinquish remote control"
+    end
+
     test "a successful write clears earlier failures" do
       {_server, monitor} = inverter!()
       Repo.insert!(%State{consecutive_failures: 2})

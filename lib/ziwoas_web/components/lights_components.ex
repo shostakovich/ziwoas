@@ -455,7 +455,8 @@ defmodule ZiwoasWeb.LightsComponents do
   attr :plugs, :list, required: true
 
   @doc """
-  The settings as a modal sheet, the `SettingsSheet` hook: it opens the dialog,
+  The settings as a modal sheet, the `SettingsSheet` hook: it opens the dialog
+  (the browser owns `open`, so a patch from `validate_settings` keeps it open),
   closes it on the backdrop and on `data-dismiss="dialog"`, and tells the
   LiveView when it closed (`"close_settings"`).
   """
@@ -467,6 +468,7 @@ defmodule ZiwoasWeb.LightsComponents do
       aria-labelledby="light_settings_title"
       id="light_settings_dialog"
       phx-hook="SettingsSheet"
+      phx-mounted={JS.ignore_attributes(["open"])}
     >
       <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">

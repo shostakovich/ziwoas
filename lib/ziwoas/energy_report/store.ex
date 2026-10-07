@@ -6,11 +6,15 @@ defmodule Ziwoas.EnergyReport.Store do
   alias Ziwoas.Plugs.{DailyTotal, Sample5min}
   alias Ziwoas.Repo
 
-  @spec latest_aggregate_date() :: Date.t() | nil
-  def latest_aggregate_date do
-    case Repo.one(from d in DailyTotal, select: max(d.date)) do
-      blank when blank in [nil, ""] -> nil
-      date -> Date.from_iso8601!(date)
+  @doc "The first and the last day with aggregates, or nil before the first."
+  @spec aggregate_date_range() :: {Date.t(), Date.t()} | nil
+  def aggregate_date_range do
+    case Repo.one(from d in DailyTotal, select: {min(d.date), max(d.date)}) do
+      {first, last} when first not in [nil, ""] and last not in [nil, ""] ->
+        {Date.from_iso8601!(first), Date.from_iso8601!(last)}
+
+      _ ->
+        nil
     end
   end
 

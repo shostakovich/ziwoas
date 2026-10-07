@@ -30,4 +30,17 @@ defmodule ZiwoasWeb.HealthControllerTest do
              }
     end
   end
+
+  @tag :tmp_dir
+  test "a device config that does not load is a 503", %{conn: conn, tmp_dir: dir} do
+    path = Path.join(dir, "ziwoas.yml")
+    File.write!(path, "location: nope\n")
+    previous = Application.fetch_env!(:ziwoas, :config_path)
+    Application.put_env(:ziwoas, :config_path, path)
+    on_exit(fn -> Application.put_env(:ziwoas, :config_path, previous) end)
+
+    assert response(get(conn, ~p"/up"), 503) =~ "red"
+    assert %{"status" => "down", "error" => error} = json_response(get(conn, ~p"/up.json"), 503)
+    assert error =~ "location"
+  end
 end

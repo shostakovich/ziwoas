@@ -226,6 +226,17 @@ defmodule Ziwoas.Solakon.MonitorTest do
     end
   end
 
+  test "release_control is not held back by a backoff" do
+    server = start_supervised!({FakeModbusServer, Map.delete(@fast, "39141:1")})
+    monitor = monitor!(server, clock: fn -> 0 end)
+
+    assert {:error, {:modbus_exception, 2}} = Monitor.read_state(monitor)
+    assert {:error, {:backoff, _}} = Monitor.read_state(monitor)
+
+    assert Monitor.release_control(monitor) == :ok
+    assert List.last(FakeModbusServer.frames(server)) == ["0001000000060106b3b10000"]
+  end
+
   test "release_control switches remote control off" do
     server = start_supervised!({FakeModbusServer, %{}})
 

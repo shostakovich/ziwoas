@@ -59,16 +59,24 @@ if config_env() == :prod do
       You can generate one by calling: mix phx.gen.secret
       """
 
-  # LiveView's websocket accepts these hosts as Origin (ZIWOAS_ALLOWED_HOSTS="ziwoas.example.org,
-  # 192.168.1.50", any scheme and port); unset, the host a page was served from.
+  phx_host = System.get_env("PHX_HOST", "localhost")
+
+  # LiveView's websocket accepts PHX_HOST and the hosts in ZIWOAS_ALLOWED_HOSTS
+  # ("ziwoas.example.org,192.168.1.50", as for Rails) as Origin, any scheme and port.
+  # The origin check runs before ForwardedSSL, so it cannot compare schemes behind the proxy.
   check_origin =
-    case System.get_env("ZIWOAS_ALLOWED_HOSTS", "") |> String.split(",", trim: true) do
-      [] -> :conn
-      hosts -> Enum.map(hosts, &("//" <> String.trim(&1)))
-    end
+    System.get_env("ZIWOAS_ALLOWED_HOSTS", "")
+    |> String.split(",", trim: true)
+    |> Enum.concat([phx_host])
+    |> Enum.map(fn host ->
+      host = host |> String.trim() |> String.replace(~r{^\w+://}, "") |> String.trim_trailing("/")
+      host = String.replace(host, ~r/^\./, "*.")
+      "//" <> host
+    end)
+    |> Enum.uniq()
 
   config :ziwoas, ZiwoasWeb.Endpoint,
-    url: [host: System.get_env("PHX_HOST", "localhost"), port: 443, scheme: "https"],
+    url: [host: phx_host, port: 443, scheme: "https"],
     http: [ip: {0, 0, 0, 0}],
     check_origin: check_origin,
     secret_key_base: secret_key_base

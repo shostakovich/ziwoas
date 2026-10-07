@@ -77,7 +77,8 @@ defmodule Ziwoas.Trmnl.EnergyPayload do
 
   defp clock_label(ts, zone), do: ts |> LocalDay.local_time(zone) |> Calendar.strftime("%H:%M")
 
-  defp rounded_kwh(energy), do: energy |> Energy.kwh() |> Float.round(2)
+  # + 0.0 turns -0.0 into 0.0, which TRMNL would print as "-0,0".
+  defp rounded_kwh(energy), do: Float.round(Energy.kwh(energy), 2) + 0.0
 
   defp percent(ratio), do: round(ratio * 100)
 end

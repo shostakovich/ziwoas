@@ -47,6 +47,12 @@ defmodule ZiwoasWeb.CoreComponentsTest do
                "ist ungültig"
     end
 
+    test "translates a unique constraint, which carries no validation" do
+      assert CoreComponents.translate_error(
+               {"has already been taken", [constraint: :unique, constraint_name: "x_index"]}
+             ) == "ist bereits vergeben"
+    end
+
     test "keeps German messages given at the validation and fills in their bindings" do
       assert CoreComponents.translate_error(
                {"muss zwischen %{from} und %{to} liegen", [validation: :number, from: 1, to: 9]}

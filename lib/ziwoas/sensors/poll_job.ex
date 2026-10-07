@@ -21,7 +21,7 @@ defmodule Ziwoas.Sensors.PollJob do
     config = Job.config(context)
 
     if is_nil(config.switchbot) or config.sensors == [] do
-      Logger.info("sensors: not configured")
+      Logger.debug("sensors: not configured")
     else
       now = Clock.now()
       Enum.each(config.sensors, &poll(config.switchbot, &1, now))

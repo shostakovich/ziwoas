@@ -20,7 +20,7 @@ defmodule Ziwoas.Solakon.SnapshotJob do
 
     cond do
       is_nil(solakon) ->
-        Logger.info("solakon_snapshot: not configured")
+        Logger.debug("solakon_snapshot: not configured")
 
       not solakon.monitoring_enabled ->
         Logger.info("solakon_snapshot: monitoring disabled")
