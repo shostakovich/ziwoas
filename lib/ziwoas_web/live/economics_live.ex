@@ -103,7 +103,7 @@ defmodule ZiwoasWeb.EconomicsLive do
     assign(socket, price_form: to_form(Economics.change_price(price)))
   end
 
-  defp today, do: Clock.today(Config.app_config().location.timezone)
+  defp today, do: Clock.today(Config.get().location.timezone)
 
   @impl true
   def render(assigns) do

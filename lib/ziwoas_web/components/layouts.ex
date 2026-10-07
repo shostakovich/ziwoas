@@ -104,8 +104,13 @@ defmodule ZiwoasWeb.Layouts do
     """
   end
 
-  @doc "The configured time zone, exposed to the page as `ziwoas-time-zone`."
-  def time_zone, do: Config.app_config().location.timezone
+  @doc "The configured time zone, exposed to the page as `ziwoas-time-zone`; nil without a config."
+  def time_zone do
+    case Config.fetch() do
+      {:ok, config} -> config.location.timezone
+      {:error, _message} -> nil
+    end
+  end
 
   # A lamp's page lives under /lights but is reached from the Schalten tab.
   defp navigation(current_path) do

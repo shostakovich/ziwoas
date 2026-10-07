@@ -50,7 +50,7 @@ defmodule ZiwoasWeb.WeatherLive do
   end
 
   defp load(socket) do
-    config = Config.app_config()
+    config = Config.get()
     zone = config.location.timezone
     now = Clock.now()
 

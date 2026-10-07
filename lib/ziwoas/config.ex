@@ -316,10 +316,6 @@ defmodule Ziwoas.Config do
   def put({:error, message} = result) when is_binary(message),
     do: :persistent_term.put(__MODULE__, result)
 
-  @doc false
-  @spec app_config() :: t
-  def app_config, do: get()
-
   @doc "The path of the device config (`config :ziwoas, :config_path`)."
   @spec path() :: String.t()
   def path, do: Application.fetch_env!(:ziwoas, :config_path)

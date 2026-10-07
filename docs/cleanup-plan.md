@@ -211,8 +211,8 @@ re-checked). Each finding below names its package.
 
 | Package | State |
 | --- | --- |
-| F1 | open |
-| F2 | open |
+| F1 | done (b198206); `/up` and degraded web in the wave-1 glue commit |
+| F2 | done (11da0be) |
 | S1 | open |
 | S2 | open |
 | S3 | open |

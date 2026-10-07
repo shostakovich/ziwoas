@@ -197,8 +197,9 @@ title is `<.header>`.
 | `/lights/:key` | `LightLive` | `light_<key>`; commands (`ZiwoasWeb.LightEvents`), settings sheet |
 
 Plain controllers: `GET /api/today`, `/api/today/summary`, `/api/history` (`ApiController`,
-JSON, internal consumers only), `GET /sensors/series` (the sensor chart's data), `GET /up` and
-`/up.json` (`HealthController`). In production `ZiwoasWeb.ForwardedSSL` treats a request the
+JSON, internal consumers only), `GET /sensors/series` (the sensor chart's data), `GET /up` (`HealthController`:
+`{"status":"up"}`, or 503 with the config error). Without a loaded device config every page
+is a 503 naming the error (`ZiwoasWeb.Plugs.RequireConfig` in `:browser`). In production `ZiwoasWeb.ForwardedSSL` treats a request the
 reverse proxy forwarded as HTTPS (`X-Forwarded-Proto`) as HTTPS, with HSTS and Secure cookies;
 plain HTTP straight to port 3000 stays HTTP.
 

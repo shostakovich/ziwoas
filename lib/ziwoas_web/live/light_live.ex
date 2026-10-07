@@ -106,7 +106,7 @@ defmodule ZiwoasWeb.LightLive do
     assigns =
       assign(assigns,
         brightness: max(Lights.brightness(assigns.snapshot), 1),
-        plugs: Config.app_config().plugs,
+        plugs: Config.get().plugs,
         tabs:
           [{"white", "Weiß"}] ++
             if(assigns.light.supports_color, do: [{"color", "Farbe"}], else: []) ++

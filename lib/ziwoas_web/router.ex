@@ -9,6 +9,7 @@ defmodule ZiwoasWeb.Router do
     plug :protect_from_forgery
     plug :put_secure_browser_headers
     plug ZiwoasWeb.Look
+    plug ZiwoasWeb.Plugs.RequireConfig
   end
 
   pipeline :api do
@@ -34,15 +35,8 @@ defmodule ZiwoasWeb.Router do
     end
   end
 
-  pipeline :health do
-    plug :accepts, ["html", "json"]
-  end
-
   scope "/", ZiwoasWeb do
-    pipe_through :health
-
     get "/up", HealthController, :show
-    get "/up.json", HealthController, :json_up
   end
 
   # The Sensoren chart's data: JSON whatever the request accepts.

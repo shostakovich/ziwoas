@@ -33,7 +33,7 @@ defmodule ZiwoasWeb.SolakonLive do
       SolakonHistoryLive.schedule_refresh()
     end
 
-    config = Config.app_config()
+    config = Config.get()
     now = Clock.now()
     zone = config.location.timezone
     control_enabled = config.solakon && config.solakon.control_enabled
@@ -69,7 +69,7 @@ defmodule ZiwoasWeb.SolakonLive do
   def handle_info({event, _}, socket) when event in [:dashboard_live, :solakon_reading] do
     {:noreply,
      assign(socket,
-       live: LiveState.build(Config.app_config(), Clock.now()),
+       live: LiveState.build(Config.get(), Clock.now()),
        beat: socket.assigns.beat + 1
      )}
   end
@@ -116,7 +116,7 @@ defmodule ZiwoasWeb.SolakonLive do
   end
 
   defp eps_switch(desired) do
-    if is_nil(Config.app_config().solakon) do
+    if is_nil(Config.get().solakon) do
       {:error, "Solakon nicht konfiguriert"}
     else
       with {:error, reason} <- Control.set_eps_output(desired) do
@@ -127,7 +127,7 @@ defmodule ZiwoasWeb.SolakonLive do
   end
 
   defp control_switch(desired) do
-    case Control.set_active(Config.app_config(), desired) do
+    case Control.set_active(Config.get(), desired) do
       {:ok, state} -> {:ok, state}
       {:error, :not_configured} -> {:error, "Solakon nicht konfiguriert"}
       {:error, :disabled} -> {:error, "in Konfiguration deaktiviert"}

@@ -15,7 +15,7 @@ defmodule ZiwoasWeb.ReportsLive do
 
   @impl true
   def mount(_params, _session, socket) do
-    config = Config.app_config()
+    config = Config.get()
 
     {:ok,
      assign(socket,

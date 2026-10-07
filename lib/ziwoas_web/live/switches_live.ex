@@ -215,7 +215,7 @@ defmodule ZiwoasWeb.SwitchesLive do
   defp plug(socket, plug_id),
     do: Enum.find_value(socket.assigns.rows, &(&1.plug.id == plug_id && &1.plug))
 
-  defp mqtt, do: Config.app_config().mqtt
+  defp mqtt, do: Config.get().mqtt
 
   @impl true
   def render(assigns) do
@@ -244,7 +244,7 @@ defmodule ZiwoasWeb.SwitchesLive do
   end
 
   defp load(socket) do
-    config = Config.app_config()
+    config = Config.get()
     zone = config.location.timezone
     plugs = Enum.filter(config.plugs, & &1.switchable)
 

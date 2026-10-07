@@ -32,7 +32,7 @@ defmodule ZiwoasWeb.DashboardLive do
       :timer.send_interval(@summary_interval_ms, :refresh_summary)
     end
 
-    config = Config.app_config()
+    config = Config.get()
 
     {:ok,
      socket
@@ -59,7 +59,7 @@ defmodule ZiwoasWeb.DashboardLive do
   def handle_info({:solakon_reading, _id}, socket), do: {:noreply, load_live(socket)}
 
   def handle_info(:refresh_summary, socket) do
-    tiles = DashboardComponents.summary_tiles(EnergySummary.compute_today(Config.app_config()))
+    tiles = DashboardComponents.summary_tiles(EnergySummary.compute_today(Config.get()))
     {:noreply, assign(socket, :summary_tiles, tiles)}
   end
 
@@ -126,7 +126,7 @@ defmodule ZiwoasWeb.DashboardLive do
   defp tile(tiles, id), do: Enum.find(tiles, &(&1.id == id))
 
   defp load_live(socket) do
-    live = LiveState.build(Config.app_config(), Clock.now())
+    live = LiveState.build(Config.get(), Clock.now())
     {weather_asset, weather_alt} = Weather.dashboard_icon()
     beat = if Map.has_key?(socket.assigns, :live), do: socket.assigns.beat + 1, else: 0
 

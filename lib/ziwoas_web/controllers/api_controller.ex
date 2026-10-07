@@ -16,7 +16,7 @@ defmodule ZiwoasWeb.ApiController do
   @default_days 14
 
   def today(conn, _params) do
-    config = Config.app_config()
+    config = Config.get()
     end_ts = Clock.unix_now()
     start_ts = Integer.floor_div(end_ts - 86_400, 3600) * 3600
     series = PowerSeries.from_samples(config.plugs, start_ts, end_ts, @today_bucket_seconds)
@@ -36,7 +36,7 @@ defmodule ZiwoasWeb.ApiController do
   end
 
   def today_summary(conn, _params) do
-    summary = EnergySummary.compute_today(Config.app_config())
+    summary = EnergySummary.compute_today(Config.get())
 
     json(conn, %{
       date: summary.date,
@@ -51,7 +51,7 @@ defmodule ZiwoasWeb.ApiController do
 
   @doc "`days` (default 14) is clamped to 1..365; anything but an integer is the default."
   def history(conn, params) do
-    config = Config.app_config()
+    config = Config.get()
     days = days(params["days"])
     cutoff = config.location.timezone |> Clock.today() |> Date.add(-days) |> Date.to_iso8601()
 

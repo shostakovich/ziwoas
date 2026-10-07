@@ -33,7 +33,7 @@ defmodule ZiwoasWeb.SensorsLive do
   end
 
   defp load(socket) do
-    sensors = Config.app_config().sensors
+    sensors = Config.get().sensors
 
     assign(socket,
       sensors: sensors,

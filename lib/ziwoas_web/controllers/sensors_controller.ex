@@ -11,7 +11,7 @@ defmodule ZiwoasWeb.SensorsController do
   @window_seconds 24 * 3600
 
   def series(conn, _params) do
-    sensors = Config.app_config().sensors
+    sensors = Config.get().sensors
     since = DateTime.add(Clock.now(), -@window_seconds, :second)
 
     grouped =
