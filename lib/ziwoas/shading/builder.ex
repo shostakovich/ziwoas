@@ -66,18 +66,20 @@ defmodule Ziwoas.Shading.Builder do
             r.kind == "historic" and r.lat == ^location.lat and r.lon == ^location.lon and
               r.timestamp >= ^from and r.timestamp <= ^to
       )
-      |> Enum.reduce(%{}, fn record, out ->
-        case Weather.solar_w_per_m2(record) do
-          nil ->
-            out
-
-          value ->
-            started_at = DateTime.add(record.timestamp, -Weather.period_minutes(record) * 60)
-            Map.put(out, DateTime.to_unix(started_at), value)
-        end
-      end)
+      |> Enum.reduce(%{}, &put_irradiance/2)
     else
       %{}
+    end
+  end
+
+  defp put_irradiance(record, out) do
+    case Weather.solar_w_per_m2(record) do
+      nil ->
+        out
+
+      value ->
+        started_at = DateTime.add(record.timestamp, -Weather.period_minutes(record) * 60)
+        Map.put(out, DateTime.to_unix(started_at), value)
     end
   end
 

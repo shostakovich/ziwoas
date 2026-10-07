@@ -10,8 +10,8 @@ defmodule Ziwoas.Switching.Commander do
 
   @actions [:on, :off]
 
-  @spec switch(Plug.t(), :on | :off, :manual | :schedule, %Ziwoas.Config.Mqtt{}) ::
-          {:ok, %Command{}} | {:error, String.t()}
+  @spec switch(Plug.t(), :on | :off, :manual | :schedule, Ziwoas.Config.Mqtt.t()) ::
+          {:ok, Command.t()} | {:error, String.t()}
   def switch(plug, action, source, mqtt) do
     unless action in @actions,
       do: raise(ArgumentError, "action must be one of #{inspect(@actions)}")

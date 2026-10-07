@@ -11,9 +11,9 @@ defmodule Ziwoas.Lights.Commands do
   """
   import Ecto.Query
 
-  alias Ziwoas.Repo
   alias Ziwoas.Govee.Types
   alias Ziwoas.Lights.{Commander, Light, State}
+  alias Ziwoas.Repo
 
   @commands ~w[turn zone brightness color color_temp effect scene zone_undo]
   # Hardware limit: at most N zones lit at once.
@@ -36,13 +36,7 @@ defmodule Ziwoas.Lights.Commands do
   def run(light, "zone", params) do
     with {:ok, zone} <- zone_of(light, params["zone"]),
          {:ok, on} <- coerce(Types.bool(params["on"])) do
-      evicted = if on, do: evict_for(light, zone)
-
-      with :ok <- switch_zone(light, evicted, false),
-           :ok <- switch_zone(light, zone, on) do
-        toast = if evicted, do: %{evicted: evicted, added: zone}
-        {:ok, {:zones, Enum.reject([zone, evicted], &is_nil/1), toast}}
-      end
+      switch_zone_evicting(light, zone, on)
     end
   end
 
@@ -78,6 +72,16 @@ defmodule Ziwoas.Lights.Commands do
   def run(light, command, params) when command in ["effect", "scene"] do
     with {:ok, scene} <- coerce(Types.name(params["effect"] || params["scene"])),
          do: fire(light, {:scene, scene})
+  end
+
+  defp switch_zone_evicting(light, zone, on) do
+    evicted = if on, do: evict_for(light, zone)
+
+    with :ok <- switch_zone(light, evicted, false),
+         :ok <- switch_zone(light, zone, on) do
+      toast = if evicted, do: %{evicted: evicted, added: zone}
+      {:ok, {:zones, Enum.reject([zone, evicted], &is_nil/1), toast}}
+    end
   end
 
   defp fire(light, verb) do

@@ -13,9 +13,11 @@ defmodule Ziwoas.Scheduler.FailingTestJob do
   @moduledoc "A recurring job for tests that reports, then raises."
   @behaviour Ziwoas.Scheduler.Job
 
+  alias Ziwoas.Scheduler.TestJob
+
   @impl true
   def perform(context) do
-    Ziwoas.Scheduler.TestJob.perform(context)
+    TestJob.perform(context)
     raise "job failed"
   end
 end

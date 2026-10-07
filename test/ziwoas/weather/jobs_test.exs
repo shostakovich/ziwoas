@@ -5,8 +5,8 @@ defmodule Ziwoas.Weather.JobsTest do
   import Ecto.Query
   import ExUnit.CaptureLog
 
-  alias Ziwoas.Repo
   alias Ziwoas.Plugs.DailyTotal
+  alias Ziwoas.Repo
   alias Ziwoas.Weather.{BrightskyClient, CurrentJob, ForecastJob, HistoricJob, Record, TodayJob}
 
   @config Ziwoas.TestConfigs.located()

@@ -15,8 +15,8 @@ defmodule Ziwoas.Solakon.MonitorJob do
 
   alias Ziwoas.{Clock, Config, Repo}
   alias Ziwoas.Scheduler.Job
-  alias Ziwoas.Solakon.{Monitor, Reading}
   alias Ziwoas.Solakon.Control.{Outcome, Tick}
+  alias Ziwoas.Solakon.{Monitor, Reading}
 
   @impl true
   def perform(context) do

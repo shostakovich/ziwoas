@@ -44,7 +44,7 @@ defmodule ZiwoasWeb.SwitchesComponentsTest do
 
     assert Enum.count(LazyHTML.query(doc, "div#sw_entry_fridge_g-1")) == 1
     refute "border" in classes(doc, "span.badge")
-    assert Enum.count(LazyHTML.query(doc, "span.badge .fw-bold")) == 0
+    assert Enum.empty?(LazyHTML.query(doc, "span.badge .fw-bold"))
     assert squish(LazyHTML.text(LazyHTML.query(doc, "span.badge"))) == "Mo–Fr · 10:00–20:00"
   end
 

@@ -8,7 +8,7 @@ defmodule ZiwoasWeb.LightsComponents do
   use ZiwoasWeb, :html
 
   alias Ziwoas.{GermanNumber, Lights}
-  alias Ziwoas.Lights.{Light, Snapshot}
+  alias Ziwoas.Lights.{Commands, Light, Snapshot}
 
   @swatches ~w[#ff4d4d #ff7a3d #ffd43b #43d97f #22b8cf #4d7cff #7c5cff #ff6bd6]
   @preset_max_k 5400
@@ -430,7 +430,7 @@ defmodule ZiwoasWeb.LightsComponents do
 
   def toast_assigns(light, %{evicted: evicted, added: added}) do
     {label, _role} = Light.zone_meta(evicted)
-    max = Ziwoas.Lights.Commands.max_active_zones(light)
+    max = Commands.max_active_zones(light)
 
     %{
       message: "#{label} ausgeschaltet · max. #{max} Zonen",

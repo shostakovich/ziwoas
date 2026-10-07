@@ -132,32 +132,27 @@ defmodule Ziwoas.Solakon.Reading do
   @doc "The battery character the UI shows; a fault wins, then thermal, then charge level and flow."
   @spec battery_state(t) :: String.t()
   def battery_state(%__MODULE__{} = reading) do
-    power = battery_display_power_w(reading)
-    temp = reading.battery_temperature_c
-
     cond do
-      Enum.any?([reading.alarm1, reading.alarm2, reading.alarm3], &((&1 || 0) > 0)) ->
-        "fault"
-
-      not is_nil(temp) and temp >= @hot_temp_c ->
-        "hot"
-
-      not is_nil(temp) and temp <= @cold_temp_c ->
-        "cold"
-
-      not is_nil(reading.battery_soc_pct) and reading.battery_soc_pct <= @low_soc_pct ->
-        "low"
-
-      power > @charge_deadband_w ->
-        "charging"
-
-      power < -@charge_deadband_w ->
-        "discharging"
-
-      true ->
-        "normal"
+      alarmed?(reading) -> "fault"
+      battery_hot?(reading) -> "hot"
+      battery_cold?(reading) -> "cold"
+      battery_low?(reading) -> "low"
+      true -> flow_state(battery_display_power_w(reading))
     end
   end
+
+  defp alarmed?(reading),
+    do: Enum.any?([reading.alarm1, reading.alarm2, reading.alarm3], &((&1 || 0) > 0))
+
+  defp battery_cold?(%__MODULE__{battery_temperature_c: temp}),
+    do: not is_nil(temp) and temp <= @cold_temp_c
+
+  defp battery_low?(%__MODULE__{battery_soc_pct: soc}),
+    do: not is_nil(soc) and soc <= @low_soc_pct
+
+  defp flow_state(power) when power > @charge_deadband_w, do: "charging"
+  defp flow_state(power) when power < -@charge_deadband_w, do: "discharging"
+  defp flow_state(_power), do: "normal"
 
   @spec status_messages(t) :: [String.t()]
   def status_messages(%__MODULE__{} = reading),

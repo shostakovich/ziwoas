@@ -74,8 +74,6 @@ defmodule ZiwoasWeb.SolakonLive do
      )}
   end
 
-  def handle_info({:dashboard_summary}, socket), do: {:noreply, socket}
-
   def handle_info(:refresh_history, socket) do
     SolakonHistoryLive.schedule_refresh()
     {:noreply, SolakonHistoryLive.reload_history(socket, socket.assigns.history.range)}

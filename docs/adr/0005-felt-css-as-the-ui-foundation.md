@@ -36,3 +36,8 @@ into markup a reader already knows from Bootstrap.
 - felt's utilities are `!important` inside a cascade layer and cannot be overridden from our
   unlayered CSS; change the class in the markup instead. On felt components (`.card`, `.btn`,
   `.navbar`, …) avoid `background`/`border`/`box-shadow` shorthands, which erase the felt texture.
+
+_Note (Phoenix, ADR-0007):_ the stylesheets live in `assets/css/` (`application.css` with the
+`--viz-*` tokens, one file per area), the chart helpers in `assets/js/lib/theme_colors.js` and
+`assets/js/lib/chart_theme.js`; esbuild bundles them. The look cookie is set by `PATCH /look`
+and carried into LiveViews by `ZiwoasWeb.Look`.

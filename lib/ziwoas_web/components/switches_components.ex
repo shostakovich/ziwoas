@@ -453,26 +453,20 @@ defmodule ZiwoasWeb.SwitchesComponents do
       "täglich"
     else
       sorted
-      |> Enum.chunk_while(
-        [],
-        fn day, chunk ->
-          case chunk do
-            [last | _] when day == last + 1 -> {:cont, [day | chunk]}
-            [] -> {:cont, [day]}
-            _ -> {:cont, Enum.reverse(chunk), [day]}
-          end
-        end,
-        fn
-          [] -> {:cont, []}
-          chunk -> {:cont, Enum.reverse(chunk), []}
-        end
-      )
-      |> Enum.map_join(", ", fn
-        [single] -> abbr(single)
-        [first | _] = group -> "#{abbr(first)}–#{abbr(List.last(group))}"
-      end)
+      |> Enum.chunk_while([], &chunk_consecutive/2, &close_chunk/1)
+      |> Enum.map_join(", ", &days_label/1)
     end
   end
+
+  defp chunk_consecutive(day, [last | _] = chunk) when day == last + 1, do: {:cont, [day | chunk]}
+  defp chunk_consecutive(day, []), do: {:cont, [day]}
+  defp chunk_consecutive(day, chunk), do: {:cont, Enum.reverse(chunk), [day]}
+
+  defp close_chunk([]), do: {:cont, []}
+  defp close_chunk(chunk), do: {:cont, Enum.reverse(chunk), []}
+
+  defp days_label([single]), do: abbr(single)
+  defp days_label([first | _] = group), do: "#{abbr(first)}–#{abbr(List.last(group))}"
 
   defp abbr(day), do: @day_abbr |> List.keyfind(day, 0) |> elem(1)
 

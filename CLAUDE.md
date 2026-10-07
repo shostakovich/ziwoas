@@ -14,11 +14,13 @@ Phoenix 1.8 · LiveView · Ecto + SQLite · Bandit. Erlang/OTP and Elixir are pi
 | `lib/ziwoas/` | Domain, device clients, collector and scheduler; `lights/`, `plugs/`, `switching/`, `sensors/`, `energy_report/`, `economics/`, `solakon/` are the functional seams |
 | `lib/ziwoas_web/` | Router, controllers, LiveViews, components |
 | `config/ziwoas.yml` | **Not in the repo** — device config incl. the plug list. Template: `config/ziwoas.example.yml`, tests use `test/fixtures/ziwoas.test.yml`. Cost items and the electricity price live in the database instead (ADR-0004) |
-| `priv/static/` | Hand-maintained CSS, JS and images, served as they are (no asset bundler yet) |
-| `test/` | ExUnit mirroring `lib/`; `test/support/` holds the cases and the test database fixture |
+| `assets/` | CSS, JS (LiveView hooks in `js/hooks/`) and vendored Chart.js, bundled by the standalone esbuild into `priv/static/assets/` |
+| `priv/repo/migrations/` | Ecto migrations; `Ziwoas.Release` adopts a database the Rails app left behind |
+| `priv/static/` | Images and icons, served as they are |
+| `test/` | ExUnit mirroring `lib/`; `test/support/` holds the cases and the fakes (Modbus, MQTT, clock) |
 
-`mix deps.get`, then `mix phx.server`. Paths default to `config/ziwoas.yml` and
-`storage/development.sqlite3`; `ZIWOAS_CONFIG` and `ZIWOAS_DB` override them
+`mix setup` (deps, database, esbuild, assets), then `mix phx.server`. Paths default to
+`config/ziwoas.yml` and `storage/development.sqlite3`; `ZIWOAS_CONFIG` and `ZIWOAS_DB` override them
 (see [`config/runtime.exs`](config/runtime.exs)).
 
 Cloud sessions (Claude Code on the web) are set up by the SessionStart hook
@@ -31,9 +33,13 @@ Real data only exists on the home server (Docker). Local SQLite is not a copy of
 
 ## Conventions
 
-- **The port is being reshaped into idiomatic Phoenix** (plan and status: [`docs/port-plan.md`](docs/port-plan.md), issue #158). Parity with the
-  former Rails app is no longer a goal; [`docs/elixir-port.md`](docs/elixir-port.md) describes
-  the port as it was built and is rewritten along the way.
+- **Idiomatic Phoenix**, no compatibility with the former Rails app
+  ([ADR-0007](docs/adr/0007-idiomatic-phoenix-big-bang-cutover.md)); how the app is built:
+  [`docs/architecture.md`](docs/architecture.md). Until the cutover, plan and status are in
+  [`docs/port-plan.md`](docs/port-plan.md) (issue #158).
+- **Ecto migrations own the schema**; timestamps are `:utc_datetime_usec` with `inserted_at`.
+  Forms are changesets with German messages and `core_components`, interaction is LiveView
+  events, client code LiveView hooks in `assets/js/hooks/`.
 - **felt-css** (Bootstrap class names) for styling: its components and utilities first; own CSS
   in `assets/css/` only for ZiWoAS widgets, with tokens, never hex. Chart colours via
   `--viz-*` and `assets/js/lib/chart_theme.js`.
@@ -45,6 +51,7 @@ Real data only exists on the home server (Docker). Local SQLite is not a copy of
 ```
 mix format --check-formatted
 mix compile --warnings-as-errors
+mix credo --strict
 mix test
 ```
 

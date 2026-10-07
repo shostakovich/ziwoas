@@ -4,8 +4,8 @@ defmodule Ziwoas.Plugs.ShellyStatusHandlerTest do
 
   import ExUnit.CaptureLog
 
-  alias Ziwoas.{Repo, TestConfigs}
   alias Ziwoas.Plugs.{Sample, ShellyStatusHandler, State}
+  alias Ziwoas.{Repo, TestConfigs}
 
   @moduletag :capture_log
   @now 1_700_000_000.0

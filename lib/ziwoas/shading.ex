@@ -95,19 +95,13 @@ defmodule Ziwoas.Shading do
   def trim(curves) do
     window = daylight(curves)
 
-    for curve <- curves do
-      points =
-        case window do
-          nil ->
-            []
-
-          {first, last} ->
-            Enum.filter(curve.points, fn {hour, _} -> hour >= first and hour <= last end)
-        end
-
-      %Curve{key: curve.key, points: points}
-    end
+    for curve <- curves, do: %Curve{key: curve.key, points: points_within(curve.points, window)}
   end
+
+  defp points_within(_points, nil), do: []
+
+  defp points_within(points, {first, last}),
+    do: Enum.filter(points, fn {hour, _} -> hour >= first and hour <= last end)
 
   @doc "Groups in the order their keys first appear, as `[{key, items}]`."
   def group_by(items, fun) do

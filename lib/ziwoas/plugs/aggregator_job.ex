@@ -17,11 +17,12 @@ defmodule Ziwoas.Plugs.AggregatorJob do
 
   alias Ziwoas.Clock
   alias Ziwoas.Plugs.Aggregator
+  alias Ziwoas.Scheduler.Job
   alias Ziwoas.Solakon.PvHourAggregator
 
   @impl true
   def perform(context) do
-    config = Ziwoas.Scheduler.Job.config(context)
+    config = Job.config(context)
     zone = config.location.timezone
     today = Clock.today(zone)
 

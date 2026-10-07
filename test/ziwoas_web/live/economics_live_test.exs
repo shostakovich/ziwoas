@@ -3,9 +3,9 @@ defmodule ZiwoasWeb.EconomicsLiveTest do
 
   import Phoenix.LiveViewTest
 
-  alias Ziwoas.{Repo, TestClock}
   alias Ziwoas.Economics.{CostItem, ElectricityPrice}
   alias Ziwoas.EnergyReport.DailyEnergySummary
+  alias Ziwoas.{Repo, TestClock}
 
   @path "/solakon/wirtschaftlichkeit"
 

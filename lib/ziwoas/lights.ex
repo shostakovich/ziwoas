@@ -5,8 +5,8 @@ defmodule Ziwoas.Lights do
   """
   import Ecto.Query
 
-  alias Ziwoas.Repo
   alias Ziwoas.Lights.{Light, State}
+  alias Ziwoas.Repo
 
   defmodule Zone do
     @moduledoc "One zone of a zone lamp."

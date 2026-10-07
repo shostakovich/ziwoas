@@ -1,9 +1,9 @@
 defmodule Ziwoas.Plugs.AggregatorJobTest do
   use Ziwoas.DataCase
 
-  alias Ziwoas.{Repo, TestConfigs}
   alias Ziwoas.EnergyReport.DailyEnergySummary
   alias Ziwoas.Plugs.{AggregatorJob, DailyTotal}
+  alias Ziwoas.{Repo, TestConfigs}
   alias Ziwoas.Solakon.{PvHour, Reading}
 
   setup do

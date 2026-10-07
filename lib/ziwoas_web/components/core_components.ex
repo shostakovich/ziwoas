@@ -6,6 +6,7 @@ defmodule ZiwoasWeb.CoreComponents do
   """
   use Phoenix.Component
 
+  alias Phoenix.HTML.Form
   alias Phoenix.LiveView.JS
 
   @doc "A felt-css card: optional title and subtitle above the content."
@@ -194,7 +195,7 @@ defmodule ZiwoasWeb.CoreComponents do
   def input(%{type: "checkbox"} = assigns) do
     assigns =
       assign_new(assigns, :checked, fn ->
-        Phoenix.HTML.Form.normalize_value("checkbox", assigns[:value])
+        Form.normalize_value("checkbox", assigns[:value])
       end)
 
     ~H"""
@@ -228,7 +229,7 @@ defmodule ZiwoasWeb.CoreComponents do
         {@rest}
       >
         <option :if={@prompt} value="">{@prompt}</option>
-        {Phoenix.HTML.Form.options_for_select(@options, @value)}
+        {Form.options_for_select(@options, @value)}
       </select>
       <.error :for={msg <- @errors}>{msg}</.error>
     </div>
@@ -244,7 +245,7 @@ defmodule ZiwoasWeb.CoreComponents do
         name={@name}
         class={["form-control", @errors != [] && "is-invalid", @class]}
         {@rest}
-      >{Phoenix.HTML.Form.normalize_value("textarea", @value)}</textarea>
+      >{Form.normalize_value("textarea", @value)}</textarea>
       <.error :for={msg <- @errors}>{msg}</.error>
     </div>
     """
@@ -258,7 +259,7 @@ defmodule ZiwoasWeb.CoreComponents do
         type={@type}
         name={@name}
         id={@id}
-        value={Phoenix.HTML.Form.normalize_value(@type, @value)}
+        value={Form.normalize_value(@type, @value)}
         class={[
           if(@type in ~w(range), do: "form-range", else: "form-control"),
           @type == "color" && "form-control-color",
@@ -352,12 +353,14 @@ defmodule ZiwoasWeb.CoreComponents do
   defp german(_validation, msg, _opts), do: msg
 
   defp interpolate(msg, opts) do
-    Regex.replace(~r/%{(\w+)}/, msg, fn whole, key ->
-      case Enum.find(opts, fn {name, _} -> Atom.to_string(name) == key end) do
-        {_, value} -> to_string(value)
-        nil -> whole
-      end
-    end)
+    Regex.replace(~r/%{(\w+)}/, msg, fn whole, key -> option_text(opts, key, whole) end)
+  end
+
+  defp option_text(opts, key, fallback) do
+    case Enum.find(opts, fn {name, _} -> Atom.to_string(name) == key end) do
+      {_, value} -> to_string(value)
+      nil -> fallback
+    end
   end
 
   @doc "Shows an element with a fade (`phx-*` bindings)."

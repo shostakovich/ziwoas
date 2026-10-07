@@ -4,6 +4,7 @@ defmodule Ziwoas.ReleaseTest do
 
   alias Ecto.Adapters.SQL.Sandbox
   alias Exqlite.Sqlite3
+  alias Mix.Tasks.Ziwoas.Adopt
   alias Ziwoas.{RailsDatabase, Release, Repo, TestMigrations}
 
   @moduletag :tmp_dir
@@ -146,7 +147,7 @@ defmodule Ziwoas.ReleaseTest do
     Sandbox.unboxed_run(Repo, fn ->
       tables = Repo.query!("SELECT name FROM sqlite_master ORDER BY name").rows
 
-      Mix.Tasks.Ziwoas.Adopt.run([])
+      Adopt.run([])
 
       assert Repo.query!("SELECT name FROM sqlite_master ORDER BY name").rows == tables
     end)

@@ -2,16 +2,17 @@ defmodule Ziwoas.Trmnl.Push do
   @moduledoc """
   Pushes a widget's `merge_variables` to its TRMNL webhook: JSON of at most
   2 kB, one POST without retry. A failed POST is a warning, an oversized
-  payload raises `PayloadTooLarge`.
+  payload raises `PayloadTooLargeError`.
   """
   require Logger
 
+  alias Plug.Conn.Status
   alias Ziwoas.Http
 
   @max_payload_bytes 2048
   @timeout_ms 10_000
 
-  defmodule PayloadTooLarge do
+  defmodule PayloadTooLargeError do
     @moduledoc "The payload exceeds what a TRMNL webhook accepts."
     defexception [:message]
   end
@@ -35,7 +36,7 @@ defmodule Ziwoas.Trmnl.Push do
       bytes = byte_size(body)
 
       if bytes > @max_payload_bytes do
-        raise PayloadTooLarge,
+        raise PayloadTooLargeError,
               "#{payload(widget)} is #{bytes} B, exceeds #{@max_payload_bytes} B limit"
       end
 
@@ -79,7 +80,7 @@ defmodule Ziwoas.Trmnl.Push do
   defp payload(:sensors), do: "TRMNL sensor payload"
 
   defp reason_phrase(status) do
-    Plug.Conn.Status.reason_phrase(status)
+    Status.reason_phrase(status)
   rescue
     ArgumentError -> ""
   end

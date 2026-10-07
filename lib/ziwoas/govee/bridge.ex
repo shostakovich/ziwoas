@@ -21,8 +21,8 @@ defmodule Ziwoas.Govee.Bridge do
 
   require Logger
 
-  alias Ziwoas.Mqtt
   alias Ziwoas.Govee.{CommandRouter, DeviceRegistry, Lan, Messages, PlatformApi, StateStore}
+  alias Ziwoas.Mqtt
 
   @client_id "ziwoas-phoenix-govee"
   @listen_backoff_min_ms 1_000
@@ -173,16 +173,7 @@ defmodule Ziwoas.Govee.Bridge do
     else
       lan(state, :discover)
 
-      published =
-        for device <- devices do
-          if device.ip, do: lan(state, {:request_status, device.ip})
-
-          publish(
-            state,
-            "govees/#{device.key}/config",
-            JSON.encode!(Messages.config_wire(device))
-          )
-        end
+      published = Enum.map(devices, &announce_device(state, &1))
 
       if Enum.all?(published, &(&1 == :ok)) do
         Logger.info("Govee bridge: bootstrapped #{length(devices)} devices")
@@ -192,6 +183,11 @@ defmodule Ziwoas.Govee.Bridge do
         state
       end
     end
+  end
+
+  defp announce_device(state, device) do
+    if device.ip, do: lan(state, {:request_status, device.ip})
+    publish(state, "govees/#{device.key}/config", JSON.encode!(Messages.config_wire(device)))
   end
 
   # --- LAN ----------------------------------------------------------------------

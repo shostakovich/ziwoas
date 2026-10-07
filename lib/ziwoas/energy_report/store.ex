@@ -2,9 +2,9 @@ defmodule Ziwoas.EnergyReport.Store do
   @moduledoc "All database reads behind the energy report. Dates are ISO strings in the tables."
   import Ecto.Query
 
-  alias Ziwoas.Repo
   alias Ziwoas.EnergyReport.DailyEnergySummary
   alias Ziwoas.Plugs.{DailyTotal, Sample5min}
+  alias Ziwoas.Repo
 
   @spec latest_aggregate_date() :: Date.t() | nil
   def latest_aggregate_date do

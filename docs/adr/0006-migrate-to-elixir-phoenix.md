@@ -1,5 +1,7 @@
 # ZiWoAS moves to Elixir/Phoenix route by route, with Rails as the oracle
 
+**Status:** Superseded by [ADR-0007](0007-idiomatic-phoenix-big-bang-cutover.md).
+
 ZiWoAS is mostly long-lived device connections (MQTT, Modbus, Govee, Fritz!Box) and live
 dashboards, run as three Ruby processes side by side: Puma, Solid Queue and the collector. That
 is what the BEAM is built for: supervision trees reconnect devices, PubSub and LiveView carry

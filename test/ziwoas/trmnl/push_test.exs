@@ -5,7 +5,7 @@ defmodule Ziwoas.Trmnl.PushTest do
 
   alias Ziwoas.TestConfigs
   alias Ziwoas.Trmnl.{EnergyPushJob, Push}
-  alias Ziwoas.Trmnl.Push.PayloadTooLarge
+  alias Ziwoas.Trmnl.Push.PayloadTooLargeError
 
   @payload %{merge_variables: %{ts: 1, pv_kwh: 0, stand: "12:00"}}
 
@@ -53,9 +53,11 @@ defmodule Ziwoas.Trmnl.PushTest do
   test "a payload over 2 kB raises" do
     huge = %{merge_variables: %{blob: String.duplicate("x", 4000)}}
 
-    assert_raise PayloadTooLarge, ~r/TRMNL sensor payload is \d+ B, exceeds 2048 B limit/, fn ->
-      Push.run(:sensors, "https://example/", fn -> huge end)
-    end
+    assert_raise PayloadTooLargeError,
+                 ~r/TRMNL sensor payload is \d+ B, exceeds 2048 B limit/,
+                 fn ->
+                   Push.run(:sensors, "https://example/", fn -> huge end)
+                 end
   end
 
   test "a failed POST is a warning" do

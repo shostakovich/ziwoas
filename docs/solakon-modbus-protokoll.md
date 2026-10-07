@@ -24,67 +24,67 @@
 
 ## 1. Wie wir das Protokoll nutzen (Code-Sicht)
 
-**Transport / Verbindung** — implementiert in [`lib/solakon/client.rb`](../lib/solakon/client.rb):
+**Transport / Verbindung** — implementiert in [`lib/ziwoas/solakon/`](../lib/ziwoas/solakon/) (`Modbus`, `Monitor`, `Client`):
 
 | Eigenschaft | Wert | Quelle |
 |-------------|------|--------|
-| Transport | **Modbus TCP** | `ModBus::TCPClient.connect` ([solakon/client.rb:115](../lib/solakon/client.rb#L115)), Gem `rmodbus`; im Phoenix-Port `Ziwoas.Solakon.Modbus` (`:gen_tcp`, FC03/FC06/FC16, dieselben Register in derselben Reihenfolge und dieselben Frames wie rmodbus; geschrieben wird nur, solange Phoenix `solakon_control` besitzt) |
-| Registertyp | **Holding Registers** (FC03 lesen / FC06 + FC16 schreiben) | [solakon/client.rb:5-8](../lib/solakon/client.rb#L5) |
-| Word-Order (32-Bit) | **Big-Endian, High Word First** | `to_i32` / `from_i32` ([solakon/client.rb:130-138](../lib/solakon/client.rb#L130)) |
+| Transport | **Modbus TCP** | `Ziwoas.Solakon.Modbus` ([modbus.ex](../lib/ziwoas/solakon/modbus.ex), `:gen_tcp`); eine dauerhafte Verbindung in `Ziwoas.Solakon.Monitor` ([monitor.ex](../lib/ziwoas/solakon/monitor.ex)) |
+| Registertyp | **Holding Registers** (FC03 lesen / FC06 + FC16 schreiben) | `Modbus.read_holding_registers/6`, `write_single_register/6`, `write_multiple_registers/6` |
+| Word-Order (32-Bit) | **Big-Endian, High Word First** | `Client.decode/2` / `Client.from_i32/1` ([client.ex](../lib/ziwoas/solakon/client.ex)) |
 | Host | `solakon.host` (z. B. `192.168.1.50`) | [`config/ziwoas.example.yml`](../config/ziwoas.example.yml) |
-| Port | `solakon.port`, Default **502** | `ConfigLoader::SolakonCfg` ([config_loader.rb](../lib/config_loader.rb)) |
+| Port | `solakon.port`, Default **502** | `Ziwoas.Config.Solakon` ([config.ex](../lib/ziwoas/config.ex)) |
 | Unit / Slave ID | `solakon.unit_id`, Default **1** | s. o. |
-| Stale-Schwelle | `solakon.stale_after_s`, Default **120 s** | s. o. |
+| Stale-Schwelle | fest **120 s**, nicht konfigurierbar | `Ziwoas.Solakon.Reading.stale_after_s/0` |
 | Monitoring an? | `solakon.monitoring_enabled`, Default **true** | s. o. |
 | Regelung an? | `solakon.control_enabled`, Default **false** | s. o. |
 
 > **Hinweis Funktionscodes:** Das PDF nennt keine FC-Nummern, Unit-ID oder Baudrate (Modbus TCP).
 > Die Angaben oben stammen aus unserem live verifizierten Code, nicht aus dem PDF (vgl. [§3](#3-abweichungen--lücken-zwischen-code-und-pdf)).
 
-**Datenfluss** ([`app/jobs/solakon/monitor_job.rb`](../app/jobs/solakon/monitor_job.rb) → [`app/models/solakon/control/tick.rb`](../app/models/solakon/control/tick.rb)):
+**Datenfluss** ([`monitor_job.ex`](../lib/ziwoas/solakon/monitor_job.ex) → [`control/tick.ex`](../lib/ziwoas/solakon/control/tick.ex)), alle 30 s:
 
 ```
 Modbus TCP (Solakon ONE)
-  → Solakon::Client#read_state            (FC03)
-    → Solakon::Reading#save!              (Persistenz, app/models/solakon/reading.rb)
-    → Solakon::Control::Tick.call (wenn control_enabled)
-        → Solakon::Control::LoadReader (Live-Last, 24h-Floor)
-        → Solakon::Control::Policy.decide   (reine State-Machine)
-        → Solakon::Client#apply_control!    (FC06/FC16, jeder Takt — armt den Watchdog)
-        → Solakon::Control::Outcome         (eine Antwort, die der Monitor loggt)
+  → Ziwoas.Solakon.Monitor.read_state           (FC03, über Client.read_state/1)
+    → solakon_readings                          (Ziwoas.Solakon.Reading)
+    → Ziwoas.Solakon.Control.Tick.run/4         (wenn control_enabled)
+        → Control.LoadReader                    (Live-Last, 24h-Floor)
+        → Control.Policy.decide                 (reine State-Machine)
+        → Monitor.apply_control → Client.apply_control/4  (FC06/FC16, jeder Takt — armt den Watchdog)
+        → Control.Outcome                       (eine Antwort, die der Monitor loggt)
 ```
 
-Algorithmus-Details stehen in [`docs/superpowers/specs/2026-06-20-solakon-control-algorithm-design.md`](superpowers/specs/2026-06-20-solakon-control-algorithm-design.md)
-und im Plan [`docs/superpowers/plans/2026-06-20-solakon-control-algorithm.md`](superpowers/plans/2026-06-20-solakon-control-algorithm.md).
+Algorithmus-Details: [ADR-0002](adr/0002-solakon-load-following-and-full-battery-surplus.md) und
+`Ziwoas.Solakon.Control.Policy` ([policy.ex](../lib/ziwoas/solakon/control/policy.ex)).
 
 ---
 
 ## 2. Cross-Reference: unsere Register ↔ PDF
 
-Nur diese Register berührt unser Code aktuell. Konstanten in [`lib/solakon/client.rb`](../lib/solakon/client.rb).
+Die Register der Regelung. Definiert in [`lib/ziwoas/solakon/client.ex`](../lib/ziwoas/solakon/client.ex): Lesefelder in `@fast` (Messwert, 30 s), `@snapshot_overrides` und `@groups` (Snapshot, 2 min), Schreibregister als `@reg_*`. Der Client liest darüber hinaus Status, Alarme, Temperaturen, EPS, Energiezähler und BMS-Werte; maßgeblich ist dort der Code.
 
 ### Gelesen (FC03)
 
-| Adresse | Code-Konstante | Modell-Feld | Typ | #Reg | Skalierung im Code | PDF-Eintrag | Anmerkung |
+| Adresse | Im Code | Modell-Feld | Typ | #Reg | Skalierung im Code | PDF-Eintrag | Anmerkung |
 |--------:|----------------|-------------|-----|:----:|--------------------|-------------|-----------|
-| 39424 | `REG_BATTERY_SOC` | `battery_soc_pct` | i16 | 1 | × 1 (%) | **— nicht im PDF v02/26 —** | Live verifiziert: liefert exakt denselben Wert wie BMS1 SoC (37612). Aggregierter Gesamt-SoC, im PDF nur nicht gelistet. Siehe [§3](#3-abweichungen--lücken-zwischen-code-und-pdf). |
-| 39248 | `REG_ACTIVE_POWER` | `active_power_w` | i32 | 2 | × 1 (W) | Index 214 „INV R Phase Active Power" (W, Faktor 1) | Wir nutzen die R-Phase als Gesamtwirkleistung (einphasiger Balkon-Aufbau). |
-| 39230 | `REG_BATTERY_POWER` | `battery_power_w` | i32 | 2 | × 1 (W) | Index 203 „Battery 1 Power" (W, Faktor 1) | Vorzeichen: **+ = Laden, − = Entladen**. (Combined läge bei 39237.) |
-| 39279 (+2·(n−1)) | `REG_PV_POWER_BASE` | `pv_power_w` | i32 ×4 | 8 | × 1 (W), Summe der 4 Strings | Index 231 ff. „PV1..PVn Power" (W, Faktor 1) | Es gibt kein Momentan-Gesamt-PV-Register; ungenutzte Strings lesen 0. |
-| 37617 | `REG_BMS_MAX_TEMP` | `battery_temperature_c` | i16 | 1 | ÷ 10 (°C) | Index 28 „BMS1 Max Temperature" (℃, Faktor 10) | Skalierung passt zum PDF-Faktor 10. |
-| 46609 | `REG_MINIMUM_SOC` | (nur lesen vor Schreiben) | u16 | 1 | × 1 (%) | Index 298 „Minimum SoC" (%, [10,100]) | Wird nur gelesen, um Self-Healing-Write zu entscheiden. |
+| 39424 | `battery_soc` | `battery_soc_pct` | i16 | 1 | × 1 (%) | **— nicht im PDF v02/26 —** | Live verifiziert: liefert exakt denselben Wert wie BMS1 SoC (37612). Aggregierter Gesamt-SoC, im PDF nur nicht gelistet. Siehe [§3](#3-abweichungen--lücken-zwischen-code-und-pdf). |
+| 39248 | `active_power_w` | `active_power_w` | i32 | 2 | × 1 (W) | Index 214 „INV R Phase Active Power" (W, Faktor 1) | Wir nutzen die R-Phase als Gesamtwirkleistung (einphasiger Balkon-Aufbau). |
+| 39230 | `battery_power_w` | `battery_power_w` | i32 | 2 | × 1 (W) | Index 203 „Battery 1 Power" (W, Faktor 1) | Vorzeichen: **+ = Laden, − = Entladen**. (Combined läge bei 39237.) |
+| 39279 (+2·(n−1)) | `pv_power` (`@groups`) | `pv_power_w` | i32 ×4 | 8 | × 1 (W), Summe der 4 Strings | Index 231 ff. „PV1..PVn Power" (W, Faktor 1) | Es gibt kein Momentan-Gesamt-PV-Register; ungenutzte Strings lesen 0. |
+| 37617 | `battery_temperature_c` | `battery_temperature_c` | i16 | 1 | ÷ 10 (°C) | Index 28 „BMS1 Max Temperature" (℃, Faktor 10) | Skalierung passt zum PDF-Faktor 10. |
+| 46609 | `@reg_minimum_soc` | (nur lesen vor Schreiben) | u16 | 1 | × 1 (%) | Index 298 „Minimum SoC" (%, [10,100]) | Wird nur gelesen, um Self-Healing-Write zu entscheiden. |
 
 ### Geschrieben (FC06 / FC16)
 
-| Adresse | Code-Konstante | Typ | #Reg | Wert | PDF-Eintrag | Anmerkung |
+| Adresse | Im Code | Typ | #Reg | Wert | PDF-Eintrag | Anmerkung |
 |--------:|----------------|-----|:----:|------|-------------|-----------|
-| 46001 | `REG_REMOTE_CONTROL` | Bitfield16 | 1 | `0b0001` ein / `0` aus | Index 270 „Remote Control" | `0b0001` = Enable + Generation + Target AC. PDF-Notation „00 0 1". |
-| 46002 | `REG_REMOTE_TIMEOUT` | u16 | 1 | `150` (s) | Index 271 „Remote Timeout_Set" (s) | Inverter-seitiger Watchdog; > Tick-Intervall, damit Normalbetrieb ihn nicht auslöst. |
-| 46003 | `REG_REMOTE_ACTIVE_POWER` | i32 | 2 | 0…800 (W, geclamped) | Index 272 „Remote Control Active Power Command" (W) | Aktiver Leistungs-Sollwert pro Steuer-Tick. |
-| 46609 | `REG_MINIMUM_SOC` | u16 | 1 | `10` | Index 298 „Minimum SoC" (%) | **Nur bei Abweichung** schreiben (persistentes Register → Flash schonen). |
+| 46001 | `@reg_remote_control` | Bitfield16 | 1 | `0b0001` ein / `0` aus | Index 270 „Remote Control" | `0b0001` = Enable + Generation + Target AC. PDF-Notation „00 0 1". |
+| 46002 | `@reg_remote_timeout` | u16 | 1 | `150` (s) | Index 271 „Remote Timeout_Set" (s) | Inverter-seitiger Watchdog; > Tick-Intervall, damit Normalbetrieb ihn nicht auslöst. |
+| 46003 | `@reg_remote_active_power` | i32 | 2 | 0…800 (W, geclamped) | Index 272 „Remote Control Active Power Command" (W) | Aktiver Leistungs-Sollwert pro Steuer-Tick. |
+| 46609 | `@reg_minimum_soc` | u16 | 1 | `10` | Index 298 „Minimum SoC" (%) | **Nur bei Abweichung** schreiben (persistentes Register → Flash schonen). |
 
-`46001`-Bitfeld wird im Code als `REMOTE_CONTROL_ENABLE = 0b0001` kodiert
-([solakon/client.rb:31-34](../lib/solakon/client.rb#L31)). Bedeutung der Bits → [§9](#9-ansteuerung-remote-control-46001).
+`46001`-Bitfeld wird im Code als `@remote_control_enable 0b0001` kodiert
+([client.ex](../lib/ziwoas/solakon/client.ex)). Bedeutung der Bits → [§9](#9-ansteuerung-remote-control-46001).
 
 ---
 
@@ -593,14 +593,14 @@ Leistungs-Sollwert (46003). Unser Code setzt `46001 = 0b0001` (Enable + Generati
 
 ### Steuersequenz im Code
 
-`Solakon::Client#write_control!` ([solakon/client.rb:101-109](../lib/solakon/client.rb#L101)) schreibt in dieser Reihenfolge:
+`Ziwoas.Solakon.Client.apply_control/4` ([client.ex](../lib/ziwoas/solakon/client.ex)) schreibt in dieser Reihenfolge:
 
 1. **46609** Minimum SoC — *nur falls abweichend* (Self-Healing, schont Flash).
 2. **46001** Remote Control = `0b0001` (Enable, Generation, AC).
 3. **46002** Remote Timeout = `150 s` (Watchdog re-arm).
 4. **46003** Active-Power-Sollwert (i32, W) — zuletzt.
 
-`release_control!` schreibt `46001 = 0`, damit der Inverter in seinen sicheren Default zurückfällt.
+`Client.release_control/1` schreibt `46001 = 0`, damit der Inverter in seinen sicheren Default zurückfällt.
 Fällt das Schreiben aus, übernimmt nach 150 s der **geräteseitige Watchdog** als Backstop.
 
 ---

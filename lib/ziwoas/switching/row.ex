@@ -6,12 +6,11 @@ defmodule Ziwoas.Switching.Row do
   """
   import Ecto.Query
 
+  alias Ziwoas.Plugs.{Measurement, Plug, State}
   alias Ziwoas.Repo
-  alias Ziwoas.Plugs.{Plug, State}
   alias Ziwoas.Switching.{Command, EdgeCalculator, Rule, Schedule}
 
   @lookahead_s 7 * 24 * 3600
-  @offline_after_s 120
 
   @enforce_keys [:plug, :entries, :state, :last_command, :next_edge, :watt, :last_seen_ts, :now]
   defstruct @enforce_keys
@@ -74,7 +73,7 @@ defmodule Ziwoas.Switching.Row do
   @spec offline?(t) :: boolean
   def offline?(row) do
     age = age(row)
-    is_nil(age) or age > @offline_after_s
+    is_nil(age) or age > Measurement.offline_after_s()
   end
 
   @doc """

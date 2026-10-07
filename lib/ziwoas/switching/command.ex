@@ -13,6 +13,8 @@ defmodule Ziwoas.Switching.Command do
     timestamps()
   end
 
+  @type t :: %__MODULE__{}
+
   @doc "Whether a manual command for the plug came after `time` (`Command.manual_after?`)."
   @spec manual_after?(String.t(), DateTime.t()) :: boolean
   def manual_after?(plug_id, time) do

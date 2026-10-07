@@ -19,6 +19,8 @@ defmodule Ziwoas.Config do
   defmodule Mqtt do
     @moduledoc false
     defstruct [:host, :port, :topic_prefix]
+
+    @type t :: %__MODULE__{host: String.t(), port: :inet.port_number(), topic_prefix: String.t()}
   end
 
   defmodule FritzPoll do
@@ -314,27 +316,11 @@ defmodule Ziwoas.Config do
   defp build_plug(h, i, existing_ids) do
     unless is_map(h), do: error!("plugs[#{i}] must be a mapping")
 
-    id = require_string(h["id"], "plugs[#{i}].id")
-
-    unless Regex.match?(@id_regex, id),
-      do: error!("plug id '#{id}' must match #{Regex.source(@id_regex)}")
-
-    if id in existing_ids, do: error!("duplicate plug id '#{id}'")
-
-    role = Map.get(@roles, require_string(h["role"], "plugs[#{i}].role"))
-    unless role, do: error!("plug '#{id}' role must be one of [:producer, :consumer]")
-
-    driver = Map.get(@drivers, to_text(if nil?(h["driver"]), do: "shelly", else: h["driver"]))
-    unless driver, do: error!("plug '#{id}' driver must be one of [:shelly, :fritz_dect]")
-
+    id = plug_id(h, i, existing_ids)
+    role = plug_role(h, i, id)
+    driver = plug_driver(h, id)
     name = require_string(h["name"], "plugs[#{i}].name")
-    switchable = if Map.has_key?(h, "switchable"), do: h["switchable"], else: false
-
-    unless is_boolean(switchable), do: error!("plugs[#{i}].switchable must be true or false")
-
-    if switchable and role == :producer,
-      do: error!("plug '#{id}' with role: producer cannot be switchable")
-
+    switchable = plug_switchable(h, i, id, role)
     room = if nil?(h["room"]), do: nil, else: require_string(h["room"], "plugs[#{i}].room")
     ain = plug_ain(h, i, driver)
 
@@ -347,6 +333,40 @@ defmodule Ziwoas.Config do
       room: room,
       switchable: switchable
     }
+  end
+
+  defp plug_id(h, i, existing_ids) do
+    id = require_string(h["id"], "plugs[#{i}].id")
+
+    unless Regex.match?(@id_regex, id),
+      do: error!("plug id '#{id}' must match #{Regex.source(@id_regex)}")
+
+    if id in existing_ids, do: error!("duplicate plug id '#{id}'")
+
+    id
+  end
+
+  defp plug_role(h, i, id) do
+    role = Map.get(@roles, require_string(h["role"], "plugs[#{i}].role"))
+    unless role, do: error!("plug '#{id}' role must be one of [:producer, :consumer]")
+    role
+  end
+
+  defp plug_driver(h, id) do
+    driver = Map.get(@drivers, to_text(if nil?(h["driver"]), do: "shelly", else: h["driver"]))
+    unless driver, do: error!("plug '#{id}' driver must be one of [:shelly, :fritz_dect]")
+    driver
+  end
+
+  defp plug_switchable(h, i, id, role) do
+    switchable = Map.get(h, "switchable", false)
+
+    unless is_boolean(switchable), do: error!("plugs[#{i}].switchable must be true or false")
+
+    if switchable and role == :producer,
+      do: error!("plug '#{id}' with role: producer cannot be switchable")
+
+    switchable
   end
 
   defp plug_ain(h, i, :shelly) do

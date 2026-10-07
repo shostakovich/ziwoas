@@ -3,8 +3,8 @@ defmodule Ziwoas.Solakon.MonitorJobTest do
   use Ziwoas.DataCase
 
   alias Ziwoas.{Config, FakeModbusServer, Repo, TestClock}
-  alias Ziwoas.Solakon.{Monitor, MonitorJob, Reading, Snapshot, SnapshotJob}
   alias Ziwoas.Solakon.Control.{Decision, Outcome, State}
+  alias Ziwoas.Solakon.{Monitor, MonitorJob, Reading, Snapshot, SnapshotJob}
 
   @moduletag :capture_log
 

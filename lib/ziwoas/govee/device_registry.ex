@@ -110,21 +110,22 @@ defmodule Ziwoas.Govee.DeviceRegistry do
   defp load_scenes(raw, scenes) do
     case scenes.(raw) do
       {:ok, options} ->
-        Enum.reduce(List.wrap(options), {[], %{}}, fn option, {names, index} ->
-          name = text(option["name"])
-          value = if is_map(option["value"]), do: option["value"], else: %{}
-
-          if name == "",
-            do: {names, index},
-            else:
-              {names ++ [name],
-               Map.put(index, name, %{id: value["id"], param_id: value["paramId"]})}
-        end)
+        Enum.reduce(List.wrap(options), {[], %{}}, &add_scene/2)
 
       {:error, message} ->
         Logger.warning("Govee.DeviceRegistry: scenes for #{raw["device"]} failed: #{message}")
         {[], %{}}
     end
+  end
+
+  defp add_scene(option, {names, index}) do
+    name = text(option["name"])
+    value = if is_map(option["value"]), do: option["value"], else: %{}
+
+    if name == "",
+      do: {names, index},
+      else:
+        {names ++ [name], Map.put(index, name, %{id: value["id"], param_id: value["paramId"]})}
   end
 
   defp present(nil), do: nil

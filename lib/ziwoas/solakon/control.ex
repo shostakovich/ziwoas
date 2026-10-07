@@ -4,8 +4,8 @@ defmodule Ziwoas.Solakon.Control do
   output) and pausing the Auto-Regelung.
   """
   alias Ziwoas.Config
-  alias Ziwoas.Solakon.Monitor
   alias Ziwoas.Solakon.Control.State
+  alias Ziwoas.Solakon.Monitor
 
   @doc """
   Switches the EPS output through the monitor's connection: `{:ok, enabled}` or

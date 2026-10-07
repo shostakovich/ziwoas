@@ -96,24 +96,26 @@ defmodule Ziwoas.SunCalendar.Builder do
       )
 
     {order, totals} =
-      Enum.reduce(rows, {[], %{}}, fn [bucket_ts, energy_wh], {order, totals} = acc ->
+      Enum.reduce(rows, {[], %{}}, fn [bucket_ts, energy_wh], acc ->
         time = LocalDay.local_time(bucket_ts, zone)
 
-        if seam && Date.compare(DateTime.to_date(time), seam) != :lt do
-          acc
-        else
-          hour = beginning_of_hour(time)
-          key = DateTime.to_unix(hour)
-          energy = (energy_wh || 0) * 1.0
-
-          case totals do
-            %{^key => {_, sum}} -> {order, %{totals | key => {hour, sum + energy}}}
-            _ -> {[key | order], Map.put(totals, key, {hour, 0.0 + energy})}
-          end
-        end
+        if seam && Date.compare(DateTime.to_date(time), seam) != :lt,
+          do: acc,
+          else: add_to_hour(acc, time, energy_wh)
       end)
 
     order |> Enum.sort() |> Enum.map(&Map.fetch!(totals, &1))
+  end
+
+  defp add_to_hour({order, totals}, time, energy_wh) do
+    hour = beginning_of_hour(time)
+    key = DateTime.to_unix(hour)
+    energy = (energy_wh || 0) * 1.0
+
+    case totals do
+      %{^key => {_, sum}} -> {order, %{totals | key => {hour, sum + energy}}}
+      _ -> {[key | order], Map.put(totals, key, {hour, 0.0 + energy})}
+    end
   end
 
   defp beginning_of_hour(%DateTime{} = time),

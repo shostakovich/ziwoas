@@ -1,9 +1,9 @@
 defmodule Ziwoas.Economics.OverviewTest do
   use Ziwoas.DataCase
 
-  alias Ziwoas.Repo
   alias Ziwoas.Economics.{CostItem, Overview}
   alias Ziwoas.EnergyReport.DailyEnergySummary
+  alias Ziwoas.Repo
 
   @today ~D[2026-10-06]
 

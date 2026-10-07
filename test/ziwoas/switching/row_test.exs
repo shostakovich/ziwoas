@@ -3,7 +3,7 @@ defmodule Ziwoas.Switching.RowTest do
 
   alias Ziwoas.{Clock, Repo}
   alias Ziwoas.Plugs.{Plug, State}
-  alias Ziwoas.Switching.{Command, Row, Rule}
+  alias Ziwoas.Switching.{Command, Row, Rule, Schedule}
 
   @zone "Europe/Berlin"
   @plug %Plug{id: "fridge", name: "Kühlschrank", role: :consumer, switchable: true}
@@ -125,7 +125,7 @@ defmodule Ziwoas.Switching.RowTest do
     [early, _] = window(on_at: 360, off_at: 600)
     window(plug_id: "other")
 
-    assert Enum.map(build(at(17)).entries, &Ziwoas.Switching.Schedule.id/1) == [
+    assert Enum.map(build(at(17)).entries, &Schedule.id/1) == [
              early.group_id,
              late.id
            ]

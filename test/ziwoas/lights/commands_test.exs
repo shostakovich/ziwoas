@@ -1,8 +1,8 @@
 defmodule Ziwoas.Lights.CommandsTest do
   use Ziwoas.DataCase
 
-  alias Ziwoas.{Repo, TestClock, TestMqtt}
   alias Ziwoas.Lights.{Commands, Light, State}
+  alias Ziwoas.{Repo, TestClock, TestMqtt}
 
   setup do
     TestClock.freeze("2026-06-15T18:00:00Z")

@@ -332,30 +332,8 @@ defmodule ZiwoasWeb.SunChartComponents do
       month_label_gap: @month_label_gap,
       axis_label_gap: @axis_label_gap,
       month_lines: fn plot -> plot |> Plot.x_ticks(month_doys) |> Enum.map(& &1.at) end,
-      month_labels: fn plot, density ->
-        months = if density == :sparse, do: Enum.to_list(1..12//2), else: Enum.to_list(1..12)
-
-        for month <- months do
-          %Plot.Label{
-            x: Plot.number(Plot.x(plot, first_doy(calendar.year, month)) + @month_label_offset),
-            y: Plot.top(plot) - @month_label_lift,
-            text: month_name(month)
-          }
-        end
-      end,
-      hour_labels: fn plot, density ->
-        {step, pattern} =
-          if density == :sparse, do: {@sparse_hour_step, :hour}, else: {@dense_hour_step, :clock}
-
-        for hour <- hours,
-            rem(hour, step) == 0 and hour >= first_hour + @hour_label_clear_rows do
-          %Plot.Label{
-            x: Plot.left(plot) - @axis_label_gap,
-            y: Plot.number(Plot.y(plot, hour)),
-            text: hour_text(hour, pattern)
-          }
-        end
-      end,
+      month_labels: &month_labels(&1, &2, calendar.year),
+      hour_labels: &hour_labels(&1, &2, hours, first_hour),
       cells: fn strip -> cells(strip, hours, doys, wide_plot) end,
       cells_transform:
         "matrix(1 0 0 #{n(Float.round(scale * 1.0, 6))} 0 #{n(Plot.number(@top * (1 - scale)))})",
@@ -368,6 +346,32 @@ defmodule ZiwoasWeb.SunChartComponents do
       bar_values: Enum.to_list(0..(bars_max - 1)//ceil(bars_max / @max_bar_grid_lines)),
       bar_areas: fn plot -> bar_areas(plot, calendar.days) end
     }
+  end
+
+  defp month_labels(plot, density, year) do
+    months = if density == :sparse, do: Enum.to_list(1..12//2), else: Enum.to_list(1..12)
+
+    for month <- months do
+      %Plot.Label{
+        x: Plot.number(Plot.x(plot, first_doy(year, month)) + @month_label_offset),
+        y: Plot.top(plot) - @month_label_lift,
+        text: month_name(month)
+      }
+    end
+  end
+
+  defp hour_labels(plot, density, hours, first_hour) do
+    {step, pattern} =
+      if density == :sparse, do: {@sparse_hour_step, :hour}, else: {@dense_hour_step, :clock}
+
+    for hour <- hours,
+        rem(hour, step) == 0 and hour >= first_hour + @hour_label_clear_rows do
+      %Plot.Label{
+        x: Plot.left(plot) - @axis_label_gap,
+        y: Plot.number(Plot.y(plot, hour)),
+        text: hour_text(hour, pattern)
+      }
+    end
   end
 
   defp hour_text(hour, :hour), do: String.pad_leading(Integer.to_string(hour), 2, "0")

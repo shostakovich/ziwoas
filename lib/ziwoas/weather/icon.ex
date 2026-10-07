@@ -9,7 +9,7 @@ defmodule Ziwoas.Weather.Icon do
     "weather_#{base}_#{normalized_daytime(daytime)}.webp"
   end
 
-  @doc "\"day\" or \"night\": the icon's suffix when it has one, else where the sun stands."
+  @doc ~s("day" or "night": the icon's suffix when it has one, else where the sun stands.)
   @spec daytime_for(String.t() | nil, DateTime.t(), Ziwoas.Location.t()) :: String.t()
   def daytime_for(icon, timestamp, location) do
     icon = icon || ""

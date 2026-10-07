@@ -12,12 +12,13 @@ defmodule Ziwoas.Sensors.PollJob do
   require Logger
 
   alias Ziwoas.{Clock, Live, Repo}
+  alias Ziwoas.Scheduler.Job
   alias Ziwoas.Sensors.{Reading, SwitchBotClient}
   alias Ziwoas.Trmnl.{Push, SensorPayload}
 
   @impl true
   def perform(context) do
-    config = Ziwoas.Scheduler.Job.config(context)
+    config = Job.config(context)
 
     if is_nil(config.switchbot) or config.sensors == [] do
       Logger.info("sensors: not configured")

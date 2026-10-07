@@ -48,15 +48,15 @@ defmodule Ziwoas.EnergyReport.ChartBuilder do
     for plug <- Roster.consumers(roster) do
       rows_by_date = Store.daily_totals_for_plug(plug.id, dates)
 
-      data =
-        Enum.map(dates, fn date ->
-          case rows_by_date do
-            %{^date => row} -> rounded_kwh(Energy.wh(row.energy_wh))
-            _ -> 0.0
-          end
-        end)
-
+      data = Enum.map(dates, &daily_kwh(rows_by_date, &1))
       %{plug_id: plug.id, name: plug.name, data: data}
+    end
+  end
+
+  defp daily_kwh(rows_by_date, date) do
+    case rows_by_date do
+      %{^date => row} -> rounded_kwh(Energy.wh(row.energy_wh))
+      _ -> 0.0
     end
   end
 
@@ -80,10 +80,7 @@ defmodule Ziwoas.EnergyReport.ChartBuilder do
     plug_series =
       present_series(roster, fn plug ->
         watts_by_ts = PowerSeries.signed_watts_by_ts(series, plug.id)
-
-        Enum.map(timestamps, fn ts ->
-          if watt = watts_by_ts[ts], do: Float.round(watt, 1)
-        end)
+        Enum.map(timestamps, &rounded_watts(watts_by_ts, &1))
       end)
 
     %{
@@ -95,16 +92,17 @@ defmodule Ziwoas.EnergyReport.ChartBuilder do
     }
   end
 
+  defp rounded_watts(watts_by_ts, ts) do
+    if watt = watts_by_ts[ts], do: Float.round(watt, 1)
+  end
+
   defp daily_power_detail(roster, timezone, rows, start_date, end_date) do
     row_by_plug_and_date = Map.new(rows, &{{&1.plug_id, &1.date}, &1})
     dates = Enum.to_list(Date.range(start_date, end_date))
 
     plug_series =
       present_series(roster, fn plug ->
-        Enum.map(dates, fn date ->
-          if row = row_by_plug_and_date[{plug.id, Date.to_iso8601(date)}],
-            do: Float.round(row.energy_wh / 24.0, 1)
-        end)
+        Enum.map(dates, &mean_watts(row_by_plug_and_date, plug, &1))
       end)
 
     %{
@@ -113,6 +111,11 @@ defmodule Ziwoas.EnergyReport.ChartBuilder do
       times: Enum.map(dates, &(LocalDay.midnight_unix(&1, timezone) * 1000)),
       series: plug_series
     }
+  end
+
+  defp mean_watts(row_by_plug_and_date, plug, date) do
+    if row = row_by_plug_and_date[{plug.id, Date.to_iso8601(date)}],
+      do: Float.round(row.energy_wh / 24.0, 1)
   end
 
   # One series per configured plug, dropping plugs without any value.
@@ -157,29 +160,34 @@ defmodule Ziwoas.EnergyReport.ChartBuilder do
     with "line" <- chart.chart_type,
          [_ | _] <- timestamps,
          [_ | _] = hourly <- WeatherLoader.hourly(location, first, last) do
-      zone = location.timezone
-      by_hour = Map.new(hourly, &{&1.ts, &1})
-      point_at = fn ts -> by_hour[ts - Integer.mod(ts, 3600)] end
-
-      icon_at? =
-        if first == last,
-          do: fn ts -> Integer.mod(ts, 3600) == 0 end,
-          else: fn ts -> match?(%{hour: 12, minute: 0}, LocalDay.local_time(ts, zone)) end
-
-      icons =
-        for {ts, index} <- Enum.with_index(timestamps),
-            icon_at?.(ts),
-            point <- List.wrap(point_at.(ts)),
-            do: %{label_index: index, asset_name: point.asset_name, alt: point.alt}
-
-      Map.put(chart, :weather, %{
-        solar_w_per_m2: Enum.map(timestamps, &(point_at.(&1) && point_at.(&1).solar_w_per_m2)),
-        icons: icons
-      })
+      Map.put(chart, :weather, detail_weather(timestamps, hourly, location.timezone, first, last))
     else
       _ -> chart
     end
   end
+
+  defp detail_weather(timestamps, hourly, zone, first, last) do
+    by_hour = Map.new(hourly, &{&1.ts, &1})
+    point_at = fn ts -> by_hour[ts - Integer.mod(ts, 3600)] end
+    icon_at? = detail_icon_at(zone, first, last)
+
+    icons =
+      for {ts, index} <- Enum.with_index(timestamps),
+          icon_at?.(ts),
+          point <- List.wrap(point_at.(ts)),
+          do: %{label_index: index, asset_name: point.asset_name, alt: point.alt}
+
+    %{
+      solar_w_per_m2: Enum.map(timestamps, &(point_at.(&1) && point_at.(&1).solar_w_per_m2)),
+      icons: icons
+    }
+  end
+
+  # Hourly icons for a single day, one at noon per day otherwise.
+  defp detail_icon_at(_zone, day, day), do: fn ts -> Integer.mod(ts, 3600) == 0 end
+
+  defp detail_icon_at(zone, _first, _last),
+    do: fn ts -> match?(%{hour: 12, minute: 0}, LocalDay.local_time(ts, zone)) end
 
   defp rounded_kwh(energy), do: energy |> Energy.kwh() |> Float.round(3)
 end

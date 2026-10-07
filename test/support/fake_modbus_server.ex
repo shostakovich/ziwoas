@@ -91,15 +91,8 @@ defmodule Ziwoas.FakeModbusServer do
 
       function == 0x03 ->
         <<count::16>> = rest
-        words = Map.get(state.registers, "#{address}:#{count}")
         state = %{state | requests: [{address, count} | state.requests]}
-
-        if is_list(words) and length(words) == count do
-          data = for word <- words, into: <<>>, do: <<word::16>>
-          {:reply, <<0x03, byte_size(data), data::binary>>, state}
-        else
-          {:reply, <<0x83, 0x02>>, state}
-        end
+        {:reply, read_reply(Map.get(state.registers, "#{address}:#{count}"), count), state}
 
       function in [0x06, 0x10] ->
         <<head::binary-size(2), _::binary>> = rest
@@ -109,6 +102,13 @@ defmodule Ziwoas.FakeModbusServer do
         {:reply, <<function + 0x80, 0x01>>, state}
     end
   end
+
+  defp read_reply(words, count) when is_list(words) and length(words) == count do
+    data = for word <- words, into: <<>>, do: <<word::16>>
+    <<0x03, byte_size(data), data::binary>>
+  end
+
+  defp read_reply(_words, _count), do: <<0x83, 0x02>>
 
   defp hex(frame), do: Base.encode16(frame, case: :lower)
 

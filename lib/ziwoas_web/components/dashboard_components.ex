@@ -5,7 +5,7 @@ defmodule ZiwoasWeb.DashboardComponents do
   """
   use ZiwoasWeb, :html
 
-  alias Ziwoas.{EnergyFlow, EnergySummary, Energy, GermanNumber, LiveState}
+  alias Ziwoas.{Energy, EnergyFlow, EnergySummary, GermanNumber, LiveState}
 
   @battery_assets [
     {"normal", "solakon_battery_normal.webp"},

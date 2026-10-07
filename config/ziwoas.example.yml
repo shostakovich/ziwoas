@@ -11,7 +11,7 @@ mqtt:
   port: 1883
   topic_prefix: shellies
 
-# Solakon One – Null-Einspeisung (Steuerung per Modbus TCP).
+# Solakon One – Regelung über Modbus TCP (ADR-0002).
 # Ohne diesen Block ist die Regelung aus.
 # solakon:
 #   host: 192.168.1.50

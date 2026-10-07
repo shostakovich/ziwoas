@@ -1,8 +1,8 @@
 defmodule Ziwoas.Trmnl.EnergyPayloadTest do
   use Ziwoas.DataCase
 
-  alias Ziwoas.{Repo, TestConfigs}
   alias Ziwoas.Plugs.Sample
+  alias Ziwoas.{Repo, TestConfigs}
   alias Ziwoas.Trmnl.{EnergyPayload, Push}
 
   # 16:56 Europe/Berlin: the window ends at the 17:00 boundary.

@@ -1,8 +1,8 @@
 defmodule Ziwoas.Lights.GoveeSubscriberTest do
   use Ziwoas.DataCase
 
-  alias Ziwoas.Repo
   alias Ziwoas.Lights.{GoveeSubscriber, Light, State}
+  alias Ziwoas.Repo
 
   @moduletag :capture_log
 

@@ -3,9 +3,9 @@ defmodule ZiwoasWeb.ReportsLiveTest do
 
   import Phoenix.LiveViewTest
 
-  alias Ziwoas.{Repo, TestClock}
   alias Ziwoas.EnergyReport.DailyEnergySummary
   alias Ziwoas.Plugs.DailyTotal
+  alias Ziwoas.{Repo, TestClock}
   alias Ziwoas.Weather.Record
 
   setup do

@@ -23,8 +23,8 @@ defmodule Ziwoas.Collector do
 
   require Logger
 
-  alias Ziwoas.{Config, Mqtt}
   alias Ziwoas.Collector.MqttRouter
+  alias Ziwoas.{Config, Mqtt}
   alias Ziwoas.Fritz.DectClient
   alias Ziwoas.Lights.GoveeSubscriber
   alias Ziwoas.Plugs.ShellyStatusHandler

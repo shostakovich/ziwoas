@@ -6,8 +6,8 @@ defmodule ZiwoasWeb.SolakonLiveTest do
   import Phoenix.LiveViewTest
 
   alias Ziwoas.{Clock, Repo, TestClock}
-  alias Ziwoas.EnergyReport.DailyEnergySummary
   alias Ziwoas.Economics.CostItem
+  alias Ziwoas.EnergyReport.DailyEnergySummary
   alias Ziwoas.Plugs.Sample5min
   alias Ziwoas.Solakon.{PvHour, Reading, Snapshot}
   alias Ziwoas.Weather.Record

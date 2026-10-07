@@ -1,8 +1,8 @@
 defmodule Ziwoas.EnergyReport.WeatherLoaderTest do
   use Ziwoas.DataCase
 
-  alias Ziwoas.{Location, Repo}
   alias Ziwoas.EnergyReport.WeatherLoader
+  alias Ziwoas.{Location, Repo}
   alias Ziwoas.Weather.Record
 
   defp location(timezone \\ "Europe/Berlin"), do: Location.new(timezone, lat: 48.15, lon: 11.26)

@@ -6,8 +6,8 @@ defmodule Ziwoas.Economics do
   """
   import Ecto.Query
 
-  alias Ziwoas.Repo
   alias Ziwoas.Economics.{CostItem, ElectricityPrice, PriceBook}
+  alias Ziwoas.Repo
 
   @doc "Every recorded electricity price as a `PriceBook`."
   @spec price_book() :: PriceBook.t()

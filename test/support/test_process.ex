@@ -28,16 +28,17 @@ defmodule Ziwoas.TestProcess do
   def get(key) do
     key = {__MODULE__, key}
 
-    Process.get(key) ||
-      Enum.find_value(lineage(), fn pid ->
-        case Process.info(pid, :dictionary) do
-          {:dictionary, dictionary} ->
-            with {_key, value} <- List.keyfind(dictionary, key, 0), do: value
+    Process.get(key) || Enum.find_value(lineage(), &dictionary_value(&1, key))
+  end
 
-          nil ->
-            nil
-        end
-      end)
+  defp dictionary_value(pid, key) do
+    case Process.info(pid, :dictionary) do
+      {:dictionary, dictionary} ->
+        with {_key, value} <- List.keyfind(dictionary, key, 0), do: value
+
+      nil ->
+        nil
+    end
   end
 end
 

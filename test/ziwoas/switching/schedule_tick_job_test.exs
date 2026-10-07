@@ -5,7 +5,7 @@ defmodule Ziwoas.Switching.ScheduleTickJobTest do
   import ExUnit.CaptureLog
 
   alias Ziwoas.{Clock, Repo, TestClock, TestMqtt}
-  alias Ziwoas.Switching.{Command, Rules, ScheduleTickJob, SchedulerState}
+  alias Ziwoas.Switching.{Command, Rules, SchedulerState, ScheduleTickJob}
 
   # Monday 2026-06-15 18:05 in Berlin.
   @now "2026-06-15T18:05:00+02:00"

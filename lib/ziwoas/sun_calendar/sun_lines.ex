@@ -14,28 +14,31 @@ defmodule Ziwoas.SunCalendar.SunLines do
   def build(location, year) do
     {rise, set, noon, _previous} =
       Date.range(Date.new!(year, 1, 1), Date.new!(year, 12, 31))
-      |> Enum.reduce({[], [], [], nil}, fn date, {rise, set, noon, previous_offset} ->
-        offset = utc_offset(location, date)
-        seam = if previous_offset && previous_offset != offset, do: previous_offset
-
-        case events(location, date) do
-          nil ->
-            {rise, set, noon, offset}
-
-          events ->
-            doy = Date.day_of_year(date)
-
-            Enum.reduce(Enum.reject([seam, offset], &is_nil/1), {rise, set, noon, offset}, fn
-              with_offset, {rise, set, noon, offset} ->
-                [first, last] = Enum.map(events, &local_hour(&1, with_offset))
-
-                {[{doy, first} | rise], [{doy, last} | set], [{doy, (first + last) / 2} | noon],
-                 offset}
-            end)
-        end
-      end)
+      |> Enum.reduce({[], [], [], nil}, &add_day(location, &1, &2))
 
     %Lines{rise: Enum.reverse(rise), set: Enum.reverse(set), noon: Enum.reverse(noon)}
+  end
+
+  defp add_day(location, date, {rise, set, noon, previous_offset}) do
+    offset = utc_offset(location, date)
+    seam = if previous_offset && previous_offset != offset, do: previous_offset
+
+    case events(location, date) do
+      nil ->
+        {rise, set, noon, offset}
+
+      events ->
+        doy = Date.day_of_year(date)
+
+        [seam, offset]
+        |> Enum.reject(&is_nil/1)
+        |> Enum.reduce({rise, set, noon, offset}, &add_events(events, doy, &1, &2))
+    end
+  end
+
+  defp add_events(events, doy, with_offset, {rise, set, noon, offset}) do
+    [first, last] = Enum.map(events, &local_hour(&1, with_offset))
+    {[{doy, first} | rise], [{doy, last} | set], [{doy, (first + last) / 2} | noon], offset}
   end
 
   defp events(location, date) do

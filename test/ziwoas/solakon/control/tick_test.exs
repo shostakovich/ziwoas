@@ -3,8 +3,8 @@ defmodule Ziwoas.Solakon.Control.TickTest do
 
   alias Ziwoas.{FakeModbusServer, Repo, TestClock}
   alias Ziwoas.Plugs.{Plug, Roster}
-  alias Ziwoas.Solakon.{Monitor, Reading}
   alias Ziwoas.Solakon.Control.{Decision, Load, LoadReader, Outcome, State, Tick}
+  alias Ziwoas.Solakon.{Monitor, Reading}
 
   @moduletag :capture_log
   @now ~U[2026-10-05 10:00:00.000000Z]

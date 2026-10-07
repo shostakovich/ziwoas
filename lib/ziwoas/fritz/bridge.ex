@@ -14,8 +14,8 @@ defmodule Ziwoas.Fritz.Bridge do
 
   require Logger
 
-  alias Ziwoas.Mqtt
   alias Ziwoas.Fritz.DectClient
+  alias Ziwoas.Mqtt
 
   @client_id "ziwoas-phoenix-fritz"
 
@@ -71,7 +71,7 @@ defmodule Ziwoas.Fritz.Bridge do
     end
   end
 
-  @doc "A Shelly's switch status: `{\"apower\":…,\"aenergy\":{\"total\":…}}`."
+  @doc ~S(A Shelly's switch status: `{"apower":…,"aenergy":{"total":…}}`.)
   def payload(%{apower_w: watts, aenergy_wh: wh}),
     do: JSON.encode!(%{apower: watts, aenergy: %{total: wh}})
 

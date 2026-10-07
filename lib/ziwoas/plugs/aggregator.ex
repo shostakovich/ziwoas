@@ -7,8 +7,8 @@ defmodule Ziwoas.Plugs.Aggregator do
   """
   import Ecto.Query
 
-  alias Ziwoas.{LocalDay, PowerSeries, Repo}
   alias Ziwoas.EnergyReport.{DailyEnergySummary, DailyEnergySummaryBuilder}
+  alias Ziwoas.{LocalDay, PowerSeries, Repo}
   alias Ziwoas.Plugs.{DailyTotal, EnergyDeltas, Sample, Sample5min}
 
   @default_raw_retention_days 7

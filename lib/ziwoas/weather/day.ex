@@ -44,12 +44,12 @@ defmodule Ziwoas.Weather.Day do
   @spec segments(t) :: [Segment.t()]
   def segments(%__MODULE__{records: records, zone: zone}) do
     by_label =
-      Enum.group_by(records, fn record ->
-        hour = Weather.local_time(record, zone).hour
-        Enum.find_value(@segments, fn {label, hours} -> if hour in hours, do: label end)
-      end)
+      Enum.group_by(records, &segment_label(Weather.local_time(&1, zone).hour))
 
     for {label, hours} <- @segments,
         do: %Segment{label: label, hours: hours, records: Map.get(by_label, label, [])}
   end
+
+  defp segment_label(hour),
+    do: Enum.find_value(@segments, fn {label, hours} -> if hour in hours, do: label end)
 end

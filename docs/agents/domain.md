@@ -12,7 +12,7 @@ If any of these files don't exist, **proceed silently**. Don't flag their absenc
 
 ## File structure
 
-**zihas is a single-context repo**: one `CONTEXT.md` and one `docs/adr/`, both at the repo root.
+**ZiWoAS is a single-context repo**: one `CONTEXT.md` and one `docs/adr/`, both at the repo root.
 
 ```
 /
@@ -20,12 +20,10 @@ If any of these files don't exist, **proceed silently**. Don't flag their absenc
 ├── docs/adr/
 │   ├── 0001-….md
 │   └── 0002-….md
-├── app/
-└── lib/
+├── lib/
+└── assets/
 ```
 
-Neither file exists yet — `/domain-modeling` creates them lazily, so their absence is the
-expected state, not a gap to fix.
 
 ## Use the glossary's vocabulary
 

@@ -4,8 +4,8 @@ defmodule Ziwoas.Economics.SavingsCalculator do
   took straight from the array, priced at the electricity price in force that
   day. Exported energy earns nothing and never enters here (ADR-0003).
   """
-  alias Ziwoas.Energy
   alias Ziwoas.Economics.PriceBook
+  alias Ziwoas.Energy
 
   @enforce_keys [:price_book]
   defstruct [:price_book]

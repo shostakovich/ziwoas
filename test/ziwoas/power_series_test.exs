@@ -1,8 +1,8 @@
 defmodule Ziwoas.PowerSeriesTest do
   use ExUnit.Case, async: true
 
-  alias Ziwoas.PowerSeries
   alias Ziwoas.Plugs.Plug
+  alias Ziwoas.PowerSeries
 
   @plugs [
     %Plug{id: "bkw", name: "BKW", role: :producer},

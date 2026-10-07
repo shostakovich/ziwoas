@@ -11,6 +11,7 @@ defmodule Ziwoas.Weather.Sync do
 
   alias Ziwoas.{Clock, Live, LocalDay, Location, Repo}
   alias Ziwoas.Plugs.DailyTotal
+  alias Ziwoas.Scheduler.Job
   alias Ziwoas.Weather.{BrightskyClient, Record}
 
   @forecast_max_days 10
@@ -22,7 +23,7 @@ defmodule Ziwoas.Weather.Sync do
   """
   @spec perform(Ziwoas.Scheduler.Job.context(), (Location.t(), Date.t() -> any)) :: :ok
   def perform(context, sync) do
-    location = Ziwoas.Scheduler.Job.config(context).location
+    location = Job.config(context).location
 
     if Location.located?(location) do
       sync.(location, Clock.today(location.timezone))

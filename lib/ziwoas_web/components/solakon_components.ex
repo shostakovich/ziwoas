@@ -99,35 +99,23 @@ defmodule ZiwoasWeb.SolakonComponents do
     reading = assigns.reading
     latest = assigns.snapshot
 
-    status_messages =
-      cond do
-        latest -> Snapshot.status_messages(latest)
-        reading -> Reading.status_messages(reading)
-        true -> ["Alles ruhig"]
-      end
-
     battery_power_w = reading && Reading.battery_display_power_w(reading)
     battery_soc_pct = reading && reading.battery_soc_pct
-
-    battery_temp_c =
-      (reading && reading.battery_temperature_c) || (latest && latest.battery_temperature_c)
-
-    alarms =
-      for(r <- [reading, latest], r, do: [r.alarm1, r.alarm2, r.alarm3]) |> List.flatten()
-
-    battery_fault =
-      Enum.any?(alarms, &((&1 || 0) > 0)) or
-        Enum.any?((latest && latest.bms_faults) || [], &((&1 || 0) > 0))
+    battery_temp_c = first_value([reading, latest], :battery_temperature_c)
 
     {state, asset, summary} =
-      battery_character(battery_fault, battery_temp_c, battery_soc_pct, battery_power_w)
+      battery_character(
+        battery_fault?(reading, latest),
+        battery_temp_c,
+        battery_soc_pct,
+        battery_power_w
+      )
 
     assigns =
       assign(assigns,
-        status_messages: status_messages,
+        status_messages: status_messages(reading, latest),
         battery_temp_c: battery_temp_c,
-        inverter_temp_c:
-          (reading && reading.inverter_temperature_c) || (latest && latest.inverter_temperature_c),
+        inverter_temp_c: first_value([reading, latest], :inverter_temperature_c),
         eps_enabled: reading && reading.eps_enabled,
         battery_state: state,
         battery_asset: asset,
@@ -167,26 +155,53 @@ defmodule ZiwoasWeb.SolakonComponents do
   defp battery_character(true, _temp, _soc, _power),
     do: {"fault", "solakon_battery_fault.webp", "Akku meldet Aufmerksamkeit"}
 
-  defp battery_character(false, temp, soc, power) do
+  defp battery_character(false, temp, soc, power),
+    do: temperature_character(temp) || charge_character(soc) || flow_character(power)
+
+  defp temperature_character(nil), do: nil
+
+  defp temperature_character(temp) do
     cond do
-      not is_nil(temp) and temp >= Reading.hot_temp_c() ->
-        {"hot", "solakon_battery_hot.webp", "Akku ist warm"}
+      temp >= Reading.hot_temp_c() -> {"hot", "solakon_battery_hot.webp", "Akku ist warm"}
+      temp <= Reading.cold_temp_c() -> {"cold", "solakon_battery_cold.webp", "Akku ist kalt"}
+      true -> nil
+    end
+  end
 
-      not is_nil(temp) and temp <= Reading.cold_temp_c() ->
-        {"cold", "solakon_battery_cold.webp", "Akku ist kalt"}
+  defp charge_character(soc) do
+    if not is_nil(soc) and soc <= Reading.low_soc_pct(),
+      do: {"low", "solakon_battery_low.webp", "Akku ist niedrig geladen"}
+  end
 
-      not is_nil(soc) and soc <= Reading.low_soc_pct() ->
-        {"low", "solakon_battery_low.webp", "Akku ist niedrig geladen"}
+  defp flow_character(power) do
+    deadband = Reading.charge_deadband_w()
 
-      not is_nil(power) and power > Reading.charge_deadband_w() ->
+    cond do
+      is_nil(power) ->
+        {"normal", "solakon_battery_normal.webp", "Alles ruhig am Speicher"}
+
+      power > deadband ->
         {"charging", "solakon_battery_charging.webp", "Akku lädt gerade"}
 
-      not is_nil(power) and power < -Reading.charge_deadband_w() ->
+      power < -deadband ->
         {"normal", "solakon_battery_normal.webp", "Akku versorgt gerade das Haus"}
 
       true ->
         {"normal", "solakon_battery_normal.webp", "Alles ruhig am Speicher"}
     end
+  end
+
+  defp status_messages(nil, nil), do: ["Alles ruhig"]
+  defp status_messages(reading, nil), do: Reading.status_messages(reading)
+  defp status_messages(_reading, latest), do: Snapshot.status_messages(latest)
+
+  # The first of the readings that has a value for `field`.
+  defp first_value(readings, field), do: Enum.find_value(readings, &(&1 && Map.get(&1, field)))
+
+  defp battery_fault?(reading, latest) do
+    alarms = for r <- [reading, latest], r, alarm <- [r.alarm1, r.alarm2, r.alarm3], do: alarm
+    bms_faults = (latest && latest.bms_faults) || []
+    Enum.any?(alarms ++ bms_faults, &((&1 || 0) > 0))
   end
 
   # --- Steuerung ----------------------------------------------------------------

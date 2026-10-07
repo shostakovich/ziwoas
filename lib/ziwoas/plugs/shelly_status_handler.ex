@@ -167,7 +167,8 @@ defmodule Ziwoas.Plugs.ShellyStatusHandler do
     now = state.clock.()
 
     if now - state.last_broadcast_at >= @broadcast_interval_s do
-      state.broadcast.(Enum.map(state.pending, &elem(&1, 1)))
+      deltas = Enum.map(state.pending, &elem(&1, 1))
+      state.broadcast.(deltas)
       %{state | pending: [], last_broadcast_at: now}
     else
       state

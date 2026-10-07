@@ -45,9 +45,10 @@ defmodule Ziwoas.Scheduler.Schedule do
   end
 
   defp parse(["every", "hour", "at", "minute", minute]) do
-    with {m, ""} when m in 0..59 <- Integer.parse(minute),
-         do: {:interval, 3600, m * 60},
-         else: (_ -> :error)
+    case Integer.parse(minute) do
+      {m, ""} when m in 0..59 -> {:interval, 3600, m * 60}
+      _ -> :error
+    end
   end
 
   defp parse(["every", unit]), do: parse(["every", "1", unit <> "s"])
