@@ -75,7 +75,7 @@ defmodule ZiwoasWeb.ReportsLiveTest do
     total!("bkw", "2026-04-10", 2000)
 
     Repo.insert!(%Record{
-      kind: "historic",
+      kind: :historic,
       lat: 52.52,
       lon: 13.405,
       timestamp: ~U[2026-04-03 10:00:00.000000Z],

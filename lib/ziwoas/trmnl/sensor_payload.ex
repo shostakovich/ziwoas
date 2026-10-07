@@ -2,10 +2,10 @@ defmodule Ziwoas.Trmnl.SensorPayload do
   @moduledoc """
   The TRMNL sensor widget's `merge_variables`: one entry per configured
   sensor, in config order, with a 3-hour trend in twelve 15-minute buckets.
+  The values are the widget's wire format: German text for the e-ink display.
   """
   alias Ziwoas.{Clock, Config, Sensors}
   alias Ziwoas.Config.Sensor
-  alias Ziwoas.Sensors.ReadingPresenter
   alias Ziwoas.Trmnl.Window
 
   @bucket_seconds 15 * 60
@@ -22,7 +22,7 @@ defmodule Ziwoas.Trmnl.SensorPayload do
   defp entry(%Sensor{} = sensor, now, zone) do
     outdoor = sensor.type == :outdoor_meter
     latest = Sensors.latest(sensor.id)
-    offline = ReadingPresenter.offline?(latest, now)
+    offline = Sensors.offline?(latest, now)
 
     base = %{
       primary: nil,
@@ -42,9 +42,9 @@ defmodule Ziwoas.Trmnl.SensorPayload do
       name: sensor.name,
       type: if(outdoor, do: "outdoor", else: "indoor"),
       unit: if(outdoor, do: "°C", else: "ppm CO₂"),
-      battery_low: ReadingPresenter.battery_low?(latest),
+      battery_low: Sensors.battery_low?(latest),
       battery_pct: latest && latest.battery_pct,
-      age_label: ReadingPresenter.age_label(latest, now),
+      age_label: age_label(Sensors.age_s(latest, now)),
       offline: offline
     })
   end
@@ -66,11 +66,17 @@ defmodule Ziwoas.Trmnl.SensorPayload do
   end
 
   defp co2_level(latest) do
-    case ReadingPresenter.co2_level(latest) do
+    case Sensors.co2_level(latest) do
       nil -> nil
       level -> Atom.to_string(level)
     end
   end
+
+  # "vor 4 Min": whole seconds, minutes or hours, truncated.
+  defp age_label(nil), do: "—"
+  defp age_label(seconds) when seconds < 60, do: "vor #{seconds} s"
+  defp age_label(seconds) when seconds < 3600, do: "vor #{div(seconds, 60)} Min"
+  defp age_label(seconds), do: "vor #{div(seconds, 3600)} h"
 
   defp trend(sensor, now, zone, outdoor) do
     {start_ts, end_ts} = window(now, zone)

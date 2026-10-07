@@ -1,15 +1,15 @@
 defmodule Ziwoas.Weather.Segment do
   @moduledoc """
-  A quarter of a forecast day (Nacht, Vormittag, Nachmittag, Abend) and its
-  hourly records.
+  A quarter of a forecast day (`:night`, `:morning`, `:afternoon`, `:evening`)
+  and its hourly records.
   """
   alias Ziwoas.Weather
-  alias Ziwoas.Weather.{Icon, Record}
+  alias Ziwoas.Weather.Record
 
   @enforce_keys [:label, :hours, :records]
   defstruct @enforce_keys
 
-  @type t :: %__MODULE__{label: String.t(), hours: Range.t(), records: [Record.t()]}
+  @type t :: %__MODULE__{label: atom, hours: Range.t(), records: [Record.t()]}
 
   # Most severe first; the dominant icon is the most severe one present.
   @icon_severity ~w[thunderstorm hail snow sleet rain wind fog cloudy partly-cloudy clear unknown]
@@ -44,7 +44,7 @@ defmodule Ziwoas.Weather.Segment do
 
   def dominant_icon(%__MODULE__{records: records}) do
     records
-    |> Enum.map(&Icon.normalized_icon(&1.icon))
+    |> Enum.map(&Weather.base_icon(&1.icon))
     |> Enum.min_by(&severity/1)
   end
 
@@ -52,14 +52,11 @@ defmodule Ziwoas.Weather.Segment do
   def dominant_daytime(%__MODULE__{records: records} = segment) do
     target = dominant_icon(segment)
 
-    case Enum.find(records, &(Icon.normalized_icon(&1.icon) == target)) || List.first(records) do
+    case Enum.find(records, &(Weather.base_icon(&1.icon) == target)) || List.first(records) do
       %Record{daytime: daytime} when is_binary(daytime) -> daytime
       _ -> "day"
     end
   end
-
-  @spec asset_name(t) :: String.t()
-  def asset_name(segment), do: Icon.asset_name(dominant_icon(segment), dominant_daytime(segment))
 
   defp severity(icon) do
     Enum.find_index(@icon_severity, &(&1 == icon)) || length(@icon_severity)

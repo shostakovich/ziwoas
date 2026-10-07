@@ -34,7 +34,7 @@ defmodule Ziwoas.Shading.BuilderTest do
   # `hour` is the hour the record sums up; Bright Sky stamps its end.
   defp weather(hour, opts) do
     Repo.insert!(%Record{
-      kind: Keyword.get(opts, :kind, "historic"),
+      kind: Keyword.get(opts, :kind, :historic),
       daytime: "day",
       lat: Keyword.get(opts, :lat, @lat),
       lon: Keyword.get(opts, :lon, @lon),
@@ -87,7 +87,7 @@ defmodule Ziwoas.Shading.BuilderTest do
     pv_hour(12, 400.0, date: Date.add(@july, 1))
     weather(12, solar: 0.5)
     weather(12, solar: 0.5, date: Date.add(@july, 1))
-    weather(12, solar: 2.0, date: Date.add(@july, 1), kind: "forecast")
+    weather(12, solar: 2.0, date: Date.add(@july, 1), kind: :forecast)
     assert build() |> profile() |> points(:expected) == [{12, 400.0}]
   end
 

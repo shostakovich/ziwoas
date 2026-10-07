@@ -8,7 +8,7 @@ defmodule Ziwoas.Plugs do
   import Ecto.Query
 
   alias Ziwoas.Live
-  alias Ziwoas.Plugs.{Measurement, Sample}
+  alias Ziwoas.Plugs.{DailyTotal, Measurement, Sample}
   alias Ziwoas.Repo
 
   @topic inspect(__MODULE__)
@@ -72,5 +72,13 @@ defmodule Ziwoas.Plugs do
     )
     |> Repo.all()
     |> Map.new(&{&1.plug_id, &1})
+  end
+
+  @doc "The local days that have energy totals, oldest first."
+  @spec dates_with_daily_totals() :: [Date.t()]
+  def dates_with_daily_totals do
+    from(d in DailyTotal, distinct: true, select: d.date, order_by: d.date)
+    |> Repo.all()
+    |> Enum.map(&Date.from_iso8601!/1)
   end
 end

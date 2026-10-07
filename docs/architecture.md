@@ -45,7 +45,9 @@ time).
   `Ziwoas.TestClock`, which can freeze it. Local days and zones come from `tz`
   (`Ziwoas.LocalDay`, `Ziwoas.Location`); Elixir itself only knows UTC.
 - **Outbound HTTP**: `Req` via `Ziwoas.Http` (Bright Sky, SwitchBot, TRMNL, Fritz!Box, Govee
-  Platform API). Bodies stay raw and each client decodes its own answers. In tests every client
+  Platform API). Bodies stay raw and each client decodes its own answers. Bright Sky, SwitchBot
+  and TRMNL answer `{:ok, _} | {:error, reason}`, the reason an atom, a tuple
+  (`{:http_status, 500}`) or Req's exception. In tests every client
   is a `Req.Test` stub under its module name (`config :ziwoas, http_stubs: true`, compile time).
 - **Live updates**: each context owns its PubSub topic. `Ziwoas.Plugs.subscribe/0`
   (`{:live, deltas}`), `Ziwoas.Solakon.subscribe/0` (`{:reading, reading}`),
@@ -118,22 +120,30 @@ skips it, nothing is made up after downtime, and a failure is logged, not retrie
 | `fetch_today_weather` | every hour | `Weather.TodayJob` | coordinates | today's hours |
 | `fetch_weather_forecast` | every 3 h | `Weather.ForecastJob` | coordinates | forecast hours |
 | `fetch_historic_weather` | 3:45 daily | `Weather.HistoricJob` | coordinates | yesterday's observations, backfill of days with energy totals |
-| `poll_sensors` | every 15 min | `Sensors.PollJob` | SwitchBot and sensors | SwitchBot → `sensor_readings`, TRMNL sensor push, `Sensors` event |
+| `poll_sensors` | every 15 min | `Sensors.PollJob` | SwitchBot and sensors | SwitchBot → `sensor_readings`, `Sensors` event, TRMNL sensor push |
 | `push_trmnl_widget` | every 15 min | `Trmnl.EnergyPushJob` | `trmnl.energy_webhook_url` | TRMNL energy widget |
 | `aggregate_energy_samples` | 3:15 daily | `Plugs.AggregatorJob` | always | daily roll-up, backup (into `backup_dir`), PV hours |
 
-- **Weather.** `Ziwoas.Weather.Sync` over `BrightskyClient` writes `weather_records` (kinds
-  `current`, `forecast`, `historic`, keyed by kind, location and timestamp) and tells
-  `Weather`'s subscribers. `Weather.historic_records/3` is the one query for observations in a
-  time range.
+- **Weather.** `Ziwoas.Weather` owns `weather_records` (`kind` an `Ecto.Enum` of `:current`,
+  `:forecast`, `:historic`, keyed by kind, location and timestamp): it stores
+  (`replace_current/2`, `put_forecast/2`, `put_historic/2`, each in one transaction) and answers
+  the queries; `Weather.historic_records/3` is the one query for observations in a time range.
+  `Weather.Sync` fetches through `BrightskyClient` (a 404 for a date ends the range), stores
+  through `Weather`, and tells `Weather`'s subscribers; a failed sync is logged and tells nobody.
+  Icon file names and German labels are the web's (`ZiwoasWeb.WeatherIcon`).
+- **Sensors.** `Ziwoas.Sensors` owns `sensor_readings` (`create_reading/3`, the queries) and
+  what a reading means: `co2_level/1`, `battery_low?/1`, `offline?/2`, `age_s/2`. `PollJob`
+  stores through it, then tells `Sensors`' subscribers (the Sensoren and Wetter pages).
 - **Aggregation.** `Ziwoas.Plugs.Aggregator` folds each finished local day of `samples` into
   `samples_5min`, `daily_totals` and `daily_energy_summary` (in SQL), and purges raw samples older
   than 7 days. `Aggregator.backup!/3` writes `VACUUM INTO` copies to `config :ziwoas, :backup_dir`
   (`backup/` next to the database) and keeps seven. `Ziwoas.Solakon.PvHourAggregator` condenses
   the day's readings and snapshots into `solakon_pv_hours`.
-- **TRMNL.** `Ziwoas.Trmnl.EnergyPayload` and `SensorPayload` build the `merge_variables`;
-  `Ziwoas.Trmnl.Push` posts them once, without retry, and raises above 2 kB. The Liquid templates
-  are in [`trmnl/`](trmnl/).
+- **TRMNL.** `Ziwoas.Trmnl.EnergyPayload` and `SensorPayload` build the `merge_variables` (the
+  e-ink display's text wire format, read through the contexts); `Ziwoas.Trmnl.Push` posts them
+  once, without retry, logs the outcome and answers `{:ok, :sent | :skipped}` or
+  `{:error, reason}`, `{:payload_too_large, bytes}` above 2 kB. The Liquid templates are in
+  [`trmnl/`](trmnl/).
 
 ## Solakon control
 
@@ -190,14 +200,14 @@ title is `<.header>`.
 | `/solakon` | `SolakonLive` | `dashboard`, `solakon`; EPS and control switches as events |
 | `/solakon/history` | `SolakonHistoryLive` | reloads every minute; `?range=24h|7d|30d` |
 | `/solakon/wirtschaftlichkeit` | `EconomicsLive` | cost items and electricity prices, changeset forms |
-| `/weather` | `WeatherLive` | `weather` |
+| `/weather` | `WeatherLive` | `Weather` (`{:synced, date}`), `Sensors` (`{:polled, instant}`, the outdoor sensor) |
 | `/reports` | `ReportsLive` | none; range in the query |
-| `/sensors` | `SensorsLive` | `sensors` |
+| `/sensors` | `SensorsLive` | `Sensors` (`{:polled, instant}`); chart data as `"sensors_chart:data"` |
 | `/switches` | `SwitchesLive` | `dashboard` (plug rows), `lights` (lamp tiles); plug button, schedule editor and lamp tiles as events |
 | `/lights/:key` | `LightLive` | `light_<key>`; commands (`ZiwoasWeb.LightEvents`), settings sheet |
 
 Plain controllers: `GET /api/today`, `/api/today/summary`, `/api/history` (`ApiController`,
-JSON, internal consumers only), `GET /sensors/series` (the sensor chart's data), `GET /up` (`HealthController`:
+JSON, internal consumers only), `GET /up` (`HealthController`:
 `{"status":"up"}`, or 503 with the config error). Without a loaded device config every page
 is a 503 naming the error (`ZiwoasWeb.Plugs.RequireConfig` in `:browser`). In production `ZiwoasWeb.ForwardedSSL` treats a request the
 reverse proxy forwarded as HTTPS (`X-Forwarded-Proto`) as HTTPS, with HSTS and Secure cookies;
@@ -205,7 +215,9 @@ plain HTTP straight to port 3000 stays HTTP.
 
 **Hooks** (`assets/js/hooks/`, registered in `assets/js/app.js`): `EnergyFlow`, `TodayChart`,
 `HistoryChart`, `LiveFreshness` (dashboard, PV page), `SolakonHistory`, `EnergyReport`,
-`SensorsChart`, `LightDetail`, `SettingsSheet`. Charts are Chart.js
+`SensorsChart`, `LightDetail`, `SettingsSheet`. `SensorsChart` only draws what its LiveView
+pushes (`push_event` on connected mount and on every poll); it fetches nothing and keeps no
+timer. Charts are Chart.js
 (`assets/vendor/chart.umd.js`), painted through `assets/js/lib/chart_theme.js` and updated in
 place; canvas containers carry `phx-update="ignore"`.
 
@@ -229,7 +241,7 @@ Ecto migrations in `priv/repo/migrations/` own the schema. Schemas `use Ziwoas.S
 | `scheduler_states` | `Switching.SchedulerState` | watermark per plug |
 | `lights`, `light_states` | `Lights.Light`, `Lights.State` | lamps and their last state |
 | `sensor_readings` | `Sensors.Reading` | SwitchBot readings |
-| `weather_records` | `Weather.Record` | Bright Sky hours |
+| `weather_records` | `Weather.Record` | Bright Sky hours; `kind` as `Ecto.Enum`, stored as text |
 | `solakon_readings` | `Solakon.Reading` | 30 s readings |
 | `solakon_snapshots` | `Solakon.Snapshot` | 2 min snapshots incl. the four panels |
 | `solakon_pv_hours` | `Solakon.PvHour` | hourly PV means |

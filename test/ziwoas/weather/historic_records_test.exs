@@ -17,12 +17,12 @@ defmodule Ziwoas.Weather.HistoricRecordsTest do
   end
 
   test "the location's historic records in [from, to), oldest first" do
-    record!("historic", ~U[2026-05-04 12:00:00Z])
-    record!("historic", ~U[2026-05-04 10:00:00Z])
-    record!("historic", ~U[2026-05-04 11:00:00Z])
-    record!("historic", ~U[2026-05-04 09:00:00Z])
-    record!("forecast", ~U[2026-05-04 10:00:00Z])
-    record!("historic", ~U[2026-05-04 10:00:00Z], 48.1)
+    record!(:historic, ~U[2026-05-04 12:00:00Z])
+    record!(:historic, ~U[2026-05-04 10:00:00Z])
+    record!(:historic, ~U[2026-05-04 11:00:00Z])
+    record!(:historic, ~U[2026-05-04 09:00:00Z])
+    record!(:forecast, ~U[2026-05-04 10:00:00Z])
+    record!(:historic, ~U[2026-05-04 10:00:00Z], 48.1)
 
     records =
       Weather.historic_records(@berlin, ~U[2026-05-04 10:00:00Z], ~U[2026-05-04 12:00:00Z])
@@ -32,7 +32,7 @@ defmodule Ziwoas.Weather.HistoricRecordsTest do
   end
 
   test "none without coordinates" do
-    record!("historic", ~U[2026-05-04 10:00:00Z])
+    record!(:historic, ~U[2026-05-04 10:00:00Z])
 
     assert Weather.historic_records(
              Location.new("Europe/Berlin"),

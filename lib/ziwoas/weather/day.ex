@@ -8,12 +8,11 @@ defmodule Ziwoas.Weather.Day do
 
   @type t :: %__MODULE__{date: Date.t(), records: [Record.t()], zone: String.t()}
 
-  @weekdays ~w[Montag Dienstag Mittwoch Donnerstag Freitag Samstag Sonntag]
   @segments [
-    {"Nacht", 0..5//1},
-    {"Vormittag", 6..11//1},
-    {"Nachmittag", 12..17//1},
-    {"Abend", 18..23//1}
+    night: 0..5//1,
+    morning: 6..11//1,
+    afternoon: 12..17//1,
+    evening: 18..23//1
   ]
 
   @spec temp_min(t) :: float | nil
@@ -33,12 +32,6 @@ defmodule Ziwoas.Weather.Day do
       peak -> peak * 1000.0
     end
   end
-
-  @spec weekday_label(t) :: String.t()
-  def weekday_label(%__MODULE__{date: date}), do: Enum.at(@weekdays, Date.day_of_week(date) - 1)
-
-  @spec date_label(t) :: String.t()
-  def date_label(%__MODULE__{date: date}), do: Calendar.strftime(date, "%d.%m.")
 
   @doc "Night, morning, afternoon and evening by local hour; a segment may be empty."
   @spec segments(t) :: [Segment.t()]

@@ -5,7 +5,6 @@ defmodule Ziwoas.Weather.BrightskyClientTest do
 
   alias Ziwoas.Location
   alias Ziwoas.Weather.BrightskyClient
-  alias Ziwoas.Weather.BrightskyClient.Error
 
   @location %Location{timezone: "Europe/Berlin", lat: 52.52, lon: 13.405}
 
@@ -27,7 +26,7 @@ defmodule Ziwoas.Weather.BrightskyClientTest do
      "precipitation_10": 0.0, "solar_10": 0.072, "relative_humidity": 47, "pressure_msl": 1011.8}}
     """)
 
-    weather = BrightskyClient.current_weather(@location)
+    assert {:ok, weather} = BrightskyClient.current_weather(@location)
 
     assert weather.timestamp == ~U[2026-05-04 15:00:00.000000Z]
     assert weather.source_id == 303_711
@@ -48,14 +47,14 @@ defmodule Ziwoas.Weather.BrightskyClientTest do
       ~s({"weather": [{"timestamp": "2026-05-04T00:00:00+02:00", "source_id": 7003, "icon": "cloudy"}]})
     )
 
-    assert [row] = BrightskyClient.weather_for_date(@location, ~D[2026-05-04])
+    assert {:ok, [row]} = BrightskyClient.weather_for_date(@location, ~D[2026-05-04])
     assert row.source_id == 7003
     assert row.timestamp == ~U[2026-05-03 22:00:00.000000Z]
     assert row.icon == "cloudy"
     assert row.daytime == "night"
   end
 
-  test "a 404 for a date is the end of the range, asked once" do
+  test "a 404 for a date is an HTTP status, asked once" do
     expect_get(
       "/weather",
       %{"lat" => "52.52", "lon" => "13.405", "date" => "2026-05-15"},
@@ -63,7 +62,9 @@ defmodule Ziwoas.Weather.BrightskyClientTest do
       "{}"
     )
 
-    assert BrightskyClient.weather_for_date(@location, ~D[2026-05-15]) == :range_end
+    assert BrightskyClient.weather_for_date(@location, ~D[2026-05-15]) ==
+             {:error, {:http_status, 404}}
+
     Req.Test.verify!(BrightskyClient)
   end
 
@@ -78,7 +79,9 @@ defmodule Ziwoas.Weather.BrightskyClientTest do
       )
     end)
 
-    capture_log(fn -> assert BrightskyClient.current_weather(@location).icon == "clear-day" end)
+    capture_log(fn ->
+      assert {:ok, %{icon: "clear-day"}} = BrightskyClient.current_weather(@location)
+    end)
   end
 
   test "retries a transport error, then succeeds" do
@@ -92,32 +95,52 @@ defmodule Ziwoas.Weather.BrightskyClientTest do
       )
     end)
 
-    capture_log(fn -> assert BrightskyClient.current_weather(@location).icon == "rain" end)
+    capture_log(fn ->
+      assert {:ok, %{icon: "rain"}} = BrightskyClient.current_weather(@location)
+    end)
   end
 
   test "gives up after two retries" do
     Req.Test.expect(BrightskyClient, 3, &respond(&1, 502, ""))
 
     capture_log(fn ->
-      assert_raise Error, "Bright Sky HTTP 502", fn ->
-        BrightskyClient.current_weather(@location)
-      end
+      assert BrightskyClient.current_weather(@location) == {:error, {:http_status, 502}}
     end)
 
     Req.Test.verify!(BrightskyClient)
   end
 
-  test "a 4xx other than 404 raises without a retry" do
+  test "a 4xx is an error without a retry" do
     Req.Test.expect(BrightskyClient, &respond(&1, 400, ""))
 
-    assert_raise Error, "Bright Sky HTTP 400", fn ->
-      BrightskyClient.weather_for_date(@location, ~D[2026-05-04])
-    end
+    assert BrightskyClient.weather_for_date(@location, ~D[2026-05-04]) ==
+             {:error, {:http_status, 400}}
+
+    Req.Test.verify!(BrightskyClient)
   end
 
-  test "garbage raises" do
-    Req.Test.expect(BrightskyClient, &respond(&1, 200, "<html>"))
+  test "a transport error after the retries comes back as the exception" do
+    Req.Test.expect(BrightskyClient, 3, &Req.Test.transport_error(&1, :timeout))
 
-    assert_raise Error, ~r/Bright Sky JSON/, fn -> BrightskyClient.current_weather(@location) end
+    capture_log(fn ->
+      assert {:error, %Req.TransportError{reason: :timeout}} =
+               BrightskyClient.current_weather(@location)
+    end)
+  end
+
+  test "garbage is an error" do
+    Req.Test.expect(BrightskyClient, &respond(&1, 200, "<html>"))
+    assert {:error, {:invalid_json, _}} = BrightskyClient.current_weather(@location)
+
+    Req.Test.expect(BrightskyClient, &respond(&1, 200, "[]"))
+    assert BrightskyClient.current_weather(@location) == {:error, :unexpected_body}
+
+    Req.Test.expect(BrightskyClient, &respond(&1, 200, ~s({"weather": [{"icon": "rain"}]})))
+
+    assert BrightskyClient.weather_for_date(@location, ~D[2026-05-04]) ==
+             {:error, {:invalid_timestamp, nil}}
+
+    Req.Test.expect(BrightskyClient, &respond(&1, 200, ~s({"weather": {"timestamp": "soon"}})))
+    assert BrightskyClient.current_weather(@location) == {:error, {:invalid_timestamp, "soon"}}
   end
 end

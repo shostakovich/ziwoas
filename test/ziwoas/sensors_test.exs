@@ -37,9 +37,59 @@ defmodule Ziwoas.SensorsTest do
     assert Sensors.latest_per_device([]) == %{}
   end
 
-  test "max_id follows the newest reading" do
-    assert Sensors.max_id() == nil
-    reading = reading!("A", 0, 20.0)
-    assert Sensors.max_id() == reading.id
+  test "latest_per_device: of readings sharing the newest instant the last stored wins" do
+    reading!("A", 5, 20.0)
+    last = reading!("A", 5, 21.0)
+
+    assert Sensors.latest_per_device(["A"])["A"].id == last.id
+  end
+
+  test "create_reading stores the measurements, rounding whole numbers given as floats" do
+    assert {:ok, reading} =
+             Sensors.create_reading("A", @now, %{
+               temperature: 21,
+               humidity: 52.7,
+               co2: 612.4,
+               battery_pct: 99.5,
+               firmware_version: "V1",
+               raw: %{"ignored" => true}
+             })
+
+    assert {reading.device_id, reading.taken_at, reading.temperature} == {"A", @now, 21.0}
+    assert {reading.humidity, reading.co2, reading.battery_pct} == {53, 612, 100}
+    assert Sensors.latest("A").id == reading.id
+  end
+
+  test "create_reading refuses a measurement that does not cast" do
+    assert {:error, %Ecto.Changeset{}} = Sensors.create_reading("A", @now, %{temperature: "warm"})
+    assert Sensors.latest("A") == nil
+  end
+
+  test "CO₂ traffic light" do
+    assert Sensors.co2_level(%Reading{co2: 800}) == :good
+    assert Sensors.co2_level(%Reading{co2: 1000}) == :warn
+    assert Sensors.co2_level(1399) == :warn
+    assert Sensors.co2_level(1400) == :warn
+    assert Sensors.co2_level(1401) == :bad
+    assert Sensors.co2_level(%Reading{}) == nil
+    assert Sensors.co2_level(nil) == nil
+  end
+
+  test "battery low at 20 % or less" do
+    assert Sensors.battery_low?(%Reading{battery_pct: 20})
+    assert Sensors.battery_low?(%Reading{battery_pct: 5})
+    refute Sensors.battery_low?(%Reading{battery_pct: 21})
+    refute Sensors.battery_low?(%Reading{})
+    refute Sensors.battery_low?(nil)
+  end
+
+  test "age in whole seconds, offline after 30 minutes or without a reading" do
+    ago = &%Reading{taken_at: DateTime.add(@now, -&1, :millisecond)}
+
+    assert Sensors.age_s(ago.(4_999), @now) == 4
+    assert Sensors.age_s(nil, @now) == nil
+    refute Sensors.offline?(ago.(30 * 60 * 1000), @now)
+    assert Sensors.offline?(ago.(30 * 60 * 1000 + 1), @now)
+    assert Sensors.offline?(nil, @now)
   end
 end

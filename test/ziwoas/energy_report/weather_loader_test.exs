@@ -8,7 +8,7 @@ defmodule Ziwoas.EnergyReport.WeatherLoaderTest do
   defp location(timezone \\ "Europe/Berlin"), do: Location.new(timezone, lat: 48.15, lon: 11.26)
 
   defp historic!(ts, attrs) do
-    defaults = %{kind: "historic", timestamp: usec(ts), lat: 48.15, lon: 11.26}
+    defaults = %{kind: :historic, timestamp: usec(ts), lat: 48.15, lon: 11.26}
     Repo.insert!(struct!(Record, Map.merge(defaults, Map.new(attrs))))
   end
 
@@ -114,7 +114,7 @@ defmodule Ziwoas.EnergyReport.WeatherLoaderTest do
 
   test "counts only historic records of this location" do
     historic!(~U[2026-05-01 10:00:00Z], solar: 0.2, icon: "clear-day", daytime: "day")
-    historic!(~U[2026-05-01 11:00:00Z], kind: "forecast", solar: 0.3, daytime: "day")
+    historic!(~U[2026-05-01 11:00:00Z], kind: :forecast, solar: 0.3, daytime: "day")
     historic!(~U[2026-05-01 12:00:00Z], lat: 52.52, solar: 0.3, daytime: "day")
 
     assert length(WeatherLoader.hourly(location(), ~D[2026-05-01], ~D[2026-05-01])) == 1

@@ -14,7 +14,6 @@ defmodule Ziwoas.Weather.JobsTest do
   setup do
     Ziwoas.TestClock.freeze("2026-05-04T10:00:00+02:00")
     Ziwoas.Weather.subscribe()
-    Phoenix.PubSub.subscribe(Ziwoas.PubSub, "weather")
     :ok
   end
 
@@ -49,9 +48,8 @@ defmodule Ziwoas.Weather.JobsTest do
       stub_brightsky(%{"current" => hour("2026-05-04T10:15:00+00:00")})
       CurrentJob.perform(context())
 
-      assert kinds() == [{"current", ~U[2026-05-04 10:15:00.000000Z]}]
+      assert kinds() == [{:current, ~U[2026-05-04 10:15:00.000000Z]}]
       assert_received {:synced, ~D[2026-05-04]}
-      assert_received {:weather_updated}
     end
   end
 
@@ -61,8 +59,8 @@ defmodule Ziwoas.Weather.JobsTest do
     TodayJob.perform(context())
 
     assert_received {:asked, "2026-05-04"}
-    assert kinds() == [{"forecast", ~U[2026-05-04 10:00:00.000000Z]}]
-    assert_received {:weather_updated}
+    assert kinds() == [{:forecast, ~U[2026-05-04 10:00:00.000000Z]}]
+    assert_received {:synced, ~D[2026-05-04]}
   end
 
   test "ForecastJob fetches the days after today until the range ends" do
@@ -73,13 +71,13 @@ defmodule Ziwoas.Weather.JobsTest do
     assert_received {:asked, "2026-05-05"}
     assert_received {:asked, "2026-05-06"}
     refute_received {:asked, "2026-05-07"}
-    assert kinds() == [{"forecast", ~U[2026-05-05 10:00:00.000000Z]}]
-    assert_received {:weather_updated}
+    assert kinds() == [{:forecast, ~U[2026-05-05 10:00:00.000000Z]}]
+    assert_received {:synced, ~D[2026-05-04]}
   end
 
   test "HistoricJob replaces yesterday's forecast and backfills the days with totals" do
     Repo.insert!(%Record{
-      kind: "forecast",
+      kind: :forecast,
       lat: 52.52,
       lon: 13.405,
       timestamp: ~U[2026-05-03 10:00:00.000000Z],
@@ -97,20 +95,32 @@ defmodule Ziwoas.Weather.JobsTest do
     HistoricJob.perform(context())
 
     assert kinds() == [
-             {"historic", ~U[2026-05-01 10:00:00.000000Z]},
-             {"historic", ~U[2026-05-03 10:00:00.000000Z]}
+             {:historic, ~U[2026-05-01 10:00:00.000000Z]},
+             {:historic, ~U[2026-05-03 10:00:00.000000Z]}
            ]
 
-    assert_received {:weather_updated}
+    assert_received {:synced, ~D[2026-05-04]}
   end
 
-  test "a Bright Sky failure fails the job before the broadcast" do
+  test "a Bright Sky failure is logged and fails the job before the broadcast" do
     Req.Test.stub(BrightskyClient, &Plug.Conn.send_resp(&1, 500, ""))
 
-    capture_log(fn ->
-      assert_raise BrightskyClient.Error, fn -> CurrentJob.perform(context()) end
-    end)
+    log =
+      capture_log(fn ->
+        assert CurrentJob.perform(context()) == {:error, {:http_status, 500}}
+      end)
 
-    refute_received {:weather_updated}
+    assert log =~ "Bright Sky sync failed: {:http_status, 500}"
+    refute_received {:synced, _}
+  end
+
+  test "HistoricJob stops at a failing yesterday" do
+    Repo.insert!(%DailyTotal{plug_id: "bkw", date: "2026-05-01", energy_wh: 1000.0})
+    Req.Test.stub(BrightskyClient, &Plug.Conn.send_resp(&1, 400, ""))
+
+    capture_log(fn -> assert {:error, _} = HistoricJob.perform(context()) end)
+
+    assert kinds() == []
+    refute_received {:synced, _}
   end
 end

@@ -27,8 +27,6 @@ defmodule Ziwoas.Sensors.PollJobTest do
   setup do
     Ziwoas.TestClock.freeze("2026-10-05T12:00:00.250000+02:00")
     Ziwoas.Sensors.subscribe()
-    Phoenix.PubSub.subscribe(Ziwoas.PubSub, "sensors")
-    Phoenix.PubSub.subscribe(Ziwoas.PubSub, "weather")
     :ok
   end
 
@@ -113,25 +111,22 @@ defmodule Ziwoas.Sensors.PollJobTest do
     stub_switchbot(fn id -> if id == "A", do: 500, else: status(id) end)
     stub_trmnl()
 
-    assert capture_log(fn -> PollJob.perform(context()) end) =~ "SensorPoll[A]: HTTP 500"
+    assert capture_log(fn -> PollJob.perform(context()) end) =~
+             "SensorPoll[A]: {:http_status, 500}"
+
     assert [%{device_id: "B"}] = readings()
   end
 
-  test "pushes the TRMNL sensor widget, then tells the pages" do
+  test "tells the subscribers, then pushes the TRMNL sensor widget" do
     stub_switchbot(&status/1)
     stub_trmnl()
 
-    PollJob.perform(context())
+    assert PollJob.perform(context()) == {:ok, :sent}
 
     now = Ziwoas.Clock.now()
 
-    assert {:messages,
-            [
-              {:pushed, "example.test", "/sensors", body},
-              {:polled, ^now},
-              {:sensors_updated},
-              {:weather_updated}
-            ]} = mailbox()
+    assert {:messages, [{:polled, ^now}, {:pushed, "example.test", "/sensors", body}]} =
+             mailbox()
 
     assert %{"merge_variables" => %{"sensors" => [%{"id" => "A"}, %{"id" => "B"}]}} =
              JSON.decode!(body)
@@ -141,10 +136,12 @@ defmodule Ziwoas.Sensors.PollJobTest do
     stub_switchbot(&status/1)
     Req.Test.stub(Push, &Req.Test.transport_error(&1, :econnrefused))
 
-    assert capture_log(fn -> PollJob.perform(context()) end) =~ "TRMNL sensor push errored"
+    assert capture_log(fn ->
+             assert {:error, %Req.TransportError{}} = PollJob.perform(context())
+           end) =~ "TRMNL sensor push errored"
+
     assert length(readings()) == 2
-    assert_received {:sensors_updated}
-    assert_received {:weather_updated}
+    assert_received {:polled, _}
   end
 
   # The test's mailbox before it is read: what arrived, in order.

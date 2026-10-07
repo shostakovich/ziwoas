@@ -127,7 +127,7 @@ defmodule ZiwoasWeb.DashboardLive do
 
   defp load_live(socket) do
     live = LiveState.build(Config.get(), Clock.now())
-    {weather_asset, weather_alt} = Weather.dashboard_icon()
+    {weather_asset, weather_alt} = ZiwoasWeb.WeatherIcon.dashboard(Weather.latest_current())
     beat = if Map.has_key?(socket.assigns, :live), do: socket.assigns.beat + 1, else: 0
 
     assign(socket,

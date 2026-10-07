@@ -1,7 +1,7 @@
 defmodule ZiwoasWeb.WeatherLive do
   @moduledoc """
-  The Wetter page. A `{:weather_updated}` on the `weather` PubSub topic (the
-  weather jobs, `Ziwoas.Sensors.PollJob`) reloads it.
+  The Wetter page. A weather sync (`Ziwoas.Weather.subscribe/0`) or a sensor
+  poll (`Ziwoas.Sensors.subscribe/0`, the outdoor sensor's temperature) reloads it.
 
   A segment tile of the next days opens that segment's hours below the tiles and
   closes the day's other segment (`"toggle_segment"`); the choice outlives a reload.
@@ -12,17 +12,23 @@ defmodule ZiwoasWeb.WeatherLive do
 
   alias Ziwoas.{Clock, Config, Sensors, Weather}
 
-  @topic "weather"
+  # A day's four segments by the tile's `phx-value-index`.
+  @segment_indexes %{"0" => 0, "1" => 1, "2" => 2, "3" => 3}
 
   @impl true
   def mount(_params, _session, socket) do
-    if connected?(socket), do: Phoenix.PubSub.subscribe(Ziwoas.PubSub, @topic)
+    if connected?(socket) do
+      Weather.subscribe()
+      Sensors.subscribe()
+    end
+
     {:ok, socket |> assign(page_title: "Wetter", open_segments: %{}) |> load()}
   end
 
   @impl true
-  def handle_event("toggle_segment", %{"day" => day, "index" => index}, socket) do
-    index = String.to_integer(index)
+  def handle_event("toggle_segment", %{"day" => day, "index" => index}, socket)
+      when is_map_key(@segment_indexes, index) and is_binary(day) do
+    index = @segment_indexes[index]
 
     open =
       if socket.assigns.open_segments[day] == index,
@@ -32,8 +38,11 @@ defmodule ZiwoasWeb.WeatherLive do
     {:noreply, assign(socket, :open_segments, open)}
   end
 
+  def handle_event("toggle_segment", _params, socket), do: {:noreply, socket}
+
   @impl true
-  def handle_info({:weather_updated}, socket), do: {:noreply, load(socket)}
+  def handle_info({:synced, _today}, socket), do: {:noreply, load(socket)}
+  def handle_info({:polled, _instant}, socket), do: {:noreply, load(socket)}
 
   @impl true
   def render(assigns) do

@@ -26,7 +26,7 @@ defmodule ZiwoasWeb.DashboardLiveTest do
   defp squish(text), do: text |> String.split() |> Enum.join(" ")
 
   defp weather!(attrs) do
-    defaults = %{kind: "current", lat: 52.52, lon: 13.405, timestamp: Clock.now(), daytime: "day"}
+    defaults = %{kind: :current, lat: 52.52, lon: 13.405, timestamp: Clock.now(), daytime: "day"}
     Repo.insert!(struct!(Record, Map.merge(defaults, Map.new(attrs))))
   end
 

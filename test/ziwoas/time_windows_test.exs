@@ -17,7 +17,7 @@ defmodule Ziwoas.TimeWindowsTest do
 
   defp record!(timestamp, attrs) do
     Repo.insert!(%Record{
-      kind: Keyword.get(attrs, :kind, "historic"),
+      kind: Keyword.get(attrs, :kind, :historic),
       lat: 52.52,
       lon: 13.405,
       daytime: "day",
@@ -45,7 +45,7 @@ defmodule Ziwoas.TimeWindowsTest do
       to = ~U[2026-05-05 21:59:59.999999Z]
 
       for timestamp <- [before(from), from, to, after_(to)],
-          do: record!(timestamp, kind: "forecast")
+          do: record!(timestamp, kind: :forecast)
 
       assert Weather.today_hourly(~U[2026-05-04 10:34:00Z], "Europe/Berlin")
              |> Enum.map(& &1.timestamp) == [usec(from), usec(to)]

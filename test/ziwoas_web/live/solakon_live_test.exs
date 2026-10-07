@@ -251,7 +251,7 @@ defmodule ZiwoasWeb.SolakonLiveTest do
 
       # Bright Sky stamps the end of the hour it sums up.
       Repo.insert!(%Record{
-        kind: "historic",
+        kind: :historic,
         daytime: "day",
         lat: 52.52,
         lon: 13.405,

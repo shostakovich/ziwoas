@@ -5,8 +5,8 @@ defmodule Ziwoas.Weather.Record do
   import Ecto.Changeset
 
   @type t :: %__MODULE__{}
+  @type kind :: :current | :forecast | :historic
 
-  @kinds ~w(current forecast historic)
   @integers ~w(source_id wind_direction cloud_cover relative_humidity visibility
                wind_gust_direction precipitation_probability precipitation_probability_6h)a
   @fields ~w(kind lat lon timestamp precipitation pressure_msl sunshine temperature wind_speed
@@ -18,7 +18,7 @@ defmodule Ziwoas.Weather.Record do
     field :daytime, :string
     field :dew_point, :float
     field :icon, :string
-    field :kind, :string
+    field :kind, Ecto.Enum, values: [:current, :forecast, :historic]
     field :lat, :float
     field :lon, :float
     field :precipitation, :float
@@ -54,6 +54,5 @@ defmodule Ziwoas.Weather.Record do
     record
     |> cast(attrs, @fields)
     |> validate_required([:kind, :lat, :lon, :timestamp, :daytime])
-    |> validate_inclusion(:kind, @kinds)
   end
 end

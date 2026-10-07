@@ -40,7 +40,7 @@ defmodule Ziwoas.SunCalendar.BuilderTest do
 
   defp weather_at(timestamp, solar, cloud, opts \\ []) do
     Repo.insert!(%Record{
-      kind: Keyword.get(opts, :kind, "historic"),
+      kind: Keyword.get(opts, :kind, :historic),
       daytime: "day",
       lat: Keyword.get(opts, :lat, @lat),
       lon: Keyword.get(opts, :lon, @lon),
@@ -190,7 +190,7 @@ defmodule Ziwoas.SunCalendar.BuilderTest do
     pv_hour(12, 640.0, ~D[2027-01-01])
     weather(12, 0.5, 10, date: ~D[2025-12-31])
     weather(12, 0.5, 10, lat: 48.1, lon: 11.6)
-    weather(13, 9.9, 99, kind: "forecast")
+    weather(13, 9.9, 99, kind: :forecast)
     year = build()
 
     assert Year.empty?(year)

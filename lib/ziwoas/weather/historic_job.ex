@@ -10,8 +10,9 @@ defmodule Ziwoas.Weather.HistoricJob do
   @impl true
   def perform(context) do
     Sync.perform(context, fn location, today ->
-      Sync.sync_historic_date(location, Date.add(today, -1))
-      Sync.backfill_historic_from_daily_totals(location)
+      with :ok <- Sync.sync_historic_date(location, Date.add(today, -1)) do
+        Sync.backfill_historic_from_daily_totals(location)
+      end
     end)
   end
 end

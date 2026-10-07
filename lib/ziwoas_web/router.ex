@@ -39,11 +39,6 @@ defmodule ZiwoasWeb.Router do
     get "/up", HealthController, :show
   end
 
-  # The Sensoren chart's data: JSON whatever the request accepts.
-  scope "/", ZiwoasWeb do
-    get "/sensors/series", SensorsController, :series
-  end
-
   scope "/api", ZiwoasWeb do
     pipe_through :api
 

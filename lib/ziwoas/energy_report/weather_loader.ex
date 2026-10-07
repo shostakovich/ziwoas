@@ -27,7 +27,7 @@ defmodule Ziwoas.EnergyReport.WeatherLoader do
       {Date.to_iso8601(date),
        %{
          solar_kwh_per_m2: day_solar_kwh(records),
-         asset_name: Segment.asset_name(segment),
+         asset_name: ZiwoasWeb.WeatherIcon.asset_name(segment),
          alt: Segment.dominant_icon(segment)
        }}
     end)
@@ -40,7 +40,7 @@ defmodule Ziwoas.EnergyReport.WeatherLoader do
       %{
         ts: DateTime.to_unix(record.timestamp),
         solar_w_per_m2: Weather.solar_w_per_m2(record),
-        asset_name: Weather.asset_name(record),
+        asset_name: ZiwoasWeb.WeatherIcon.asset_name(record),
         alt: record.icon || ""
       }
     end

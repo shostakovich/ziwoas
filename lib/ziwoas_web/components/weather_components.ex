@@ -5,26 +5,13 @@ defmodule ZiwoasWeb.WeatherComponents do
   use ZiwoasWeb, :html
 
   alias Ziwoas.Weather
-  alias Ziwoas.Weather.{Day, Icon, Segment}
+  alias Ziwoas.Weather.{Day, Segment}
+  alias ZiwoasWeb.WeatherIcon
 
   defmodule Cell do
     @moduledoc false
     defstruct [:text, :icon, :alt, :classes, emphasis: false]
   end
-
-  @icon_labels %{
-    "clear" => "klar",
-    "partly-cloudy" => "teils bewölkt",
-    "cloudy" => "bewölkt",
-    "fog" => "Nebel",
-    "wind" => "windig",
-    "rain" => "Regen",
-    "sleet" => "Schneeregen",
-    "snow" => "Schnee",
-    "hail" => "Hagel",
-    "thunderstorm" => "Gewitter",
-    "unknown" => "Wetter"
-  }
 
   @condition_labels %{
     "dry" => "trocken",
@@ -35,6 +22,14 @@ defmodule ZiwoasWeb.WeatherComponents do
     "hail" => "Hagel",
     "thunderstorm" => "Gewitter"
   }
+
+  @weekdays ~w[Montag Dienstag Mittwoch Donnerstag Freitag Samstag Sonntag]
+  @segment_labels [
+    night: "Nacht",
+    morning: "Vormittag",
+    afternoon: "Nachmittag",
+    evening: "Abend"
+  ]
 
   # weather.css places the rows in this order; rain, the rarest, comes last.
   @hour_units [wind: "Wind in km/h", solar: "Sonne in W/m²", rain: "Regen in mm"]
@@ -70,7 +65,7 @@ defmodule ZiwoasWeb.WeatherComponents do
               width="82"
               height="82"
               alt={icon_label(@current.icon)}
-              src={~p"/images/#{Weather.asset_name(@current)}"}
+              src={~p"/images/#{WeatherIcon.asset_name(@current)}"}
             />
             <div class="stat">
               <span class="stat-label">Jetzt</span>
@@ -178,8 +173,8 @@ defmodule ZiwoasWeb.WeatherComponents do
       <header class="card-header">
         <div class="d-flex justify-content-between align-items-baseline gap-2">
           <h3 class="h6 mb-0 text-nowrap">
-            {Day.weekday_label(@day)}
-            <span class="fw-normal text-body-secondary tabular-nums">{Day.date_label(@day)}</span>
+            {weekday(@day.date)}
+            <span class="fw-normal text-body-secondary tabular-nums">{day_month(@day.date)}</span>
           </h3>
           <div
             :if={@peak}
@@ -213,14 +208,14 @@ defmodule ZiwoasWeb.WeatherComponents do
             aria-expanded={to_string(idx == @selected)}
             aria-controls={"seg-#{@iso}-#{idx}"}
           >
-            <span class="weather-segment-label small">{segment.label}</span>
+            <span class="weather-segment-label small">{segment_label(segment)}</span>
             <img
               class="weather-segment-icon weather-icon weather-icon-md"
               width="72"
               height="72"
               loading="lazy"
               alt={icon_label(Segment.dominant_icon(segment))}
-              src={~p"/images/#{Segment.asset_name(segment)}"}
+              src={~p"/images/#{WeatherIcon.asset_name(segment)}"}
             />
             <%= for row <- @rows, cell = segment_cell(segment, row) do %>
               <.dynamic_tag
@@ -273,7 +268,7 @@ defmodule ZiwoasWeb.WeatherComponents do
         height="42"
         loading="lazy"
         alt={icon_label(@record.icon)}
-        src={~p"/images/#{Weather.asset_name(@record)}"}
+        src={~p"/images/#{WeatherIcon.asset_name(@record)}"}
       />
       <strong class="d-block fs-4 tabular-nums">{number(@record.temperature)}°</strong>
       <ul
@@ -308,7 +303,11 @@ defmodule ZiwoasWeb.WeatherComponents do
 
   # --- Cells and thresholds ------------------------------------------------------
 
-  def icon_label(icon), do: Map.get(@icon_labels, Icon.normalized_icon(icon), "Wetter")
+  def icon_label(icon), do: WeatherIcon.label(icon)
+
+  def weekday(date), do: Enum.at(@weekdays, Date.day_of_week(date) - 1)
+
+  def segment_label(%Segment{label: label}), do: Keyword.fetch!(@segment_labels, label)
 
   def condition_label(condition), do: Map.get(@condition_labels, condition)
 
