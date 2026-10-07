@@ -120,15 +120,24 @@ defmodule Ziwoas.Economics do
     |> to_float(2)
   end
 
-  @spec change_cost_item(CostItem.t(), map) :: Ecto.Changeset.t()
-  def change_cost_item(%CostItem{} = item, attrs \\ %{}), do: CostItem.changeset(item, attrs)
+  @doc "The form of a new cost item, spent on `spent_on`."
+  @spec new_cost_item(Date.t()) :: Ecto.Changeset.t()
+  def new_cost_item(%Date{} = spent_on),
+    do: CostItem.changeset(%CostItem{spent_on: spent_on}, %{})
+
+  @spec change_cost_item(map) :: Ecto.Changeset.t()
+  def change_cost_item(attrs), do: CostItem.changeset(%CostItem{}, attrs)
 
   @spec create_cost_item(map) :: {:ok, CostItem.t()} | {:error, Ecto.Changeset.t()}
   def create_cost_item(attrs), do: %CostItem{} |> CostItem.changeset(attrs) |> Repo.insert()
 
-  @spec change_price(ElectricityPrice.t(), map) :: Ecto.Changeset.t()
-  def change_price(%ElectricityPrice{} = price, attrs \\ %{}),
-    do: ElectricityPrice.changeset(price, attrs)
+  @doc "The form of a new price, valid from `valid_from`."
+  @spec new_price(Date.t()) :: Ecto.Changeset.t()
+  def new_price(%Date{} = valid_from),
+    do: ElectricityPrice.changeset(%ElectricityPrice{valid_from: valid_from}, %{})
+
+  @spec change_price(map) :: Ecto.Changeset.t()
+  def change_price(attrs), do: ElectricityPrice.changeset(%ElectricityPrice{}, attrs)
 
   @spec create_price(map) :: {:ok, ElectricityPrice.t()} | {:error, Ecto.Changeset.t()}
   def create_price(attrs),

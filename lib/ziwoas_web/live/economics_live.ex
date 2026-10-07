@@ -10,7 +10,6 @@ defmodule ZiwoasWeb.EconomicsLive do
   import ZiwoasWeb.EconomicsComponents
 
   alias Ziwoas.{Clock, Config, Economics}
-  alias Ziwoas.Economics.{CostItem, ElectricityPrice}
 
   @impl true
   def mount(_params, _session, socket) do
@@ -24,7 +23,7 @@ defmodule ZiwoasWeb.EconomicsLive do
 
   @impl true
   def handle_event("validate_cost_item", %{"cost_item" => params}, socket) do
-    changeset = Economics.change_cost_item(%CostItem{}, params)
+    changeset = Economics.change_cost_item(params)
     {:noreply, assign(socket, cost_form: to_form(changeset, action: :validate))}
   end
 
@@ -53,7 +52,7 @@ defmodule ZiwoasWeb.EconomicsLive do
   end
 
   def handle_event("validate_price", %{"electricity_price" => params}, socket) do
-    changeset = Economics.change_price(%ElectricityPrice{}, params)
+    changeset = Economics.change_price(params)
     {:noreply, assign(socket, price_form: to_form(changeset, action: :validate))}
   end
 
@@ -93,15 +92,11 @@ defmodule ZiwoasWeb.EconomicsLive do
     )
   end
 
-  defp reset_cost_form(socket) do
-    item = %CostItem{spent_on: socket.assigns.today}
-    assign(socket, cost_form: to_form(Economics.change_cost_item(item)))
-  end
+  defp reset_cost_form(socket),
+    do: assign(socket, cost_form: to_form(Economics.new_cost_item(socket.assigns.today)))
 
-  defp reset_price_form(socket) do
-    price = %ElectricityPrice{valid_from: socket.assigns.today}
-    assign(socket, price_form: to_form(Economics.change_price(price)))
-  end
+  defp reset_price_form(socket),
+    do: assign(socket, price_form: to_form(Economics.new_price(socket.assigns.today)))
 
   defp today, do: Clock.today(Config.get().location.timezone)
 

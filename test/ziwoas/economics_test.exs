@@ -49,6 +49,13 @@ defmodule Ziwoas.EconomicsTest do
   end
 
   describe "a cost item" do
+    test "a new one's form starts on the given day and validates what is typed" do
+      assert Ecto.Changeset.get_field(Economics.new_cost_item(~D[2026-10-07]), :spent_on) ==
+               ~D[2026-10-07]
+
+      refute Economics.change_cost_item(%{"label" => ""}).valid?
+    end
+
     test "is recorded as typed: a decimal comma, cents, a blank note as none" do
       assert {:ok, item} =
                Economics.create_cost_item(%{
@@ -123,6 +130,13 @@ defmodule Ziwoas.EconomicsTest do
   end
 
   describe "a price" do
+    test "a new one's form starts on the given day and validates what is typed" do
+      assert Ecto.Changeset.get_field(Economics.new_price(~D[2026-10-07]), :valid_from) ==
+               ~D[2026-10-07]
+
+      refute Economics.change_price(%{"eur_per_kwh" => ""}).valid?
+    end
+
     test "is recorded to the column's five decimals" do
       assert {:ok, price} =
                Economics.create_price(%{
