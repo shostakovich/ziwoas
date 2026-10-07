@@ -73,6 +73,7 @@ RUN apt-get update -qq && \
 ENV LANG=C.UTF-8 \
     MIX_ENV="prod" \
     PORT=3000 \
+    SHELLY_PORT=3001 \
     ZIWOAS_CONFIG=/app/config/ziwoas.yml \
     ZIWOAS_DB=/app/storage/production.sqlite3
 
@@ -86,7 +87,7 @@ COPY --from=build --chown=ziwoas:ziwoas /app/_build/prod/rel/ziwoas ./
 
 USER ziwoas
 
-EXPOSE 3000
+EXPOSE 3000 3001
 
 # The first start of a new image runs its pending migrations: give it time.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5m \

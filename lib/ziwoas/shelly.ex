@@ -1,7 +1,7 @@
 defmodule Ziwoas.Shelly do
   @moduledoc false
   alias Ziwoas.Config
-  alias Ziwoas.Shelly.Listener
+  alias Ziwoas.Shelly.{Listener, Server}
 
   @registry Ziwoas.Shelly.Registry
   @call_timeout_ms 5_000
@@ -20,7 +20,7 @@ defmodule Ziwoas.Shelly do
   # The monitor's alias is the reply address; once it is gone a late reply is dropped.
   defp await(pid, method, params, timeout) do
     ref = Process.monitor(pid, alias: :reply_demonitor)
-    send(pid, {:rpc, ref, method, params})
+    send(pid, {:rpc, ref, method, params, deadline(timeout)})
 
     receive do
       {^ref, reply} -> reply
@@ -37,6 +37,9 @@ defmodule Ziwoas.Shelly do
     end
   end
 
+  defp deadline(:infinity), do: :infinity
+  defp deadline(timeout), do: System.monotonic_time(:millisecond) + timeout
+
   @spec connection(String.t()) :: pid | nil
   def connection(plug_id) do
     case Registry.lookup(@registry, plug_id) do
@@ -48,12 +51,10 @@ defmodule Ziwoas.Shelly do
   @spec listener_spec(Config.t(), :inet.port_number()) :: Supervisor.child_spec()
   def listener_spec(%Config{} = config, port),
     do:
-      Supervisor.child_spec(
-        {Bandit,
-         plug: {Listener, roster: Config.plug_roster(config)},
-         port: port,
-         startup_log: false,
-         thousand_island_options: [num_acceptors: 2]},
-        id: Listener
+      Server.child_spec(
+        plug: {Listener, roster: Config.plug_roster(config)},
+        port: port,
+        startup_log: false,
+        thousand_island_options: [num_acceptors: 2]
       )
 end

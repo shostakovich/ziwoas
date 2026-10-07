@@ -1,10 +1,14 @@
 defmodule Ziwoas.Switching.Commander do
   @moduledoc false
-  alias Ziwoas.{Plugs, Repo, Shelly}
   alias Ziwoas.Plugs.Plug
+  alias Ziwoas.{Repo, Shelly}
   alias Ziwoas.Switching.Command
 
-  @type error :: :not_switchable | {:no_driver, atom} | {:unreachable, Shelly.error()}
+  @type error ::
+          :not_switchable
+          | {:no_driver, atom}
+          | {:unreachable, :offline | :timeout}
+          | {:rejected, {integer | nil, String.t()}}
 
   @spec switch(Plug.t(), Command.action(), Command.source()) ::
           {:ok, Command.t()} | {:error, error}
@@ -12,7 +16,6 @@ defmodule Ziwoas.Switching.Commander do
       when action in [:on, :off] and source in [:manual, :schedule] do
     with :ok <- switchable(plug),
          :ok <- send_switch(plug, action) do
-      Plugs.record_output(plug.id, action == :on)
       {:ok, Repo.insert!(%Command{plug_id: plug.id, action: action, source: source})}
     end
   end
@@ -23,6 +26,7 @@ defmodule Ziwoas.Switching.Commander do
   defp send_switch(%Plug{driver: :shelly} = plug, action) do
     case Shelly.call(plug.id, "Switch.Set", %{id: 0, on: action == :on}) do
       {:ok, _result} -> :ok
+      {:error, {:rpc, code, message}} -> {:error, {:rejected, {code, message}}}
       {:error, reason} -> {:error, {:unreachable, reason}}
     end
   end

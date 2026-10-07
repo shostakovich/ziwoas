@@ -15,8 +15,9 @@ defmodule Ziwoas.Shelly.Connection do
 
   @impl true
   def init(%{plug: plug} = args) do
-    {:ok, _owner} = Registry.register(Shelly.registry(), plug.id, System.monotonic_time())
-    replace_older(plug.id, args[:peer])
+    registered_at = System.monotonic_time()
+    {:ok, _owner} = Registry.register(Shelly.registry(), plug.id, registered_at)
+    replace_older(plug.id, registered_at, args[:peer])
     Process.send_after(self(), :ping, @ping_interval_ms)
 
     state = %{
@@ -33,10 +34,15 @@ defmodule Ziwoas.Shelly.Connection do
     request(state, :get_status, "Shelly.GetStatus", %{})
   end
 
-  defp replace_older(plug_id, peer) do
-    for {pid, _registered_at} <- Registry.lookup(Shelly.registry(), plug_id), pid != self() do
-      Logger.warning("Shelly #{plug_id}: a connection from #{peer} replaces an older one")
-      send(pid, :replaced)
+  # Two inits can interleave: only the later registration may replace the other.
+  defp replace_older(plug_id, registered_at, peer) do
+    for {pid, other_at} <- Registry.lookup(Shelly.registry(), plug_id), pid != self() do
+      if other_at < registered_at do
+        Logger.warning("Shelly #{plug_id}: a connection from #{peer} replaces an older one")
+        send(pid, :replaced)
+      else
+        send(self(), :replaced)
+      end
     end
   end
 
@@ -83,9 +89,35 @@ defmodule Ziwoas.Shelly.Connection do
     state
   end
 
-  defp answer({:caller, reply_to}, reply, state) do
+  # The relay state is written here, after the plug's answer, so its writes stay in order.
+  defp answer({:caller, reply_to, output}, reply, state) do
+    state =
+      case reply do
+        {:ok, _result} when is_boolean(output) ->
+          ingest(state, &Ingest.record_output(&1, state.plug, output))
+
+        _other ->
+          state
+      end
+
     send(reply_to, {reply_to, reply})
     state
+  end
+
+  defguardp metered?(delta) when is_map_key(delta, "apower") or is_map_key(delta, "aenergy")
+
+  # A relay-only delta must not record a sample: it would carry the old watts into this second.
+  defp apply_status(state, :merge, %{@component => delta})
+       when is_map(delta) and not metered?(delta) do
+    state = %{state | switch: Status.merge(state.switch, delta)}
+
+    case delta do
+      %{"output" => output} when is_boolean(output) ->
+        ingest(state, &Ingest.record_output(&1, state.plug, output))
+
+      _other ->
+        state
+    end
   end
 
   defp apply_status(state, mode, %{@component => switch}) when is_map(switch) do
@@ -99,7 +131,7 @@ defmodule Ziwoas.Shelly.Connection do
 
     case Status.reading(status) do
       {:ok, reading} ->
-        record(state, reading)
+        ingest(state, &Ingest.record(&1, state.plug, reading))
 
       {:error, :incomplete_status} ->
         if mode == :replace,
@@ -111,8 +143,8 @@ defmodule Ziwoas.Shelly.Connection do
 
   defp apply_status(state, _mode, _params), do: state
 
-  defp record(state, reading) do
-    state = %{state | ingest: Ingest.record(state.ingest, state.plug, reading)}
+  defp ingest(state, fun) do
+    state = %{state | ingest: fun.(state.ingest)}
 
     if Ingest.pending?(state.ingest) and is_nil(state.flush_timer),
       do: %{state | flush_timer: Process.send_after(self(), :flush, flush_after_ms())},
@@ -125,9 +157,16 @@ defmodule Ziwoas.Shelly.Connection do
 
   defp flush_after_ms, do: Ingest.broadcast_interval_s() * 1_000
 
+  # Sent after its caller gave up, a call would switch a plug already reported as failed.
   @impl true
-  def handle_info({:rpc, reply_to, method, params}, state),
-    do: request(state, {:caller, reply_to}, method, params)
+  def handle_info({:rpc, reply_to, method, params, deadline}, state) do
+    if now_ms() < deadline do
+      request(state, {:caller, reply_to, switch_output(method, params)}, method, params)
+    else
+      Logger.warning("Shelly #{state.plug.id}: #{method} dropped, its caller stopped waiting")
+      {:ok, state}
+    end
+  end
 
   def handle_info(:ping, state) do
     Process.send_after(self(), :ping, @ping_interval_ms)
@@ -137,9 +176,20 @@ defmodule Ziwoas.Shelly.Connection do
   def handle_info(:flush, state),
     do: {:ok, %{state | ingest: Ingest.flush(state.ingest), flush_timer: nil}}
 
-  def handle_info(:replaced, state), do: {:stop, :normal, state}
+  def handle_info(:replaced, state) do
+    if Shelly.connection(state.plug.id) == self() do
+      {:ok, state}
+    else
+      # The socket lingers until the peer closes it; no call may reach it meanwhile.
+      Registry.unregister(Shelly.registry(), state.plug.id)
+      {:stop, :normal, state}
+    end
+  end
 
   def handle_info(_message, state), do: {:ok, state}
+
+  defp switch_output("Switch.Set", %{on: on}) when is_boolean(on), do: on
+  defp switch_output(_method, _params), do: nil
 
   @impl true
   def terminate(reason, state) do

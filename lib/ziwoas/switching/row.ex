@@ -37,7 +37,6 @@ defmodule Ziwoas.Switching.Row do
   @spec offline?(t) :: boolean
   def offline?(%__MODULE__{offline: offline}), do: offline
 
-  @doc "A command newer than the last confirmed state wins until the Shelly status catches up."
   @spec on?(t) :: boolean
   def on?(%__MODULE__{last_command: command, state: state}) do
     cond do

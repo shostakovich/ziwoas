@@ -4,7 +4,7 @@ defmodule Ziwoas.Shelly.Status do
   @type t :: map
   @spec replace(map) :: t
   def replace(full) when is_map(full), do: full
-  def replace(_full), do: %{}
+
   # A NotifyStatus delta carries only the changed keys; `null` marks a key that is gone.
   @spec merge(t, map) :: t
   def merge(status, delta) when is_map(delta) do

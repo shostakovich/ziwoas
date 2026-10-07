@@ -36,11 +36,11 @@ defmodule Ziwoas.Switching.CommanderTest do
     assert [%Command{action: :off, source: :schedule}] = commands()
   end
 
-  test "the confirmed state is the plug's relay output" do
+  test "the relay state is left to the plug's connection" do
     FakeShelly.serve("lamp")
 
-    Commander.switch(@plug, :on, :manual)
-    assert [%State{plug_id: "lamp", output: true}] = Repo.all(State)
+    assert {:ok, %Command{}} = Commander.switch(@plug, :on, :manual)
+    assert Repo.all(State) == []
   end
 
   test "a plug without a connection answers an error and writes nothing" do
@@ -49,10 +49,10 @@ defmodule Ziwoas.Switching.CommanderTest do
     assert Repo.all(State) == []
   end
 
-  test "an error from the Shelly answers an error and writes no log row" do
+  test "an error answer from the Shelly is a rejection and writes no log row" do
     FakeShelly.serve("lamp", fn _method, _params -> {:error, {:rpc, -103, "busy"}} end)
 
-    assert {:error, {:unreachable, {:rpc, -103, "busy"}}} = Commander.switch(@plug, :on, :manual)
+    assert {:error, {:rejected, {-103, "busy"}}} = Commander.switch(@plug, :on, :manual)
     assert commands() == []
   end
 

@@ -71,9 +71,31 @@ defmodule Ziwoas.Plugs.IngestTest do
     first = Ingest.record(ingest(), plug("fridge"), reading(50, 1, true))
     assert_received {:broadcast, _}
 
-    assert Ingest.record(first, plug("fridge"), reading(70, 2, false)) == first
+    second = Ingest.record(first, plug("fridge"), reading(70, 2, false))
     assert [%Sample{apower_w: 50.0}] = Repo.all(Sample)
     assert [%State{output: false}] = Repo.all(State)
+
+    Ingest.flush(second)
+    assert_received {:broadcast, [%{apower_w: 50.0, output: false}]}
+  end
+
+  test "a relay output alone goes out with the plug's last watts, once per change" do
+    state = Ingest.record(ingest(), plug("fridge"), reading(50, 1, true))
+    assert_received {:broadcast, _}
+
+    state = Ingest.record_output(state, plug("fridge"), false)
+    assert [%State{output: false}] = Repo.all(State)
+
+    state = state |> Ingest.flush() |> Ingest.record_output(plug("fridge"), false)
+    assert_received {:broadcast, [%{apower_w: 50.0, avg_power_w: 50.0, output: false}]}
+    refute Ingest.pending?(state)
+  end
+
+  test "a relay output before any reading is stored, but has no delta to go out with" do
+    state = Ingest.record_output(ingest(), plug("fridge"), true)
+
+    assert [%State{output: true}] = Repo.all(State)
+    refute Ingest.pending?(state)
   end
 
   describe "the live deltas" do

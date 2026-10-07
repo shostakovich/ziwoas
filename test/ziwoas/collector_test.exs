@@ -50,7 +50,7 @@ defmodule Ziwoas.CollectorTest do
 
   test "a full configuration starts every connection and device" do
     assert ids(Collector.children(@config)) == [
-             Ziwoas.Shelly.Listener,
+             Ziwoas.Shelly.Server,
              {Ziwoas.Solakon.Monitor, nil},
              {Ziwoas.Fritz.Bridge, "washer"},
              {Task.Supervisor, nil},
@@ -61,8 +61,8 @@ defmodule Ziwoas.CollectorTest do
   test "the Shelly listener serves the configured plugs on the Shelly port" do
     [listener | _] = Collector.children(@bare)
 
-    assert listener.id == Ziwoas.Shelly.Listener
-    {Bandit, :start_link, [opts]} = listener.start
+    assert listener.id == Ziwoas.Shelly.Server
+    {Ziwoas.Shelly.Server, :start_link, [opts]} = listener.start
 
     assert opts[:port] == Application.fetch_env!(:ziwoas, :shelly_port)
     assert {Ziwoas.Shelly.Listener, roster: roster} = opts[:plug]
@@ -70,7 +70,7 @@ defmodule Ziwoas.CollectorTest do
   end
 
   test "without devices only the Shelly listener runs" do
-    assert ids(Collector.children(@bare)) == [Ziwoas.Shelly.Listener]
+    assert ids(Collector.children(@bare)) == [Ziwoas.Shelly.Server]
   end
 
   test "without a Shelly plug there is no listener" do

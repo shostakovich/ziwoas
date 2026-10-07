@@ -19,7 +19,8 @@ defmodule Ziwoas.Shelly.Listener do
          :ok <- WebSockAdapter.UpgradeValidation.validate_upgrade(conn) do
       conn
       |> WebSockAdapter.upgrade(Connection, %{plug: plug, peer: peer(conn)},
-        timeout: @idle_timeout_ms
+        timeout: @idle_timeout_ms,
+        early_validate_upgrade: false
       )
       |> halt()
     else

@@ -40,6 +40,8 @@ defmodule Ziwoas.Shelly.ConnectionTest do
 
   defp tick(ctx, seconds), do: :counters.add(ctx.clock, 1, seconds)
 
+  defp in_5s, do: System.monotonic_time(:millisecond) + 5_000
+
   defp frame(state, frame) do
     {:ok, state} = Connection.handle_in({JSON.encode!(frame), opcode: :text}, state)
     state
@@ -99,6 +101,35 @@ defmodule Ziwoas.Shelly.ConnectionTest do
 
     assert [%Sample{}] = Repo.all(Sample)
     assert [%State{output: false}] = Repo.all(State)
+  end
+
+  test "a relay change alone records no sample, so new watts in that second still count", ctx do
+    {_request, state} = connect(ctx)
+    state = notify(state, "NotifyFullStatus", switch(50, 1.5, true))
+    assert_received {:broadcast, [%{apower_w: 50.0}]}
+
+    tick(ctx, 10)
+    state = notify(state, "NotifyStatus", %{"output" => false, "source" => "button"})
+    state = notify(state, "NotifyStatus", %{"apower" => 0})
+    {:ok, _state} = Connection.handle_info(:flush, state)
+
+    assert [{@now, 50.0}, {1_700_000_010, +0.0}] =
+             Repo.all(from s in Sample, order_by: s.ts, select: {s.ts, s.apower_w})
+
+    assert_received {:broadcast, [%{apower_w: 50.0, output: false}]}
+    assert_received {:broadcast, [%{apower_w: +0.0, output: false}]}
+  end
+
+  test "a relay change in the same second as a sample goes out as a live delta", ctx do
+    {_request, state} = connect(ctx)
+    state = notify(state, "NotifyFullStatus", switch(50, 1.5, true))
+    assert_received {:broadcast, [%{output: true}]}
+
+    state = notify(state, "NotifyStatus", %{"output" => false, "source" => "button"})
+    assert is_reference(state.flush_timer)
+    {:ok, _state} = Connection.handle_info(:flush, state)
+
+    assert_received {:broadcast, [%{id: "fridge", apower_w: 50.0, output: false}]}
   end
 
   test "frames without switch:0 and events change nothing", ctx do
@@ -196,7 +227,7 @@ defmodule Ziwoas.Shelly.ConnectionTest do
       reply_to = Process.alias()
 
       {:push, {:text, request}, state} =
-        Connection.handle_info({:rpc, reply_to, "Switch.Set", %{id: 0, on: true}}, state)
+        Connection.handle_info({:rpc, reply_to, "Switch.Set", %{id: 0, on: true}, in_5s()}, state)
 
       assert %{"id" => 2, "src" => "ziwoas", "method" => "Switch.Set"} = JSON.decode!(request)
 
@@ -205,11 +236,60 @@ defmodule Ziwoas.Shelly.ConnectionTest do
       assert state.requests == %{1 => state.requests[1]}
     end
 
+    test "a confirmed Switch.Set stores the relay output before the caller hears of it", ctx do
+      {_request, state} = connect(ctx)
+      state = notify(state, "NotifyFullStatus", switch(50, 1.5, true))
+      reply_to = Process.alias()
+
+      {:push, _request, state} =
+        Connection.handle_info(
+          {:rpc, reply_to, "Switch.Set", %{id: 0, on: false}, in_5s()},
+          state
+        )
+
+      assert [%State{output: true}] = Repo.all(State)
+
+      state = frame(state, %{"id" => 2, "result" => %{"was_on" => true}})
+      assert [%State{output: false}] = Repo.all(State)
+      assert_received {^reply_to, {:ok, %{"was_on" => true}}}
+
+      {:ok, _state} = Connection.handle_info(:flush, state)
+      assert_received {:broadcast, [%{id: "fridge", output: false}]}
+    end
+
+    test "a rejected Switch.Set leaves the relay output alone", ctx do
+      {_request, state} = connect(ctx)
+      reply_to = Process.alias()
+
+      {:push, _request, state} =
+        Connection.handle_info({:rpc, reply_to, "Switch.Set", %{id: 0, on: true}, in_5s()}, state)
+
+      frame(state, %{"id" => 2, "error" => %{"code" => -103, "message" => "busy"}})
+      assert Repo.all(State) == []
+    end
+
+    test "a call whose caller stopped waiting is not sent", ctx do
+      {_request, state} = connect(ctx)
+      expired = System.monotonic_time(:millisecond) - 1
+
+      log =
+        capture_log(fn ->
+          assert Connection.handle_info(
+                   {:rpc, Process.alias(), "Switch.Set", %{}, expired},
+                   state
+                 ) ==
+                   {:ok, state}
+        end)
+
+      assert log =~ "Shelly fridge: Switch.Set dropped, its caller stopped waiting"
+    end
+
     test "an error answer is the device's code and message", ctx do
       {_request, state} = connect(ctx)
       reply_to = Process.alias()
 
-      {:push, _request, state} = Connection.handle_info({:rpc, reply_to, "Nope", %{}}, state)
+      {:push, _request, state} =
+        Connection.handle_info({:rpc, reply_to, "Nope", %{}, in_5s()}, state)
 
       frame(state, %{"id" => 2, "error" => %{"code" => -114, "message" => "Method Nope failed"}})
       assert_received {^reply_to, {:error, {:rpc, -114, "Method Nope failed"}}}
@@ -218,6 +298,23 @@ defmodule Ziwoas.Shelly.ConnectionTest do
     test "the ping keeps the socket alive", ctx do
       {_request, state} = connect(ctx)
       assert {:push, {:ping, ""}, _state} = Connection.handle_info(:ping, state)
+    end
+
+    test "the ping drops requests nobody waits for any more", ctx do
+      {_request, state} = connect(ctx)
+      reply_to = Process.alias()
+
+      {:push, _request, state} =
+        Connection.handle_info({:rpc, reply_to, "Switch.Set", %{}, in_5s()}, state)
+
+      long_ago = System.monotonic_time(:millisecond) - 31_000
+      state = put_in(state.requests[2], {{:caller, reply_to}, long_ago})
+
+      {:push, {:ping, ""}, state} = Connection.handle_info(:ping, state)
+      assert Map.keys(state.requests) == [1]
+
+      frame(state, %{"id" => 2, "result" => %{"was_on" => false}})
+      refute_received {^reply_to, _reply}
     end
   end
 
@@ -236,5 +333,54 @@ defmodule Ziwoas.Shelly.ConnectionTest do
     assert_received :replaced
     assert Shelly.connection("fridge") == newer
     assert {:stop, :normal, _state} = Connection.handle_info(:replaced, state)
+    assert Registry.keys(Shelly.registry(), self()) == []
+  end
+
+  test "a connection that registered later is not replaced; the earlier one goes", ctx do
+    test = self()
+
+    later =
+      spawn_link(fn ->
+        Registry.register(Shelly.registry(), "fridge", System.monotonic_time() + 1_000_000_000)
+        send(test, :registered)
+
+        receive do
+          message -> send(test, {:later_got, message})
+        end
+
+        receive do
+          :done ->
+            Registry.unregister(Shelly.registry(), "fridge")
+            send(test, :done)
+        end
+      end)
+
+    assert_receive :registered
+    {_request, state} = connect(ctx)
+    send(later, :probe)
+
+    assert_receive {:later_got, :probe}
+    assert Shelly.connection("fridge") == later
+    assert_received :replaced
+    assert {:stop, :normal, _state} = Connection.handle_info(:replaced, state)
+
+    send(later, :done)
+    assert_receive :done
+  end
+
+  test "a replaced connection keeps running once it is the newest again", ctx do
+    {_request, state} = connect(ctx)
+    test = self()
+
+    spawn_link(fn ->
+      Connection.init(%{plug: plug("fridge"), peer: "10.0.0.6"})
+      Registry.unregister(Shelly.registry(), "fridge")
+      send(test, :gone)
+    end)
+
+    assert_receive :gone
+    assert_received :replaced
+    assert {:ok, _state} = Connection.handle_info(:replaced, state)
+    assert Shelly.connection("fridge") == self()
   end
 end

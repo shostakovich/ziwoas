@@ -2,6 +2,7 @@ defmodule Ziwoas.Plugs do
   @moduledoc false
   import Ecto.Query
 
+  alias Ziwoas.Clock
   alias Ziwoas.Plugs.{Aggregator, DailyTotal, EnergyDeltas, Measurement, Sample, Sample5min}
   alias Ziwoas.Plugs.State
   alias Ziwoas.Repo
@@ -40,18 +41,17 @@ defmodule Ziwoas.Plugs do
   @doc "Stores the plug's relay output; true when it changed."
   @spec record_output(String.t(), boolean) :: boolean
   def record_output(plug_id, output) when is_boolean(output) do
-    case Repo.get_by(State, plug_id: plug_id) do
-      nil ->
-        Repo.insert!(%State{plug_id: plug_id, output: output})
-        true
+    now = Clock.now()
+    row = %{plug_id: plug_id, output: output, inserted_at: now, updated_at: now}
 
-      %State{output: ^output} ->
-        false
+    changed =
+      from(s in State,
+        where: s.output != ^output,
+        update: [set: [output: ^output, updated_at: ^now]]
+      )
 
-      state ->
-        state |> Ecto.Changeset.change(output: output) |> Repo.update!()
-        true
-    end
+    {count, _} = Repo.insert_all(State, [row], on_conflict: changed, conflict_target: :plug_id)
+    count == 1
   end
 
   @spec states([String.t()]) :: %{String.t() => State.t()}

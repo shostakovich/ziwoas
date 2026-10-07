@@ -23,7 +23,7 @@ defmodule Ziwoas.FakeShelly do
 
   defp loop(plug_id, test, answer) do
     receive do
-      {:rpc, reply_to, method, params} ->
+      {:rpc, reply_to, method, params, _deadline} ->
         send(test, {:shelly_rpc, plug_id, method, params})
         send(reply_to, {reply_to, answer.(method, params)})
         loop(plug_id, test, answer)

@@ -3,6 +3,7 @@ defmodule Ziwoas.SwitchingGuardTest do
 
   alias Ziwoas.{Clock, Config, FakeShellyDevice, Shelly, Switching, TestClock}
   alias Ziwoas.Plugs.Plug
+  alias Ziwoas.Shelly.Server
   alias Ziwoas.Switching.ScheduleTickJob
 
   @moduletag :capture_log
@@ -12,7 +13,7 @@ defmodule Ziwoas.SwitchingGuardTest do
   setup do
     config = Config.get()
     listener = start_supervised!(Shelly.listener_spec(config, 0))
-    {:ok, {_ip, port}} = ThousandIsland.listener_info(listener)
+    port = Server.port(listener)
 
     start_supervised!({FakeShellyDevice, port: port, plug_id: "fridge", test: self()})
     assert_receive {:shelly_request, "fridge", "Shelly.GetStatus", _params}

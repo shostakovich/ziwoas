@@ -104,6 +104,22 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
       assert Repo.all(Command) == []
     end
 
+    test "a plug that rejects the switch is a flash of its own and logs nothing", %{conn: conn} do
+      FakeShelly.serve("fridge", fn _method, _params -> {:error, {:rpc, -103, "busy"}} end)
+      view = open_page(conn)
+      view |> element("#sw_head_fridge button[phx-click=switch_plug]") |> render_click()
+
+      render_async(view)
+
+      assert has_element?(
+               view,
+               "#flash-error",
+               "Kühlschrank: Schalten fehlgeschlagen — Steckdose lehnt ab"
+             )
+
+      assert Repo.all(Command) == []
+    end
+
     test "an unknown plug, a plug that does not switch and an invalid state do nothing", %{
       conn: conn
     } do

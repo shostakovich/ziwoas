@@ -9,6 +9,7 @@ defmodule ZiwoasWeb.SwitchesLive do
   alias ZiwoasWeb.LightEvents
 
   @failed "Schalten fehlgeschlagen — Steckdose nicht erreichbar"
+  @rejected "Schalten fehlgeschlagen — Steckdose lehnt ab"
   def failed_message, do: @failed
 
   @impl true
@@ -123,9 +124,9 @@ defmodule ZiwoasWeb.SwitchesLive do
   def handle_async({:switch, _plug_id}, {:ok, {:ok, _command}}, socket),
     do: {:noreply, load(socket)}
 
-  def handle_async({:switch, plug_id}, _failed, socket) do
+  def handle_async({:switch, plug_id}, result, socket) do
     name = Enum.find_value(socket.assigns.rows, plug_id, &(&1.plug.id == plug_id && &1.plug.name))
-    {:noreply, put_flash(socket, :error, "#{name}: #{@failed}")}
+    {:noreply, put_flash(socket, :error, "#{name}: #{failure(result)}")}
   end
 
   def handle_async(:light_command, {:ok, {:ok, _light, _result}}, socket),
@@ -137,6 +138,9 @@ defmodule ZiwoasWeb.SwitchesLive do
 
   def handle_async(:light_command, _unreachable, socket),
     do: {:noreply, put_flash(socket, :error, LightEvents.failed_message())}
+
+  defp failure({:ok, {:error, {:rejected, _reason}}}), do: @rejected
+  defp failure(_result), do: @failed
 
   defp editor(kind, id, changeset), do: %{kind: kind, id: id, form: to_form(changeset)}
 

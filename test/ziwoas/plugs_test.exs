@@ -148,4 +148,27 @@ defmodule Ziwoas.PlugsTest do
     assert %{"fridge" => %State{output: false}} = Plugs.states(["fridge", "tv"])
     assert Plugs.states(["tv"]) == %{}
   end
+
+  test "record_output from writers racing for a new plug keeps one row and never raises" do
+    1..20
+    |> Enum.map(fn i -> Task.async(fn -> Plugs.record_output("fridge", rem(i, 2) == 0) end) end)
+    |> Task.await_many()
+
+    assert [%State{plug_id: "fridge"}] = Repo.all(State)
+  end
+
+  test "record_output touches the row only when the output changes" do
+    Repo.insert!(%State{
+      plug_id: "fridge",
+      output: true,
+      updated_at: ~U[2026-01-01 00:00:00.000000Z]
+    })
+
+    refute Plugs.record_output("fridge", true)
+    assert [%State{updated_at: ~U[2026-01-01 00:00:00.000000Z]}] = Repo.all(State)
+
+    assert Plugs.record_output("fridge", false)
+    assert [%State{output: false, updated_at: updated_at}] = Repo.all(State)
+    assert DateTime.after?(updated_at, ~U[2026-01-01 00:00:00Z])
+  end
 end

@@ -8,7 +8,7 @@ defmodule Ziwoas.Plugs.Ingest do
   @broadcast_interval_s 5
   @bucket_s 60
 
-  defstruct [:clock, :broadcast, buckets: %{}, pending: [], last_broadcast_at: 0]
+  defstruct [:clock, :broadcast, buckets: %{}, last: %{}, pending: [], last_broadcast_at: 0]
 
   @type t :: %__MODULE__{}
 
@@ -37,15 +37,30 @@ defmodule Ziwoas.Plugs.Ingest do
   @spec record(t, Plug.t(), reading) :: t
   def record(%__MODULE__{} = ingest, %Plug{} = plug, reading) do
     ts = trunc(ingest.clock.())
-    if is_boolean(reading.output), do: Plugs.record_output(plug.id, reading.output)
 
     case Plugs.record_sample(plug.id, ts, reading.apower_w, reading.aenergy_wh) do
       :duplicate ->
-        ingest
+        record_output(ingest, plug, reading.output)
 
       :ok ->
         Logger.debug("Plugs.Ingest: #{plug.id} #{reading.apower_w} W")
+        if is_boolean(reading.output), do: Plugs.record_output(plug.id, reading.output)
         accumulate(ingest, plug, ts, reading)
+    end
+  end
+
+  @spec record_output(t, Plug.t(), boolean | nil) :: t
+  def record_output(%__MODULE__{} = ingest, %Plug{}, nil), do: ingest
+
+  def record_output(%__MODULE__{} = ingest, %Plug{} = plug, output) when is_boolean(output) do
+    Plugs.record_output(plug.id, output)
+
+    case ingest.last[plug.id] do
+      %{output: last} = delta when last != output ->
+        ingest |> put_pending(plug.id, %{delta | output: output}) |> maybe_broadcast()
+
+      _unchanged_or_unknown ->
+        ingest
     end
   end
 
@@ -86,7 +101,7 @@ defmodule Ziwoas.Plugs.Ingest do
         do: List.keyreplace(ingest.pending, id, 0, {id, delta}),
         else: ingest.pending ++ [{id, delta}]
 
-    %{ingest | pending: pending}
+    %{ingest | pending: pending, last: Map.put(ingest.last, id, delta)}
   end
 
   # A process whose readings may pause must flush/1 while pending?/1, or the last deltas wait.

@@ -15,3 +15,5 @@ connections and drops the broker.
 - The device does not authenticate on this channel; the firewall is the protection.
 - A plug whose network drops keeps its stale socket until the 30 s ping goes unanswered and the
   75 s idle timeout closes it; a reconnect replaces it sooner.
+- If `Switch.Set` reaches the plug but its answer is lost or later than 5 s, the switch counts as
+  failed and no command is logged, so a schedule edge may override that manual switch.

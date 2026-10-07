@@ -12,7 +12,6 @@ defmodule Ziwoas.Shelly.StatusTest do
 
   test "a full status replaces whatever was kept" do
     assert Status.replace(@full) == @full
-    assert Status.replace(nil) == %{}
   end
 
   test "a delta changes only its keys, nested maps key by key" do
