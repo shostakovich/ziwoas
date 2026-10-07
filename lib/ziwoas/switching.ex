@@ -28,8 +28,7 @@ defmodule Ziwoas.Switching do
       Repo.all(from r in Rule, where: r.plug_id in ^ids, order_by: [r.at_minute, r.id])
       |> Enum.group_by(& &1.plug_id)
 
-    states =
-      Plugs.states(ids)
+    states = Plugs.states(ids)
 
     commands = latest_commands(ids)
     measurements = Plugs.latest_measurements(ids, now)

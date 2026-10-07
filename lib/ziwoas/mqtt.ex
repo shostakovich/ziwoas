@@ -8,7 +8,7 @@ defmodule Ziwoas.Mqtt do
   drops an older session that reuses an id, so two Phoenix instances must not share
   a broker.
 
-  The web side's commands (plug switches, lamp commands) share one connection,
+  The web side's plug switches share one connection,
   `command_client_id/0`, started by `Ziwoas.Collector`.
 
   `publish/4` goes through `config :ziwoas, :mqtt_publisher`, a module with
@@ -40,7 +40,7 @@ defmodule Ziwoas.Mqtt do
   end
 
   @doc """
-  Publishes `payload` on `topic` (QoS 0, `retain:` as given); returns
+  Publishes `payload` on `topic` (QoS 0, not retained); returns
   `{:error, reason}` while the broker is unreachable.
   """
   @spec publish(String.t(), String.t(), iodata, keyword) :: :ok | {:error, term}
@@ -57,7 +57,7 @@ defmodule Ziwoas.Mqtt do
     def publish(client_id, topic, payload, opts) do
       Tortoise311.publish(client_id, topic, payload,
         qos: 0,
-        retain: Keyword.get(opts, :retain, false),
+        retain: false,
         timeout: Keyword.get(opts, :timeout, @publish_timeout_ms)
       )
     end
