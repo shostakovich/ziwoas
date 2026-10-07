@@ -26,11 +26,6 @@ defmodule Ziwoas.MixProject do
   defp elixirc_paths(:test), do: ["lib", "test/support"]
   defp elixirc_paths(_), do: ["lib"]
 
-  # Kept deliberately small: no telemetry dashboard, no mailer. esbuild runs as a
-  # standalone binary (no Node). JSON comes from Elixir's built-in JSON module. tz is the
-  # IANA database for local day windows; Elixir itself only knows UTC. yamerl reads
-  # config/ziwoas.yml (pure Erlang, no further deps). req is the outbound HTTP (Bright
-  # Sky, SwitchBot, TRMNL, Fritz!Box, Govee Platform API) with Req.Test stubs.
   defp deps do
     [
       {:phoenix, "~> 1.8.15"},
@@ -42,12 +37,10 @@ defmodule Ziwoas.MixProject do
       {:bandit, "~> 1.5"},
       {:tz, "~> 0.28"},
       {:yamerl, "~> 0.10.0"},
-      # The Shelly plugs' outbound websockets (Ziwoas.Shelly.Listener); Phoenix brings it.
       {:websock_adapter, "~> 0.6"},
       {:req, "~> 0.7.4"},
       {:esbuild, "~> 0.10", runtime: Mix.env() == :dev},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
-      # Phoenix.LiveViewTest's HTML parser; tests only.
       {:lazy_html, ">= 0.1.0", only: :test}
     ]
   end

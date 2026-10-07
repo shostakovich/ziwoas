@@ -17,7 +17,6 @@ defmodule Ziwoas.SwitchingGuardTest do
     start_supervised!({FakeShellyDevice, port: port, plug_id: "fridge", test: self()})
     assert_receive {:shelly_request, "fridge", "Shelly.GetStatus", _params}
 
-    # A Monday.
     TestClock.freeze("2026-06-15T18:05:00+02:00")
     Switching.save_window("fridge", %{on_at_time: "18:00", off_at_time: "23:00", days: [1]})
 

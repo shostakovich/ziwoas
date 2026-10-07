@@ -1,5 +1,4 @@
 defmodule Ziwoas.Shelly.ListenerTest do
-  # On a real socket: a Shelly connects to the listener, reports and is called.
   use Ziwoas.DataCase
 
   alias Ziwoas.{FakeShellyDevice, Repo, Shelly, TestConfigs}

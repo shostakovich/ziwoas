@@ -1,19 +1,5 @@
 defmodule Ziwoas.Shelly.Connection do
-  @moduledoc """
-  One Shelly's outbound websocket (`WebSock`, under `Ziwoas.Shelly.Listener`),
-  speaking the device's JSON-RPC.
-
-  - It keeps the device's `switch:0` status: a full status (`NotifyFullStatus`, the
-    `Shelly.GetStatus` it asks for on connect) replaces it, a `NotifyStatus` delta is
-    merged in (`Ziwoas.Shelly.Status`). Every frame that touches `switch:0` hands the
-    status to `Ziwoas.Plugs.Ingest`.
-  - `{:rpc, reply_to, method, params}` (`Ziwoas.Shelly.call/4`) goes out as a request;
-    the answer goes to `reply_to` as `{reply_to, {:ok, result} | {:error, reason}}`.
-  - A newer connection for the same plug replaces this one.
-
-  Anything it cannot read is logged and dropped; a failing database write does not
-  close the connection.
-  """
+  @moduledoc false
   @behaviour WebSock
 
   require Logger

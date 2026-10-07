@@ -1,6 +1,4 @@
-# ziwoas.test.yml plus an inverter, so the dashboard and /solakon show the battery and
-# the control state (Ziwoas.TestConfigs.file(:inverter)). Keep the rest in step with
-# ziwoas.test.yml.
+# ziwoas.test.yml plus an inverter; keep the rest in step with it.
 location:
   timezone: Europe/Berlin
   lat: 52.52

@@ -1,18 +1,11 @@
 defmodule Ziwoas.Shelly.Status do
-  @moduledoc """
-  A Shelly's `switch:0` status as the connection keeps it: a full status
-  (`NotifyFullStatus`, `Shelly.GetStatus`) replaces it, a `NotifyStatus` delta is
-  merged into it (only the changed keys, `null` for a key that is gone).
-  """
+  @moduledoc false
 
   @type t :: map
-
-  @doc "The status after a full status; anything but a map leaves none."
   @spec replace(map) :: t
   def replace(full) when is_map(full), do: full
   def replace(_full), do: %{}
-
-  @doc "The status with `delta` merged in, nested maps (`aenergy`) key by key."
+  # A NotifyStatus delta carries only the changed keys; `null` marks a key that is gone.
   @spec merge(t, map) :: t
   def merge(status, delta) when is_map(delta) do
     Enum.reduce(delta, status, fn
@@ -31,7 +24,6 @@ defmodule Ziwoas.Shelly.Status do
     end
   end
 
-  @doc "The plug reading the status carries: watts and counter as numbers, the relay if a boolean."
   @spec reading(t) :: {:ok, Ziwoas.Plugs.Ingest.reading()} | {:error, :incomplete_status}
   def reading(%{"apower" => apower, "aenergy" => %{"total" => total}} = status)
       when is_number(apower) and is_number(total),

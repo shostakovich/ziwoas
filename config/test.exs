@@ -1,6 +1,5 @@
 import Config
 
-# SQLite has one writer at a time: database tests run synchronously and need few connections.
 config :ziwoas, Ziwoas.Repo,
   database: Path.expand("../tmp/test#{System.get_env("MIX_TEST_PARTITION")}.sqlite3", __DIR__),
   pool: Ecto.Adapters.SQL.Sandbox,

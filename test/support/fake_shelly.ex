@@ -1,13 +1,7 @@
 defmodule Ziwoas.FakeShelly do
-  @moduledoc """
-  A plug's Shelly connection without a socket: a process registered in
-  `Ziwoas.Shelly.Registry` under the plug id that answers `Ziwoas.Shelly.call/4`
-  with `answer.(method, params)` (`{:ok, result}` or `{:error, reason}`) and tells
-  the test `{:shelly_rpc, plug_id, method, params}`. Linked to the test.
+  @moduledoc false
 
-  The registry is global, so only for tests that do not run async.
-  """
-
+  # The registry is global: only for tests that do not run async.
   @spec serve(String.t(), (String.t(), map -> {:ok, term} | {:error, term})) :: pid
   def serve(plug_id, answer \\ fn _method, _params -> {:ok, %{"was_on" => false}} end) do
     test = self()
@@ -38,15 +32,7 @@ defmodule Ziwoas.FakeShelly do
 end
 
 defmodule Ziwoas.FakeShellyDevice do
-  @moduledoc """
-  A Shelly on a real socket: connects to `Ziwoas.Shelly.Listener` at
-  `ws://127.0.0.1:<port>/shelly/<plug_id>` as the device's outbound websocket does
-  (RFC 6455 over `:gen_tcp`, masked client frames), answers requests with
-  `answer.(method, params)` (`{:ok, result}` or `{:error, code, message}`), tells the
-  test (`:test`, by default the caller of `start_link/1`)
-  `{:shelly_request, plug_id, method, params}` and pongs pings.
-  `notify/2` sends a frame (a `NotifyStatus`, say).
-  """
+  @moduledoc false
   use GenServer
 
   @src "shellyplugsg3-test"
@@ -56,10 +42,8 @@ defmodule Ziwoas.FakeShellyDevice do
   def child_spec(opts),
     do: %{id: {__MODULE__, opts[:plug_id]}, start: {__MODULE__, :start_link, [opts]}}
 
-  @doc "Sends `frame` (a map, as JSON) to the server."
   def notify(device, frame), do: GenServer.call(device, {:send, frame})
 
-  @doc "The opening handshake on `path`: the socket and the bytes after it, or the HTTP status."
   @spec handshake(:inet.port_number(), String.t()) ::
           {:ok, :gen_tcp.socket(), binary} | {:error, integer}
   def handshake(port, path) do

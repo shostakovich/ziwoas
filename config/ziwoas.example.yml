@@ -33,8 +33,6 @@ location:
 #   sensors_webhook_url: https://trmnl.com/api/custom_plugins/<sensors-uuid>
 
 # Govee lights bridge (LAN-first + Platform API). Omit to disable.
-# api_key is your Govee developer key; it lives here in the gitignored
-# ziwoas.yml (like fritz_box.password), not in any other file.
 # govee:
 #   api_key: "your-govee-api-key"
 #   lan_poll_seconds: 8
@@ -45,8 +43,7 @@ location:
 #       name: Uplighter
 #       room: Wohnzimmer
 
-# A Shelly plug (the default driver) connects by itself: set its outbound websocket
-# (Settings → Outbound Websocket) to ws://<ziwoas host>:<SHELLY_PORT>/shelly/<id>.
+# Shelly: set Settings → Outbound Websocket to ws://<ziwoas host>:<SHELLY_PORT>/shelly/<id>.
 plugs:
   - id: bkw
     name: Balkonkraftwerk

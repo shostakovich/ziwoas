@@ -14,7 +14,6 @@ defmodule Ziwoas.Plugs.Ingest do
 
   @type reading :: %{apower_w: float, aenergy_wh: float, output: boolean | nil}
 
-  @typedoc "Read by the dashboard's `TodayChart` hook."
   @type delta :: %{
           id: String.t(),
           name: String.t() | nil,
@@ -78,7 +77,6 @@ defmodule Ziwoas.Plugs.Ingest do
     |> maybe_broadcast()
   end
 
-  # Producers report with the opposite sign; the live mean is a positive magnitude.
   defp signed_watts(%Plug{role: :producer}, watts), do: abs(watts)
   defp signed_watts(%Plug{}, watts), do: watts
 

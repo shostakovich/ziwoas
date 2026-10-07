@@ -31,7 +31,6 @@ config :ziwoas,
       )
     )
 
-# Tests set their database in config/test.exs.
 if config_env() != :test do
   database =
     path_env.(
@@ -57,7 +56,7 @@ if config_env() == :prod do
 
   phx_host = System.get_env("PHX_HOST", "localhost")
 
-  # Scheme-less: the origin check runs before ForwardedSSL, so it cannot compare schemes.
+  # The origin check runs before ForwardedSSL, so it cannot compare schemes behind the proxy.
   check_origin =
     System.get_env("ZIWOAS_ALLOWED_HOSTS", "")
     |> String.split(",", trim: true)

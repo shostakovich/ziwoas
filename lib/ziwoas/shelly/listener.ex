@@ -1,8 +1,5 @@
 defmodule Ziwoas.Shelly.Listener do
-  @moduledoc """
-  The plug behind the Shelly port: `GET /shelly/<plug id>` upgrades to a
-  `Ziwoas.Shelly.Connection` for a configured Shelly plug; anything else is a 404.
-  """
+  @moduledoc false
   @behaviour Plug
 
   import Plug.Conn
