@@ -24,7 +24,10 @@ defmodule Ziwoas.Sensors do
 
   @doc "Tells the subscribers that the poll at `instant` is stored."
   @spec notify_polled(DateTime.t()) :: :ok
-  def notify_polled(%DateTime{} = instant), do: broadcast(:polled, instant)
+  def notify_polled(%DateTime{} = instant) do
+    broadcast(:polled, instant)
+    :ok
+  end
 
   defp broadcast(event, payload),
     do: Phoenix.PubSub.broadcast(Ziwoas.PubSub, @topic, {event, payload})

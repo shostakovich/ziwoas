@@ -27,7 +27,10 @@ defmodule Ziwoas.Solakon do
 
   @doc "Tells the subscribers about a stored snapshot."
   @spec notify_snapshot(Snapshot.t()) :: :ok
-  def notify_snapshot(%Snapshot{} = snapshot), do: broadcast(:snapshot, snapshot)
+  def notify_snapshot(%Snapshot{} = snapshot) do
+    broadcast(:snapshot, snapshot)
+    :ok
+  end
 
   defp broadcast(event, payload),
     do: Phoenix.PubSub.broadcast(Ziwoas.PubSub, @topic, {event, payload})

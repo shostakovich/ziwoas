@@ -88,11 +88,11 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
     test "switches by hand, logs a manual command and redraws the head", %{conn: conn} do
       view = open_page(conn)
       view |> element("#sw_head_fridge button[phx-click=switch_plug]") |> render_click()
-      html = render_async(view)
+      render_async(view)
 
       assert_received {:published, "shellies/fridge/command/switch:0", "on"}
       assert [%Command{action: :on, source: :manual}] = Repo.all(Command)
-      assert html =~ "An seit 17:00 (manuell)"
+      assert has_element?(view, "#sw_head_fridge .small", "An seit 17:00 (manuell)")
 
       assert has_element?(
                view,
@@ -105,8 +105,13 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
       view = open_page(conn)
       view |> element("#sw_head_fridge button[phx-click=switch_plug]") |> render_click()
 
-      assert render_async(view) =~
+      render_async(view)
+
+      assert has_element?(
+               view,
+               "#flash-error",
                "Kühlschrank: Schalten fehlgeschlagen — MQTT-Broker nicht erreichbar"
+             )
 
       assert Repo.all(Command) == []
     end
