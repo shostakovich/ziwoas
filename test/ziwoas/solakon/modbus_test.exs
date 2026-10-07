@@ -89,9 +89,6 @@ defmodule Ziwoas.Solakon.ModbusTest do
   end
 
   test "a write's answer is found past a stale frame too" do
-    Ziwoas.Ownership.override(%{solakon_control: :phoenix, solakon_monitor: :phoenix})
-    on_exit(&Ziwoas.Ownership.clear_override/0)
-
     port =
       raw_server(fn <<transaction::16, _::binary-size(5), pdu::binary>> ->
         frame(transaction + 5, 1, <<0x83, 0x02>>) <> frame(transaction, 3, pdu)

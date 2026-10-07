@@ -1,6 +1,6 @@
 defmodule ZiwoasWeb.LookControllerTest do
   # Mirrors test/controllers/looks_controller_test.rb.
-  use ZiwoasWeb.ConnCase, async: true
+  use ZiwoasWeb.ConnCase
 
   test "stores a valid look in a permanent cookie and goes back", %{conn: conn} do
     conn =

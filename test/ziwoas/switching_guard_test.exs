@@ -1,20 +1,18 @@
 defmodule Ziwoas.SwitchingGuardTest do
-  # Phase 6's promise on a real socket: the command connection to a broker is up, and
-  # still nothing a dry run, or a task Rails owns, does reaches it — plug switches,
-  # lamp commands and the schedule tick alike. Only the owner publishes. The client id
-  # is a global name, so this module runs alone.
-  use Ziwoas.DataCase, async: false
+  # On a real socket: plug switches, lamp commands and the schedule tick reach the
+  # broker over the command connection. The client id is a global name, so this
+  # module runs alone.
+  use Ziwoas.DataCase
 
-  alias Ziwoas.{Clock, Config, FakeMqttBroker, Mqtt, Ownership, Repo}
+  alias Ziwoas.{Clock, Config, FakeMqttBroker, Mqtt, TestClock}
   alias Ziwoas.Lights.Commander, as: LightCommander
-  alias Ziwoas.Ownership.NotOwnerError
   alias Ziwoas.Plugs.Plug
-  alias Ziwoas.Switching.{Command, Commander, Rules, ScheduleTickJob}
+  alias Ziwoas.Switching.{Commander, Rules, ScheduleTickJob}
 
   @moduletag :capture_log
   @fridge %Plug{id: "fridge", role: :consumer, driver: :shelly, switchable: true}
 
-  setup %{repo: repo} do
+  setup do
     broker = start_supervised!(FakeMqttBroker)
 
     mqtt = %Config.Mqtt{
@@ -33,12 +31,8 @@ defmodule Ziwoas.SwitchingGuardTest do
            )
 
     # Monday 18:05 in Berlin, five minutes after a Zeitfenster's on edge.
-    Clock.freeze("2026-06-15T18:05:00+02:00")
-    Repo.put_writer(:main, repo)
-    Repo.put_writer(:shadow, repo)
-    Ownership.override(%{switch_schedule: :phoenix})
+    TestClock.freeze("2026-06-15T18:05:00+02:00")
     Rules.save_window("fridge", %{on_at_time: "18:00", off_at_time: "23:00", days: [1]})
-    on_exit(&Ownership.clear_override/0)
 
     config = %{Config.app_config() | mqtt: mqtt}
     %{broker: broker, mqtt: mqtt, config: config}
@@ -51,7 +45,6 @@ defmodule Ziwoas.SwitchingGuardTest do
   end
 
   test "as owner the commands reach the broker", ctx do
-    Ownership.override(%{switching: :phoenix, lights: :phoenix})
     everything(ctx)
 
     assert FakeMqttBroker.await(ctx.broker, &(length(FakeMqttBroker.published(&1)) == 3))
@@ -61,35 +54,5 @@ defmodule Ziwoas.SwitchingGuardTest do
              {"shellies/fridge/command/switch:0", "off"},
              {"govees/ABCDEF01/set", ~s({"power":"on"})}
            ]
-  end
-
-  test "a dry run decides and records, but nothing reaches the broker", ctx do
-    Ownership.override(%{switching: :dry_run, lights: :dry_run})
-    everything(ctx)
-
-    assert [%Command{source: "schedule"}, %Command{source: "manual"}] = Repo.all(Command)
-
-    assert_raise NotOwnerError, fn ->
-      Mqtt.publish(:switching, Mqtt.command_client_id(), "shellies/fridge/command/switch:0", "on")
-    end
-
-    assert_raise NotOwnerError, fn ->
-      Mqtt.publish(:lights, Mqtt.command_client_id(), "govees/ABCDEF01/set", "{}")
-    end
-
-    Process.sleep(100)
-    assert FakeMqttBroker.published(ctx.broker) == []
-  end
-
-  test "while Rails owns the tasks every path raises before the socket", ctx do
-    Ownership.override(%{})
-
-    assert_raise NotOwnerError, fn -> Commander.switch(@fridge, :on, :manual, ctx.mqtt) end
-    assert_raise NotOwnerError, fn -> LightCommander.publish("ABCDEF01", {:power, true}) end
-    assert_raise NotOwnerError, fn -> ScheduleTickJob.tick(ctx.config, Clock.now()) end
-
-    Process.sleep(100)
-    assert FakeMqttBroker.published(ctx.broker) == []
-    assert Repo.all(Command) == []
   end
 end

@@ -13,7 +13,6 @@ defmodule Ziwoas.Weather.Sync do
   require Logger
 
   alias Ziwoas.{Clock, Live, LocalDay, Location, RailsCast, Repo}
-  alias Ziwoas.Ecto.RailsDateTime
   alias Ziwoas.Plugs.DailyTotal
   alias Ziwoas.Weather.{BrightskyClient, Record}
 
@@ -158,7 +157,7 @@ defmodule Ziwoas.Weather.Sync do
       from(r in Record,
         where:
           r.kind == "historic" and r.lat == ^lat and r.lon == ^lon and
-            r.timestamp >= type(^from, RailsDateTime) and r.timestamp <= type(^to, RailsDateTime)
+            r.timestamp >= ^from and r.timestamp <= ^to
       ),
       :count
     ) >= 24

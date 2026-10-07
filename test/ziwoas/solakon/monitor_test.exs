@@ -1,7 +1,7 @@
 defmodule Ziwoas.Solakon.MonitorTest do
   # The connection owner: Rails' client tests (test/lib/solakon/client_test.rb) for
-  # decoding and error wrapping, plus what a long-lived connection adds — reuse as
-  # owner, per-read connections in shadow, reconnect and backoff.
+  # decoding and error wrapping, plus what a long-lived connection adds — reuse,
+  # per-read connections on request, reconnect and backoff — and the writes.
   use ExUnit.Case, async: true
 
   alias Ziwoas.FakeModbusServer
@@ -46,16 +46,16 @@ defmodule Ziwoas.Solakon.MonitorTest do
     assert state.eps_enabled == false
   end
 
-  test "as owner one connection serves every read" do
+  test "one connection serves every read by default" do
     server = start_supervised!({FakeModbusServer, @fast})
-    monitor = monitor!(server, keep_open: true)
+    monitor = monitor!(server)
 
     assert {:ok, _} = Monitor.read_state(monitor)
     assert {:ok, _} = Monitor.read_state(monitor)
     assert FakeModbusServer.connections(server) == 1
   end
 
-  test "in shadow mode each read opens and closes its own connection" do
+  test "with keep_open: false each read opens and closes its own connection" do
     server = start_supervised!({FakeModbusServer, @fast})
     monitor = monitor!(server, keep_open: false)
 
@@ -165,5 +165,12 @@ defmodule Ziwoas.Solakon.MonitorTest do
     assert_in_delta snapshot.pv_total_kwh, 123.45, 0.001
     assert snapshot.bms_faults == [0, 0, 0, 0, 0, 0]
     refute Map.has_key?(snapshot, :battery_soc)
+  end
+
+  test "writes reach the inverter as FC06/FC16 frames" do
+    server = start_supervised!({FakeModbusServer, %{"46609:1" => [10]}})
+
+    assert Monitor.set_eps_output(monitor!(server), true) == :ok
+    assert FakeModbusServer.frames(server) == [["0001000000060106b6150002"]]
   end
 end

@@ -1,16 +1,17 @@
 import Config
 
-# No ecto_repos on purpose: until cutover the schema belongs to Rails (db/schema.rb),
-# so `mix ecto.create`/`ecto.migrate` must never touch the shared SQLite file.
-config :ziwoas, ecto_repos: []
+# Ecto's migrations own the schema; `mix ecto.migrate` and Ziwoas.Release.migrate/0
+# first adopt a database the Rails app left behind.
+config :ziwoas, ecto_repos: [Ziwoas.Repo]
 
 # Read at runtime, where Mix.env/0 is gone (a release).
 config :ziwoas, env: config_env()
 
 # Pragmas mirror what Rails 8 sets on its SQLite connections (WAL, synchronous NORMAL,
 # foreign keys, 64 MiB journal limit, 128 MiB mmap). busy_timeout matches the
-# `timeout: 15000` in Rails' config/database.yml. Path and read-only mode are set in
-# config/runtime.exs.
+# `timeout: 15000` in Rails' config/database.yml. The path is set in
+# config/runtime.exs. Tables get Rails' primary key, `id INTEGER NOT NULL PRIMARY KEY
+# AUTOINCREMENT`: ids are never reused.
 config :ziwoas, Ziwoas.Repo,
   journal_mode: :wal,
   synchronous: :normal,
@@ -18,7 +19,11 @@ config :ziwoas, Ziwoas.Repo,
   busy_timeout: 15_000,
   journal_size_limit: 64 * 1024 * 1024,
   custom_pragmas: [mmap_size: 128 * 1024 * 1024],
-  pool_size: 5
+  # A transaction that reads and then writes waits at BEGIN for the write lock instead of
+  # failing with SQLITE_BUSY at its first write (Ziwoas.Repo).
+  default_transaction_mode: :immediate,
+  pool_size: 5,
+  migration_primary_key: [type: :serial, null: false]
 
 # The recurring jobs (Ziwoas.Scheduler): name => [task:, schedule:, job:], schedules in
 # Fugit's syntax (Ziwoas.Scheduler.Schedule). A job runs only while its ownership task
@@ -94,7 +99,7 @@ config :elixir, :time_zone_database, Tz.TimeZoneDatabase
 
 # The standalone esbuild binary bundles assets/ into priv/static/assets (no Node).
 config :esbuild,
-  version: "0.25.4",
+  version: "0.28.2",
   ziwoas: [
     args: ~w(js/app.js --bundle --target=es2022 --outdir=../priv/static/assets/js),
     cd: Path.expand("../assets", __DIR__),

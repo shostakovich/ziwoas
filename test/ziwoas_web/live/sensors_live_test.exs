@@ -1,19 +1,17 @@
 defmodule ZiwoasWeb.SensorsLiveTest do
   # Mirrors test/controllers/sensors_controller_test.rb (the page) and the
   # partial-level checks of test/sensors_broadcaster_test.rb (the live update).
-  # The connected LiveView reads this module's database through
-  # `Ziwoas.Repo.inherit_dynamic_repo/0`.
-  use ZiwoasWeb.ConnCase, async: true, db: true
+  use ZiwoasWeb.ConnCase
 
   import Phoenix.LiveViewTest
 
-  alias Ziwoas.{Clock, Repo}
+  alias Ziwoas.{Clock, Repo, TestClock}
   alias Ziwoas.Sensors.Reading
 
   @now "2026-05-04T12:00:00+02:00"
 
   setup do
-    Clock.freeze(@now)
+    TestClock.freeze(@now)
     :ok
   end
 
@@ -28,6 +26,7 @@ defmodule ZiwoasWeb.SensorsLiveTest do
   defp texts(doc, selector),
     do: doc |> LazyHTML.query(selector) |> Enum.map(&squish(LazyHTML.text(&1)))
 
+  defp attrs(doc, selector, name), do: doc |> LazyHTML.query(selector) |> LazyHTML.attribute(name)
   defp count(doc, selector), do: doc |> LazyHTML.query(selector) |> Enum.count()
   defp squish(text), do: text |> String.split() |> Enum.join(" ")
 
@@ -58,9 +57,12 @@ defmodule ZiwoasWeb.SensorsLiveTest do
     assert count(doc, "section[aria-label=Sensoren].row-cols-sm-2.row-cols-lg-2") == 1,
            "two sensors fill a row of two on desktops instead of leaving a third slot empty"
 
-    assert count(doc, "[data-controller=sensors-chart] canvas") == 3
+    assert attrs(doc, "#sensors_chart[phx-hook=SensorsChart]", "data-url") == ["/sensors/series"]
 
-    assert texts(doc, "[data-controller=sensors-chart] .card-subtitle") == [
+    assert attrs(doc, "#sensors_chart [phx-update=ignore][id] > canvas", "data-series") ==
+             ~w[co2 temperature humidity]
+
+    assert texts(doc, "#sensors_chart .card-subtitle") == [
              "ppm · Test Wohnzimmer · letzte 24 h",
              "°C · letzte 24 h",
              "Prozent · letzte 24 h"
@@ -90,7 +92,7 @@ defmodule ZiwoasWeb.SensorsLiveTest do
 
     assert texts(doc, ".card .card-title") == ["Noch keine Sensordaten"]
     assert hd(texts(doc, ".card p")) =~ "sobald die SwitchBot-API Daten geliefert hat"
-    assert count(doc, "[data-controller=sensors-chart]") == 0
+    assert count(doc, "#sensors_chart") == 0
   end
 
   test "a sensor update re-renders the dashboard with the newest readings", %{conn: conn} do
@@ -114,6 +116,7 @@ defmodule ZiwoasWeb.SensorsLiveTest do
            ]
 
     assert texts(doc, ".alert") == ["Batterie schwach: Test Wohnzimmer"]
+    assert_push_event(view, "sensors_updated", %{})
   end
 
   test "the first reading replaces the empty state", %{conn: conn} do
@@ -124,6 +127,6 @@ defmodule ZiwoasWeb.SensorsLiveTest do
     send(view.pid, {:sensors_updated})
 
     refute has_element?(view, ".card-title", "Noch keine Sensordaten")
-    assert has_element?(view, "[data-controller=sensors-chart]")
+    assert has_element?(view, "#sensors_chart[phx-hook=SensorsChart]")
   end
 end

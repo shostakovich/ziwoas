@@ -5,7 +5,7 @@ defmodule Ziwoas.Weather.BrightskyClient do
   twice on a 5xx or a transport error, 0.5 s and 1 s apart; a date answered with
   404 is past the end of the forecast (`:range_end`). Other failures raise `Error`.
   """
-  alias Ziwoas.{Http, Location, RubyNumeric}
+  alias Ziwoas.{Clock, Http, Location, RubyNumeric}
   alias Ziwoas.Weather.Icon
 
   @base_url "https://api.brightsky.dev"
@@ -129,8 +129,5 @@ defmodule Ziwoas.Weather.BrightskyClient do
     }
   end
 
-  defp timestamp!(row) do
-    {:ok, timestamp, _offset} = DateTime.from_iso8601(Map.fetch!(row, "timestamp"))
-    timestamp
-  end
+  defp timestamp!(row), do: row |> Map.fetch!("timestamp") |> Clock.parse!()
 end

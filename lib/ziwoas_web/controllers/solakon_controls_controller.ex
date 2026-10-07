@@ -4,7 +4,7 @@ defmodule ZiwoasWeb.SolakonControlsController do
   socket, `PATCH /solakon/control` pauses or resumes the Auto-Regelung, both
   answering JSON as Rails does. Phoenix's own PV page switches through LiveView
   events instead (`ZiwoasWeb.SolakonLive`); these routes serve whatever still
-  PATCHes them, Rails' Stimulus controller included.
+  PATCHes them. Phase 2 removes them.
   """
   use ZiwoasWeb, :controller
 

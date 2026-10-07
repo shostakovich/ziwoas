@@ -3,7 +3,7 @@ defmodule ZiwoasWeb.SensorsComponents do
   The Sensoren page's parts (`app/views/sensors/_*.html.erb`, `SensorsHelper`
   and `Sensors::Co2GaugeComponent`): the dashboard Rails replaces on every
   sensor poll, one card per sensor, the battery warning and the chart cards
-  the `sensors-chart` Stimulus controller fills from `/sensors/series`.
+  the `SensorsChart` hook fills from `/sensors/series`.
   """
   use ZiwoasWeb, :html
 
@@ -62,7 +62,7 @@ defmodule ZiwoasWeb.SensorsComponents do
       class="alert alert-warning d-flex align-items-center gap-3 mb-3"
       role="alert"
     >
-      <img class="sensor-alert-icon" alt="" src={~p"/assets/solakon_battery_low.webp"} />
+      <img class="sensor-alert-icon" alt="" src={~p"/images/solakon_battery_low.webp"} />
       <div><strong>Batterie schwach:</strong> {@names}</div>
     </div>
     """
@@ -116,26 +116,34 @@ defmodule ZiwoasWeb.SensorsComponents do
       assign(assigns, :co2_sensors, Enum.filter(assigns.sensors, &(&1.type == :meter_pro_co2)))
 
     ~H"""
-    <div data-controller="sensors-chart" data-sensors-chart-url-value="/sensors/series">
+    <div id="sensors_chart" phx-hook="SensorsChart" data-url="/sensors/series">
       <.card title="CO₂" subtitle={chart_subtitle("ppm", @co2_sensors)}>
-        <div class="chart-frame chart-frame-prominent">
-          <canvas data-sensors-chart-target="co2"></canvas>
+        <div class="chart-frame chart-frame-prominent" id="sensors_co2_chart" phx-update="ignore">
+          <canvas data-series="co2"></canvas>
         </div>
       </.card>
 
       <div class="row row-cols-1 row-cols-md-2 g-3">
         <div class="col">
           <.card title="Temperatur" subtitle={chart_subtitle("°C", @sensors)}>
-            <div class="chart-frame chart-frame-compact">
-              <canvas data-sensors-chart-target="temperature"></canvas>
+            <div
+              class="chart-frame chart-frame-compact"
+              id="sensors_temperature_chart"
+              phx-update="ignore"
+            >
+              <canvas data-series="temperature"></canvas>
             </div>
           </.card>
         </div>
 
         <div class="col">
           <.card title="Luftfeuchtigkeit" subtitle={chart_subtitle("Prozent", @sensors)}>
-            <div class="chart-frame chart-frame-compact">
-              <canvas data-sensors-chart-target="humidity"></canvas>
+            <div
+              class="chart-frame chart-frame-compact"
+              id="sensors_humidity_chart"
+              phx-update="ignore"
+            >
+              <canvas data-series="humidity"></canvas>
             </div>
           </.card>
         </div>

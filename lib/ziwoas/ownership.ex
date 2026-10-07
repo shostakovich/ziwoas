@@ -1,28 +1,18 @@
 defmodule Ziwoas.Ownership do
   @moduledoc """
-  Who runs each task while Rails and Phoenix share the database (ADR-0006, issue
-  #158): `migration.owners` in `config/ziwoas.yml`, mirrored check for check from
-  Rails' `lib/ownership.rb` (`test/vectors/ownership.json` pins both).
+  The task table from the time Rails and Phoenix shared the database (ADR-0006).
+  Phoenix now owns every task (`owners/0`); the modes other than `:phoenix` survive
+  only until their branches are gone from the jobs, the collector and the scheduler.
 
-    * `:rails` — Rails runs the task, Phoenix does nothing (the default).
-    * `:shadow` — Rails runs it; Phoenix runs it too, reads devices, writes only the
-      shadow database, sends and publishes nothing.
-    * `:dry_run` — the same for tasks that switch or push: Phoenix decides, logs and
-      records its decisions in the shadow database, sends nothing.
-    * `:phoenix` — Phoenix runs it and writes the main database; Rails skips it.
+    * `:rails` — Rails ran the task, Phoenix did nothing.
+    * `:shadow` — Phoenix ran it beside Rails, read devices, sent nothing.
+    * `:dry_run` — the same for tasks that switch or push: decide and log, send nothing.
+    * `:phoenix` — Phoenix runs it and writes the database.
 
   The class of a task fixes the modes it takes: an `:ingest` reads devices or
   services and writes the database, an `:effect` switches devices or pushes out, a
-  `:route` is a form that writes the database.
-
-  Rules for every Phoenix task:
-
-    * do nothing unless `runs?/1`;
-    * write the database only inside `Ziwoas.Repo.write/2`, which picks the main or
-      the shadow database by mode;
-    * every device client calls `ensure_owner!/1` (or checks `may_write_devices?/1`)
-      right before it sends a command, publishes to MQTT or writes a register — the
-      lowest level, not the caller.
+  `:route` is a form that writes the database. `parse!/1` still reads the
+  `migration` section of `config/ziwoas.yml`.
   """
   alias Ziwoas.Config
 
@@ -51,8 +41,6 @@ defmodule Ziwoas.Ownership do
   }
 
   @task_names Keyword.keys(@tasks)
-  @override_key {__MODULE__, :owners}
-  @boot_key {__MODULE__, :boot_owners}
 
   @type task ::
           :aggregator
@@ -74,16 +62,10 @@ defmodule Ziwoas.Ownership do
   @type owners :: %{task => mode}
 
   defmodule NotOwnerError do
-    @moduledoc """
-    Phoenix was about to act for a task it does not own, or owns without holding the
-    task's lease (`Ziwoas.Lease`; `lease` names who holds it).
-    """
-    defexception [:task, :mode, lease: false]
+    @moduledoc "Phoenix was about to act for a task it does not own."
+    defexception [:task, :mode]
 
     @impl true
-    def message(%{task: task, lease: holder}) when holder != false,
-      do: "#{task}: #{holder || "nobody"} holds its lease, so Phoenix does not act for it"
-
     def message(%{task: task, mode: mode}),
       do: "#{task} runs in #{mode} mode here: Phoenix does not own it"
   end
@@ -101,25 +83,11 @@ defmodule Ziwoas.Ownership do
   # --- Asking ----------------------------------------------------------------
 
   @doc """
-  The owners in effect: a test override (`override/1`), else the owners the
-  application booted with (`put_boot_owners/1`: the configuration's, or all
-  `:rails` when it did not load), else the configuration's. Owners are read once
-  per boot, like Rails; a change needs a restart.
+  The owners in effect: Phoenix owns every task. The `migration` section of the
+  configuration is still parsed (`parse!/1`), but no longer decides anything.
   """
   @spec owners() :: owners
-  def owners do
-    (Application.get_env(:ziwoas, :ownership_process_override, false) && override_owners()) ||
-      :persistent_term.get(@boot_key, nil) ||
-      Config.app_config().owners
-  end
-
-  @doc """
-  The owners `Ziwoas.Application` started its writers, collector and scheduler for.
-  Kept for the life of the VM, so a configuration that failed at boot and loads
-  later cannot hand Phoenix a task nothing was started for.
-  """
-  @spec put_boot_owners(owners) :: :ok
-  def put_boot_owners(owners), do: :persistent_term.put(@boot_key, owners)
+  def owners, do: Map.new(@task_names, &{&1, :phoenix})
 
   @spec mode(task, owners) :: mode
   def mode(task, owners \\ owners())
@@ -131,91 +99,29 @@ defmodule Ziwoas.Ownership do
   @spec runs?(task) :: boolean
   def runs?(task), do: mode(task) != :rails
 
-  @doc "Whether Phoenix owns the task: writes the main database, acts on devices."
+  @doc "Whether Phoenix owns the task: writes the database, acts on devices."
   @spec owner?(task) :: boolean
   def owner?(task), do: mode(task) == :phoenix
 
   @doc """
   Whether a device client may send for this task: switch a plug, publish a light
-  command, write a Solakon register, push to TRMNL, publish to the shared MQTT
-  broker. Only as owner — never in shadow or dry run. Reading devices is no write.
+  command, write a Solakon register, push to TRMNL, publish to the MQTT broker.
+  Only as owner. Reading devices is no write.
   """
   @spec may_write_devices?(task) :: boolean
   def may_write_devices?(task), do: owner?(task)
 
-  @doc """
-  Whether Phoenix acts for the task right now: owns it and holds its lease
-  (`Ziwoas.Lease.held?/1`). Entry points ask this to refuse gracefully.
-  """
+  @doc "Whether Phoenix acts for the task right now. Entry points ask this to refuse gracefully."
   @spec acting?(task) :: boolean
-  def acting?(task), do: owner?(task) and Ziwoas.Lease.held?(task)
+  def acting?(task), do: owner?(task)
 
-  @doc """
-  Raises `NotOwnerError` unless Phoenix owns the task and holds its lease. Device
-  clients call it before every write.
-  """
+  @doc "Raises `NotOwnerError` unless Phoenix owns the task. Device clients call it before every write."
   @spec ensure_owner!(task) :: :ok
   def ensure_owner!(task) do
     case mode(task) do
-      :phoenix -> ensure_lease!(task)
+      :phoenix -> :ok
       mode -> raise NotOwnerError, task: task, mode: mode
     end
-  end
-
-  @doc "Raises `NotOwnerError` unless Phoenix holds the task's lease (`Ziwoas.Lease`)."
-  @spec ensure_lease!(task) :: :ok
-  def ensure_lease!(task) do
-    if Ziwoas.Lease.held?(task),
-      do: :ok,
-      else: raise(NotOwnerError, task: task, mode: :phoenix, lease: Ziwoas.Lease.holder(task))
-  end
-
-  @doc """
-  Where the task's database writes go: `:main` as owner, `:shadow` in shadow or dry
-  run. A `:rails` task writes nowhere (`NotOwnerError`).
-  """
-  @spec write_target(task) :: :main | :shadow
-  def write_target(task) do
-    case mode(task) do
-      :phoenix -> :main
-      mode when mode in [:shadow, :dry_run] -> :shadow
-      :rails -> raise NotOwnerError, task: task, mode: :rails
-    end
-  end
-
-  # --- Test support ----------------------------------------------------------
-
-  @doc """
-  Test support (`config :ziwoas, ownership_process_override: true`): the given
-  modes, every other task `:rails`, for this process and the processes it starts
-  (`$callers`, `$ancestors`). Not validated, so tests can reach the guards behind the checks.
-  """
-  @spec override(%{optional(task) => mode}) :: :ok
-  def override(modes) do
-    Process.put(@override_key, Map.merge(all_rails(), modes))
-    :ok
-  end
-
-  @spec clear_override() :: :ok
-  def clear_override do
-    Process.delete(@override_key)
-    :ok
-  end
-
-  defp override_owners do
-    Enum.find_value([self() | Ziwoas.Repo.test_lineage()], fn
-      pid when pid == self() ->
-        Process.get(@override_key)
-
-      pid ->
-        case Process.info(pid, :dictionary) do
-          {:dictionary, dictionary} ->
-            with {_key, owners} <- List.keyfind(dictionary, @override_key, 0), do: owners
-
-          nil ->
-            nil
-        end
-    end)
   end
 
   # --- Parsing (Ownership.parse) ---------------------------------------------

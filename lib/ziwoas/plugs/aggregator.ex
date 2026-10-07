@@ -3,10 +3,7 @@ defmodule Ziwoas.Plugs.Aggregator do
   Folds a finished local day of raw `samples` into `samples_5min` and
   `daily_totals` (and `daily_energy_summary` when plugs are given), then purges
   raw samples past their retention. All arithmetic stays in SQLite.
-
-  Writes need a writable repo: `Ziwoas.Plugs.AggregatorJob` wraps it in
-  `Ziwoas.Repo.write(:aggregator, fun)` (main or shadow database by ownership
-  mode).
+  `Ziwoas.Plugs.AggregatorJob` runs it every night.
   """
   import Ecto.Query
 
@@ -102,6 +99,7 @@ defmodule Ziwoas.Plugs.Aggregator do
   (`VACUUM INTO`, replacing that day's file) and keeps the newest `keep`
   backups by modification time. A file outside the database, so only as the
   `:aggregator` owner: a shadow run would overwrite Rails' backup of the day.
+  `VACUUM INTO` cannot run inside a transaction.
   """
   @spec backup!(String.t(), Date.t(), pos_integer) :: String.t()
   def backup!(dir, %Date{} = today, keep \\ 7) do

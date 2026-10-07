@@ -18,7 +18,7 @@ defmodule Ziwoas.Switching.Command do
   def manual_after?(plug_id, time) do
     Repo.exists?(
       from c in __MODULE__,
-        where: c.plug_id == ^plug_id and c.source == "manual" and c.created_at > ^time
+        where: c.plug_id == ^plug_id and c.source == "manual" and c.inserted_at > ^time
     )
   end
 end

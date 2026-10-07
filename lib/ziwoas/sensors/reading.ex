@@ -10,7 +10,7 @@ defmodule Ziwoas.Sensors.Reading do
     field :device_id, :string
     field :firmware_version, :string
     field :humidity, :integer
-    field :taken_at, Ziwoas.Ecto.RailsDateTime
+    field :taken_at, :utc_datetime_usec
     field :temperature, :float
     timestamps()
   end

@@ -2,8 +2,7 @@ defmodule Ziwoas.Live do
   @moduledoc """
   Live updates from the tasks Phoenix runs (Rails' `WeatherBroadcaster`,
   `SensorsBroadcaster`): a PubSub message on a page's topic, only as the task's
-  owner. In shadow mode the pages still hear from Rails' writes
-  (`Ziwoas.Live.*Watcher`), never from the shadow database.
+  owner.
   """
   alias Ziwoas.Ownership
 

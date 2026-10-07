@@ -1,18 +1,11 @@
 defmodule ZiwoasWeb.LightControllerTest do
   # Mirrors the settings half of test/controllers/lights_controller_test.rb.
-  use ZiwoasWeb.ConnCase, async: true, db: true
+  use ZiwoasWeb.ConnCase
 
   import ZiwoasWeb.TurboCase
 
-  alias Ziwoas.{Ownership, Repo}
+  alias Ziwoas.Repo
   alias Ziwoas.Lights.Light
-
-  setup %{repo: repo} do
-    Repo.put_writer(:main, repo)
-    Ownership.override(%{light_settings: :phoenix})
-    on_exit(&Ownership.clear_override/0)
-    :ok
-  end
 
   defp light!(attrs \\ %{}),
     do: Repo.insert!(struct!(%Light{name: "Lampe", key: "A1B2C3D4E5F60002"}, attrs))
@@ -90,7 +83,10 @@ defmodule ZiwoasWeb.LightControllerTest do
 
     assert streams(body) == [{"update", "light_settings"}]
     doc = stream_doc(body)
-    assert count(doc, "dialog.modal[closedby=any][data-controller=settings-dialog]") == 1
+
+    assert count(doc, "dialog#light_settings_dialog.modal[closedby=any][phx-hook=SettingsSheet]") ==
+             1
+
     assert count(doc, "button.btn-close") == 1
     assert body =~ "Abbrechen"
     assert body =~ "light[shelly_plug_id]"
@@ -118,18 +114,6 @@ defmodule ZiwoasWeb.LightControllerTest do
     assert conn |> patch(~p"/lights/#{light.key}", %{"light" => %{}}) |> response(400)
     assert_error_sent 404, fn -> patch(conn, ~p"/lights/NOPE", %{"light" => %{"name" => "X"}}) end
     assert_error_sent 404, fn -> get(conn, ~p"/lights/NOPE/edit") end
-  end
-
-  test "the update answers 421 and writes nothing while Rails owns the settings", %{conn: conn} do
-    light = light!()
-    Ownership.override(%{light_settings: :rails})
-
-    assert conn
-           |> patch(~p"/lights/#{light.key}", %{"light" => %{"name" => "Neu"}})
-           |> response(421)
-
-    assert reload(light).name == "Lampe"
-    assert conn |> get(~p"/lights/#{light.key}/edit") |> html_response(200)
   end
 
   describe "TurboStream.requested?/1 (Rails' respond_to)" do

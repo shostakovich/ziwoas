@@ -1,6 +1,6 @@
 defmodule Ziwoas.EnergyReport.WeatherLoaderTest do
   # Mirrors test/models/weather_report_loader_test.rb.
-  use Ziwoas.DataCase, async: true
+  use Ziwoas.DataCase
 
   alias Ziwoas.{Location, Repo}
   alias Ziwoas.EnergyReport.WeatherLoader
@@ -9,7 +9,7 @@ defmodule Ziwoas.EnergyReport.WeatherLoaderTest do
   defp location(timezone \\ "Europe/Berlin"), do: Location.new(timezone, lat: 48.15, lon: 11.26)
 
   defp historic!(ts, attrs) do
-    defaults = %{kind: "historic", timestamp: ts, lat: 48.15, lon: 11.26}
+    defaults = %{kind: "historic", timestamp: usec(ts), lat: 48.15, lon: 11.26}
     Repo.insert!(struct!(Record, Map.merge(defaults, Map.new(attrs))))
   end
 

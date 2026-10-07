@@ -10,9 +10,6 @@ defmodule Ziwoas.Scheduler.Runner do
   instant while the task runs in `:shadow`/`:dry_run`, so a shadow does not poll a
   device the moment Rails does; default 0); for tests `:clock` (0-arity, a UTC
   `DateTime`) and `:timer` (`Process.send_after/3`'s shape).
-
-  As owner a run first needs the task's lease (`Ziwoas.Lease`): while Rails holds
-  it the run is skipped and logged as an error.
   """
   use GenServer
 
@@ -60,28 +57,9 @@ defmodule Ziwoas.Scheduler.Runner do
 
   defp run(state, at) do
     case Ownership.mode(state.task) do
-      :rails ->
-        :skipped
-
-      :phoenix ->
-        if Ziwoas.Lease.held?(state.task),
-          do: perform(state, %{task: state.task, mode: :phoenix, at: at}),
-          else: refuse(state)
-
-      mode ->
-        perform(state, %{task: state.task, mode: mode, at: at})
+      :rails -> :skipped
+      mode -> perform(state, %{task: state.task, mode: mode, at: at})
     end
-  rescue
-    error -> Logger.error("scheduler: #{state.id}: #{Exception.message(error)}")
-  end
-
-  defp refuse(state) do
-    Logger.error(
-      "scheduler: #{state.id} skipped: #{Ziwoas.Lease.holder(state.task) || "nobody"} " <>
-        "holds the lease of #{state.task}"
-    )
-
-    :refused
   end
 
   defp perform(state, context) do

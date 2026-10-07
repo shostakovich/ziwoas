@@ -19,7 +19,7 @@ defmodule Ziwoas.Solakon.Control.State do
   schema "solakon_control_states" do
     field :consecutive_failures, :integer, default: 0
     field :decision_state, :string
-    field :last_decision_at, Ziwoas.Ecto.RailsDateTime
+    field :last_decision_at, :utc_datetime_usec
     field :last_target_w, :integer
     field :paused, :boolean, default: false
     field :trim, :boolean, default: false

@@ -1,6 +1,6 @@
 defmodule Ziwoas.SunCalendar.BuilderTest do
   # Mirrors test/models/sun_calendar/builder_test.rb.
-  use Ziwoas.DataCase, async: true
+  use Ziwoas.DataCase
 
   alias Ziwoas.{LocalDay, Location, Repo}
   alias Ziwoas.Plugs.Sample5min
@@ -35,7 +35,7 @@ defmodule Ziwoas.SunCalendar.BuilderTest do
   end
 
   defp pv_hour_at(started_at, watts),
-    do: Repo.insert!(%PvHour{started_at: started_at, pv_power_w: watts, reading_count: 120})
+    do: Repo.insert!(%PvHour{started_at: usec(started_at), pv_power_w: watts, reading_count: 120})
 
   defp pv_hour(hour, watts, date \\ @april), do: pv_hour_at(utc(date, hour), watts)
 
@@ -45,7 +45,7 @@ defmodule Ziwoas.SunCalendar.BuilderTest do
       daytime: "day",
       lat: Keyword.get(opts, :lat, @lat),
       lon: Keyword.get(opts, :lon, @lon),
-      timestamp: timestamp,
+      timestamp: usec(timestamp),
       solar: solar,
       cloud_cover: cloud
     })

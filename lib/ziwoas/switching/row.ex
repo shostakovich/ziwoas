@@ -94,15 +94,15 @@ defmodule Ziwoas.Switching.Row do
   defp fresher?(_command, %State{updated_at: nil}), do: true
 
   defp fresher?(command, state),
-    do: DateTime.compare(command.created_at, state.updated_at) != :lt
+    do: DateTime.compare(command.inserted_at, state.updated_at) != :lt
 
   @doc "Schaltzeiten, not rows: a Zeitfenster is one row and two of them."
   @spec rule_count(t) :: non_neg_integer
   def rule_count(%__MODULE__{entries: entries}),
     do: entries |> Enum.map(&length(Schedule.rules(&1))) |> Enum.sum()
 
-  # Rails' `Command.latest_per_plug(ids).order(:created_at, :id).index_by(&:plug_id)`:
-  # every command at a plug's newest created_at, the last of them by id wins.
+  # Each plug's newest command: of the commands at its newest inserted_at, the last
+  # by id wins (Rails' `Command.latest_per_plug(ids).order(:created_at, :id)`).
   defp latest_commands([]), do: %{}
 
   defp latest_commands(ids) do
@@ -110,12 +110,12 @@ defmodule Ziwoas.Switching.Row do
       from c in Command,
         where: c.plug_id in ^ids,
         group_by: c.plug_id,
-        select: %{plug_id: c.plug_id, created_at: max(c.created_at)}
+        select: %{plug_id: c.plug_id, inserted_at: max(c.inserted_at)}
 
     from(c in Command,
       join: n in subquery(newest),
-      on: n.plug_id == c.plug_id and n.created_at == c.created_at,
-      order_by: [c.created_at, c.id]
+      on: n.plug_id == c.plug_id and n.inserted_at == c.inserted_at,
+      order_by: [c.inserted_at, c.id]
     )
     |> Repo.all()
     |> Map.new(&{&1.plug_id, &1})

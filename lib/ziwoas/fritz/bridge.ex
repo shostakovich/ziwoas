@@ -100,7 +100,7 @@ defmodule Ziwoas.Fritz.Bridge do
               Logger.warning("FritzBridge: publish on #{topic} failed: #{inspect(reason)}")
           end
         rescue
-          # Rails holds the lease (Ziwoas.Lease): the poll goes on, the publish waits.
+          # A task Phoenix does not own: the poll goes on, the publish is refused.
           error in Ownership.NotOwnerError ->
             Logger.error("FritzBridge: publish on #{topic} refused: #{Exception.message(error)}")
         end

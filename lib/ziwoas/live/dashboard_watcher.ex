@@ -17,9 +17,7 @@ defmodule Ziwoas.Live.DashboardWatcher do
   With `live: false` (Phoenix owns `plug_ingest`, whose handler broadcasts the
   deltas itself) only the summary beat remains.
 
-  Options as `Ziwoas.Live.SensorsWatcher`: `:interval_ms`,
-  `:summary_interval_ms`, `:live` (default true), `:name`, `:repo` (a dynamic
-  repo, for tests).
+  Options: `:interval_ms`, `:summary_interval_ms`, `:live` (default true), `:name`.
   """
   use GenServer
 
@@ -38,7 +36,6 @@ defmodule Ziwoas.Live.DashboardWatcher do
 
   @impl true
   def init(opts) do
-    if repo = opts[:repo], do: Repo.put_dynamic_repo(repo)
     summary_interval = Keyword.get(opts, :summary_interval_ms, @default_summary_interval_ms)
     Process.send_after(self(), :summary, summary_interval)
 

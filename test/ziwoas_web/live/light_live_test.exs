@@ -1,7 +1,7 @@
 defmodule ZiwoasWeb.LightLiveTest do
   # Mirrors the show half of test/controllers/lights_controller_test.rb and
   # test/models/light_snapshot_test.rb.
-  use ZiwoasWeb.ConnCase, async: true, db: true
+  use ZiwoasWeb.ConnCase
 
   import Phoenix.LiveViewTest
 
@@ -28,14 +28,23 @@ defmodule ZiwoasWeb.LightLiveTest do
     doc = page(conn, "ABCDEF01")
 
     assert LazyHTML.text(LazyHTML.query(doc, "h1")) == "Wohnzimmer Stehlampe"
-    assert count(doc, "[data-controller=light-detail][data-light-detail-key-value=ABCDEF01]") == 1
+    assert count(doc, "#light_detail[phx-hook=LightDetail][data-key=ABCDEF01]") == 1
     assert count(doc, "#light_power button[aria-pressed]") == 2
-    assert count(doc, "input[type=range][data-action='light-detail#brightness']") == 1
+    assert count(doc, "input#light_brightness[type=range][data-light=brightness]") == 1
+    assert count(doc, "output[data-light=brightness-value]") == 1
+    assert count(doc, "input[type=range][data-light=temp][min='2700'][max='6500']") == 1
+    assert count(doc, "output[data-light=temp-value]") == 1
 
-    assert count(doc, "input[type=range][data-light-detail-target=temp][min='2700'][max='6500']") ==
-             1
+    assert doc
+           |> LazyHTML.query("button[role=tab][phx-update=ignore]")
+           |> LazyHTML.attribute("data-tab") ==
+             ~w[white color scenes]
 
-    assert count(doc, "button[role=tab][data-light-detail-tab-param=color]") == 1
+    assert doc
+           |> LazyHTML.query("[role=tabpanel][phx-update=ignore]")
+           |> LazyHTML.attribute("data-tab") ==
+             ~w[white color scenes]
+
     assert count(doc, "[role=tabpanel][aria-labelledby=light_tab_white]") == 1
   end
 
@@ -54,22 +63,20 @@ defmodule ZiwoasWeb.LightLiveTest do
     state!("ABCDEF09", %{on: true, color_temp_k: 2200})
     doc = page(conn, "ABCDEF09")
 
-    assert count(doc, "input[data-light-detail-target=temp][min='2200'][max='6500']") == 1
-
-    assert LazyHTML.text(LazyHTML.query(doc, "button[data-light-detail-temp-param='2200']")) =~
-             "Gemütlich"
-
-    assert count(doc, "button.active[aria-pressed=true][data-light-detail-temp-param='2200']") ==
-             1
+    assert count(doc, "input[data-light=temp][min='2200'][max='6500']") == 1
+    assert LazyHTML.text(LazyHTML.query(doc, "button[data-temp='2200']")) =~ "Gemütlich"
+    assert count(doc, "button.active[aria-pressed=true][data-temp='2200']") == 1
   end
 
   test "no colour tab without colour support; colour swatches carry their param", %{conn: conn} do
     light!(%{key: "ABCDEF02", supports_color: false, supports_color_temp: true})
-    assert count(page(conn, "ABCDEF02"), "button[data-light-detail-tab-param=color]") == 0
+    assert count(page(conn, "ABCDEF02"), "button[role=tab][data-tab=color]") == 0
 
     light!(%{key: "ABCDEF03", supports_color: true})
     state!("ABCDEF03", %{on: true, brightness: 80, color_r: 255, color_g: 107, color_b: 61})
-    assert count(page(conn, "ABCDEF03"), "input[type=radio][data-light-detail-color-param]") == 8
+    doc = page(conn, "ABCDEF03")
+    assert count(doc, "input[type=radio][data-color^='#']") == 8
+    assert count(doc, "label[data-light=wheel] input[type=color]") == 1
   end
 
   test "scenes: a button per firmware scene, or a hint", %{conn: conn} do
@@ -103,7 +110,7 @@ defmodule ZiwoasWeb.LightLiveTest do
 
     assert count(doc, "#light_power [aria-label=Zonen] .row-cols-3 > form[id^=zone_] button") == 3
     assert count(doc, "[aria-label=Zonen][hidden]") == 1
-    assert count(doc, "button[role=tab][data-light-detail-tab-param=zones]") == 0
+    assert count(doc, "button[role=tab][data-tab=zones]") == 0
 
     state!("UP1", %{on: true, zone_states: %{"sideLightToggle" => true}})
     doc = page(conn, "UP1")

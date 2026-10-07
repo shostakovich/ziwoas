@@ -31,12 +31,12 @@ Real data only exists on the home server (Docker). Local SQLite is not a copy of
 
 ## Conventions
 
-- **The port is being reshaped into idiomatic Phoenix** (plan in issue #158). Parity with the
+- **The port is being reshaped into idiomatic Phoenix** (plan and status: [`docs/port-plan.md`](docs/port-plan.md), issue #158). Parity with the
   former Rails app is no longer a goal; [`docs/elixir-port.md`](docs/elixir-port.md) describes
   the port as it was built and is rewritten along the way.
 - **felt-css** (Bootstrap class names) for styling: its components and utilities first; own CSS
-  in `priv/static/assets/` only for ZiWoAS widgets, with tokens, never hex. Chart colours via
-  `--viz-*` and `priv/static/assets/lib/chart_theme.js`.
+  in `assets/css/` only for ZiWoAS widgets, with tokens, never hex. Chart colours via
+  `--viz-*` and `assets/js/lib/chart_theme.js`.
   See [ADR-0005](docs/adr/0005-felt-css-as-the-ui-foundation.md).
 - Comments in English and sparse — speaking names over commentary. UI text is German.
 

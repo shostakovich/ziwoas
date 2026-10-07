@@ -1,20 +1,13 @@
 defmodule ZiwoasWeb.ConnCase do
   @moduledoc """
-  Test case for requests against the endpoint. The Repo is read-only (the Rails
-  fixture); `use ZiwoasWeb.ConnCase, db: true` gives the module a writable
-  database of its own instead, like `Ziwoas.DataCase`.
+  Tests that go through the endpoint: requests with `Phoenix.ConnTest`, LiveViews with
+  `Phoenix.LiveViewTest`. Each test runs in the SQL sandbox like `Ziwoas.DataCase`,
+  whose helpers it imports, and like it cannot run async.
   """
   use ExUnit.CaseTemplate
 
   using opts do
-    db_setup =
-      if Keyword.get(opts, :db, false) do
-        quote do
-          import Ziwoas.DataCase
-          setup_all context, do: Ziwoas.DataCase.start_db!(context)
-          setup context, do: Ziwoas.DataCase.checkout!(context)
-        end
-      end
+    Ziwoas.DataCase.check_sync!(__CALLER__.module, opts)
 
     quote do
       @endpoint ZiwoasWeb.Endpoint
@@ -23,12 +16,12 @@ defmodule ZiwoasWeb.ConnCase do
 
       import Plug.Conn
       import Phoenix.ConnTest
-
-      unquote(db_setup)
+      import Ziwoas.DataCase
     end
   end
 
-  setup do
+  setup tags do
+    Ziwoas.DataCase.setup_sandbox(tags)
     {:ok, conn: Phoenix.ConnTest.build_conn()}
   end
 end

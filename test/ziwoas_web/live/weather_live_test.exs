@@ -1,14 +1,14 @@
 defmodule ZiwoasWeb.WeatherLiveTest do
   # Mirrors test/controllers/weather_controller_test.rb on the disconnected render;
   # markup parity with Rails is the golden master's job.
-  use ZiwoasWeb.ConnCase, async: true, db: true
+  use ZiwoasWeb.ConnCase
 
-  alias Ziwoas.{Clock, Repo}
+  alias Ziwoas.{Clock, Repo, TestClock}
   alias Ziwoas.Sensors.Reading
   alias Ziwoas.Weather.Record
 
   setup do
-    Clock.freeze("2026-05-04T12:00:00+02:00")
+    TestClock.freeze("2026-05-04T12:00:00+02:00")
     :ok
   end
 
@@ -17,7 +17,7 @@ defmodule ZiwoasWeb.WeatherLiveTest do
       text
       |> NaiveDateTime.from_iso8601!()
       |> DateTime.from_naive!("Europe/Berlin")
-      |> DateTime.shift_zone!("Etc/UTC")
+      |> usec()
 
   defp weather!(attrs) do
     defaults = %{kind: "forecast", lat: 52.52, lon: 13.405, daytime: "day", icon: "clear-day"}
@@ -316,7 +316,7 @@ defmodule ZiwoasWeb.WeatherLiveTest do
              [[], ["200 W/m²"], [], []]
   end
 
-  test "four tiles, hidden hour rows, the selection tone and the worst icon", %{conn: conn} do
+  test "four tiles, hidden hour rows, none selected, and the worst icon", %{conn: conn} do
     weather!(timestamp: at("2026-05-05T12:00:00"), temperature: 22.0)
     weather!(timestamp: at("2026-05-05T14:00:00"), icon: "thunderstorm", temperature: 19.0)
 
@@ -326,11 +326,12 @@ defmodule ZiwoasWeb.WeatherLiveTest do
              ~w[Nacht Vormittag Nachmittag Abend]
 
     assert count(doc, ".weather-day-hours .weather-day-hour-row[hidden]") == 4
+    assert count(doc, ".weather-segment[phx-click=toggle_segment][aria-expanded=false]") == 4
+    assert count(doc, ".weather-segment.active") == 0
 
-    assert count(
-             doc,
-             ".weather-day-card[data-weather-segments-selected-class='active border-primary bg-primary-subtle']"
-           ) == 1
+    assert doc
+           |> LazyHTML.query(".weather-segment")
+           |> LazyHTML.attribute("phx-value-index") == ~w[0 1 2 3]
 
     assert count(doc, ".weather-segment img.weather-segment-icon[src*=weather_thunderstorm_day]") ==
              1

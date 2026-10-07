@@ -27,7 +27,7 @@ defmodule ZiwoasWeb.SolakonLive do
   alias Ziwoas.Shading
   alias Ziwoas.Solakon.{Control, History, Reading, Snapshot}
   alias Ziwoas.SunCalendar
-  alias ZiwoasWeb.{DashboardComponents, DashboardLive, SolakonHistoryLive}
+  alias ZiwoasWeb.{DashboardComponents, SolakonHistoryLive}
 
   @impl true
   def mount(_params, _session, socket) do
@@ -48,7 +48,6 @@ defmodule ZiwoasWeb.SolakonLive do
      |> assign(
        page_title: "PV",
        beat: 0,
-       history_beat: 0,
        control_enabled: control_enabled == true,
        control_active: control_enabled == true and Control.State.active?(Control.State.current()),
        control_help: nil,
@@ -91,7 +90,7 @@ defmodule ZiwoasWeb.SolakonLive do
   def handle_event("history_range", %{"range" => range}, socket),
     do: {:noreply, SolakonHistoryLive.reload_history(socket, range)}
 
-  # The two switches: what Rails' `solakon` Stimulus controller does with its PATCHes,
+  # The two switches: what Rails' `solakon` controller did with its PATCHes,
   # as events. Only the owner of solakon_control switches (`ZiwoasWeb.Owned`'s rule).
   def handle_event("toggle_eps", _params, socket) do
     desired = not eps_on?(socket.assigns)
@@ -164,11 +163,12 @@ defmodule ZiwoasWeb.SolakonLive do
       <h1 class="h2 mb-3">PV</h1>
 
       <div
-        data-controller="solakon live-freshness"
-        data-live-freshness-threshold-s-value={Measurement.offline_after_s()}
+        id="live_freshness"
+        phx-hook="LiveFreshness"
+        data-threshold-s={Measurement.offline_after_s()}
+        data-beat={@beat}
       >
-        <.card title="Energiefluss" class="energy-flow-card" data-controller="energy-flow">
-          <.energy_flow_state live={@live} id={DashboardLive.carrier_id("energy_flow_state", @beat)} />
+        <.card title="Energiefluss" class="energy-flow-card" {energy_flow_hook(@live)}>
           <.energy_flow
             pv_asset="icon_sonne.webp"
             pv_alt="PV"
@@ -191,10 +191,7 @@ defmodule ZiwoasWeb.SolakonLive do
         <.storage reading={@reading} snapshot={@snapshot} />
 
         <.card title="Solakon-Verlauf" subtitle="Leistung in Watt">
-          <.history
-            history={@history}
-            frame_id={DashboardLive.carrier_id("solakon_history", @history_beat)}
-          />
+          <.history history={@history} />
         </.card>
 
         <.overview_card result={@economics} />

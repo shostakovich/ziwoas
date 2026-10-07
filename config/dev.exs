@@ -11,7 +11,10 @@ config :ziwoas, ZiwoasWeb.Endpoint,
   code_reloader: true,
   debug_errors: true,
   secret_key_base: "naHt66UR00Dd+tvCuNlqtIyHzTNmFKhqkXV0fR6zZRTzis+kt85G/eqhQoMWxVCA",
-  watchers: []
+  watchers: [
+    esbuild: {Esbuild, :install_and_run, [:ziwoas, ~w(--sourcemap=inline --watch)]},
+    esbuild_css: {Esbuild, :install_and_run, [:ziwoas_css, ~w(--sourcemap=inline --watch)]}
+  ]
 
 config :ziwoas, dev_routes: true
 

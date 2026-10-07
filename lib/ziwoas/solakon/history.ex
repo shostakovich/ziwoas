@@ -105,12 +105,8 @@ defmodule Ziwoas.Solakon.History do
       Repo.one(
         from r in Reading,
           where:
-            fragment(
-              "? BETWEEN ? AND ?",
-              r.taken_at,
-              type(^DateTime.add(taken_at, -120), Ziwoas.Ecto.RailsDateTime),
-              type(^DateTime.add(taken_at, 120), Ziwoas.Ecto.RailsDateTime)
-            ),
+            r.taken_at >= ^DateTime.add(taken_at, -120) and
+              r.taken_at <= ^DateTime.add(taken_at, 120),
           order_by: fragment("ABS(strftime('%s', ?) - ?)", r.taken_at, ^unix),
           limit: 1,
           select: r.active_power_w

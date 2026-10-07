@@ -2,9 +2,9 @@ defmodule Ziwoas.Solakon.MonitorJobTest do
   # test/jobs/solakon/monitor_job_test.rb and snapshot_job_test.rb: reading and storing,
   # where the rows go by mode. The control tick behind it: test/vectors/solakon_control_test.exs.
   # Subscribes to a global PubSub topic another test broadcasts on.
-  use Ziwoas.DataCase, async: false
+  use Ziwoas.DataCase
 
-  alias Ziwoas.{Clock, Config, FakeModbusServer, Ownership, Repo}
+  alias Ziwoas.{Config, FakeModbusServer, Repo, TestClock}
   alias Ziwoas.Solakon.{Monitor, MonitorJob, Reading, Snapshot, SnapshotJob}
 
   @moduletag :capture_log
@@ -63,11 +63,9 @@ defmodule Ziwoas.Solakon.MonitorJobTest do
 
   @now "2026-06-18T10:00:00Z"
 
-  setup %{repo: repo} do
-    Repo.put_writer(:main, repo)
-    Clock.freeze(@now)
+  setup do
+    TestClock.freeze(@now)
     Phoenix.PubSub.subscribe(Ziwoas.PubSub, "solakon")
-    on_exit(&Ownership.clear_override/0)
     :ok
   end
 
@@ -102,8 +100,6 @@ defmodule Ziwoas.Solakon.MonitorJobTest do
       )
 
   test "as owner a reading is stored and announced" do
-    Ownership.override(%{solakon_monitor: :phoenix, solakon_control: :phoenix})
-
     assert {:ok, %Reading{id: id}, nil} = MonitorJob.perform(context(monitor: monitor!()))
 
     reading = Repo.get!(Reading, id)
@@ -126,20 +122,7 @@ defmodule Ziwoas.Solakon.MonitorJobTest do
     assert_receive {:solakon_reading, ^id}
   end
 
-  test "in shadow mode the reading goes to the shadow database, unannounced", %{repo: repo} do
-    Ownership.override(%{solakon_monitor: :shadow})
-    Repo.put_writer(:main, :no_main_writer)
-    Repo.put_writer(:shadow, repo)
-
-    assert {:ok, %Reading{}, nil} =
-             MonitorJob.perform(context(mode: :shadow, monitor: monitor!()))
-
-    assert Repo.aggregate(Reading, :count) == 1
-    refute_receive {:solakon_reading, _}
-  end
-
   test "nothing is read without an inverter or with monitoring off" do
-    Ownership.override(%{solakon_monitor: :phoenix, solakon_control: :phoenix})
     monitor = monitor!()
     no_inverter = %{config() | solakon: nil}
 
@@ -153,7 +136,6 @@ defmodule Ziwoas.Solakon.MonitorJobTest do
   end
 
   test "a Modbus failure stores nothing" do
-    Ownership.override(%{solakon_monitor: :phoenix, solakon_control: :phoenix})
     monitor = monitor!(Map.delete(@registers, "39424:1"))
 
     MonitorJob.perform(context(monitor: monitor))
@@ -163,16 +145,12 @@ defmodule Ziwoas.Solakon.MonitorJobTest do
   end
 
   test "a state of charge outside 0..100 is an invalid reading, not a row" do
-    Ownership.override(%{solakon_monitor: :phoenix, solakon_control: :phoenix})
-
     MonitorJob.perform(context(monitor: monitor!(%{@registers | "39424:1" => [0xFFFF]})))
 
     assert Repo.aggregate(Reading, :count) == 0
   end
 
   test "a snapshot is stored with its panels and counters" do
-    Ownership.override(%{solakon_monitor: :phoenix, solakon_control: :phoenix})
-
     assert {:ok, %Snapshot{id: id}} = SnapshotJob.perform(context(monitor: monitor!()))
 
     row = Repo.get!(Snapshot, id)

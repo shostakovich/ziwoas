@@ -1,17 +1,14 @@
 defmodule Ziwoas.Switching.RulesTest do
   # Mirrors test/models/switching/rule_test.rb and rules/save_window_test.rb.
-  use Ziwoas.DataCase, async: true
+  use Ziwoas.DataCase
 
   import Ecto.Query
 
-  alias Ziwoas.{Clock, Ownership, Repo}
+  alias Ziwoas.{Repo, TestClock}
   alias Ziwoas.Switching.{Rule, Rules}
 
-  setup %{repo: repo} do
-    Clock.freeze("2026-06-15T17:00:00+02:00")
-    Repo.put_writer(:main, repo)
-    Ownership.override(%{switch_schedule: :phoenix})
-    on_exit(&Ownership.clear_override/0)
+  setup do
+    TestClock.freeze("2026-06-15T17:00:00+02:00")
     :ok
   end
 

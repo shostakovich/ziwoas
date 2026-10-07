@@ -1,23 +1,20 @@
 defmodule Ziwoas.Lights.CommandsTest do
   # Mirrors test/models/lights/operations/*_test.rb and the commander half of
   # test/lib/govees/commander_test.rb.
-  use Ziwoas.DataCase, async: true
+  use Ziwoas.DataCase
 
-  alias Ziwoas.{Clock, Mqtt, Ownership, Repo}
+  alias Ziwoas.{Repo, TestClock, TestMqtt}
   alias Ziwoas.Lights.{Commands, Light, State}
 
-  setup %{repo: repo} do
-    Clock.freeze("2026-06-15T18:00:00Z")
-    Repo.put_writer(:main, repo)
-    Ownership.override(%{lights: :phoenix})
-    on_exit(&Ownership.clear_override/0)
+  setup do
+    TestClock.freeze("2026-06-15T18:00:00Z")
     record(:ok)
   end
 
   defp record(answer) do
     test = self()
 
-    Mqtt.record(fn _client, topic, payload ->
+    TestMqtt.record(fn _client, topic, payload ->
       send(test, {:published, topic, payload})
       answer
     end)
@@ -224,14 +221,5 @@ defmodule Ziwoas.Lights.CommandsTest do
 
     refute Commands.command?("explode")
     refute Commands.command?(["turn"])
-  end
-
-  test "a dry run sends nothing and records the state in the shadow database" do
-    Ownership.override(%{lights: :dry_run})
-    Repo.put_writer(:shadow, Repo.get_dynamic_repo())
-    light = light!(%{key: "D1"})
-    assert {:ok, :power} = Commands.run(light, "turn", %{"on" => "true"})
-    assert sent() == []
-    assert %State{on: true} = state("D1")
   end
 end

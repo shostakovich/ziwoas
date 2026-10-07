@@ -9,6 +9,6 @@ defmodule Ziwoas.Solakon.PvHour do
     field :pv4_power_w, :float
     field :pv_power_w, :float
     field :reading_count, :integer
-    field :started_at, Ziwoas.Ecto.RailsDateTime
+    field :started_at, :utc_datetime_usec
   end
 end

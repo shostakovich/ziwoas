@@ -135,7 +135,7 @@ defmodule ZiwoasWeb.SwitchesComponentsTest do
     end
 
     defp command(action, source),
-      do: %Command{plug_id: "fridge", action: action, source: source, created_at: at(18, 0)}
+      do: %Command{plug_id: "fridge", action: action, source: source, inserted_at: at(18, 0)}
 
     defp edge(action, hour, minute),
       do: %Edge{plug_id: "fridge", rule_id: 1, action: action, at: at(hour, minute)}
@@ -167,7 +167,7 @@ defmodule ZiwoasWeb.SwitchesComponentsTest do
       assert line(row(on: false, edge: edge(:on, 6, 30))) == "Aus · nächste Schaltung: 06:30 → an"
       assert line(row(on: false, command: command("on", "manual"))) == "Aus · kein Zeitplan"
 
-      assert line(row(on: true, command: %{command("off", "manual") | created_at: at(17, 0)})) ==
+      assert line(row(on: true, command: %{command("off", "manual") | inserted_at: at(17, 0)})) ==
                "An · kein Zeitplan"
     end
 

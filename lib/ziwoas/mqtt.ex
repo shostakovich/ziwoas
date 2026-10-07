@@ -21,7 +21,6 @@ defmodule Ziwoas.Mqtt do
   @backoff [min_interval: 1_000, max_interval: 60_000]
   @publish_timeout_ms 5_000
   @command_client_id "ziwoas-phoenix-command"
-  @recorder_key {__MODULE__, :recorder}
 
   @doc "The client id of the command connection."
   def command_client_id, do: @command_client_id
@@ -67,37 +66,15 @@ defmodule Ziwoas.Mqtt do
     end
   end
 
-  @doc """
-  Test support (`config :ziwoas, mqtt_recorder: true`: tests and the golden master):
-  `publish/5` in this process and the processes it starts hands `(client_id, topic,
-  payload)` — or, to a 4-arity `fun`, `(client_id, topic, payload, retain)` — to `fun`
-  instead of the broker, after the ownership check, and returns what `fun` returns
-  (`:ok` or `{:error, reason}`).
-  """
-  @spec record(
-          (String.t(), String.t(), binary -> :ok | {:error, term})
-          | (String.t(), String.t(), binary, boolean -> :ok | {:error, term})
-        ) :: :ok
-  def record(fun) when is_function(fun, 3) or is_function(fun, 4) do
-    Process.put(@recorder_key, fun)
-    :ok
-  end
-
+  # Tests hand publishes to a recorder instead of the broker through
+  # `config :ziwoas, mqtt_recorder: {module, function}`: a 0-arity function that answers
+  # the recorder or `nil` (`Ziwoas.TestMqtt` in test/support). The application never
+  # sets it. A recorder takes `(client_id, topic, payload)` or, with arity 4, `retain`
+  # too, and returns what `publish/5` returns.
   defp recorder do
-    if Application.get_env(:ziwoas, :mqtt_recorder, false) do
-      Enum.find_value([self() | Ziwoas.Repo.test_lineage()], fn
-        pid when pid == self() ->
-          Process.get(@recorder_key)
-
-        pid ->
-          case Process.info(pid, :dictionary) do
-            {:dictionary, dictionary} ->
-              with {_key, fun} <- List.keyfind(dictionary, @recorder_key, 0), do: fun
-
-            nil ->
-              nil
-          end
-      end)
+    case Application.get_env(:ziwoas, :mqtt_recorder) do
+      nil -> nil
+      {module, function} -> apply(module, function, [])
     end
   end
 end

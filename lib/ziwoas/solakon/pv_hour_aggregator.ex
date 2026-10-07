@@ -11,7 +11,6 @@ defmodule Ziwoas.Solakon.PvHourAggregator do
   import Ecto.Query
 
   alias Ziwoas.{LocalDay, Repo}
-  alias Ziwoas.Ecto.RailsDateTime
   alias Ziwoas.Solakon.{PvHour, Reading}
 
   @min_readings 20
@@ -25,7 +24,7 @@ defmodule Ziwoas.Solakon.PvHourAggregator do
   def aggregate_day(zone, %Date{} = date) do
     day = LocalDay.midnight(date, zone)
     next_day = date |> Date.add(1) |> LocalDay.midnight(zone)
-    {from, to} = {utc_text(day), utc_text(next_day)}
+    {from, to} = {Repo.dump_time(day), Repo.dump_time(next_day)}
     # The day's offset at midnight shifts the buckets onto local hours, also in
     # zones like Asia/Kolkata whose offset is not a whole hour.
     offset = day.utc_offset + day.std_offset
@@ -34,7 +33,11 @@ defmodule Ziwoas.Solakon.PvHourAggregator do
     rows =
       for [epoch, pv_power_w, count] <- reading_means(from, to, offset), count >= @min_readings do
         Map.merge(
-          %{started_at: DateTime.from_unix!(epoch), pv_power_w: pv_power_w, reading_count: count},
+          %{
+            started_at: DateTime.from_unix!(epoch * 1_000_000, :microsecond),
+            pv_power_w: pv_power_w,
+            reading_count: count
+          },
           Map.get(panels, epoch, @no_panels)
         )
       end
@@ -43,9 +46,7 @@ defmodule Ziwoas.Solakon.PvHourAggregator do
       Repo.transaction(fn ->
         Repo.delete_all(
           from h in PvHour,
-            where:
-              h.started_at >= ^DateTime.shift_zone!(day, "Etc/UTC") and
-                h.started_at < ^DateTime.shift_zone!(next_day, "Etc/UTC")
+            where: h.started_at >= ^day and h.started_at < ^next_day
         )
 
         Repo.insert_all(PvHour, rows)
@@ -100,11 +101,6 @@ defmodule Ziwoas.Solakon.PvHourAggregator do
   # Epoch of the local clock hour a row falls into; the offset is an integer.
   defp hour_start_sql(offset) when is_integer(offset),
     do: "(CAST(strftime('%s', taken_at) AS INTEGER) + #{offset}) / 3600 * 3600 - #{offset}"
-
-  defp utc_text(time) do
-    {:ok, text} = time |> DateTime.shift_zone!("Etc/UTC") |> RailsDateTime.dump()
-    text
-  end
 
   defp local_date(time, zone), do: time |> DateTime.shift_zone!(zone) |> DateTime.to_date()
 end

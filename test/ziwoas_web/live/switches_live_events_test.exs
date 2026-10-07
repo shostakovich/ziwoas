@@ -2,20 +2,17 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
   # The Schalten page served by Phoenix: the controls Rails drives through Turbo work as
   # LiveView events (plug button, lamp tile, the inline schedule editors), each only as
   # owner of its task.
-  use ZiwoasWeb.ConnCase, async: true, db: true
+  use ZiwoasWeb.ConnCase
 
   import Ecto.Query
   import Phoenix.LiveViewTest
 
-  alias Ziwoas.{Clock, Mqtt, Ownership, Repo}
+  alias Ziwoas.{Clock, Repo, TestClock, TestMqtt}
   alias Ziwoas.Lights.Light
   alias Ziwoas.Switching.{Command, Rule, Rules}
 
-  setup %{repo: repo} do
-    Clock.freeze("2026-06-15T17:00:00+02:00")
-    Repo.put_writer(:main, repo)
-    Ownership.override(%{switching: :phoenix, lights: :phoenix, switch_schedule: :phoenix})
-    on_exit(&Ownership.clear_override/0)
+  setup do
+    TestClock.freeze("2026-06-15T17:00:00+02:00")
 
     Repo.insert!(%Ziwoas.Plugs.Sample{
       plug_id: "fridge",
@@ -31,7 +28,7 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
   defp record(answer) do
     test = self()
 
-    Mqtt.record(fn _client, topic, payload ->
+    TestMqtt.record(fn _client, topic, payload ->
       send(test, {:published, topic, payload})
       answer
     end)
@@ -59,16 +56,6 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
                "Schalten fehlgeschlagen — MQTT-Broker nicht erreichbar"
 
       assert Repo.all(Command) == []
-    end
-
-    test "switches nothing while Phoenix does not own switching", %{conn: conn} do
-      Ownership.override(%{switching: :dry_run})
-      {:ok, view, _html} = live(conn, ~p"/switches")
-      view |> form("#sw_head_fridge form") |> render_submit()
-
-      refute_received {:published, _, _}
-      assert Repo.all(Command) == []
-      assert view |> element("#sw_error_fridge") |> render() =~ "nicht zuständig"
     end
   end
 
@@ -154,15 +141,6 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
       refute Repo.get!(Rule, rule.id).enabled
       view |> form("#sw_entry_fridge_#{rule.id} form[phx-submit=set_enabled]") |> render_submit()
       assert Repo.get!(Rule, rule.id).enabled
-    end
-
-    test "nothing is written while Phoenix does not own the schedule", %{conn: conn} do
-      rule = Rules.save_single("fridge", %{action: "off", at_minute_time: "22:00", days: [1]})
-      Ownership.override(%{switch_schedule: :rails})
-      {:ok, view, _html} = live(conn, ~p"/switches")
-
-      view |> form("#sw_entry_fridge_#{rule.id} form[phx-submit=delete_entry]") |> render_submit()
-      assert [%Rule{}] = rules()
     end
   end
 end

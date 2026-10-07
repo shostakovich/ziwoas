@@ -1,26 +1,24 @@
 defmodule Ziwoas.Collector.MqttIntegrationTest do
   # Tortoise311 against a broker on a socket: the ingest connection subscribes and
-  # writes what arrives, an owner publishes, a shadow cannot, commands reach the
-  # Govee bridge. Client ids are global names, so this module runs alone.
-  use Ziwoas.DataCase, async: false
+  # writes what arrives, an owner publishes, commands reach the Govee bridge. Client
+  # ids are global names, so this module runs alone. The connections' handlers write
+  # from processes of Tortoise's own, hence the shared sandbox.
+  use Ziwoas.DataCase
 
   alias Ziwoas.Collector.MqttRouter
-  alias Ziwoas.{FakeMqttBroker, Mqtt, Ownership, Repo, TestConfigs}
+  alias Ziwoas.{FakeMqttBroker, Mqtt, Repo, TestConfigs}
   alias Ziwoas.Lights.GoveeSubscriber
   alias Ziwoas.Plugs.{Sample, ShellyStatusHandler}
 
   @moduletag :capture_log
+  @moduletag :shared_sandbox
 
-  setup %{repo: repo} do
+  setup do
     broker = start_supervised!(FakeMqttBroker)
-    Repo.put_writer(:main, repo)
-    on_exit(&Ownership.clear_override/0)
     %{broker: broker, mqtt: %{host: "127.0.0.1", port: FakeMqttBroker.port(broker)}}
   end
 
   test "the ingest connection subscribes to its handlers' topics and writes what arrives", ctx do
-    Ownership.override(%{plug_ingest: :phoenix, light_ingest: :phoenix})
-
     handlers = [
       {ShellyStatusHandler, ShellyStatusHandler.new(TestConfigs.plugs())},
       {GoveeSubscriber, GoveeSubscriber.new()}
@@ -51,20 +49,12 @@ defmodule Ziwoas.Collector.MqttIntegrationTest do
     assert [%Sample{plug_id: "fridge", apower_w: 12.5, aenergy_wh: 3.0}] = Repo.all(Sample)
   end
 
-  test "an owner publishes to the broker, a shadow cannot", ctx do
+  test "an owner publishes to the broker", ctx do
     start_supervised!(
       Mqtt.connection_spec("ziwoas-phoenix-fritz", ctx.mqtt, {Tortoise311.Handler.Logger, []})
     )
 
     assert FakeMqttBroker.await(ctx.broker, &(FakeMqttBroker.clients(&1) != []))
-
-    Ownership.override(%{fritz_bridge: :shadow})
-
-    assert_raise Ownership.NotOwnerError, fn ->
-      Mqtt.publish(:fritz_bridge, "ziwoas-phoenix-fritz", "shellies/washer/status/switch:0", "{}")
-    end
-
-    Ownership.override(%{fritz_bridge: :phoenix})
 
     assert :ok =
              Mqtt.publish(

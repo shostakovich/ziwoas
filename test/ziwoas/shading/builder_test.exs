@@ -1,6 +1,6 @@
 defmodule Ziwoas.Shading.BuilderTest do
   # Mirrors test/models/shading/builder_test.rb.
-  use Ziwoas.DataCase, async: true
+  use Ziwoas.DataCase
 
   alias Ziwoas.{Location, Repo, Shading}
   alias Ziwoas.Shading.{Builder, SunPaths}
@@ -16,7 +16,7 @@ defmodule Ziwoas.Shading.BuilderTest do
     do:
       date
       |> DateTime.new!(Time.new!(hour, 0, 0), "Europe/Berlin")
-      |> DateTime.shift_zone!("Etc/UTC")
+      |> usec()
 
   defp pv_hour(hour, watts, opts \\ []) do
     [p1, p2, p3, p4] = Keyword.get(opts, :panels, [100.0, 100.0, 100.0, 100.0])

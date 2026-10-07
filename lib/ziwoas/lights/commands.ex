@@ -162,12 +162,10 @@ defmodule Ziwoas.Lights.Commands do
     row = Repo.get_by(State, light_key: key) || Repo.insert!(%State{light_key: key})
 
     if Map.get(row.zone_states || %{}, zone) != on do
-      {:ok, now} = Ziwoas.Ecto.RailsDateTime.dump(Clock.now())
-
       Repo.query!(
         "UPDATE light_states SET zone_states = json_set(COALESCE(zone_states, '{}'), ?, json(?)), " <>
           "updated_at = ? WHERE id = ?",
-        [~s($."#{zone}"), to_string(on), now, row.id]
+        [~s($."#{zone}"), to_string(on), Repo.dump_time(Clock.now()), row.id]
       )
     end
 

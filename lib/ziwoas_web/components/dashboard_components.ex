@@ -2,9 +2,9 @@ defmodule ZiwoasWeb.DashboardComponents do
   @moduledoc """
   The dashboard's parts, ported from the `Dashboard::*` ViewComponents and the
   `shared/_energy_flow` partial (with `EnergyFlowHelper`). The PV page reuses
-  the tile and the energy flow. Ids, classes and Stimulus `data-*` stay
-  verbatim: the live updates replace these regions by id, like Rails'
-  `DashboardBroadcaster` does over Turbo Streams.
+  the tile and the energy flow. Ids and classes stay verbatim: the live updates
+  patch these regions by id, as Rails' `DashboardBroadcaster` replaced them over
+  Turbo Streams.
   """
   use ZiwoasWeb, :html
 
@@ -45,7 +45,7 @@ defmodule ZiwoasWeb.DashboardComponents do
       <div class="card-body p-3">
         <div class="row row-cols-2 g-2 align-items-center">
           <div class="col d-flex align-items-center gap-2 gap-sm-3">
-            <img class="hero-icon" alt={@weather_alt} src={"/assets/#{@weather_asset}"} />
+            <img class="hero-icon" alt={@weather_alt} src={~p"/images/#{@weather_asset}"} />
             <div class="stat">
               <span class="stat-label">PV jetzt</span>
               <span class="text-nowrap"><span class="display-4">{GermanNumber.format(@pv_watt)}</span>
@@ -53,7 +53,7 @@ defmodule ZiwoasWeb.DashboardComponents do
             </div>
           </div>
           <div class="col d-flex align-items-center gap-2 gap-sm-3" hidden={!@battery}>
-            <img class="hero-icon" alt="Batterie" src={"/assets/#{@battery_asset}"} />
+            <img class="hero-icon" alt="Batterie" src={~p"/images/#{@battery_asset}"} />
             <div class="stat">
               <span class="stat-label">Batterie</span>
               <span class="text-nowrap"><span class="display-4">{GermanNumber.format(@soc)}</span>
@@ -248,38 +248,18 @@ defmodule ZiwoasWeb.DashboardComponents do
     """
   end
 
-  # --- Data carriers ---------------------------------------------------------
+  # --- Energy flow hook --------------------------------------------------------
 
   @doc """
-  The energy flow's state for the `energy-flow` Stimulus controller: the SVG's
-  running animations survive updates, only this hidden carrier is replaced.
-  It doubles as the heartbeat `live-freshness` listens for.
+  The attributes that make the card around `energy_flow/1` the `EnergyFlow` hook:
+  its state as `data-state`, which the hook draws into the SVG on every update.
   """
-  attr :live, LiveState, required: true
-  attr :id, :string, default: "energy_flow_state"
-
-  def energy_flow_state(assigns) do
-    ~H"""
-    <div
-      id={@id}
-      hidden
-      data-energy-flow-target="state"
-      data-live-freshness-target="beat"
-      data-state={EnergyFlow.to_json(@live.energy_flow)}
-    >
-    </div>
-    """
-  end
-
-  @doc "Per-plug bucket deltas the 24 h chart appends in place (`Dashboard::PlugDeltasComponent`)."
-  attr :deltas, :string, default: "[]"
-  attr :id, :string, default: "plug_deltas"
-
-  def plug_deltas(assigns) do
-    ~H"""
-    <div id={@id} hidden data-today-chart-target="deltas" data-payload={@deltas}></div>
-    """
-  end
+  def energy_flow_hook(%LiveState{} = live),
+    do: [
+      id: "energy_flow",
+      "phx-hook": "EnergyFlow",
+      "data-state": EnergyFlow.to_json(live.energy_flow)
+    ]
 
   # --- Energy flow (shared/_energy_flow) -------------------------------------
 
@@ -322,13 +302,18 @@ defmodule ZiwoasWeb.DashboardComponents do
         battery_states:
           for(
             {state, asset} <- @battery_assets,
-            do: {"data-battery-state-#{state}", "/assets/#{asset}"}
+            do: {"data-battery-state-#{state}", ~p"/images/#{asset}"}
           )
       )
 
     ~H"""
     <div class="energy-flow">
-      <svg viewBox={"0 0 #{@width} #{@height}"} class="d-block w-100 h-auto">
+      <svg
+        id="energy_flow_svg"
+        phx-update="ignore"
+        viewBox={"0 0 #{@width} #{@height}"}
+        class="d-block w-100 h-auto"
+      >
         <defs>
           <clipPath id="ef-clip">
             <path fill-rule="evenodd" d={clip_path()} />
@@ -390,15 +375,15 @@ defmodule ZiwoasWeb.DashboardComponents do
       </svg>
 
       <.ring name={:pv}>
-        <img class="ef-icon" alt={@pv_alt} src={"/assets/#{@pv_asset}"} />
+        <img class="ef-icon" alt={@pv_alt} src={~p"/images/#{@pv_asset}"} />
         <span class="ef-value fw-semibold tabular-nums lh-1" data-ef="efPvW">— W</span>
       </.ring>
       <.ring name={:grid}>
-        <img class="ef-icon" alt="" src="/assets/icon_netz.webp" />
+        <img class="ef-icon" alt="" src={~p"/images/icon_netz.webp"} />
         <span class="ef-value fw-semibold tabular-nums lh-1" data-ef="efGridW">— W</span>
       </.ring>
       <.ring name={:consumer}>
-        <img class="ef-icon" alt="" src="/assets/icon_haus.webp" />
+        <img class="ef-icon" alt="" src={~p"/images/icon_haus.webp"} />
         <span class="ef-value fw-semibold tabular-nums lh-1" data-ef="efConsumerW">— W</span>
       </.ring>
       <.ring name={:battery}>
@@ -406,7 +391,7 @@ defmodule ZiwoasWeb.DashboardComponents do
           class="ef-icon"
           alt=""
           data-ef="efBatteryImage"
-          src={"/assets/#{@battery_asset}"}
+          src={~p"/images/#{@battery_asset}"}
           {@battery_states}
         />
         <span class="ef-value fw-semibold tabular-nums lh-1" data-ef="efBatteryW">— W</span>

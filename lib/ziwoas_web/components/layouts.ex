@@ -11,29 +11,6 @@ defmodule ZiwoasWeb.Layouts do
 
   embed_templates "layouts/*"
 
-  # The Stimulus controllers in priv/static/assets/controllers; app.js registers
-  # every `controllers/*_controller` entry of the import map.
-  @stimulus_controllers ~w[weather_segments energy_report sensors_chart energy_flow live_freshness
-                           today_chart history_chart solakon solakon_history light_detail toast
-                           settings_dialog]
-
-  # What those controllers import besides Stimulus.
-  @chart_modules %{
-    "chart.js" => "/assets/chart.min.js",
-    "lib/chart_theme" => "/assets/lib/chart_theme.js",
-    "lib/theme_colors" => "/assets/lib/theme_colors.js",
-    "lib/format" => "/assets/lib/format.js",
-    "controllers/energy_flow" => "/assets/controllers/energy_flow.js"
-  }
-
-  @stylesheet_glob Path.expand("../../../priv/static/assets/*.css", __DIR__)
-  @stylesheet_paths Path.wildcard(@stylesheet_glob)
-  for path <- @stylesheet_paths, do: @external_resource(path)
-  @stylesheets @stylesheet_paths |> Enum.map(&Path.basename/1) |> Enum.sort()
-
-  # @external_resource covers the files already there; this catches one added or removed.
-  def __mix_recompile__?, do: Path.wildcard(@stylesheet_glob) != @stylesheet_paths
-
   # A lamp's page lives under /lights but is reached from the Schalten tab.
   @navigation [
     {"/", "Home", "nav_dashboard_plush.webp", []},
@@ -67,7 +44,7 @@ defmodule ZiwoasWeb.Layouts do
             class="app-brand-mascot"
             width="42"
             height="40"
-            src={~p"/assets/zipfelmaus.webp"}
+            src={~p"/images/zipfelmaus.webp"}
           />
           <span class="app-brand-text" aria-hidden="true">
             <span class="app-brand-name">Zipfelmaus</span>
@@ -82,7 +59,7 @@ defmodule ZiwoasWeb.Layouts do
                 aria-current={item.current && "page"}
                 href={item.path}
               >
-                <img alt="" class="app-nav-icon" aria-hidden="true" src={~p"/assets/#{item.icon}"} />
+                <img alt="" class="app-nav-icon" aria-hidden="true" src={~p"/images/#{item.icon}"} />
                 {item.label}
               </a>
             </li>
@@ -106,7 +83,7 @@ defmodule ZiwoasWeb.Layouts do
             aria-current={item.current && "page"}
             href={item.path}
           >
-            <img alt="" class="app-nav-icon" aria-hidden="true" src={~p"/assets/#{item.icon}"} />
+            <img alt="" class="app-nav-icon" aria-hidden="true" src={~p"/images/#{item.icon}"} />
             <small>{item.label}</small>
           </a>
         </li>
@@ -139,27 +116,6 @@ defmodule ZiwoasWeb.Layouts do
   def time_zone, do: Config.app_config().location.timezone
 
   def theme_colors(look), do: Look.theme_colors(look)
-
-  @doc "Every stylesheet in `priv/static/assets`, sorted, read at compile time."
-  def stylesheets, do: @stylesheets
-
-  def import_map do
-    controllers =
-      Map.new(@stimulus_controllers, fn name ->
-        {"controllers/#{name}_controller", "/assets/controllers/#{name}_controller.js"}
-      end)
-
-    JSON.encode!(%{
-      imports:
-        controllers
-        |> Map.merge(@chart_modules)
-        |> Map.merge(%{
-          "phoenix" => "/assets/vendor/phoenix.mjs",
-          "phoenix_live_view" => "/assets/vendor/phoenix_live_view.esm.js",
-          "@hotwired/stimulus" => "/assets/vendor/stimulus.min.js"
-        })
-    })
-  end
 
   defp navigation(current_path) do
     for {path, label, icon, sections} <- @navigation do

@@ -1,7 +1,7 @@
 defmodule Ziwoas.Weather.JobsTest do
   # test/jobs/weather_*_job_test.rb and test/weather_sync_test.rb. PubSub topics
   # are global, hence not async.
-  use Ziwoas.DataCase, async: false
+  use Ziwoas.DataCase
 
   import Ecto.Query
   import ExUnit.CaptureLog
@@ -12,12 +12,9 @@ defmodule Ziwoas.Weather.JobsTest do
 
   @config Ziwoas.TestConfigs.located()
 
-  setup %{repo: repo} do
-    Repo.put_writer(:main, repo)
-    Ownership.override(%{weather: :phoenix})
-    Ziwoas.Clock.freeze("2026-05-04T10:00:00+02:00")
+  setup do
+    Ziwoas.TestClock.freeze("2026-05-04T10:00:00+02:00")
     Phoenix.PubSub.subscribe(Ziwoas.PubSub, "weather")
-    on_exit(&Ownership.clear_override/0)
     :ok
   end
 
@@ -66,22 +63,6 @@ defmodule Ziwoas.Weather.JobsTest do
       assert kinds() == []
       refute_received {:weather_updated}
     end
-
-    @tag :tmp_dir
-    test "in shadow mode writes only the shadow database and tells no page", %{tmp_dir: dir} do
-      path = Ziwoas.RailsFixture.build!(Path.join(dir, "shadow.sqlite3"), rows: false)
-      shadow = start_supervised!({Repo, name: nil, database: path, writable: true, pool_size: 1})
-      Repo.put_writer(:shadow, shadow)
-      Ownership.override(%{weather: :shadow})
-      stub_brightsky(%{"current" => hour("2026-05-04T10:00:00+00:00")})
-
-      CurrentJob.perform(context())
-
-      assert kinds() == []
-      Repo.put_dynamic_repo(shadow)
-      assert kinds() == [{"current", ~U[2026-05-04 10:00:00.000000Z]}]
-      refute_received {:weather_updated}
-    end
   end
 
   test "TodayJob writes today's hours as forecast" do
@@ -111,7 +92,7 @@ defmodule Ziwoas.Weather.JobsTest do
       kind: "forecast",
       lat: 52.52,
       lon: 13.405,
-      timestamp: ~U[2026-05-03 10:00:00Z],
+      timestamp: ~U[2026-05-03 10:00:00.000000Z],
       daytime: "day",
       icon: "cloudy"
     })

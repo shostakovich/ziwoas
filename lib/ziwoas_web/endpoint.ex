@@ -16,18 +16,8 @@ defmodule ZiwoasWeb.Endpoint do
     websocket: [connect_info: [session: @session_options]],
     longpoll: [connect_info: [session: @session_options]]
 
-  # No JS bundler: the browser loads the Phoenix and LiveView ES modules straight from
-  # the Hex packages via the import map in the root layout, versions pinned by mix.lock.
-  plug Plug.Static,
-    at: "/assets/vendor",
-    from: {:phoenix, "priv/static"},
-    only: ~w(phoenix.mjs)
-
-  plug Plug.Static,
-    at: "/assets/vendor",
-    from: {:phoenix_live_view, "priv/static"},
-    only: ~w(phoenix_live_view.esm.js)
-
+  # esbuild's bundles under assets/, the images and icons; gzip serves the compressed
+  # copies `mix assets.deploy` (phx.digest) writes.
   plug Plug.Static,
     at: "/",
     from: :ziwoas,

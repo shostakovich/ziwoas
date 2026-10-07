@@ -57,8 +57,7 @@ defmodule Ziwoas.MixProject do
       "ecto.setup": ["ecto.create", "ecto.migrate"],
       # A database Rails left behind is adopted before Ecto's migrator sees it.
       "ecto.migrate": ["ziwoas.adopt", "ecto.migrate"],
-      # The read-only Repo needs its database before the app starts.
-      test: ["run --no-start -e Ziwoas.RailsFixture.build!()", "test"],
+      test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"],
       "assets.setup": ["esbuild.install --if-missing"],
       "assets.build": ["compile", "esbuild ziwoas", "esbuild ziwoas_css"],
       "assets.deploy": ["esbuild ziwoas --minify", "esbuild ziwoas_css --minify", "phx.digest"]

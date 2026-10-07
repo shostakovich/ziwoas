@@ -355,7 +355,7 @@ defmodule Ziwoas.Govee.Bridge do
 
   defp lan(%{owner: false}, _command), do: :ok
 
-  # Rails holding the lease (Ziwoas.Lease) refuses the datagram, never the bridge.
+  # A task Phoenix does not own refuses the datagram, never the bridge.
   defp lan(state, command) do
     state.send.(Lan.datagram(command))
   rescue

@@ -90,7 +90,7 @@ defmodule ZiwoasWeb.SwitchesComponents do
           <img
             alt=""
             class="sw-knob-plush"
-            src={~p"/assets/#{"switch_plush_#{if @lit, do: "on", else: "off"}.webp"}"}
+            src={~p"/images/#{"switch_plush_#{if @lit, do: "on", else: "off"}.webp"}"}
           />
         </.button_to>
         <span :if={@lit} class="badge border tabular-nums">
@@ -523,7 +523,7 @@ defmodule ZiwoasWeb.SwitchesComponents do
       first =
         if command && command.action == "on" == on,
           do:
-            "#{word} seit #{clock(command.created_at, zone)} (#{@source_label[command.source]})",
+            "#{word} seit #{clock(command.inserted_at, zone)} (#{@source_label[command.source]})",
           else: word
 
       Enum.join([first, schedule_part(row, zone)], " · ")

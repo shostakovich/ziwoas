@@ -3,16 +3,17 @@ defmodule ZiwoasWeb.DashboardLive do
   The dashboard (Rails' `DashboardController#index`). Rails refreshes its live
   regions over the `dashboard_live` Turbo stream (`DashboardBroadcaster`);
   here the `dashboard` and `solakon` PubSub topics carry the same two
-  cadences (`Ziwoas.Live.DashboardWatcher`, `Ziwoas.Live.SolakonWatcher`):
+  cadences (`Ziwoas.Plugs.ShellyStatusHandler`, `Ziwoas.Solakon.MonitorJob`,
+  `Ziwoas.Live.DashboardWatcher`):
 
     * `{:dashboard_live, deltas}` and `{:solakon_reading, id}` re-render the
       hero, the live tiles, the plug bar and the energy-flow state, plus the
       plug deltas for the 24 h chart when there are any (`broadcast_live`);
     * `{:dashboard_summary}` recomputes the day's tiles (`broadcast_summary`).
 
-  The data carriers for Stimulus (`energy_flow_state`, `plug_deltas`) take a
-  new id on every update, so the client replaces them and the controllers'
-  `*TargetConnected` callbacks fire, as with a Turbo `replace`.
+  Every live update moves `beat`, the `LiveFreshness` hook's heartbeat, and the
+  energy flow's `data-state`; plug deltas go to the `TodayChart` hook as a
+  `"plug_deltas"` event, which appends them to the 24 h chart in place.
   """
   use ZiwoasWeb, :live_view
 
@@ -34,7 +35,7 @@ defmodule ZiwoasWeb.DashboardLive do
 
     {:ok,
      socket
-     |> assign(page_title: "Dashboard", beat: 0, deltas: "[]", deltas_beat: 0)
+     |> assign(page_title: "Dashboard", beat: 0)
      |> assign(
        :summary_tiles,
        DashboardComponents.summary_tiles(EnergySummary.compute_today(config))
@@ -49,11 +50,7 @@ defmodule ZiwoasWeb.DashboardLive do
     socket =
       if deltas == [],
         do: socket,
-        else:
-          assign(socket,
-            deltas: Ziwoas.RubyJSON.encode!(deltas),
-            deltas_beat: socket.assigns.deltas_beat + 1
-          )
+        else: push_event(socket, "plug_deltas", %{deltas: Enum.map(deltas, &Map.new/1)})
 
     {:noreply, socket}
   end
@@ -72,8 +69,10 @@ defmodule ZiwoasWeb.DashboardLive do
       <h1 class="h2 mb-3">Dashboard</h1>
 
       <div
-        data-controller="live-freshness"
-        data-live-freshness-threshold-s-value={Measurement.offline_after_s()}
+        id="live_freshness"
+        phx-hook="LiveFreshness"
+        data-threshold-s={Measurement.offline_after_s()}
+        data-beat={@beat}
       >
         <.hero live={@live} weather_asset={@weather_asset} weather_alt={@weather_alt} />
 
@@ -87,8 +86,11 @@ defmodule ZiwoasWeb.DashboardLive do
           <.tile {tile(@summary_tiles, "tile_self_consumption")} />
         </div>
 
-        <.card title="Energiefluss" class="energy-flow-card live-dim" data-controller="energy-flow">
-          <.energy_flow_state live={@live} id={carrier_id("energy_flow_state", @beat)} />
+        <.card
+          title="Energiefluss"
+          class="energy-flow-card live-dim"
+          {energy_flow_hook(@live)}
+        >
           <.energy_flow
             pv_asset={@weather_asset}
             pv_alt={@weather_alt}
@@ -99,26 +101,24 @@ defmodule ZiwoasWeb.DashboardLive do
         <h2 class="h6 text-uppercase text-body-secondary mt-4 mb-2">Steckdosen</h2>
         <.plug_bar live={@live} />
 
-        <div data-controller="today-chart">
-          <.plug_deltas deltas={@deltas} id={carrier_id("plug_deltas", @deltas_beat)} />
-
+        <div id="today_chart" phx-hook="TodayChart">
           <.card title="Gesamtenergie" subtitle="kWh je Stunde · letzte 24 h">
-            <div class="chart-frame">
-              <canvas data-today-chart-target="energyCanvas"></canvas>
+            <div class="chart-frame" id="today_energy_chart" phx-update="ignore">
+              <canvas data-chart="energy"></canvas>
             </div>
           </.card>
 
           <.card title="Leistung" subtitle="Watt · letzte 24 h">
-            <div class="chart-frame">
-              <canvas data-today-chart-target="powerCanvas"></canvas>
+            <div class="chart-frame" id="today_power_chart" phx-update="ignore">
+              <canvas data-chart="power"></canvas>
             </div>
           </.card>
         </div>
 
-        <div data-controller="history-chart">
+        <div id="history_chart" phx-hook="HistoryChart">
           <.card title="Ertrag" subtitle="kWh je Tag · letzte 14 Tage">
-            <div class="chart-frame">
-              <canvas data-history-chart-target="canvas"></canvas>
+            <div class="chart-frame" id="history_chart_frame" phx-update="ignore">
+              <canvas></canvas>
             </div>
           </.card>
         </div>
@@ -126,10 +126,6 @@ defmodule ZiwoasWeb.DashboardLive do
     </Layouts.app>
     """
   end
-
-  @doc "Rails' id on the first render, another one on every update, so the client replaces the element."
-  def carrier_id(base, 0), do: base
-  def carrier_id(base, beat), do: "#{base}-#{beat}"
 
   defp tile(tiles, id), do: Enum.find(tiles, &(&1.id == id))
 

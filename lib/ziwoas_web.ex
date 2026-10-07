@@ -3,7 +3,8 @@ defmodule ZiwoasWeb do
   Entrypoint for controllers, components and LiveViews: `use ZiwoasWeb, :controller`.
   """
 
-  def static_paths, do: ~w(assets favicon.png apple-touch-icon.png icon.png icon.svg robots.txt)
+  def static_paths,
+    do: ~w(assets images favicon.png apple-touch-icon.png icon.png icon.svg robots.txt)
 
   def router do
     quote do

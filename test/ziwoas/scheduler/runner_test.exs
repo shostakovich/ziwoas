@@ -3,7 +3,6 @@ defmodule Ziwoas.Scheduler.RunnerTest do
 
   import ExUnit.CaptureLog
 
-  alias Ziwoas.Ownership
   alias Ziwoas.Scheduler.{FailingTestJob, Runner, TestJob}
 
   setup do
@@ -23,7 +22,6 @@ defmodule Ziwoas.Scheduler.RunnerTest do
       end
     ]
 
-    on_exit(&Ownership.clear_override/0)
     %{clock: clock, opts: opts}
   end
 
@@ -37,46 +35,18 @@ defmodule Ziwoas.Scheduler.RunnerTest do
     assert_receive {:armed, ^pid, {:due, ~U[2026-10-05 10:15:00Z]}, 900_000}
   end
 
-  test "a task Phoenix does not run is skipped and re-armed", %{clock: clock, opts: opts} do
-    pid = start!(opts)
-    assert_receive {:armed, ^pid, {:due, due}, _}
-
-    set_clock(clock, due)
-    send(pid, {:due, due})
-
-    assert_receive {:armed, ^pid, {:due, ~U[2026-10-05 10:30:00Z]}, 900_000}
-    refute_received {:performed, _}
-  end
-
   test "runs with the mode in effect, then re-arms", %{clock: clock, opts: opts} do
-    Ownership.override(%{sensor_poll: :shadow})
     pid = start!(opts)
     assert_receive {:armed, ^pid, {:due, due}, _}
 
     set_clock(clock, ~U[2026-10-05 10:15:02.000000Z])
     send(pid, {:due, due})
 
-    assert_receive {:performed, %{task: :sensor_poll, mode: :shadow, at: ^due}}
+    assert_receive {:performed, %{task: :sensor_poll, mode: :phoenix, at: ^due}}
     assert_receive {:armed, ^pid, {:due, ~U[2026-10-05 10:30:00Z]}, 898_000}
   end
 
-  test "in shadow the runs come shadow_offset seconds after the schedule's instants", %{
-    clock: clock,
-    opts: opts
-  } do
-    Ownership.override(%{sensor_poll: :shadow})
-    pid = start!(Keyword.put(opts, :shadow_offset, 40))
-    assert_receive {:armed, ^pid, {:due, ~U[2026-10-05 10:00:40Z]}, 40_000}
-
-    set_clock(clock, ~U[2026-10-05 10:00:40.000000Z])
-    send(pid, {:due, ~U[2026-10-05 10:00:40Z]})
-
-    assert_receive {:performed, %{mode: :shadow, at: ~U[2026-10-05 10:00:40Z]}}
-    assert_receive {:armed, ^pid, {:due, ~U[2026-10-05 10:15:40Z]}, 900_000}
-  end
-
   test "the owner keeps the schedule's instants despite a shadow offset", %{opts: opts} do
-    Ownership.override(%{sensor_poll: :phoenix})
     pid = start!(Keyword.put(opts, :shadow_offset, 40))
 
     assert_receive {:armed, ^pid, {:due, ~U[2026-10-05 10:15:00Z]}, 900_000}
@@ -86,7 +56,6 @@ defmodule Ziwoas.Scheduler.RunnerTest do
     clock: clock,
     opts: opts
   } do
-    Ownership.override(%{sensor_poll: :phoenix})
     pid = start!(opts)
     assert_receive {:armed, ^pid, {:due, due}, _}
 
@@ -98,7 +67,6 @@ defmodule Ziwoas.Scheduler.RunnerTest do
   end
 
   test "a stale wake-up is ignored", %{opts: opts} do
-    Ownership.override(%{sensor_poll: :phoenix})
     pid = start!(opts)
     assert_receive {:armed, ^pid, _, _}
 
@@ -109,7 +77,6 @@ defmodule Ziwoas.Scheduler.RunnerTest do
   end
 
   test "a run past the next due instant skips it", %{clock: clock, opts: opts} do
-    Ownership.override(%{sensor_poll: :phoenix})
     pid = start!(opts)
     assert_receive {:armed, ^pid, {:due, due}, _}
 
@@ -121,7 +88,6 @@ defmodule Ziwoas.Scheduler.RunnerTest do
   end
 
   test "a failing job is logged and the schedule goes on", %{clock: clock, opts: opts} do
-    Ownership.override(%{sensor_poll: :phoenix})
     pid = start!(Keyword.put(opts, :job, FailingTestJob))
     assert_receive {:armed, ^pid, {:due, due}, _}
     set_clock(clock, due)

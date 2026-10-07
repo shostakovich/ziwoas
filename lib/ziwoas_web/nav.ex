@@ -9,8 +9,6 @@ defmodule ZiwoasWeb.Nav do
   alias Ziwoas.Look
 
   def on_mount(:default, _params, session, socket) do
-    Ziwoas.Repo.inherit_dynamic_repo()
-
     socket =
       socket
       |> assign(:look, Look.named(session["look"]))

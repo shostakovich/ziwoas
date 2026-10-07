@@ -73,7 +73,7 @@ defmodule ZiwoasWeb.WeatherComponents do
               width="82"
               height="82"
               alt={icon_label(@current.icon)}
-              src={~p"/assets/#{Weather.asset_name(@current)}"}
+              src={~p"/images/#{Weather.asset_name(@current)}"}
             />
             <div class="stat">
               <span class="stat-label">Jetzt</span>
@@ -105,7 +105,7 @@ defmodule ZiwoasWeb.WeatherComponents do
       </div>
       <div class="weather-current-solar card-footer d-flex align-items-baseline gap-2">
         <span class="small fw-semibold text-uppercase text-warning-emphasis">
-          <img class="weather-icon-inline" alt="" src={~p"/assets/weather_clear_day.webp"} /> Solar
+          <img class="weather-icon-inline" alt="" src={~p"/images/weather_clear_day.webp"} /> Solar
         </span>
         <span class="fw-semibold tabular-nums">
           <%= if @current.daytime == "night" do %>
@@ -143,12 +143,16 @@ defmodule ZiwoasWeb.WeatherComponents do
   attr :days, :list, required: true
   attr :zone, :string, required: true
 
+  attr :open, :map,
+    default: %{},
+    doc: "the open segment's index by the day's ISO date; a tile's click sends `toggle_segment`"
+
   def forecast(assigns) do
     ~H"""
     <%= if @days != [] do %>
       <h2 class="h6 text-uppercase text-body-secondary mt-4 mb-2">Nächste Tage</h2>
       <section class="vstack gap-3">
-        <.day :for={day <- @days} day={day} zone={@zone} />
+        <.day :for={day <- @days} day={day} zone={@zone} open={@open} />
       </section>
     <% end %>
     """
@@ -156,26 +160,24 @@ defmodule ZiwoasWeb.WeatherComponents do
 
   attr :day, Day, required: true
   attr :zone, :string, required: true
+  attr :open, :map, required: true
 
   defp day(assigns) do
     segments = Day.segments(assigns.day)
+    iso = Date.to_iso8601(assigns.day.date)
 
     assigns =
       assign(assigns,
         segments: Enum.with_index(segments),
         rows: segment_rows(segments),
-        iso: Date.to_iso8601(assigns.day.date),
+        iso: iso,
+        selected: Map.get(assigns.open, iso),
         peak: Day.solar_peak_w_per_m2(assigns.day),
         precip: Day.precip_sum(assigns.day)
       )
 
     ~H"""
-    <article
-      class="weather-day-card card"
-      data-controller="weather-segments"
-      data-weather-segments-day-value={@iso}
-      data-weather-segments-selected-class="active border-primary bg-primary-subtle"
-    >
+    <article class="weather-day-card card">
       <header class="card-header">
         <div class="d-flex justify-content-between align-items-baseline gap-2">
           <h3 class="h6 mb-0 text-nowrap">
@@ -186,7 +188,7 @@ defmodule ZiwoasWeb.WeatherComponents do
             :if={@peak}
             class="weather-day-peak small fw-semibold text-warning-emphasis tabular-nums text-nowrap"
           >
-            <img class="weather-icon-inline" alt="" src={~p"/assets/weather_clear_day.webp"} />
+            <img class="weather-icon-inline" alt="" src={~p"/images/weather_clear_day.webp"} />
             Spitze {de_number(@peak, unit: "W/m²")}
           </div>
         </div>
@@ -202,12 +204,16 @@ defmodule ZiwoasWeb.WeatherComponents do
           <button
             :for={{segment, idx} <- @segments}
             type="button"
-            class="weather-segment btn btn-light w-100"
-            data-weather-segments-target="tile"
-            data-action="click->weather-segments#toggle"
+            class={[
+              "weather-segment btn btn-light w-100",
+              idx == @selected && "active border-primary bg-primary-subtle"
+            ]}
+            phx-click="toggle_segment"
+            phx-value-day={@iso}
+            phx-value-index={idx}
             data-segment-index={idx}
             data-segment-complete={to_string(Segment.complete?(segment))}
-            aria-expanded="false"
+            aria-expanded={to_string(idx == @selected)}
             aria-controls={"seg-#{@iso}-#{idx}"}
           >
             <span class="weather-segment-label small">{segment.label}</span>
@@ -217,7 +223,7 @@ defmodule ZiwoasWeb.WeatherComponents do
               height="72"
               loading="lazy"
               alt={icon_label(Segment.dominant_icon(segment))}
-              src={~p"/assets/#{Segment.asset_name(segment)}"}
+              src={~p"/images/#{Segment.asset_name(segment)}"}
             />
             <%= for row <- @rows, cell = segment_cell(segment, row) do %>
               <.dynamic_tag
@@ -230,14 +236,13 @@ defmodule ZiwoasWeb.WeatherComponents do
           </button>
         </div>
 
-        <div class="weather-day-hours" data-weather-segments-target="hours">
+        <div class="weather-day-hours">
           <div
             :for={{segment, idx} <- @segments}
             class="weather-day-hour-row bg-body-secondary border rounded-3 mt-3"
             id={"seg-#{@iso}-#{idx}"}
-            data-weather-segments-target="hourRow"
             data-segment-index={idx}
-            hidden
+            hidden={idx != @selected}
           >
             <div class="weather-hour-scroller overflow-x-auto py-3 ps-3">
               <.hour_card
@@ -271,7 +276,7 @@ defmodule ZiwoasWeb.WeatherComponents do
         height="42"
         loading="lazy"
         alt={icon_label(@record.icon)}
-        src={~p"/assets/#{Weather.asset_name(@record)}"}
+        src={~p"/images/#{Weather.asset_name(@record)}"}
       />
       <strong class="d-block fs-4 tabular-nums">{de_number(@record.temperature)}°</strong>
       <ul
@@ -280,7 +285,7 @@ defmodule ZiwoasWeb.WeatherComponents do
       >
         <%= for row <- @rows, cell = hour_cell(@record, row) do %>
           <li class={["weather-hour-#{row}", cell.classes, cell.emphasis && "fw-semibold"]}>
-            <img class="weather-icon-inline" alt={cell.alt} src={~p"/assets/#{cell.icon}"} />
+            <img class="weather-icon-inline" alt={cell.alt} src={~p"/images/#{cell.icon}"} />
             {cell.text}
           </li>
         <% end %>

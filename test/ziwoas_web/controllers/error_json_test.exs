@@ -1,5 +1,5 @@
 defmodule ZiwoasWeb.ErrorJSONTest do
-  use ZiwoasWeb.ConnCase, async: true
+  use ExUnit.Case, async: true
 
   test "renders 404" do
     assert ZiwoasWeb.ErrorJSON.render("404.json", %{}) == %{errors: %{detail: "Not Found"}}

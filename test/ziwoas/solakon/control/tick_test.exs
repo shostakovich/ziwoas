@@ -1,9 +1,9 @@
 defmodule Ziwoas.Solakon.Control.TickTest do
   # The parts of test/models/solakon/control/{tick,state,load_reader,outcome}_test.rb
-  # the vectors do not reach, and where a dry run reads and writes.
-  use Ziwoas.DataCase, async: false
+  # the vectors do not reach.
+  use Ziwoas.DataCase
 
-  alias Ziwoas.{Clock, Ownership, Repo}
+  alias Ziwoas.{Repo, TestClock}
   alias Ziwoas.Plugs.{Plug, Roster}
   alias Ziwoas.Solakon.Reading
   alias Ziwoas.Solakon.Control.{Decision, Load, LoadReader, Outcome, State, Tick}
@@ -11,16 +11,14 @@ defmodule Ziwoas.Solakon.Control.TickTest do
   @moduletag :capture_log
   @now ~U[2026-10-05 10:00:00.000000Z]
 
-  setup %{repo: repo} do
-    Repo.put_writer(:main, repo)
-    Clock.freeze(@now)
-    on_exit(&Ownership.clear_override/0)
+  setup do
+    TestClock.freeze(@now)
     :ok
   end
 
   defp roster, do: Roster.new([%Plug{id: "fridge", name: "Kühlschrank", role: :consumer}])
 
-  defp reading(attrs \\ []),
+  defp reading(attrs),
     do:
       struct(
         %Reading{
@@ -32,91 +30,8 @@ defmodule Ziwoas.Solakon.Control.TickTest do
         attrs
       )
 
-  defp shadow_repo! do
-    path =
-      Ziwoas.RailsFixture.build!(
-        Path.expand("../../../../tmp/data/control_tick_shadow.sqlite3", __DIR__),
-        rows: false
-      )
-
-    shadow =
-      start_supervised!({Repo, name: nil, database: path, writable: true, pool_size: 1},
-        id: :shadow
-      )
-
-    previous = Repo.get_dynamic_repo()
-    Repo.put_dynamic_repo(shadow)
-    Repo.query!("DELETE FROM solakon_control_states")
-    Repo.put_dynamic_repo(previous)
-    Repo.put_writer(:shadow, shadow)
-    shadow
-  end
-
-  defp in_repo(repo, fun) do
-    previous = Repo.get_dynamic_repo()
-    Repo.put_dynamic_repo(repo)
-
-    try do
-      fun.()
-    after
-      Repo.put_dynamic_repo(previous)
-    end
-  end
-
-  describe "dry run" do
-    setup do
-      Ownership.override(%{solakon_monitor: :shadow, solakon_control: :dry_run})
-      %{shadow: shadow_repo!()}
-    end
-
-    test "decides from the main database's samples and stores in the shadow", %{shadow: shadow} do
-      insert_sample!("fridge", DateTime.to_unix(@now) - 5, 250, 1)
-
-      outcome = Tick.run(reading(), roster(), @now)
-
-      assert %Outcome{status: :applied, dry_run: true} = outcome
-      assert outcome.decision == %Decision{state: :normal, target_w: 250, trim: false}
-
-      assert outcome.writes == [
-               {:single, 46001, 1},
-               {:single, 46002, 150},
-               {:multiple, 46003, [0, 250]}
-             ]
-
-      assert Repo.aggregate(State, :count) == 0
-      [row] = in_repo(shadow, fn -> Repo.all(State) end)
-
-      assert {row.decision_state, row.last_target_w, row.last_decision_at} ==
-               {"normal", 250, @now}
-    end
-
-    test "follows Rails' pause switch in the main database", %{shadow: shadow} do
-      Repo.insert!(%State{paused: true})
-
-      assert %Outcome{status: :paused} = Tick.run(reading(), roster(), @now)
-
-      assert [%State{paused: true, decision_state: nil}] =
-               in_repo(shadow, fn -> Repo.all(State) end)
-
-      Repo.update!(Ecto.Changeset.change(State.current(), paused: false))
-      assert %Outcome{status: :applied} = Tick.run(reading(), roster(), @now)
-      assert [%State{paused: false}] = in_repo(shadow, fn -> Repo.all(State) end)
-    end
-
-    test "its decision log line names the dry run and the writes held back" do
-      outcome = Tick.run(reading(), roster(), @now)
-
-      assert Ziwoas.Solakon.MonitorJob.log_line(outcome) ==
-               "solakon_control (dry_run): state=normal target=0W load=stale floor=0W " <>
-                 "soc=55% temp=30.0C pv=0.0W battery=0.0W — not sent: " <>
-                 "46001=1, 46002=150, 46003=[0, 0]"
-    end
-  end
-
   describe "the stored decision" do
     test "round-trips and expires with the inverter's watchdog" do
-      Ownership.override(%{solakon_monitor: :phoenix, solakon_control: :phoenix})
-
       state =
         Repo.write(:solakon_control, fn ->
           State.current!()
@@ -146,8 +61,6 @@ defmodule Ziwoas.Solakon.Control.TickTest do
     end
 
     test "resume clears it, pause keeps it" do
-      Ownership.override(%{solakon_monitor: :phoenix, solakon_control: :phoenix})
-
       Repo.write(:solakon_control, fn ->
         state =
           State.current!()

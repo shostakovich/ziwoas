@@ -1,17 +1,14 @@
 defmodule ZiwoasWeb.PlugSwitchControllerTest do
   # Mirrors test/controllers/plug_switches_controller_test.rb.
-  use ZiwoasWeb.ConnCase, async: true, db: true
+  use ZiwoasWeb.ConnCase
 
   import ZiwoasWeb.TurboCase
 
-  alias Ziwoas.{Clock, Mqtt, Ownership, Repo}
+  alias Ziwoas.{Clock, Repo, TestClock, TestMqtt}
   alias Ziwoas.Switching.Command
 
-  setup %{repo: repo, conn: conn} do
-    Clock.freeze("2026-06-15T17:00:00+02:00")
-    Repo.put_writer(:main, repo)
-    Ownership.override(%{switching: :phoenix})
-    on_exit(&Ownership.clear_override/0)
+  setup %{conn: conn} do
+    TestClock.freeze("2026-06-15T17:00:00+02:00")
     record(:ok)
     {:ok, conn: turbo(conn)}
   end
@@ -19,7 +16,7 @@ defmodule ZiwoasWeb.PlugSwitchControllerTest do
   defp record(answer) do
     test = self()
 
-    Mqtt.record(fn _client, topic, payload ->
+    TestMqtt.record(fn _client, topic, payload ->
       send(test, {:published, topic, payload})
       answer
     end)
@@ -66,16 +63,6 @@ defmodule ZiwoasWeb.PlugSwitchControllerTest do
 
     assert streams(body) == [{"update", "sw_error_fridge"}]
     assert body =~ "nicht erreichbar"
-    assert Repo.all(Command) == []
-  end
-
-  test "421 while Phoenix does not own switching, before anything is sent", %{conn: conn} do
-    for mode <- [:rails, :dry_run] do
-      Ownership.override(%{switching: mode})
-      assert conn |> post("/plugs/fridge/switch", %{"state" => "on"}) |> response(421)
-    end
-
-    refute_received {:published, _, _}
     assert Repo.all(Command) == []
   end
 end

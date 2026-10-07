@@ -4,9 +4,8 @@ defmodule ZiwoasWeb.SolakonComponents do
   storage and the Solakon-Verlauf. The charts of the sun calendar and the
   shading report live in `ZiwoasWeb.SunChartComponents`.
 
-  The controls render Rails' markup, `data-action`s included; with LiveView
-  connected their switches send `"toggle_eps"` and `"toggle_control"` instead
-  (`app.js` keeps the `solakon` Stimulus controller from PATCHing as well).
+  The controls' switches send `"toggle_eps"` and `"toggle_control"` to the
+  LiveView.
   """
   use ZiwoasWeb, :html
 
@@ -19,82 +18,74 @@ defmodule ZiwoasWeb.SolakonComponents do
   # --- Solakon-Verlauf (solakon/_history) -------------------------------------
 
   @doc """
-  The history frame. `frame_id` is Rails' `solakon_history` on the first
-  render; a refresh renders it under another id, so the client replaces the
-  frame and the chart controller reconnects with the new payload, as it does
-  when Turbo reloads the frame.
+  The history, the `SolakonHistory` hook: it draws the chart from the payload
+  island and redraws it in place whenever the LiveView renders a new one (a
+  refresh, or a range tab). The canvas sits in a `phx-update="ignore"` frame,
+  the payload and the range outside it.
 
-  The range tabs keep Rails' href (the frame's source) as the fallback; with
-  LiveView connected, `app.js` keeps the browser on the page and the
-  `"history_range"` event swaps the history in place, as Turbo's frame
-  navigation does.
+  The range tabs keep Rails' href as the fallback; with LiveView connected,
+  `app.js` keeps the browser on the page and the `"history_range"` event swaps
+  the history in place.
   """
   attr :history, :map, required: true
-  attr :frame_id, :string, default: "solakon_history"
 
   def history(assigns) do
     ~H"""
-    <turbo-frame id={@frame_id}>
+    <div id="solakon_history" phx-hook="SolakonHistory" data-range={@history.range}>
       <div
-        data-controller="solakon-history"
-        data-solakon-history-url-value={"/solakon/history?range=#{@history.range}"}
-        data-solakon-history-range-value={@history.range}
+        class="btn-group btn-group-sm d-flex d-sm-inline-flex mb-3"
+        role="group"
+        aria-label="Zeitraum"
       >
+        <a
+          :for={{key, label} <- History.range_labels()}
+          href={"/solakon/history?range=#{key}"}
+          phx-click="history_range"
+          phx-value-range={key}
+          class={["btn btn-outline-primary flex-fill", key == @history.range && "active"]}
+          aria-current={key == @history.range && "true"}
+        ><span><span class="d-none d-sm-inline">Letzte </span>{String.replace_prefix(
+          label,
+          "Letzte ",
+          ""
+        )}</span></a>
+      </div>
+      <div class="chart-frame" id="solakon_history_frame" phx-update="ignore">
+        <canvas></canvas>
+      </div>
+      <p :if={@history.message} class="small text-body-secondary">{@history.message}</p>
+      <p class="small text-body-secondary">
+        Über 0 W: Akku lädt, Außensteckdose liefert ins Hausnetz. Unter 0 W: Akku entlädt, Außensteckdose zieht Leistung.
+      </p>
+      <div class="solakon-balance mt-3">
         <div
-          class="btn-group btn-group-sm d-flex d-sm-inline-flex mb-3"
-          role="group"
-          aria-label="Zeitraum"
+          :for={row <- @history.balance_rows}
+          class="solakon-balance-row row gx-2 gy-1 align-items-center small mb-2"
+          data-role={row.role}
         >
-          <a
-            :for={{key, label} <- History.range_labels()}
-            href={"/solakon/history?range=#{key}"}
-            phx-click="history_range"
-            phx-value-range={key}
-            class={["btn btn-outline-primary flex-fill", key == @history.range && "active"]}
-            aria-current={key == @history.range && "true"}
-          ><span><span class="d-none d-sm-inline">Letzte </span>{String.replace_prefix(
-            label,
-            "Letzte ",
-            ""
-          )}</span></a>
-        </div>
-        <div class="chart-frame">
-          <canvas data-solakon-history-target="canvas"></canvas>
-        </div>
-        <p :if={@history.message} class="small text-body-secondary">{@history.message}</p>
-        <p class="small text-body-secondary">
-          Über 0 W: Akku lädt, Außensteckdose liefert ins Hausnetz. Unter 0 W: Akku entlädt, Außensteckdose zieht Leistung.
-        </p>
-        <div class="solakon-balance mt-3">
-          <div
-            :for={row <- @history.balance_rows}
-            class="solakon-balance-row row gx-2 gy-1 align-items-center small mb-2"
-            data-role={row.role}
-          >
-            <span class="col col-sm-4 text-truncate">{row.label}</span>
-            <div class="col-12 col-sm order-last order-sm-0">
-              <div class="progress" style="height: .5rem" aria-hidden="true">
-                <div
-                  class="progress-bar"
-                  style={"width: #{RubyNumeric.to_s(row.share)}%; background-color: var(--viz-#{row.role})"}
-                >
-                </div>
+          <span class="col col-sm-4 text-truncate">{row.label}</span>
+          <div class="col-12 col-sm order-last order-sm-0">
+            <div class="progress" style="height: .5rem" aria-hidden="true">
+              <div
+                class="progress-bar"
+                style={"width: #{RubyNumeric.to_s(row.share)}%; background-color: var(--viz-#{row.role})"}
+              >
               </div>
             </div>
-            <span class="col-auto tabular-nums text-nowrap">{row.value}</span>
           </div>
-          <div
-            :if={@history.outlet_average}
-            class="d-flex justify-content-between gap-2 small"
-            data-role="outlet-average"
-          >
-            <span>Ø Außensteckdose</span>
-            <span class="tabular-nums text-nowrap">{@history.outlet_average}</span>
-          </div>
+          <span class="col-auto tabular-nums text-nowrap">{row.value}</span>
         </div>
-        {payload_script(@history.chart)}
+        <div
+          :if={@history.outlet_average}
+          class="d-flex justify-content-between gap-2 small"
+          data-role="outlet-average"
+        >
+          <span>Ø Außensteckdose</span>
+          <span class="tabular-nums text-nowrap">{@history.outlet_average}</span>
+        </div>
       </div>
-    </turbo-frame>
+      {payload_script(@history.chart)}
+    </div>
     """
   end
 
@@ -107,9 +98,7 @@ defmodule ZiwoasWeb.SolakonComponents do
       |> String.replace(<<0x2028::utf8>>, "\\u2028")
       |> String.replace(<<0x2029::utf8>>, "\\u2029")
 
-    Phoenix.HTML.raw(
-      ~s(<script type="application/json" data-solakon-history-target="payload">#{json}</script>)
-    )
+    Phoenix.HTML.raw(~s(<script type="application/json" data-chart-payload>#{json}</script>))
   end
 
   # --- Status -------------------------------------------------------------------
@@ -165,7 +154,7 @@ defmodule ZiwoasWeb.SolakonComponents do
           height="64"
           data-solakon-battery-state={@battery_state}
           alt=""
-          src={"/assets/#{@battery_asset}"}
+          src={~p"/images/#{@battery_asset}"}
         />
         <p class="solakon-status-summary fw-semibold mb-0">{@battery_summary}</p>
       </div>
@@ -216,7 +205,7 @@ defmodule ZiwoasWeb.SolakonComponents do
   @doc """
   The Steuerung cards. Before the first event they read as Rails renders them;
   afterwards `eps_enabled`, the help text and the error lines follow the events,
-  as Rails' Stimulus controller rewrites them. `attempts` changes with every event,
+  as Rails' client-side controller rewrote them. `attempts` changes with every event,
   so the switch is re-rendered and LiveView resets its `checked` state even when a
   failed switch leaves the assigns as they were.
   """
@@ -245,16 +234,15 @@ defmodule ZiwoasWeb.SolakonComponents do
     <h2 class="h6 text-uppercase text-body-secondary mt-4 mb-2">Steuerung</h2>
     <section class="row row-cols-1 row-cols-sm-2 g-2 mb-3">
       <div class="col">
-        <article class="card h-100 solakon-control-card" data-solakon-target="epsCard">
+        <article class="card h-100 solakon-control-card">
           <div class="card-body p-3">
             <div class="stat">
               <span class="stat-label">Außensteckdose</span>
-              <span class="stat-value fs-2" data-solakon-target="epsState">
+              <span class="stat-value fs-2" id="solakon-eps-state">
                 {if @eps_on, do: "An", else: "Aus"}
               </span>
               <span class="small text-body-secondary">
-                Notstrom-Ausgang · <span data-solakon-target="epsPower">{@eps_power}</span>
-                · <span data-solakon-target="epsVoltage">{@eps_voltage}</span>
+                Notstrom-Ausgang · <span>{@eps_power}</span> · <span>{@eps_voltage}</span>
               </span>
             </div>
             <div class="form-check form-switch mt-2 mb-0">
@@ -264,8 +252,6 @@ defmodule ZiwoasWeb.SolakonComponents do
                 role="switch"
                 id="solakon-eps-toggle"
                 checked={@eps_on}
-                data-solakon-target="epsToggle"
-                data-action="change->solakon#toggleEps"
                 phx-click="toggle_eps"
                 phx-value-attempt={@attempts}
               />
@@ -273,7 +259,7 @@ defmodule ZiwoasWeb.SolakonComponents do
             </div>
             <p
               class="small text-danger mt-2 mb-0"
-              data-solakon-target="epsError"
+              id="solakon-eps-error"
               hidden={is_nil(@eps_error)}
             >
               {@eps_error}
@@ -282,18 +268,18 @@ defmodule ZiwoasWeb.SolakonComponents do
         </article>
       </div>
       <div class="col">
-        <article class="card h-100 solakon-control-card" data-solakon-target="controlCard">
+        <article class="card h-100 solakon-control-card">
           <div class="card-body p-3">
             <div class="stat">
               <span class="stat-label">Auto-Regelung</span>
-              <span class="stat-value fs-2" data-solakon-target="controlState">
+              <span class="stat-value fs-2" id="solakon-control-state">
                 {cond do
                   @control_active -> "Aktiv"
                   @control_enabled -> "Pausiert"
                   true -> "Aus"
                 end}
               </span>
-              <span class="small text-body-secondary" data-solakon-target="controlHelp">
+              <span class="small text-body-secondary" id="solakon-control-help">
                 {cond do
                   @control_help -> @control_help
                   @control_enabled -> "folgt dem gemessenen Verbrauch"
@@ -309,8 +295,6 @@ defmodule ZiwoasWeb.SolakonComponents do
                 id="solakon-control-toggle"
                 checked={@control_active}
                 disabled={!@control_enabled}
-                data-solakon-target="controlToggle"
-                data-action="change->solakon#toggleControl"
                 phx-click="toggle_control"
                 phx-value-attempt={@attempts}
               />
@@ -318,7 +302,7 @@ defmodule ZiwoasWeb.SolakonComponents do
             </div>
             <p
               class="small text-danger mt-2 mb-0"
-              data-solakon-target="controlError"
+              id="solakon-control-error"
               hidden={is_nil(@control_error)}
             >
               {@control_error}

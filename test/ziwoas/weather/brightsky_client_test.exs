@@ -29,7 +29,7 @@ defmodule Ziwoas.Weather.BrightskyClientTest do
 
     weather = BrightskyClient.current_weather(@location)
 
-    assert weather.timestamp == ~U[2026-05-04 15:00:00Z]
+    assert weather.timestamp == ~U[2026-05-04 15:00:00.000000Z]
     assert weather.source_id == 303_711
     assert weather.temperature == 16.2
     assert weather.icon == "cloudy"
@@ -50,7 +50,7 @@ defmodule Ziwoas.Weather.BrightskyClientTest do
 
     assert [row] = BrightskyClient.weather_for_date(@location, ~D[2026-05-04])
     assert row.source_id == 7003
-    assert row.timestamp == ~U[2026-05-03 22:00:00Z]
+    assert row.timestamp == ~U[2026-05-03 22:00:00.000000Z]
     assert row.icon == "cloudy"
     assert row.daytime == "night"
   end

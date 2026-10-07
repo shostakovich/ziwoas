@@ -8,7 +8,7 @@ defmodule Ziwoas.Lights.State do
     field :color_g, :integer
     field :color_r, :integer
     field :color_temp_k, :integer
-    field :last_seen_at, Ziwoas.Ecto.RailsDateTime
+    field :last_seen_at, :utc_datetime_usec
     field :light_key, :string
     field :on, :boolean
     field :reachable, :boolean

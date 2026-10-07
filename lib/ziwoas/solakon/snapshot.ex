@@ -51,7 +51,7 @@ defmodule Ziwoas.Solakon.Snapshot do
     field :remaining_energy_wh, :float
     field :status1, :integer
     field :status3, :integer
-    field :taken_at, Ziwoas.Ecto.RailsDateTime
+    field :taken_at, :utc_datetime_usec
     timestamps()
   end
 
@@ -88,13 +88,7 @@ defmodule Ziwoas.Solakon.Snapshot do
   def in_range(from, to) do
     Repo.all(
       from s in __MODULE__,
-        where:
-          fragment(
-            "? BETWEEN ? AND ?",
-            s.taken_at,
-            type(^from, Ziwoas.Ecto.RailsDateTime),
-            type(^to, Ziwoas.Ecto.RailsDateTime)
-          ),
+        where: s.taken_at >= ^from and s.taken_at <= ^to,
         order_by: s.taken_at
     )
   end

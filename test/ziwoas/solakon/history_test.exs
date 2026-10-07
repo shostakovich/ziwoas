@@ -1,6 +1,6 @@
 defmodule Ziwoas.Solakon.HistoryTest do
   # Mirrors test/models/solakon/history_test.rb.
-  use Ziwoas.DataCase, async: true
+  use Ziwoas.DataCase
 
   alias Ziwoas.Repo
   alias Ziwoas.Solakon.{History, Reading, Snapshot}

@@ -303,37 +303,24 @@ defmodule ZiwoasWeb.DashboardComponentsTest do
     end
   end
 
-  describe "data carriers" do
-    test "the energy flow state carries the flow as JSON and doubles as the freshness beat" do
+  describe "energy flow hook" do
+    test "makes its element the EnergyFlow hook with the flow as JSON in data-state" do
       flows = Flows.split(130.0, 420.0, 0.0, -290.0)
 
-      doc =
-        html(&DashboardComponents.energy_flow_state/1,
-          live: live([], solakon_online: true, solar_w: 420.0, home_w: 130.0, flows: flows)
+      attrs =
+        DashboardComponents.energy_flow_hook(
+          live([], solakon_online: true, solar_w: 420.0, home_w: 130.0, flows: flows)
         )
 
-      assert attrs(doc, "#energy_flow_state[hidden]", "data-energy-flow-target") == ["state"]
-      assert attrs(doc, "#energy_flow_state", "data-live-freshness-target") == ["beat"]
-      [json] = attrs(doc, "#energy_flow_state", "data-state")
-      state = JSON.decode!(json)
+      assert attrs[:id] == "energy_flow"
+      assert attrs[:"phx-hook"] == "EnergyFlow"
+      state = JSON.decode!(attrs[:"data-state"])
 
       assert {state["solakon_online"], state["solar_w"], state["flows"]["solar_to_home_w"]} ==
                {true, 420.0, 130.0}
 
-      [stale] =
-        attrs(
-          html(&DashboardComponents.energy_flow_state/1, live: live()),
-          "#energy_flow_state",
-          "data-state"
-        )
-
+      stale = DashboardComponents.energy_flow_hook(live())[:"data-state"]
       assert %{"solakon_online" => false, "solar_w" => nil} = JSON.decode!(stale)
-    end
-
-    test "plug deltas carry their payload for the 24 h chart, empty on the first render" do
-      doc = html(&DashboardComponents.plug_deltas/1, %{})
-      assert attrs(doc, "#plug_deltas[hidden]", "data-payload") == ["[]"]
-      assert attrs(doc, "#plug_deltas", "data-today-chart-target") == ["deltas"]
     end
   end
 
@@ -369,11 +356,11 @@ defmodule ZiwoasWeb.DashboardComponentsTest do
       battery = "img.ef-icon[data-ef='efBatteryImage'][src*='solakon_battery_normal']"
 
       assert attrs(doc, battery, "data-battery-state-charging") == [
-               "/assets/solakon_battery_charging.webp"
+               "/images/solakon_battery_charging.webp"
              ]
 
       assert attrs(doc, battery, "data-battery-state-fault") == [
-               "/assets/solakon_battery_fault.webp"
+               "/images/solakon_battery_fault.webp"
              ]
     end
   end

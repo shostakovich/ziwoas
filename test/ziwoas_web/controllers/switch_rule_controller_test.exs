@@ -1,18 +1,15 @@
 defmodule ZiwoasWeb.SwitchRuleControllerTest do
   # Mirrors test/controllers/switch_rules_controller_test.rb.
-  use ZiwoasWeb.ConnCase, async: true, db: true
+  use ZiwoasWeb.ConnCase
 
   import Ecto.Query
   import ZiwoasWeb.TurboCase
 
-  alias Ziwoas.{Clock, Ownership, Repo}
+  alias Ziwoas.{Repo, TestClock}
   alias Ziwoas.Switching.{Rule, Rules}
 
-  setup %{repo: repo, conn: conn} do
-    Clock.freeze("2026-06-15T17:00:00+02:00")
-    Repo.put_writer(:main, repo)
-    Ownership.override(%{switch_schedule: :phoenix})
-    on_exit(&Ownership.clear_override/0)
+  setup %{conn: conn} do
+    TestClock.freeze("2026-06-15T17:00:00+02:00")
     {:ok, conn: turbo(conn)}
   end
 
@@ -191,21 +188,5 @@ defmodule ZiwoasWeb.SwitchRuleControllerTest do
     assert conn |> get(~p"/plugs/fridge/switch_rules/#{orphan.id}/edit") |> stream_response(200)
     assert conn |> delete(~p"/plugs/fridge/switch_rules/#{orphan.id}") |> stream_response(200)
     assert Repo.aggregate(Rule, :count) == 0
-  end
-
-  test "every write answers 421 and writes nothing while Rails owns the schedule", %{conn: conn} do
-    rule = a_single(action: "on", at: "18:00")
-    Ownership.override(%{switch_schedule: :rails})
-    single = params("20:00", "off", ["", "2"])
-
-    assert conn |> post(~p"/plugs/fridge/switch_rules", single) |> response(421)
-    assert conn |> patch(~p"/plugs/fridge/switch_rules/#{rule.id}", single) |> response(421)
-
-    assert conn
-           |> patch(~p"/plugs/fridge/switch_rules/#{rule.id}/enabled", %{"enabled" => "0"})
-           |> response(421)
-
-    assert conn |> delete(~p"/plugs/fridge/switch_rules/#{rule.id}") |> response(421)
-    assert [%{enabled: true, at_minute: 1080}] = Repo.all(Rule)
   end
 end

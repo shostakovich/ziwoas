@@ -4,7 +4,7 @@ defmodule Ziwoas.Scheduler.TestJob do
 
   @impl true
   def perform(context) do
-    send(List.last(Ziwoas.Repo.test_lineage()), {:performed, context})
+    send(List.last(Ziwoas.TestProcess.lineage()), {:performed, context})
     :ok
   end
 end

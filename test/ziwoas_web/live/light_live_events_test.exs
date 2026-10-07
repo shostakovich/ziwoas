@@ -1,21 +1,18 @@
 defmodule ZiwoasWeb.LightLiveEventsTest do
   # The lamp page served by Phoenix: power, zones with the eviction toast and its undo,
   # scenes and the settings sheet as LiveView events.
-  use ZiwoasWeb.ConnCase, async: true, db: true
+  use ZiwoasWeb.ConnCase
 
   import Phoenix.LiveViewTest
 
-  alias Ziwoas.{Clock, Mqtt, Ownership, Repo}
+  alias Ziwoas.{Repo, TestClock, TestMqtt}
   alias Ziwoas.Lights.{Commands, Light, State}
 
-  setup %{repo: repo} do
-    Clock.freeze("2026-06-15T17:00:00+02:00")
-    Repo.put_writer(:main, repo)
-    Ownership.override(%{lights: :phoenix, light_settings: :phoenix})
-    on_exit(&Ownership.clear_override/0)
+  setup do
+    TestClock.freeze("2026-06-15T17:00:00+02:00")
     test = self()
 
-    Mqtt.record(fn _client, topic, payload ->
+    TestMqtt.record(fn _client, topic, payload ->
       send(test, {:published, topic, payload})
       :ok
     end)
@@ -66,7 +63,7 @@ defmodule ZiwoasWeb.LightLiveEventsTest do
     assert has_element?(view, "#light_toast[hidden]")
   end
 
-  test "the toast hides itself after five seconds, as the toast controller does", %{conn: conn} do
+  test "the toast hides itself after five seconds", %{conn: conn} do
     Commands.record_zone_state("UP1", "bottomLightToggle", true)
     Commands.record_zone_state("UP1", "sideLightToggle", true)
     {:ok, view, _html} = live(conn, ~p"/lights/UP1")
@@ -76,18 +73,41 @@ defmodule ZiwoasWeb.LightLiveEventsTest do
     assert has_element?(view, "#light_toast[hidden]")
   end
 
+  test "the LightDetail hook's brightness, white and colour are sent as commands", %{
+    conn: conn
+  } do
+    {:ok, view, _html} = live(conn, ~p"/lights/UP1")
+    hook = element(view, "#light_detail[phx-hook=LightDetail][data-key=UP1]")
+
+    render_hook(hook, "light_command", %{
+      "light_key" => "UP1",
+      "command" => "brightness",
+      "value" => "42"
+    })
+
+    render_hook(hook, "light_command", %{
+      "light_key" => "UP1",
+      "command" => "color_temp",
+      "temp_k" => "4000"
+    })
+
+    render_hook(hook, "light_command", %{
+      "light_key" => "UP1",
+      "command" => "color",
+      "r" => 255,
+      "g" => 122,
+      "b" => 61
+    })
+
+    assert_received {:published, "govees/UP1/set", ~s({"brightness":42})}
+    assert_received {:published, "govees/UP1/set", ~s({"color_temp_k":4000})}
+    assert_received {:published, "govees/UP1/set", ~s({"color":{"r":255,"g":122,"b":61}})}
+  end
+
   test "a scene is sent and nothing redraws", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/lights/UP1")
     view |> form("#light_panel_scenes form") |> render_submit()
     assert_received {:published, "govees/UP1/set", ~s({"scene":"Lesen"})}
-  end
-
-  test "nothing is sent while Phoenix does not own lights", %{conn: conn} do
-    Ownership.override(%{lights: :dry_run})
-    {:ok, view, _html} = live(conn, ~p"/lights/UP1")
-    view |> form("#light_power form.flex-grow-1") |> render_submit(%{"on" => "true"})
-    refute_received {:published, _, _}
-    refute Repo.get_by(State, light_key: "UP1").on
   end
 
   test "the settings sheet opens in place, refuses a blank name and saves", %{conn: conn} do
@@ -96,8 +116,11 @@ defmodule ZiwoasWeb.LightLiveEventsTest do
 
     assert has_element?(
              view,
-             "#light_settings dialog[phx-hook=SettingsSheet] form[phx-submit=save_settings]"
+             "#light_settings dialog#light_settings_dialog[phx-hook=SettingsSheet] form[phx-submit=save_settings]"
            )
+
+    assert has_element?(view, "#light_settings_dialog button.btn-close[data-dismiss=dialog]")
+    assert has_element?(view, "#light_settings_dialog a[data-dismiss=dialog]", "Abbrechen")
 
     html = view |> form("#light_settings form", %{"light" => %{"name" => ""}}) |> render_submit()
     assert html =~ "Name can&#39;t be blank"
@@ -117,7 +140,7 @@ defmodule ZiwoasWeb.LightLiveEventsTest do
   test "closing the sheet forgets it", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/lights/UP1")
     view |> element("a[aria-label=Einstellungen]") |> render_click()
-    render_hook(view, "close_settings", %{})
+    view |> element("#light_settings_dialog") |> render_hook("close_settings", %{})
     refute has_element?(view, "#light_settings dialog")
   end
 end

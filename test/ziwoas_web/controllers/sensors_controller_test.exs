@@ -1,14 +1,14 @@
 defmodule ZiwoasWeb.SensorsControllerTest do
   # Mirrors the series test of test/controllers/sensors_controller_test.rb.
-  use ZiwoasWeb.ConnCase, async: true, db: true
+  use ZiwoasWeb.ConnCase
 
-  alias Ziwoas.{Clock, Repo}
+  alias Ziwoas.{Clock, Repo, TestClock}
   alias Ziwoas.Sensors.Reading
 
   @now "2026-05-04T12:00:00+02:00"
 
   setup do
-    Clock.freeze(@now)
+    TestClock.freeze(@now)
     :ok
   end
 

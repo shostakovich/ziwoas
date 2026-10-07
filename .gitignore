@@ -14,8 +14,12 @@ erl_crash.dump
 *.ez
 /ziwoas-*.tar
 
-# Test databases (built from priv/rails_schema.sql and test/support/rails_rows.sql),
-# logs and environment files.
+# esbuild bundles assets/ into priv/static/assets; phx.digest writes the digested copies
+# and the manifest.
+/priv/static/assets/
+/priv/static/cache_manifest.json
+
+# The test database (migrated by `mix test`), logs and environment files.
 /tmp/
 /log/
 /.env*

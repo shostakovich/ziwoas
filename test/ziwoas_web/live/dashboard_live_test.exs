@@ -1,18 +1,17 @@
 defmodule ZiwoasWeb.DashboardLiveTest do
   # Mirrors test/controllers/dashboard_controller_test.rb (the page) and
-  # test/dashboard_broadcaster_test.rb (the live regions). The connected
-  # LiveView reads this module's database (`Ziwoas.Repo.inherit_dynamic_repo/0`).
-  use ZiwoasWeb.ConnCase, async: true, db: true
+  # test/dashboard_broadcaster_test.rb (the live regions).
+  use ZiwoasWeb.ConnCase
 
   import Phoenix.LiveViewTest
 
-  alias Ziwoas.{Clock, Repo}
+  alias Ziwoas.{Clock, Repo, TestClock}
   alias Ziwoas.Weather.Record
 
   @now "2026-10-05T12:00:00+02:00"
 
   setup do
-    Clock.freeze(@now)
+    TestClock.freeze(@now)
     :ok
   end
 
@@ -54,20 +53,33 @@ defmodule ZiwoasWeb.DashboardLiveTest do
              "Eigen­verbrauchs­quote"
            ]
 
-    assert count(doc, "[data-controller='today-chart'] canvas") == 2
-    assert count(doc, "[data-controller='history-chart'] canvas") == 1
-    assert attrs(doc, "#plug_deltas", "data-payload") == ["[]"]
+    assert count(doc, "#today_chart[phx-hook=TodayChart] [phx-update=ignore][id] > canvas") == 2
+
+    assert attrs(doc, "#today_chart canvas", "data-chart") == ["energy", "power"]
+
+    assert count(doc, "#history_chart[phx-hook=HistoryChart] [phx-update=ignore][id] > canvas") ==
+             1
   end
 
-  test "the page's scripts load: LiveView from the Hex package, Stimulus controllers from Rails",
-       %{
-         conn: conn
-       } do
-    assert get(conn, "/assets/vendor/phoenix_live_view.esm.js").status == 200
-    assert get(conn, "/assets/vendor/phoenix.mjs").status == 200
+  test "the energy flow card is the EnergyFlow hook; its SVG keeps its running dots", %{
+    conn: conn
+  } do
+    doc = page(conn)
 
-    for path <- ~w[controllers/energy_flow.js controllers/today_chart_controller.js chart.min.js],
-        do: assert(get(conn, "/assets/" <> path).status == 200)
+    assert count(doc, ".energy-flow-card#energy_flow[phx-hook=EnergyFlow][data-state]") == 1
+    assert count(doc, "#energy_flow svg#energy_flow_svg[phx-update=ignore]") == 1
+  end
+
+  test "the head loads felt-css, then the esbuild bundles: one stylesheet, one script", %{
+    conn: conn
+  } do
+    doc = page(conn)
+
+    assert attrs(doc, "link[rel='stylesheet']", "href") ==
+             ["https://felt-css.rocu.de/felt.css", "/assets/css/app.css"]
+
+    assert attrs(doc, "script[src]", "src") == ["/assets/js/app.js"]
+    assert count(doc, "script[type='importmap']") == 0
   end
 
   test "hero, tiles, plug bar and energy flow dim together when the live picture goes stale", %{
@@ -75,13 +87,9 @@ defmodule ZiwoasWeb.DashboardLiveTest do
   } do
     doc = page(conn)
 
-    assert attrs(
-             doc,
-             "[data-controller~='live-freshness']",
-             "data-live-freshness-threshold-s-value"
-           ) == ["120"]
-
-    assert count(doc, "[data-controller~='live-freshness'] .live-dim") == 4
+    assert attrs(doc, "#live_freshness[phx-hook=LiveFreshness]", "data-threshold-s") == ["120"]
+    assert attrs(doc, "#live_freshness", "data-beat") == ["0"]
+    assert count(doc, "#live_freshness .live-dim") == 4
 
     assert count(
              doc,
@@ -143,12 +151,11 @@ defmodule ZiwoasWeb.DashboardLiveTest do
   end
 
   describe "connected" do
-    test "a live beat re-renders the hero, live tiles, plug bar and a new energy-flow carrier", %{
+    test "a live beat re-renders hero, tiles, plug bar and energy flow, and pushes the deltas", %{
       conn: conn
     } do
       {:ok, view, html} = live(conn, ~p"/")
       assert texts(from(html), "#tile_consumption_now .stat-value") == ["—"]
-      assert count(from(html), "#energy_flow_state") == 1
 
       insert_sample!("fridge", now_ts() - 5, 82.4, 110.0)
 
@@ -161,11 +168,17 @@ defmodule ZiwoasWeb.DashboardLiveTest do
 
       assert texts(doc, "#tile_consumption_now .stat-value") == ["82 W"]
       assert texts(doc, "#dashboard_plug_bar strong") == ["82 W"]
-      assert count(doc, "#energy_flow_state") == 0, "a new id: the client replaces the carrier"
-      assert [state] = attrs(doc, "[data-energy-flow-target='state']", "data-state")
+      assert attrs(doc, "#live_freshness", "data-beat") == ["1"]
+      assert [state] = attrs(doc, "#energy_flow", "data-state")
       assert JSON.decode!(state)["home_w"] == 82.4
-      assert [payload] = attrs(doc, "#plug_deltas-1", "data-payload")
-      assert [%{"id" => "fridge", "avg_power_w" => 82.4}] = JSON.decode!(payload)
+
+      assert_push_event(view, "plug_deltas", %{deltas: [delta]})
+
+      assert delta == %{
+               "id" => "fridge",
+               "avg_power_w" => 82.4,
+               "bucket_ts" => div(now_ts() - 5, 60) * 60
+             }
     end
 
     test "a beat without deltas keeps the plug deltas, an inverter reading beats too", %{
@@ -177,8 +190,8 @@ defmodule ZiwoasWeb.DashboardLiveTest do
       send(view.pid, {:solakon_reading, 1})
       doc = from(render(view))
 
-      assert attrs(doc, "#plug_deltas", "data-payload") == ["[]"]
-      assert count(doc, "#energy_flow_state-2[data-live-freshness-target='beat']") == 1
+      refute_push_event(view, "plug_deltas", _)
+      assert attrs(doc, "#live_freshness", "data-beat") == ["2"]
     end
 
     test "the summary beat recomputes the day's tiles", %{conn: conn} do

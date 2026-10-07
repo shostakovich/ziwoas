@@ -1,23 +1,15 @@
 defmodule ZiwoasWeb.StaticAssetsTest do
-  use ZiwoasWeb.ConnCase, async: true
+  # Only files in git: the esbuild bundles under /assets are build output, so `mix test`
+  # stays green on a fresh checkout. CI builds them (`mix assets.deploy`), which fails on
+  # an import that does not resolve; `~p` already verifies at compile time that the
+  # layout's /assets paths are static paths.
+  use ZiwoasWeb.ConnCase
 
   for path <-
-        ~w[/assets/zipfelmaus.webp /assets/application.css /assets/chart.min.js
-           /assets/controllers/solakon_controller.js /assets/lib/chart_theme.js /favicon.png
-           /apple-touch-icon.png /icon.png /icon.svg] do
+        ~w[/images/zipfelmaus.webp /images/solakon_battery_normal.webp /favicon.png
+           /apple-touch-icon.png /icon.png /icon.svg /robots.txt] do
     test "serves #{path} from priv/static", %{conn: conn} do
       assert get(conn, unquote(path)).status == 200
     end
-  end
-
-  test "the layout links every stylesheet in priv/static/assets, sorted" do
-    on_disk =
-      Application.app_dir(:ziwoas, "priv/static/assets/*.css")
-      |> Path.wildcard()
-      |> Enum.map(&Path.basename/1)
-      |> Enum.sort()
-
-    assert "application.css" in on_disk
-    assert ZiwoasWeb.Layouts.stylesheets() == on_disk
   end
 end

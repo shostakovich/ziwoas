@@ -64,12 +64,7 @@ defmodule Ziwoas.Shading.Builder do
         from r in Record,
           where:
             r.kind == "historic" and r.lat == ^location.lat and r.lon == ^location.lon and
-              fragment(
-                "? BETWEEN ? AND ?",
-                r.timestamp,
-                type(^from, Ziwoas.Ecto.RailsDateTime),
-                type(^to, Ziwoas.Ecto.RailsDateTime)
-              )
+              r.timestamp >= ^from and r.timestamp <= ^to
       )
       |> Enum.reduce(%{}, fn record, out ->
         case Weather.solar_w_per_m2(record) do

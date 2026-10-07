@@ -1,12 +1,12 @@
 defmodule Ziwoas.LiveStateTest do
   # Mirrors test/models/live_state_test.rb.
-  use Ziwoas.DataCase, async: true
+  use Ziwoas.DataCase
 
   alias Ziwoas.{Config, LiveState, Location, Repo}
   alias Ziwoas.Plugs.{Measurement, Plug}
   alias Ziwoas.Solakon.Reading
 
-  @now DateTime.from_unix!(1_000_000)
+  @now DateTime.from_unix!(1_000_000_000_000, :microsecond)
   @now_ts 1_000_000
 
   defp plug(id, role), do: %Plug{id: id, name: String.upcase(id), role: role}

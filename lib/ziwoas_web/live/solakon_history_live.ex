@@ -11,22 +11,16 @@ defmodule ZiwoasWeb.SolakonHistoryLive do
 
   alias Ziwoas.{Clock, Config}
   alias Ziwoas.Solakon.History
-  alias ZiwoasWeb.DashboardLive
-
   @refresh_ms 60_000
 
-  @doc "The frame's refresh beat (`REFRESH_MS` of the solakon-history controller)."
+  @doc "The history's minute refresh, as Rails' frame reloaded itself."
   def schedule_refresh, do: Process.send_after(self(), :refresh_history, @refresh_ms)
 
   @impl true
   def mount(params, _session, socket) do
     if connected?(socket), do: schedule_refresh()
 
-    {:ok,
-     assign(socket,
-       history: History.payload(params["range"], Clock.now(), zone()),
-       history_beat: 0
-     )}
+    {:ok, assign(socket, history: History.payload(params["range"], Clock.now(), zone()))}
   end
 
   @impl true
@@ -40,15 +34,11 @@ defmodule ZiwoasWeb.SolakonHistoryLive do
   end
 
   @doc """
-  Renders the history for `range` under a new frame id, so the chart
-  controller reconnects (a refresh, or a range tab as the frame's navigation).
+  Renders the history for `range` afresh (a refresh, or a range tab); the
+  `SolakonHistory` hook redraws its chart in place from the new payload.
   """
-  def reload_history(socket, range) do
-    assign(socket,
-      history: History.payload(range, Clock.now(), zone()),
-      history_beat: socket.assigns.history_beat + 1
-    )
-  end
+  def reload_history(socket, range),
+    do: assign(socket, :history, History.payload(range, Clock.now(), zone()))
 
   defp zone, do: Config.app_config().location.timezone
 
@@ -56,10 +46,7 @@ defmodule ZiwoasWeb.SolakonHistoryLive do
   def render(assigns) do
     ~H"""
     <Layouts.app look={@look} current_path={@current_path}>
-      <.history
-        history={@history}
-        frame_id={DashboardLive.carrier_id("solakon_history", @history_beat)}
-      />
+      <.history history={@history} />
     </Layouts.app>
     """
   end

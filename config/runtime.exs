@@ -33,11 +33,8 @@ config :ziwoas,
     )
 
 # The database. ZIWOAS_DB overrides the path; dev defaults to storage/development.sqlite3.
-# Tests use their own fixture unless ZIWOAS_DB names another file.
-if config_env() == :test and System.get_env("ZIWOAS_DB") do
-  config :ziwoas, Ziwoas.Repo, database: System.get_env("ZIWOAS_DB")
-end
-
+# Tests always use tmp/test.sqlite3 (config/test.exs): the sandbox wraps every test in a
+# transaction, but `mix test` migrates the file first.
 if config_env() != :test do
   database =
     path_env.(
@@ -51,12 +48,6 @@ if config_env() != :test do
   # The aggregator's nightly backups (owner only, Ziwoas.Plugs.AggregatorJob): next to
   # the database, which is Rails' storage/backup.
   config :ziwoas, backup_dir: Path.join(Path.dirname(database), "backup")
-end
-
-# Where tasks in shadow or dry_run mode write (Ziwoas.Ownership, Ziwoas.ShadowDb);
-# required once one does. Never the main database.
-if shadow = System.get_env("ZIWOAS_SHADOW_DB") do
-  config :ziwoas, shadow_database: shadow
 end
 
 if config_env() == :prod do

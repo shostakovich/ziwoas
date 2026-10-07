@@ -3,6 +3,9 @@ defmodule ZiwoasWeb.WeatherLive do
   The Wetter page (Rails' `WeatherController#index`). Rails refreshes it over
   the `weather` Turbo stream; here a `{:weather_updated}` on the `weather`
   PubSub topic reloads it once something publishes there.
+
+  A segment tile of the next days opens that segment's hours below the tiles and
+  closes the day's other segment (`"toggle_segment"`); the choice outlives a reload.
   """
   use ZiwoasWeb, :live_view
 
@@ -15,7 +18,19 @@ defmodule ZiwoasWeb.WeatherLive do
   @impl true
   def mount(_params, _session, socket) do
     if connected?(socket), do: Phoenix.PubSub.subscribe(Ziwoas.PubSub, @topic)
-    {:ok, socket |> assign(:page_title, "Wetter") |> load()}
+    {:ok, socket |> assign(page_title: "Wetter", open_segments: %{}) |> load()}
+  end
+
+  @impl true
+  def handle_event("toggle_segment", %{"day" => day, "index" => index}, socket) do
+    index = String.to_integer(index)
+
+    open =
+      if socket.assigns.open_segments[day] == index,
+        do: Map.delete(socket.assigns.open_segments, day),
+        else: Map.put(socket.assigns.open_segments, day, index)
+
+    {:noreply, assign(socket, :open_segments, open)}
   end
 
   @impl true
@@ -30,7 +45,7 @@ defmodule ZiwoasWeb.WeatherLive do
       <.empty current={@current} today={@today} days={@days} />
       <.current current={@current} sensor={@sensor} />
       <.today records={@today} zone={@zone} />
-      <.forecast days={@days} zone={@zone} />
+      <.forecast days={@days} zone={@zone} open={@open_segments} />
     </Layouts.app>
     """
   end

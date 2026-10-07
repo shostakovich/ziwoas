@@ -1,6 +1,6 @@
 defmodule Ziwoas.Trmnl.EnergyPayloadTest do
   # Mirrors test/models/trmnl_payload_builder_test.rb.
-  use Ziwoas.DataCase, async: true
+  use Ziwoas.DataCase
 
   alias Ziwoas.{RubyJSON, TestConfigs}
   alias Ziwoas.Trmnl.EnergyPayload

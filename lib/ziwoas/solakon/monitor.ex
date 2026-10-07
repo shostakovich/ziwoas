@@ -8,12 +8,11 @@ defmodule Ziwoas.Solakon.Monitor do
   frames `Ziwoas.Solakon.Modbus` refuses to send unless Phoenix owns
   `solakon_control` (answered `{:error, {:not_owner, mode}}`).
 
-  As owner the connection stays open between requests; a reused connection that
-  fails is retried once on a fresh one (the inverter may have dropped it while idle;
-  every write sets an absolute value, so repeating one is harmless). In shadow mode
-  it is opened per request and closed again, as Rails' rmodbus does, so the shadow
-  holds a connection slot only while it reads — Rails keeps polling the same
-  inverter meanwhile. Transaction ids count from 1 on every connection, as rmodbus'.
+  The connection stays open between requests; a reused connection that fails is
+  retried once on a fresh one (the inverter may have dropped it while idle; every
+  write sets an absolute value, so repeating one is harmless). With `keep_open:
+  false` it is opened per request and closed again, as Rails' rmodbus did.
+  Transaction ids count from 1 on every connection, as rmodbus'.
 
   After a failed connect or request the next attempt waits: 1 s, doubling to 60 s,
   back to 1 s after a success. A request inside that wait answers `{:error,
@@ -60,7 +59,7 @@ defmodule Ziwoas.Solakon.Monitor do
     do: GenServer.call(server, {:request, operation}, @call_timeout_ms)
 
   @doc """
-  Options: `:host`, `:port`, `:unit_id`, `:keep_open` (true as owner), `:name`;
+  Options: `:host`, `:port`, `:unit_id`, `:keep_open` (default true), `:name`;
   `:io_timeout_ms`, `:clock` (monotonic ms) for tests.
   """
   @impl true
@@ -69,7 +68,7 @@ defmodule Ziwoas.Solakon.Monitor do
       host: Keyword.fetch!(opts, :host),
       port: Keyword.get(opts, :port, 502),
       unit: Keyword.get(opts, :unit_id, 1),
-      keep_open: Keyword.get(opts, :keep_open, false),
+      keep_open: Keyword.get(opts, :keep_open, true),
       io_timeout: Keyword.get(opts, :io_timeout_ms, @io_timeout_ms),
       clock: Keyword.get(opts, :clock, fn -> System.monotonic_time(:millisecond) end),
       socket: nil,

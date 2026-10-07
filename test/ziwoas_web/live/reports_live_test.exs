@@ -1,17 +1,17 @@
 defmodule ZiwoasWeb.ReportsLiveTest do
   # Mirrors test/controllers/reports_controller_test.rb on the disconnected render;
   # markup parity with Rails is the golden master's job.
-  use ZiwoasWeb.ConnCase, async: true, db: true
+  use ZiwoasWeb.ConnCase
 
   import Phoenix.LiveViewTest
 
-  alias Ziwoas.{Clock, Repo}
+  alias Ziwoas.{Repo, TestClock}
   alias Ziwoas.EnergyReport.DailyEnergySummary
   alias Ziwoas.Plugs.DailyTotal
   alias Ziwoas.Weather.Record
 
   setup do
-    Clock.freeze("2026-04-10T12:00:00+02:00")
+    TestClock.freeze("2026-04-10T12:00:00+02:00")
     :ok
   end
 
@@ -72,11 +72,11 @@ defmodule ZiwoasWeb.ReportsLiveTest do
 
     assert texts(doc, "label[for='report-daily-weather']") == ["Wetter einblenden"]
 
-    assert attr(doc, "#report-daily-weather", "data-action") == [
-             "change->energy-report#toggleDailyWeather"
+    assert attr(doc, "#report-daily-weather[phx-update=ignore]", "data-weather-toggle") == [
+             "daily"
            ]
 
-    assert count(doc, "script[data-energy-report-target='weatherAssets']") == 1
+    assert count(doc, "#energy_report script[data-island='weather-assets']") == 1
   end
 
   test "a custom range marks Benutzerdefiniert, not a preset, as active", %{conn: conn} do
@@ -151,9 +151,12 @@ defmodule ZiwoasWeb.ReportsLiveTest do
     assert "Leistung" in texts(doc, ".card-title")
     assert count(doc, ".card .chart-frame") >= 2
     assert count(doc, "ul.list-group[aria-label='Erzeugung'] > li.list-group-item") == 1
-    assert count(doc, "[data-energy-report-target='dailyCanvas']") == 1
-    assert count(doc, "[data-energy-report-target='detailCanvas']") == 1
-    assert count(doc, "script[data-energy-report-target='payload']") == 1
+    assert count(doc, "#energy_report[phx-hook=EnergyReport]") == 1
+
+    assert attr(doc, "#energy_report [phx-update=ignore][id] > canvas", "data-chart") ==
+             ~w[daily detail ratios]
+
+    assert count(doc, "#energy_report script[data-island='payload']") == 1
   end
 
   test "the payload keeps Rails' key order and escaping", %{conn: conn} do
@@ -161,7 +164,7 @@ defmodule ZiwoasWeb.ReportsLiveTest do
     body = conn |> get(~p"/reports") |> html_response(200)
 
     assert [_, json] =
-             Regex.run(~r{data-energy-report-target="payload">(.*?)</script>}s, body)
+             Regex.run(~r{data-island="payload">(.*?)</script>}s, body)
 
     assert json =~ ~r/\A\{"daily":\{"labels":\["04\.04\.",/
     assert json =~ ~s("detail":{"chart_type":"line","labels":[)
@@ -221,7 +224,7 @@ defmodule ZiwoasWeb.ReportsLiveTest do
 
     assert "Watt · 5-Min-Werte · 01.04.–03.04." in texts(page(conn, range), ".card-subtitle")
 
-    Clock.freeze("2027-01-10T12:00:00+01:00")
+    TestClock.freeze("2027-01-10T12:00:00+01:00")
 
     assert "Watt · 5-Min-Werte · 01.04.2026–03.04.2026" in texts(
              page(conn, range),
@@ -258,7 +261,7 @@ defmodule ZiwoasWeb.ReportsLiveTest do
     doc = page(conn)
 
     assert "Autarkie & Eigenverbrauchsquote" in texts(doc, ".card-title")
-    assert count(doc, "[data-energy-report-target='ratiosCanvas']") == 1
+    assert count(doc, "#report_ratios_chart[phx-update=ignore] > canvas[data-chart=ratios]") == 1
     assert "50,0 %" in texts(doc, ".stat-value")
   end
 

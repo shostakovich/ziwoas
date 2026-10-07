@@ -1,10 +1,10 @@
 defmodule Ziwoas.Plugs.ShellyStatusHandlerTest do
   # test/shelly_status_handler_test.rb beyond the replay vectors: the topics, the
-  # live beat as owner, and where the rows go by mode.
+  # live beat as owner, and the rows it writes.
   # Subscribes to a global PubSub topic another test broadcasts on.
-  use Ziwoas.DataCase, async: false
+  use Ziwoas.DataCase
 
-  alias Ziwoas.{Ownership, Repo, TestConfigs}
+  alias Ziwoas.{Repo, TestConfigs}
   alias Ziwoas.Plugs.{Sample, ShellyStatusHandler, State}
 
   @moduletag :capture_log
@@ -16,11 +16,6 @@ defmodule Ziwoas.Plugs.ShellyStatusHandlerTest do
   defp payload(apower, total, extra \\ %{}),
     do: JSON.encode!(Map.merge(%{"apower" => apower, "aenergy" => %{"total" => total}}, extra))
 
-  setup do
-    on_exit(&Ownership.clear_override/0)
-    :ok
-  end
-
   test "subscribes to the switch status of every plug under the prefix" do
     assert ShellyStatusHandler.subscriptions(handler()) == ["shellies/+/status/switch:0"]
   end
@@ -31,9 +26,7 @@ defmodule Ziwoas.Plugs.ShellyStatusHandlerTest do
     refute ShellyStatusHandler.matches?(handler(), "shellies-other/bkw/status/switch:0")
   end
 
-  test "as owner the deltas go out on the dashboard topic", %{repo: repo} do
-    Repo.put_writer(:main, repo)
-    Ownership.override(%{plug_ingest: :phoenix})
+  test "as owner the deltas go out on the dashboard topic" do
     Phoenix.PubSub.subscribe(Ziwoas.PubSub, "dashboard")
 
     ShellyStatusHandler.handle(
@@ -56,12 +49,7 @@ defmodule Ziwoas.Plugs.ShellyStatusHandlerTest do
            ]
   end
 
-  test "in shadow mode rows go to the shadow database and nothing is broadcast", %{repo: repo} do
-    Repo.put_writer(:main, :no_main_writer)
-    Repo.put_writer(:shadow, repo)
-    Ownership.override(%{plug_ingest: :shadow})
-    Phoenix.PubSub.subscribe(Ziwoas.PubSub, "dashboard")
-
+  test "a report becomes a sample and the plug's output" do
     ShellyStatusHandler.handle(
       handler(),
       "shellies/fridge/status/switch:0",
@@ -70,13 +58,9 @@ defmodule Ziwoas.Plugs.ShellyStatusHandlerTest do
 
     assert [%Sample{plug_id: "fridge", ts: 1_700_000_000, apower_w: 50.0}] = Repo.all(Sample)
     assert [%State{plug_id: "fridge", output: true}] = Repo.all(State)
-    refute_receive {:dashboard_live, _}
   end
 
-  test "an output that stays the same is not written again", %{repo: repo} do
-    Repo.put_writer(:main, repo)
-    Ownership.override(%{plug_ingest: :phoenix})
-
+  test "an output that stays the same is not written again" do
     Repo.insert!(%State{
       plug_id: "fridge",
       output: true,

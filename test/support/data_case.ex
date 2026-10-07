@@ -1,56 +1,51 @@
 defmodule Ziwoas.DataCase do
   @moduledoc """
-  Tests that write rows: every module gets its own writable SQLite with the Rails
-  schema (`Ziwoas.RailsFixture`, no rows), every test starts from empty tables.
-  The repo is the process's dynamic repo, so code under test in the same process
-  (including a controller dispatched by `Phoenix.ConnTest`) reads these rows.
+  Tests that touch the database. Each test runs inside a transaction of the SQL
+  sandbox that is rolled back when it ends, so every test starts from the empty,
+  migrated `tmp/test.sqlite3`.
 
-      use Ziwoas.DataCase, async: true
+      use Ziwoas.DataCase
 
-  `ZiwoasWeb.ConnCase` takes `db: true` for the same.
+  SQLite allows one write transaction at a time, which the sandbox holds for the whole
+  test, so these tests cannot run async: `async: true` raises.
+
+  The test process owns the connection. Processes it starts with `$callers` set (a
+  LiveView under `Phoenix.LiveViewTest`, a `Task`) use it too; any other process (a
+  `start_supervised` GenServer) needs `Ecto.Adapters.SQL.Sandbox.allow/3`, or the
+  module tag `@moduletag :shared_sandbox` when it queries before the test can allow it.
   """
   use ExUnit.CaseTemplate
 
+  alias Ecto.Adapters.SQL.Sandbox
   alias Ziwoas.Repo
 
-  using do
+  using opts do
+    check_sync!(__CALLER__.module, opts)
+
     quote do
       import Ziwoas.DataCase
     end
   end
 
-  setup_all context, do: start_db!(context)
-  setup context, do: checkout!(context)
-
-  @doc "A fresh database file for the test module and a writable repo on it."
-  def start_db!(%{module: module}) do
-    name = module |> Atom.to_string() |> String.replace(~r/\W+/, "_")
-
-    path =
-      Ziwoas.RailsFixture.build!(Path.expand("../../tmp/data/#{name}.sqlite3", __DIR__),
-        rows: false
-      )
-
-    repo =
-      ExUnit.Callbacks.start_supervised!(
-        {Repo, name: nil, database: path, writable: true, pool_size: 1}
-      )
-
-    %{repo: repo}
+  setup tags do
+    setup_sandbox(tags)
+    :ok
   end
 
-  @doc "Points the test process at the module's repo and empties every table."
-  def checkout!(%{repo: repo}) do
-    Repo.put_dynamic_repo(repo)
+  @doc false
+  def check_sync!(module, opts) do
+    if Keyword.get(opts, :async, false) do
+      raise ArgumentError,
+            "#{inspect(module)} touches the database and cannot run async: SQLite allows " <>
+              "one write transaction at a time, and the SQL sandbox holds it for the whole " <>
+              "test. Drop `async: true`."
+    end
+  end
 
-    %{rows: tables} =
-      Repo.query!(
-        "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
-      )
-
-    for [table] <- tables, do: Repo.query!(~s(DELETE FROM "#{table}"))
-    ExUnit.Callbacks.on_exit(fn -> Ziwoas.Clock.unfreeze() end)
-    :ok
+  @doc "Starts the sandbox owner of the test's connection; it stops when the test ends."
+  def setup_sandbox(tags) do
+    pid = Sandbox.start_owner!(Repo, shared: Map.has_key?(tags, :shared_sandbox))
+    ExUnit.Callbacks.on_exit(fn -> Sandbox.stop_owner(pid) end)
   end
 
   def insert_sample!(plug_id, ts, apower_w, aenergy_wh) do
@@ -67,6 +62,15 @@ defmodule Ziwoas.DataCase do
       valid_from: valid_from,
       eur_per_kwh: Decimal.new(eur_per_kwh)
     })
+  end
+
+  @doc """
+  `time` in UTC with microsecond precision, the form a `:utc_datetime_usec` field takes
+  when a struct goes into `Repo.insert!/1` without a changeset.
+  """
+  def usec(%DateTime{} = time) do
+    {:ok, time} = Ecto.Type.cast(:utc_datetime_usec, time)
+    time
   end
 
   @doc "Local midnight of `date` in Berlin, Unix seconds."

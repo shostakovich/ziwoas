@@ -1,15 +1,15 @@
 defmodule ZiwoasWeb.ApiControllerTest do
   # Mirrors test/controllers/api_controller_test.rb; byte parity with Rails is the
   # golden master's job (script/golden_master).
-  use ZiwoasWeb.ConnCase, async: true, db: true
+  use ZiwoasWeb.ConnCase
 
-  alias Ziwoas.Clock
+  alias Ziwoas.{Clock, TestClock}
 
   @now ~U[2026-10-05 10:00:00Z]
 
   setup %{conn: conn} do
     insert_price!("2020-01-01", "0.2902")
-    Clock.freeze(@now)
+    TestClock.freeze(@now)
     %{conn: put_req_header(conn, "accept", "application/json")}
   end
 

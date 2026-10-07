@@ -1,8 +1,8 @@
 defmodule ZiwoasWeb.ReportsComponents do
   @moduledoc """
   The partials of the Berichte page (`app/views/reports/`): range picker,
-  plug ranking, chart cards and the chart payload the `energy-report`
-  Stimulus controller reads.
+  plug ranking, chart cards and the chart payload the `EnergyReport` hook
+  reads.
   """
   use ZiwoasWeb, :html
 
@@ -140,7 +140,7 @@ defmodule ZiwoasWeb.ReportsComponents do
           max_kwh={@max_kwh}
           colour={producer_color()}
         >
-          <img alt="Erzeuger" class="app-nav-icon" src={~p"/assets/icon_sonne.webp"} />
+          <img alt="Erzeuger" class="app-nav-icon" src={~p"/images/icon_sonne.webp"} />
         </.ranking_row>
       </ul>
       <ol :if={@consumers != []} class="list-group mb-3 small" aria-label="Rangliste">
@@ -195,8 +195,6 @@ defmodule ZiwoasWeb.ReportsComponents do
   attr :chart, :string, required: true
 
   def weather_switch(assigns) do
-    assigns = assign(assigns, :action, String.capitalize(assigns.chart))
-
     ~H"""
     <div class="d-flex align-items-center mb-2">
       <div class="form-check form-switch mb-0">
@@ -205,8 +203,8 @@ defmodule ZiwoasWeb.ReportsComponents do
           class="form-check-input"
           role="switch"
           id={"report-#{@chart}-weather"}
-          data-energy-report-target={"#{@chart}WeatherCheckbox"}
-          data-action={"change->energy-report#toggle#{@action}Weather"}
+          phx-update="ignore"
+          data-weather-toggle={@chart}
         />
         <label class="form-check-label" for={"report-#{@chart}-weather"}>Wetter einblenden</label>
       </div>
@@ -237,26 +235,24 @@ defmodule ZiwoasWeb.ReportsComponents do
   @doc "The payload as `json_escape(chart_payload.to_json)`."
   def payload_json(%EnergyReport{chart_payload: payload}), do: json_escape(ordered(payload))
 
-  @doc "Every weather icon's asset path by name, daily icons first (`weatherAssets`)."
+  @doc "Every weather icon's asset path by name, daily icons first (the `weather-assets` island)."
   def weather_assets(%EnergyReport{chart_payload: payload}) do
     [payload.daily, payload.detail]
     |> Enum.flat_map(&get_in(&1, [Access.key(:weather, %{}), Access.key(:icons, [])]))
     |> Enum.reject(&is_nil/1)
     |> Enum.reduce([], fn %{asset_name: name}, acc ->
-      if List.keymember?(acc, name, 0), do: acc, else: acc ++ [{name, "/assets/#{name}"}]
+      if List.keymember?(acc, name, 0), do: acc, else: acc ++ [{name, ~p"/images/#{name}"}]
     end)
   end
 
   def weather_assets_json(assets), do: json_escape(assets)
 
   @doc """
-  A JSON data island for the `energy-report` controller, written whole: the
-  HEEx formatter would wrap a `<script>` body in whitespace.
+  A JSON data island for the `EnergyReport` hook, written whole: the HEEx
+  formatter would wrap a `<script>` body in whitespace.
   """
-  def json_script(target, json) do
-    raw(
-      ~s(<script type="application/json" data-energy-report-target="#{target}">#{json}</script>)
-    )
+  def json_script(name, json) do
+    raw(~s(<script type="application/json" data-island="#{name}">#{json}</script>))
   end
 
   defp ordered(map) when is_map(map) do

@@ -3,7 +3,8 @@ defmodule ZiwoasWeb.SensorsLive do
   The Sensoren page (Rails' `SensorsController#index`). Rails replaces its
   `sensors_dashboard` frame over the `sensors` Turbo stream after every
   sensor poll; here `{:sensors_updated}` on the `sensors` PubSub topic
-  (`Ziwoas.Live.SensorsWatcher`) reloads the same part.
+  (`Ziwoas.Sensors.PollJob`) reloads the same part and tells the
+  `SensorsChart` hook to reload its series (`"sensors_updated"`).
   """
   use ZiwoasWeb, :live_view
 
@@ -20,7 +21,8 @@ defmodule ZiwoasWeb.SensorsLive do
   end
 
   @impl true
-  def handle_info({:sensors_updated}, socket), do: {:noreply, load(socket)}
+  def handle_info({:sensors_updated}, socket),
+    do: {:noreply, socket |> load() |> push_event("sensors_updated", %{})}
 
   @impl true
   def render(assigns) do

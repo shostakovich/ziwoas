@@ -43,12 +43,7 @@ defmodule Ziwoas.Weather do
       from r in Record,
         where:
           r.kind in ["forecast", "historic"] and
-            fragment(
-              "? BETWEEN ? AND ?",
-              r.timestamp,
-              type(^utc(from), Ziwoas.Ecto.RailsDateTime),
-              type(^to, Ziwoas.Ecto.RailsDateTime)
-            ),
+            r.timestamp >= ^from and r.timestamp <= ^to,
         order_by: r.timestamp
     )
   end

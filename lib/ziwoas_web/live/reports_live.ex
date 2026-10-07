@@ -42,7 +42,7 @@ defmodule ZiwoasWeb.ReportsLive do
     <Layouts.app look={@look} current_path={@current_path} main_class="app-main-wide">
       <h1 class="h2 mb-3">Berichte</h1>
 
-      <div data-controller="energy-report">
+      <div id="energy_report" phx-hook="EnergyReport">
         <.range_picker report={@report} params={@params} />
 
         <p :for={message <- @report.messages} class="alert alert-warning mb-3" role="status">
@@ -63,28 +63,28 @@ defmodule ZiwoasWeb.ReportsLive do
 
           <.card title="Energie" subtitle="kWh je Tag · Ertrag und Verbrauch">
             <.weather_switch :if={weather?(@report, :daily)} chart="daily" />
-            <div class="chart-frame">
-              <canvas data-energy-report-target="dailyCanvas"></canvas>
+            <div class="chart-frame" id="report_daily_chart" phx-update="ignore">
+              <canvas data-chart="daily"></canvas>
             </div>
           </.card>
 
           <.card title="Leistung" subtitle={power_subtitle(@report, @today)}>
             <.weather_switch :if={weather?(@report, :detail)} chart="detail" />
-            <div class="chart-frame">
-              <canvas data-energy-report-target="detailCanvas"></canvas>
+            <div class="chart-frame" id="report_detail_chart" phx-update="ignore">
+              <canvas data-chart="detail"></canvas>
             </div>
           </.card>
 
           <.card title="Autarkie & Eigenverbrauchsquote" subtitle="Prozent je Tag">
-            <div class="chart-frame">
-              <canvas data-energy-report-target="ratiosCanvas"></canvas>
+            <div class="chart-frame" id="report_ratios_chart" phx-update="ignore">
+              <canvas data-chart="ratios"></canvas>
             </div>
           </.card>
         <% end %>
 
         {json_script("payload", payload_json(@report))}
         {if @weather_assets != [],
-          do: json_script("weatherAssets", weather_assets_json(@weather_assets))}
+          do: json_script("weather-assets", weather_assets_json(@weather_assets))}
       </div>
     </Layouts.app>
     """

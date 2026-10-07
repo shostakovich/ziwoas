@@ -2,21 +2,19 @@ defmodule ZiwoasWeb.SolakonControlsControllerTest do
   # test/controllers/solakon_controls_controller_test.rb, with the inverter a Modbus
   # TCP fake behind Phoenix's monitor, plus the PV page's switches as LiveView events.
   # Not async: it swaps the config path, which every process reads.
-  use ZiwoasWeb.ConnCase, async: false, db: true
+  use ZiwoasWeb.ConnCase
 
   import Phoenix.LiveViewTest
 
-  alias Ziwoas.{Clock, Config, FakeModbusServer, Ownership, Repo}
+  alias Ziwoas.{Clock, Config, FakeModbusServer, Repo, TestClock}
   alias Ziwoas.Solakon.Monitor
   alias Ziwoas.Solakon.Control.State
 
   @moduletag :capture_log
   @inverter Ziwoas.TestConfigs.file(:inverter)
 
-  setup %{repo: repo} do
-    Repo.put_writer(:main, repo)
-    Clock.freeze("2026-10-05T12:00:00+02:00")
-    Ownership.override(%{solakon_control: :phoenix, solakon_monitor: :phoenix})
+  setup do
+    TestClock.freeze("2026-10-05T12:00:00+02:00")
     previous = Application.fetch_env!(:ziwoas, :config_path)
     use_config(@inverter)
 
@@ -24,7 +22,6 @@ defmodule ZiwoasWeb.SolakonControlsControllerTest do
       Application.delete_env(:ziwoas, :solakon_monitor)
       Application.put_env(:ziwoas, :config_path, previous)
       Config.reset()
-      Ownership.clear_override()
     end)
 
     :ok
@@ -97,11 +94,14 @@ defmodule ZiwoasWeb.SolakonControlsControllerTest do
     assert patch_json(build_conn(), "/solakon/eps", %{enabled: "yes"}).resp_body ==
              ~s({"enabled":true})
 
-    assert List.flatten(FakeModbusServer.frames(server)) == [
-             "0001000000060106b6150000",
-             "0001000000060106b6150000",
-             "0001000000060106b6150000",
-             "0001000000060106b6150002"
+    # One connection: the transaction id counts up.
+    assert FakeModbusServer.frames(server) == [
+             [
+               "0001000000060106b6150000",
+               "0002000000060106b6150000",
+               "0003000000060106b6150000",
+               "0004000000060106b6150002"
+             ]
            ]
   end
 
@@ -187,12 +187,12 @@ defmodule ZiwoasWeb.SolakonControlsControllerTest do
       html = view |> element("#solakon-eps-toggle") |> render_click()
 
       assert FakeModbusServer.frames(server) == [["0001000000060106b6150002"]]
-      assert html =~ ~r/data-solakon-target="epsState"[^>]*>\s*An\s*</
+      assert html =~ ~r/id="solakon-eps-state"[^>]*>\s*An\s*</
 
       view |> element("#solakon-eps-toggle") |> render_click()
 
-      assert List.last(List.flatten(FakeModbusServer.frames(server))) ==
-               "0001000000060106b6150000"
+      assert FakeModbusServer.frames(server) ==
+               [["0001000000060106b6150002", "0002000000060106b6150000"]]
     end
 
     test "a failed EPS switch says so and keeps the state", %{conn: conn} do
@@ -202,10 +202,10 @@ defmodule ZiwoasWeb.SolakonControlsControllerTest do
       html = view |> element("#solakon-eps-toggle") |> render_click()
 
       doc = LazyHTML.from_fragment(html)
-      [error] = doc |> LazyHTML.query("[data-solakon-target='epsError']") |> Enum.to_list()
+      [error] = doc |> LazyHTML.query("#solakon-eps-error") |> Enum.to_list()
       assert String.trim(LazyHTML.text(error)) == "Schalten fehlgeschlagen"
       assert LazyHTML.attribute(error, "hidden") == []
-      assert html =~ ~r/data-solakon-target="epsState"[^>]*>\s*Aus\s*</
+      assert html =~ ~r/id="solakon-eps-state"[^>]*>\s*Aus\s*</
     end
 
     test "the Auto-Regelung switch pauses and resumes the loop", %{conn: conn} do
@@ -215,13 +215,13 @@ defmodule ZiwoasWeb.SolakonControlsControllerTest do
       html = view |> element("#solakon-control-toggle") |> render_click()
 
       refute State.active?(State.current())
-      assert html =~ ~r/data-solakon-target="controlState"[^>]*>\s*Pausiert\s*</
-      assert html =~ ~r/data-solakon-target="controlHelp"[^>]*>\s*pausiert\s*</
+      assert html =~ ~r/id="solakon-control-state"[^>]*>\s*Pausiert\s*</
+      assert html =~ ~r/id="solakon-control-help"[^>]*>\s*pausiert\s*</
 
       html = view |> element("#solakon-control-toggle") |> render_click()
 
       assert State.active?(State.current())
-      assert html =~ ~r/data-solakon-target="controlState"[^>]*>\s*Aktiv\s*</
+      assert html =~ ~r/id="solakon-control-state"[^>]*>\s*Aktiv\s*</
     end
   end
 end

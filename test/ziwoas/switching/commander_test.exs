@@ -1,30 +1,25 @@
 defmodule Ziwoas.Switching.CommanderTest do
-  # Mirrors test/models/switching/commander_test.rb, plus the modes of `switching`.
-  use Ziwoas.DataCase, async: true
+  # Mirrors test/models/switching/commander_test.rb.
+  use Ziwoas.DataCase
 
   import Ecto.Query
 
-  alias Ziwoas.{Clock, Config, Mqtt, Ownership, Repo}
-  alias Ziwoas.Ownership.NotOwnerError
+  alias Ziwoas.{Config, Repo, TestClock, TestMqtt}
   alias Ziwoas.Plugs.Plug
   alias Ziwoas.Switching.{Command, Commander}
 
-  @moduletag :tmp_dir
   @mqtt %Config.Mqtt{host: "localhost", port: 1883, topic_prefix: "shellies"}
   @plug %Plug{id: "lamp", name: "Lampe", role: :consumer, driver: :shelly, switchable: true}
 
-  setup %{repo: repo} do
-    Clock.freeze("2026-06-15T18:00:00Z")
-    Repo.put_writer(:main, repo)
-    Ownership.override(%{switching: :phoenix})
-    on_exit(&Ownership.clear_override/0)
+  setup do
+    TestClock.freeze("2026-06-15T18:00:00Z")
     record(:ok)
   end
 
   defp record(answer) do
     test = self()
 
-    Mqtt.record(fn client_id, topic, payload ->
+    TestMqtt.record(fn client_id, topic, payload ->
       send(test, {:published, client_id, topic, payload})
       answer
     end)
@@ -36,10 +31,10 @@ defmodule Ziwoas.Switching.CommanderTest do
     assert {:ok, %Command{}} = Commander.switch(@plug, :on, :manual, @mqtt)
     assert_received {:published, "ziwoas-phoenix-command", "shellies/lamp/command/switch:0", "on"}
 
-    assert [%Command{plug_id: "lamp", action: "on", source: "manual", created_at: created_at}] =
+    assert [%Command{plug_id: "lamp", action: "on", source: "manual", inserted_at: inserted_at}] =
              commands()
 
-    assert created_at == ~U[2026-06-15 18:00:00.000000Z]
+    assert inserted_at == ~U[2026-06-15 18:00:00.000000Z]
   end
 
   test "publishes off with source schedule" do
@@ -73,35 +68,5 @@ defmodule Ziwoas.Switching.CommanderTest do
   test "an invalid action raises" do
     action = String.to_atom("toggle")
     assert_raise ArgumentError, fn -> Commander.switch(@plug, action, :manual, @mqtt) end
-  end
-
-  test "a dry run publishes nothing and records the command in the shadow database",
-       %{tmp_dir: dir, repo: main} do
-    shadow =
-      start_supervised!(
-        {Repo,
-         name: nil,
-         database: Ziwoas.RailsFixture.build!(Path.join(dir, "shadow.sqlite3"), rows: false),
-         writable: true,
-         pool_size: 1}
-      )
-
-    Repo.put_writer(:shadow, shadow)
-    Ownership.override(%{switching: :dry_run})
-
-    assert {:ok, _command} = Commander.switch(@plug, :off, :schedule, @mqtt)
-    refute_received {:published, _, _, _}
-    assert commands() == []
-
-    Repo.put_dynamic_repo(shadow)
-    assert [%Command{plug_id: "lamp", action: "off", source: "schedule"}] = commands()
-    Repo.put_dynamic_repo(main)
-  end
-
-  test "rails mode raises before anything is sent or written" do
-    Ownership.override(%{switching: :rails})
-    assert_raise NotOwnerError, fn -> Commander.switch(@plug, :on, :manual, @mqtt) end
-    refute_received {:published, _, _, _}
-    assert commands() == []
   end
 end

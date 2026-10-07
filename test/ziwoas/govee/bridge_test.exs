@@ -5,14 +5,8 @@ defmodule Ziwoas.Govee.BridgeTest do
 
   alias Ziwoas.Config.Govee
   alias Ziwoas.Govee.Bridge
-  alias Ziwoas.Ownership
 
   @moduletag :capture_log
-
-  setup do
-    on_exit(&Ownership.clear_override/0)
-    :ok
-  end
 
   @mac "14:AB:DB:48:44:06:4B:60"
   @key "14ABDB4844064B60"
@@ -70,7 +64,6 @@ defmodule Ziwoas.Govee.BridgeTest do
 
   defp start_bridge!(opts) do
     test = self()
-    if opts[:owner], do: Ownership.override(%{govee_bridge: :phoenix})
 
     defaults = [
       name: nil,

@@ -1,16 +1,13 @@
 defmodule ZiwoasWeb.EconomicsControllerTest do
   # Mirrors test/controllers/economics_controller_test.rb.
-  use ZiwoasWeb.ConnCase, async: true, db: true
+  use ZiwoasWeb.ConnCase
 
-  alias Ziwoas.{Clock, Ownership, Repo}
+  alias Ziwoas.{Repo, TestClock}
   alias Ziwoas.Economics.{CostItem, ElectricityPrice}
   alias Ziwoas.EnergyReport.DailyEnergySummary
 
-  setup %{repo: repo} do
-    Clock.freeze("2026-10-05T12:00:00+02:00")
-    Repo.put_writer(:main, repo)
-    Ownership.override(%{economics: :phoenix})
-    on_exit(&Ownership.clear_override/0)
+  setup do
+    TestClock.freeze("2026-10-05T12:00:00+02:00")
     :ok
   end
 
@@ -233,21 +230,5 @@ defmodule ZiwoasWeb.EconomicsControllerTest do
              "/solakon/wirtschaftlichkeit"
 
     assert prices() == 0
-  end
-
-  test "every write answers 421 and writes nothing while Rails owns economics", %{conn: conn} do
-    Ownership.override(%{economics: :rails})
-    item = cost_item!("Panel", "100", "2026-01-01")
-    price = price!("2026-01-01", "0.3")
-
-    cost = %{"cost_item" => %{"label" => "X", "amount_eur" => "1", "spent_on" => "2026-02-01"}}
-    new_price = %{"electricity_price" => %{"valid_from" => "2026-02-01", "eur_per_kwh" => "0.4"}}
-
-    assert conn |> post(~p"/solakon/wirtschaftlichkeit/kosten", cost) |> response(421)
-    assert conn |> delete(~p"/solakon/wirtschaftlichkeit/kosten/#{item.id}") |> response(421)
-    assert conn |> post(~p"/solakon/wirtschaftlichkeit/preise", new_price) |> response(421)
-    assert conn |> delete(~p"/solakon/wirtschaftlichkeit/preise/#{price.id}") |> response(421)
-    assert {cost_items(), prices()} == {1, 1}
-    assert conn |> get(~p"/solakon/wirtschaftlichkeit") |> html_response(200)
   end
 end

@@ -1,6 +1,6 @@
 defmodule Ziwoas.Switching.RowTest do
   # Mirrors test/models/switching/row_test.rb.
-  use Ziwoas.DataCase, async: true
+  use Ziwoas.DataCase
 
   alias Ziwoas.{Clock, Repo}
   alias Ziwoas.Plugs.{Plug, State}
@@ -13,7 +13,7 @@ defmodule Ziwoas.Switching.RowTest do
   defp at(hour, minute \\ 0),
     do:
       DateTime.new!(~D[2026-06-15], Time.new!(hour, minute, 0), @zone)
-      |> DateTime.shift_zone!("Etc/UTC")
+      |> usec()
 
   defp window(opts \\ []) do
     group = Ecto.UUID.generate()
@@ -37,13 +37,13 @@ defmodule Ziwoas.Switching.RowTest do
 
   test "build collects state, last command, entries, watt and next edge" do
     now = at(17)
-    Repo.insert!(%State{plug_id: "fridge", output: true, updated_at: now, created_at: now})
+    Repo.insert!(%State{plug_id: "fridge", output: true, updated_at: now, inserted_at: now})
 
     Repo.insert!(%Command{
       plug_id: "fridge",
       action: "on",
       source: "schedule",
-      created_at: now,
+      inserted_at: now,
       updated_at: now
     })
 
@@ -76,7 +76,7 @@ defmodule Ziwoas.Switching.RowTest do
       plug_id: "fridge",
       action: "on",
       source: "manual",
-      created_at: at(17),
+      inserted_at: at(17),
       updated_at: at(17)
     })
 
@@ -88,7 +88,7 @@ defmodule Ziwoas.Switching.RowTest do
       Repo.insert!(%State{
         plug_id: "fridge",
         output: false,
-        created_at: at(17),
+        inserted_at: at(17),
         updated_at: at(17)
       })
 
@@ -96,7 +96,7 @@ defmodule Ziwoas.Switching.RowTest do
       plug_id: "fridge",
       action: "on",
       source: "manual",
-      created_at: at(17, 5),
+      inserted_at: at(17, 5),
       updated_at: at(17, 5)
     })
 

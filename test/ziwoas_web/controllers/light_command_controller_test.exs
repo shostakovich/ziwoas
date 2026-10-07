@@ -1,17 +1,14 @@
 defmodule ZiwoasWeb.LightCommandControllerTest do
   # Mirrors test/controllers/lights_command_test.rb.
-  use ZiwoasWeb.ConnCase, async: true, db: true
+  use ZiwoasWeb.ConnCase
 
   import ZiwoasWeb.TurboCase
 
-  alias Ziwoas.{Clock, Mqtt, Ownership, Repo}
+  alias Ziwoas.{Repo, TestClock, TestMqtt}
   alias Ziwoas.Lights.{Commands, Light, State}
 
-  setup %{repo: repo} do
-    Clock.freeze("2026-06-15T17:00:00+02:00")
-    Repo.put_writer(:main, repo)
-    Ownership.override(%{lights: :phoenix})
-    on_exit(&Ownership.clear_override/0)
+  setup do
+    TestClock.freeze("2026-06-15T17:00:00+02:00")
     record(:ok)
     :ok
   end
@@ -19,7 +16,7 @@ defmodule ZiwoasWeb.LightCommandControllerTest do
   defp record(answer) do
     test = self()
 
-    Mqtt.record(fn _client, topic, payload ->
+    TestMqtt.record(fn _client, topic, payload ->
       send(test, {:published, topic, payload})
       answer
     end)
@@ -126,17 +123,5 @@ defmodule ZiwoasWeb.LightCommandControllerTest do
 
     assert {"replace", "light_toast"} in streams(body)
     assert count(stream_doc(body), "#light_toast[hidden]") == 1
-  end
-
-  test "421 while Phoenix does not own lights, before anything is sent", %{conn: conn} do
-    light!(%{key: "A1"})
-
-    for mode <- [:rails, :dry_run] do
-      Ownership.override(%{lights: mode})
-      assert conn |> command("A1", %{"command" => "turn", "on" => "true"}) |> response(421)
-    end
-
-    refute_received {:published, _, _}
-    assert Repo.all(State) == []
   end
 end

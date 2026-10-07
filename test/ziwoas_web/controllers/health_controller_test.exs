@@ -1,11 +1,11 @@
 defmodule ZiwoasWeb.HealthControllerTest do
   # Rails' rails/health#show; expected bodies from Rails at 2026-10-05 12:00 Berlin.
-  use ZiwoasWeb.ConnCase, async: true
+  use ZiwoasWeb.ConnCase
 
-  alias Ziwoas.Clock
+  alias Ziwoas.TestClock
 
   setup do
-    Clock.freeze("2026-10-05T12:00:00+02:00")
+    TestClock.freeze("2026-10-05T12:00:00+02:00")
     :ok
   end
 

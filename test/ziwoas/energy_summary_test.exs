@@ -1,6 +1,6 @@
 defmodule Ziwoas.EnergySummaryTest do
   # Mirrors test/models/energy_summary_test.rb.
-  use Ziwoas.DataCase, async: true
+  use Ziwoas.DataCase
 
   alias Ziwoas.{EnergySummary, TestConfigs}
 
@@ -100,7 +100,7 @@ defmodule Ziwoas.EnergySummaryTest do
   end
 
   test "reads now from the clock by default", %{config: config} do
-    Ziwoas.Clock.freeze(@now)
+    Ziwoas.TestClock.freeze(@now)
     assert EnergySummary.compute_today(config).date == "2026-10-05"
   end
 end

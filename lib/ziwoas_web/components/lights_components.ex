@@ -90,7 +90,7 @@ defmodule ZiwoasWeb.LightsComponents do
             class={["btn btn-light btn-icon sw-knob sw-lamp-knob", not @on && "off"]}
             aria-label={"#{@light.name} umschalten"}
           >
-            <img alt="" class="sw-knob-plush" src={asset(Light.plush_image(@light, @on))} />
+            <img alt="" class="sw-knob-plush" src={~p"/images/#{Light.plush_image(@light, @on)}"} />
           </.button_to>
 
           <span :if={@chip} class="badge border tabular-nums">
@@ -143,7 +143,7 @@ defmodule ZiwoasWeb.LightsComponents do
               height="112"
               alt=""
               class="sw-knob-plush"
-              src={asset(Light.plush_image(@light, @on))}
+              src={~p"/images/#{Light.plush_image(@light, @on)}"}
             />
           </span>
           <.rails_form
@@ -229,7 +229,6 @@ defmodule ZiwoasWeb.LightsComponents do
       phx-update="ignore"
       role="tabpanel"
       aria-labelledby="light_tab_white"
-      data-light-detail-target="panel"
       data-tab="white"
     >
       <div class="card-body">
@@ -238,7 +237,7 @@ defmodule ZiwoasWeb.LightsComponents do
           <output
             for="light_temp"
             class="text-body tabular-nums"
-            data-light-detail-target="tempValue"
+            data-light="temp-value"
           >{GermanNumber.format(@slider, unit: "K")}</output>
         </div>
         <input
@@ -249,8 +248,7 @@ defmodule ZiwoasWeb.LightsComponents do
           max={@max_k}
           step="100"
           value={@slider}
-          data-light-detail-target="temp"
-          data-action="light-detail#temp"
+          data-light="temp"
         />
         <div class="ld-ticks" aria-hidden="true">
           <span
@@ -268,9 +266,7 @@ defmodule ZiwoasWeb.LightsComponents do
             :for={{label, preset} <- @presets}
             type="button"
             class={["btn btn-sm btn-outline-primary flex-fill", @kelvin == preset && "active"]}
-            data-action="light-detail#temp"
-            data-light-detail-target="preset"
-            data-light-detail-temp-param={preset}
+            data-temp={preset}
             aria-pressed={to_string(@kelvin == preset)}
           >
             {label}
@@ -321,7 +317,6 @@ defmodule ZiwoasWeb.LightsComponents do
       phx-update="ignore"
       role="tabpanel"
       aria-labelledby="light_tab_color"
-      data-light-detail-target="panel"
       data-tab="color"
       hidden
     >
@@ -338,8 +333,7 @@ defmodule ZiwoasWeb.LightsComponents do
               id={"light_color_#{index}"}
               autocomplete="off"
               checked={@selected == swatch}
-              data-action="light-detail#swatch"
-              data-light-detail-color-param={swatch}
+              data-color={swatch}
             />
             <label
               class="btn btn-icon border ld-swatch"
@@ -352,11 +346,11 @@ defmodule ZiwoasWeb.LightsComponents do
           <label
             class={["btn btn-icon border ld-swatch ld-swatch-wheel", @custom && "ld-swatch-custom"]}
             title="Weitere Farbe"
-            data-light-detail-target="wheel"
+            data-light="wheel"
             {attr_if(@custom, style: "--ld-custom: #{@hex}")}
           >
             <span class="visually-hidden">Weitere Farbe</span>
-            <input type="color" data-action="light-detail#wheel" value={@hex || "#ff7a3d"} />
+            <input type="color" value={@hex || "#ff7a3d"} />
           </label>
         </div>
       </div>
@@ -376,7 +370,6 @@ defmodule ZiwoasWeb.LightsComponents do
       phx-update="ignore"
       role="tabpanel"
       aria-labelledby="light_tab_scenes"
-      data-light-detail-target="panel"
       data-tab="scenes"
       hidden
     >
@@ -426,7 +419,7 @@ defmodule ZiwoasWeb.LightsComponents do
   attr :message, :string, default: nil
   attr :undo, :map, default: nil, doc: "`%{light_key:, victim:, added:}`"
 
-  # Stays .show: visibility is the hidden attribute's job (server and toast controller).
+  # Stays .show: visibility is the hidden attribute's job (LightLive hides it after 5 s).
   def toast(assigns) do
     ~H"""
     <div
@@ -434,7 +427,6 @@ defmodule ZiwoasWeb.LightsComponents do
       class="toast show"
       role="status"
       aria-live="polite"
-      data-controller="toast"
       {attr_if(is_nil(@message), hidden: true)}
     >
       <div :if={@message} class="toast-body d-flex align-items-center gap-2">
@@ -478,9 +470,13 @@ defmodule ZiwoasWeb.LightsComponents do
 
   attr :live, :boolean,
     default: false,
-    doc:
-      "in LightLive: saved by `\"save_settings\"`; closing tells the LiveView (SettingsSheet hook)"
+    doc: "in LightLive: saved by `\"save_settings\"`"
 
+  @doc """
+  The settings as a modal sheet, the `SettingsSheet` hook: it opens the dialog,
+  closes it on the backdrop and on `data-dismiss="dialog"`, and tells the
+  LiveView when it closed (`"close_settings"`).
+  """
   def settings_sheet(assigns) do
     # The controller renders it outside a template, without the defaults.
     assigns = assign_new(assigns, :live, fn -> false end)
@@ -490,9 +486,8 @@ defmodule ZiwoasWeb.LightsComponents do
       class="modal"
       closedby="any"
       aria-labelledby="light_settings_title"
-      data-controller="settings-dialog"
-      data-action="close->settings-dialog#remove click->settings-dialog#backdrop"
-      {attr_if(@live, id: "light_settings_dialog", "phx-hook": "SettingsSheet")}
+      id="light_settings_dialog"
+      phx-hook="SettingsSheet"
     >
       <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
@@ -502,7 +497,7 @@ defmodule ZiwoasWeb.LightsComponents do
               type="button"
               class="btn-close"
               aria-label="Schließen"
-              data-action="settings-dialog#close"
+              data-dismiss="dialog"
             ></button>
           </div>
           <div class="modal-body">
@@ -570,7 +565,7 @@ defmodule ZiwoasWeb.LightsComponents do
       <div class="d-flex justify-content-end gap-2">
         <a
           class="btn btn-outline-secondary"
-          data-action="settings-dialog#close"
+          data-dismiss="dialog"
           href={"/lights/#{@light.key}"}
         >
           Abbrechen
@@ -594,6 +589,4 @@ defmodule ZiwoasWeb.LightsComponents do
     <% end %>
     """
   end
-
-  defp asset(file), do: "/assets/" <> file
 end

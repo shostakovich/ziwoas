@@ -25,16 +25,8 @@
     <%!-- felt-css first: our stylesheets build on it. --%>
     <link rel="preconnect" href="https://felt-css.rocu.de" />
     <link rel="stylesheet" href="https://felt-css.rocu.de/felt.css" />
-    <link
-      :for={sheet <- stylesheets()}
-      phx-track-static
-      rel="stylesheet"
-      href={~p"/assets/#{sheet}"}
-    />
-    <script type="importmap">
-      <%= Phoenix.HTML.raw(import_map()) %>
-    </script>
-    <script type="module" phx-track-static src={~p"/assets/js/app.js"}>
+    <link phx-track-static rel="stylesheet" href={~p"/assets/css/app.css"} />
+    <script defer phx-track-static type="text/javascript" src={~p"/assets/js/app.js"}>
     </script>
   </head>
   <body>

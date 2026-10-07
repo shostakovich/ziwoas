@@ -1,20 +1,14 @@
 defmodule Ziwoas.Trmnl.PushTest do
   # test/jobs/trmnl_push_job_test.rb and trmnl_sensor_push_job_test.rb
-  use Ziwoas.DataCase, async: true
+  use Ziwoas.DataCase
 
   import ExUnit.CaptureLog
 
-  alias Ziwoas.{Ownership, RubyJSON, TestConfigs}
+  alias Ziwoas.{RubyJSON, TestConfigs}
   alias Ziwoas.Trmnl.{EnergyPushJob, Push}
   alias Ziwoas.Trmnl.Push.PayloadTooLarge
 
   @payload [{"merge_variables", [{"ts", 1}, {"pv_kwh", 0}]}]
-
-  setup do
-    Ownership.override(%{trmnl_push: :phoenix})
-    on_exit(&Ownership.clear_override/0)
-    :ok
-  end
 
   defp stub_trmnl(status \\ 200) do
     test = self()
@@ -84,21 +78,8 @@ defmodule Ziwoas.Trmnl.PushTest do
              "TRMNL push failed: HTTP 500 Internal Server Error"
   end
 
-  test "in dry run the payload is built and checked, never sent" do
-    Ownership.override(%{trmnl_push: :dry_run})
-    Req.Test.stub(Push, fn _conn -> flunk("posted") end)
-
-    assert Push.run(:trmnl_push, :energy, "https://example/", fn -> @payload end) == :logged
-
-    assert_raise PayloadTooLarge, fn ->
-      Push.run(:trmnl_push, :energy, "https://example/", fn ->
-        [{"blob", String.duplicate("x", 3000)}]
-      end)
-    end
-  end
-
   test "EnergyPushJob pushes the energy widget to its webhook" do
-    Ziwoas.Clock.freeze("2026-10-05T12:00:00+02:00")
+    Ziwoas.TestClock.freeze("2026-10-05T12:00:00+02:00")
     stub_trmnl()
     config = TestConfigs.plugs("trmnl:\n  energy_webhook_url: https://example.test/energy\n")
 

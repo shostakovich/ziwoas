@@ -22,7 +22,7 @@ defmodule Ziwoas.Weather.Record do
     field :source_id, :integer
     field :sunshine, :float
     field :temperature, :float
-    field :timestamp, Ziwoas.Ecto.RailsDateTime
+    field :timestamp, :utc_datetime_usec
     field :visibility, :integer
     field :wind_direction, :integer
     field :wind_gust_direction, :integer

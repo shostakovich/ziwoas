@@ -6,11 +6,9 @@ defmodule ZiwoasWeb.LightLive do
   `Ziwoas.Lights.GoveeSubscriber` reloads the hero's snapshot alone, so the sliders
   keep what the hand is doing.
 
-  The controls keep Rails' markup. Brightness, white and colour are the
-  `light-detail` Stimulus controller's `fetch` to `/lights/:key/command`
-  (`ZiwoasWeb.LightCommandController`, Phoenix's CSRF token from the meta tag);
-  the forms — power, zones, scenes, the toast's undo — submit `"light_command"`
-  here (`ZiwoasWeb.LightEvents`), which redraws the hero and the toast as Rails'
+  Brightness, white and colour are the `LightDetail` hook's `"light_command"`
+  events; the forms — power, zones, scenes, the toast's undo — submit the same
+  event (`ZiwoasWeb.LightEvents`), which redraws the hero and the toast as Rails'
   streams do. The gear opens the settings sheet in place (`"open_settings"`) and
   saves it through `Ziwoas.Lights.update_settings/2` (`light_settings`).
   """
@@ -87,8 +85,7 @@ defmodule ZiwoasWeb.LightLive do
   defp settings(light, errors),
     do: %{light: light, plugs: Config.app_config().plugs, errors: errors}
 
-  # The toast controller hides the toast after 5 s in the browser; the assign follows,
-  # or the next patch would show it again.
+  # The toast hides itself after 5 s, as Rails' toast controller hid it in the browser.
   @toast_ms 5_000
 
   defp show_toast(socket, toast) do
@@ -109,11 +106,7 @@ defmodule ZiwoasWeb.LightLive do
 
     ~H"""
     <Layouts.app look={@look} current_path={@current_path}>
-      <div
-        data-controller="light-detail"
-        data-light-detail-key-value={@light.key}
-        data-light-detail-tab-value="white"
-      >
+      <div id="light_detail" phx-hook="LightDetail" data-key={@light.key}>
         <div class="d-flex align-items-center gap-2 mb-3">
           <a class="btn btn-icon btn-light flex-shrink-0" aria-label="Zurück" href="/switches">←</a>
           <h1 class="ld-title h2 mb-0 me-auto">{@light.name}</h1>
@@ -124,7 +117,13 @@ defmodule ZiwoasWeb.LightLive do
             href={"/lights/#{@light.key}/edit"}
             phx-click="open_settings"
           >
-            <img width="28" height="28" alt="" aria-hidden="true" src="/assets/settings_plush.webp" />
+            <img
+              width="28"
+              height="28"
+              alt=""
+              aria-hidden="true"
+              src={~p"/images/settings_plush.webp"}
+            />
           </a>
         </div>
 
@@ -137,7 +136,7 @@ defmodule ZiwoasWeb.LightLive do
               <output
                 for="light_brightness"
                 class="text-body tabular-nums"
-                data-light-detail-target="rangeValue"
+                data-light="brightness-value"
               >{@brightness} %</output>
             </div>
             <input
@@ -148,8 +147,7 @@ defmodule ZiwoasWeb.LightLive do
               min="1"
               max="100"
               value={@brightness}
-              data-light-detail-target="range"
-              data-action="light-detail#brightness"
+              data-light="brightness"
             />
           </div>
         </div>
@@ -164,9 +162,7 @@ defmodule ZiwoasWeb.LightLive do
             phx-update="ignore"
             aria-controls={"light_panel_#{key}"}
             aria-selected="false"
-            data-light-detail-target="tab"
-            data-action="light-detail#tab"
-            data-light-detail-tab-param={key}
+            data-tab={key}
           >
             {label}
           </button>

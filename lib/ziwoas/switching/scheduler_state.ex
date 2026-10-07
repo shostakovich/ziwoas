@@ -8,7 +8,7 @@ defmodule Ziwoas.Switching.SchedulerState do
   alias Ziwoas.Repo
 
   schema "scheduler_states" do
-    field :last_tick_at, Ziwoas.Ecto.RailsDateTime
+    field :last_tick_at, :utc_datetime_usec
     field :plug_id, :string
     timestamps()
   end

@@ -1,6 +1,6 @@
 defmodule Ziwoas.Trmnl.SensorPayloadTest do
   # Mirrors test/models/trmnl_sensor_payload_builder_test.rb.
-  use Ziwoas.DataCase, async: true
+  use Ziwoas.DataCase
 
   alias Ziwoas.{Repo, RubyJSON, TestConfigs}
   alias Ziwoas.Sensors.Reading

@@ -8,8 +8,10 @@ defmodule Ziwoas.Plugs.AggregatorJob do
   The backup is a file next to the database and runs only as owner
   (`Aggregator.backup!/3`); in shadow mode it is logged and skipped. Its
   directory is `config :ziwoas, :backup_dir` (default: `backup/` beside the
-  database, which is Rails' `storage/backup`); a test passes `:backup_dir` in
-  the context, as it passes `:config` (`Ziwoas.Scheduler.Job.config/1`).
+  database, which is Rails' `storage/backup`). A test passes `:backup_dir` in the
+  context, as it passes `:config` (`Ziwoas.Scheduler.Job.config/1`), or `:backup`,
+  a function of the directory and the day in place of `Aggregator.backup!/2`:
+  `VACUUM INTO` cannot run inside the transaction a test's sandbox wraps around it.
   """
   @behaviour Ziwoas.Scheduler.Job
 
@@ -44,7 +46,8 @@ defmodule Ziwoas.Plugs.AggregatorJob do
       dir =
         Map.get_lazy(context, :backup_dir, fn -> Application.fetch_env!(:ziwoas, :backup_dir) end)
 
-      Aggregator.backup!(dir, today)
+      backup = Map.get(context, :backup, &Aggregator.backup!/2)
+      backup.(dir, today)
     else
       Logger.info("aggregator: no backup in #{Ownership.mode(task)} mode")
     end

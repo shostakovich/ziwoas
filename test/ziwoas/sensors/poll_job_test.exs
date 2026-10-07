@@ -1,6 +1,6 @@
 defmodule Ziwoas.Sensors.PollJobTest do
   # test/jobs/sensor_poll_job_test.rb; PubSub topics are global, hence not async.
-  use Ziwoas.DataCase, async: false
+  use Ziwoas.DataCase
 
   import Ecto.Query
   import ExUnit.CaptureLog
@@ -24,14 +24,10 @@ defmodule Ziwoas.Sensors.PollJobTest do
     sensors_webhook_url: https://example.test/sensors
   """
 
-  setup %{repo: repo} do
-    Repo.put_writer(:main, repo)
-    Repo.put_writer(:shadow, repo)
-    Ownership.override(%{sensor_poll: :phoenix})
-    Ziwoas.Clock.freeze("2026-10-05T12:00:00.250000+02:00")
+  setup do
+    Ziwoas.TestClock.freeze("2026-10-05T12:00:00.250000+02:00")
     Phoenix.PubSub.subscribe(Ziwoas.PubSub, "sensors")
     Phoenix.PubSub.subscribe(Ziwoas.PubSub, "weather")
-    on_exit(&Ownership.clear_override/0)
     :ok
   end
 
@@ -139,18 +135,6 @@ defmodule Ziwoas.Sensors.PollJobTest do
     assert length(readings()) == 2
     assert_received {:sensors_updated}
     assert_received {:weather_updated}
-  end
-
-  test "in shadow mode reads the sensors but pushes and broadcasts nothing" do
-    Ownership.override(%{sensor_poll: :shadow})
-    stub_switchbot(&status/1)
-    Req.Test.stub(Push, fn _conn -> flunk("pushed to TRMNL") end)
-
-    PollJob.perform(context())
-
-    assert length(readings()) == 2
-    refute_received {:sensors_updated}
-    refute_received {:weather_updated}
   end
 
   # The test's mailbox before it is read: what arrived, in order.

@@ -72,9 +72,7 @@ defmodule Ziwoas.SunCalendar.Builder do
   defp pv_points({from, to}, zone) do
     Repo.all(
       from h in PvHour,
-        where:
-          h.started_at >= type(^from, Ziwoas.Ecto.RailsDateTime) and
-            h.started_at < type(^to, Ziwoas.Ecto.RailsDateTime),
+        where: h.started_at >= ^from and h.started_at < ^to,
         order_by: h.started_at,
         select: {h.started_at, h.pv_power_w}
     )
@@ -128,8 +126,7 @@ defmodule Ziwoas.SunCalendar.Builder do
         from r in Record,
           where:
             r.kind == "historic" and r.lat == ^location.lat and r.lon == ^location.lon and
-              r.timestamp >= type(^from, Ziwoas.Ecto.RailsDateTime) and
-              r.timestamp < type(^to, Ziwoas.Ecto.RailsDateTime),
+              r.timestamp >= ^from and r.timestamp < ^to,
           order_by: r.timestamp
       )
     else

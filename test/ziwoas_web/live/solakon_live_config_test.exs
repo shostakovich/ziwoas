@@ -2,9 +2,9 @@ defmodule ZiwoasWeb.SolakonLiveConfigTest do
   # The pages with an inverter configured (TestConfigs.file(:inverter): the test
   # config plus monitoring and control). Not async: it swaps the config path,
   # which every process reads; ExUnit runs sync modules after the async ones.
-  use ZiwoasWeb.ConnCase, async: false, db: true
+  use ZiwoasWeb.ConnCase
 
-  alias Ziwoas.{Clock, Config, Repo}
+  alias Ziwoas.{Clock, Config, Repo, TestClock}
   alias Ziwoas.Solakon.{Control, Reading}
 
   @now "2026-10-05T12:00:00+02:00"
@@ -14,7 +14,7 @@ defmodule ZiwoasWeb.SolakonLiveConfigTest do
 
     Application.put_env(:ziwoas, :config_path, Ziwoas.TestConfigs.file(:inverter))
 
-    Clock.freeze(@now)
+    TestClock.freeze(@now)
 
     on_exit(fn ->
       Application.put_env(:ziwoas, :config_path, previous)
@@ -42,15 +42,15 @@ defmodule ZiwoasWeb.SolakonLiveConfigTest do
 
   test "the auto-regulation follows an enabled config and the stored state", %{conn: conn} do
     doc = page(conn, "/solakon")
-    assert texts(doc, ".stat-value[data-solakon-target='controlState']") == ["Aktiv"]
-    assert texts(doc, "[data-solakon-target='controlHelp']") == ["folgt dem gemessenen Verbrauch"]
-    assert count(doc, "input[data-solakon-target='controlToggle'][checked]") == 1
-    assert count(doc, "input[data-solakon-target='controlToggle'][disabled]") == 0
+    assert texts(doc, ".stat-value#solakon-control-state") == ["Aktiv"]
+    assert texts(doc, "#solakon-control-help") == ["folgt dem gemessenen Verbrauch"]
+    assert count(doc, "input#solakon-control-toggle[checked]") == 1
+    assert count(doc, "input#solakon-control-toggle[disabled]") == 0
 
     Repo.insert!(%Control.State{paused: true})
     doc = page(conn, "/solakon")
-    assert texts(doc, ".stat-value[data-solakon-target='controlState']") == ["Pausiert"]
-    assert count(doc, "input[data-solakon-target='controlToggle'][checked]") == 0
+    assert texts(doc, ".stat-value#solakon-control-state") == ["Pausiert"]
+    assert count(doc, "input#solakon-control-toggle[checked]") == 0
   end
 
   test "a fresh reading shows the battery in the hero and splits the energy flow", %{conn: conn} do
@@ -64,7 +64,10 @@ defmodule ZiwoasWeb.SolakonLiveConfigTest do
     assert count(doc, "#dashboard_hero img[alt='Batterie'][src*='solakon_battery_charging']") == 1
     assert texts(doc, "#tile_netbalance_now .stat-value") == ["+60 W"]
 
-    [state] = doc |> LazyHTML.query("#energy_flow_state") |> LazyHTML.attribute("data-state")
+    [state] =
+      doc
+      |> LazyHTML.query("#energy_flow[phx-hook=EnergyFlow]")
+      |> LazyHTML.attribute("data-state")
 
     assert %{"solakon_online" => true, "flows" => %{"solar_to_battery_w" => 50.0}} =
              JSON.decode!(state)

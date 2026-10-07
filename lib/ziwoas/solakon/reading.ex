@@ -49,7 +49,7 @@ defmodule Ziwoas.Solakon.Reading do
     field :pv_power_w, :float
     field :status1, :integer
     field :status3, :integer
-    field :taken_at, Ziwoas.Ecto.RailsDateTime
+    field :taken_at, :utc_datetime_usec
     timestamps()
   end
 
@@ -108,7 +108,7 @@ defmodule Ziwoas.Solakon.Reading do
 
     Repo.one(
       from r in __MODULE__,
-        where: r.taken_at >= type(^since, Ziwoas.Ecto.RailsDateTime),
+        where: r.taken_at >= ^since,
         order_by: [desc: r.taken_at],
         limit: 1
     )

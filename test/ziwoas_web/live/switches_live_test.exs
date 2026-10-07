@@ -1,21 +1,18 @@
 defmodule ZiwoasWeb.SwitchesLiveTest do
   # Mirrors test/controllers/switches_controller_test.rb and the lamp tile's component test.
-  use ZiwoasWeb.ConnCase, async: true, db: true
+  use ZiwoasWeb.ConnCase
 
   import Phoenix.LiveViewTest
 
-  alias Ziwoas.{Clock, Ownership, Repo}
+  alias Ziwoas.{Clock, Repo, TestClock}
   alias Ziwoas.Lights.{Light, State}
   alias Ziwoas.Plugs
   alias Ziwoas.Switching.{Rule, Rules}
 
   @now "2026-06-15T17:00:00+02:00"
 
-  setup %{repo: repo} do
-    Clock.freeze(@now)
-    Repo.put_writer(:main, repo)
-    Ownership.override(%{switch_schedule: :phoenix})
-    on_exit(&Ownership.clear_override/0)
+  setup do
+    TestClock.freeze(@now)
 
     light = Repo.insert!(%Light{key: "ABCDEF01", name: "Wohnzimmer Stehlampe", sku: "H607C"})
     Repo.insert!(%State{light_key: light.key, on: true, brightness: 60, color_temp_k: 2700})
@@ -130,7 +127,7 @@ defmodule ZiwoasWeb.SwitchesLiveTest do
       plug_id: "fridge",
       action: "on",
       source: "schedule",
-      created_at: Clock.parse!("2026-06-15T06:00:00+02:00"),
+      inserted_at: Clock.parse!("2026-06-15T06:00:00+02:00"),
       updated_at: Clock.parse!("2026-06-15T06:00:00+02:00")
     })
 

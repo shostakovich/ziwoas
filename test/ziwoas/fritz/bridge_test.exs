@@ -107,7 +107,7 @@ defmodule Ziwoas.Fritz.BridgeTest do
     assert_receive {:armed, ^pid, :poll, _delay}, 5_000
   end
 
-  # Ownership is all rails in tests: a publish to the broker would raise NotOwnerError.
+  # owner: false stands for the shadow mode the bridge keeps until Phase 2.
   test "in shadow mode the default publisher polls but never reaches the broker" do
     poll = %{@poll | idle_interval_seconds: 3600}
 
