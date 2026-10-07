@@ -11,13 +11,13 @@ defmodule Ziwoas.Plugs.ShellyStatusHandler do
 
   Live deltas (a plug's newest watts and the signed mean of its current
   minute) collect per plug and go out at most every 5 s through `:broadcast`,
-  by default `{:dashboard_live, deltas}` on the `dashboard` topic.
+  by default `Ziwoas.Plugs.notify_live/1`.
   """
   @behaviour Ziwoas.Collector.MqttRouter
 
   require Logger
 
-  alias Ziwoas.{Clock, Config, Live, Repo}
+  alias Ziwoas.{Clock, Config, Plugs, Repo}
   alias Ziwoas.Plugs.{Roster, Sample, State}
 
   @broadcast_interval_s 5
@@ -58,8 +58,7 @@ defmodule Ziwoas.Plugs.ShellyStatusHandler do
       prefix: config.mqtt.topic_prefix,
       roster: Config.plug_roster(config),
       clock: Keyword.get(opts, :clock, &unix_now_f/0),
-      broadcast:
-        Keyword.get(opts, :broadcast, &Live.broadcast("dashboard", {:dashboard_live, &1}))
+      broadcast: Keyword.get(opts, :broadcast, &Plugs.notify_live/1)
     }
   end
 

@@ -4,9 +4,6 @@ import Config
 # first adopt a database from the former Rails app (Ziwoas.Release).
 config :ziwoas, ecto_repos: [Ziwoas.Repo]
 
-# Read at runtime, where Mix.env/0 is gone (a release).
-config :ziwoas, env: config_env()
-
 # SQLite for one writer app: WAL, synchronous NORMAL, foreign keys, 64 MiB journal
 # limit, 128 MiB mmap, 15 s busy timeout. The path is set in config/runtime.exs.
 # Tables get `id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT`: ids are never reused.
@@ -22,46 +19,6 @@ config :ziwoas, Ziwoas.Repo,
   default_transaction_mode: :immediate,
   pool_size: 5,
   migration_primary_key: [type: :serial, null: false]
-
-# The recurring jobs (Ziwoas.Scheduler): name => [schedule:, job:], schedules in the
-# syntax of Ziwoas.Scheduler.Schedule.
-config :ziwoas, Ziwoas.Scheduler,
-  jobs: [
-    aggregate_energy_samples: [
-      schedule: "at 3:15am every day",
-      job: Ziwoas.Plugs.AggregatorJob
-    ],
-    fetch_current_weather: [
-      schedule: "every 15 minutes",
-      job: Ziwoas.Weather.CurrentJob
-    ],
-    push_trmnl_widget: [
-      schedule: "every 15 minutes",
-      job: Ziwoas.Trmnl.EnergyPushJob
-    ],
-    fetch_today_weather: [schedule: "every hour", job: Ziwoas.Weather.TodayJob],
-    fetch_weather_forecast: [
-      schedule: "every 3 hours",
-      job: Ziwoas.Weather.ForecastJob
-    ],
-    fetch_historic_weather: [
-      schedule: "at 3:45am every day",
-      job: Ziwoas.Weather.HistoricJob
-    ],
-    poll_sensors: [schedule: "every 15 minutes", job: Ziwoas.Sensors.PollJob],
-    schedule_tick: [
-      schedule: "every minute",
-      job: Ziwoas.Switching.ScheduleTickJob
-    ],
-    solakon_monitor: [
-      schedule: "every 30 seconds",
-      job: Ziwoas.Solakon.MonitorJob
-    ],
-    solakon_snapshot: [
-      schedule: "every 2 minutes",
-      job: Ziwoas.Solakon.SnapshotJob
-    ]
-  ]
 
 config :ziwoas, ZiwoasWeb.Endpoint,
   url: [host: "localhost"],

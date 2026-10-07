@@ -78,4 +78,16 @@ defmodule Ziwoas.Lights.GoveeSubscriberTest do
     assert_received {:light_updated, "BCAST"}
     assert_received {:light_updated, "BCAST"}
   end
+
+  test "a state message reaches the subscribers of all lamps and of that lamp" do
+    Ziwoas.Lights.subscribe()
+    Ziwoas.Lights.subscribe("BCAST")
+    Ziwoas.Lights.subscribe("OTHER")
+
+    GoveeSubscriber.handle(GoveeSubscriber.new(), "govees/BCAST/state", ~s({"on":false}))
+
+    assert_received {:updated, "BCAST"}
+    assert_received {:updated, "BCAST"}
+    refute_received {:updated, _}
+  end
 end

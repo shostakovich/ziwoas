@@ -13,7 +13,6 @@ defmodule Ziwoas.Switching.ScheduleTickJob do
   require Logger
 
   alias Ziwoas.{Clock, Repo}
-  alias Ziwoas.Scheduler.Job
   alias Ziwoas.Switching.{Command, Commander, EdgeCalculator, Rule, SchedulerState}
 
   # Switching a running appliance off late is worse than not switching it at all.
@@ -22,7 +21,7 @@ defmodule Ziwoas.Switching.ScheduleTickJob do
   def grace_s, do: @grace_s
 
   @impl true
-  def perform(context), do: tick(Job.config(context), Clock.now())
+  def perform(opts), do: opts |> Keyword.fetch!(:config) |> tick(Clock.now())
 
   @doc "One tick at `now`; returns the edges it dispatched, `{plug_id, edge, :ok | :failed}`."
   @spec tick(Ziwoas.Config.t(), DateTime.t()) :: [{String.t(), EdgeCalculator.Edge.t(), atom}]

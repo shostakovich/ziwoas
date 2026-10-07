@@ -21,7 +21,7 @@ defmodule ZiwoasWeb.LightLive do
 
   @impl true
   def mount(%{"key" => key}, _session, socket) do
-    light = Lights.get_by_key(key) || raise ZiwoasWeb.NotFoundError
+    light = Lights.get_by_key!(key)
     snapshot = Lights.snapshot(light)
     if connected?(socket), do: Phoenix.PubSub.subscribe(Ziwoas.PubSub, "light_#{key}")
 
@@ -106,7 +106,7 @@ defmodule ZiwoasWeb.LightLive do
     assigns =
       assign(assigns,
         brightness: max(Lights.brightness(assigns.snapshot), 1),
-        plugs: Config.app_config().plugs,
+        plugs: Config.get().plugs,
         tabs:
           [{"white", "Weiß"}] ++
             if(assigns.light.supports_color, do: [{"color", "Farbe"}], else: []) ++
@@ -116,30 +116,34 @@ defmodule ZiwoasWeb.LightLive do
     ~H"""
     <Layouts.app flash={@flash} look={@look} current_path={@current_path}>
       <div id="light_detail" phx-hook="LightDetail" data-key={@light.key}>
-        <div class="d-flex align-items-center gap-2 mb-3">
-          <.link
-            class="btn btn-icon btn-light flex-shrink-0"
-            aria-label="Zurück"
-            navigate={~p"/switches"}
-          >
-            ←
-          </.link>
-          <h1 class="ld-title h2 mb-0 me-auto">{@light.name}</h1>
-          <button
-            type="button"
-            class="btn btn-icon flex-shrink-0"
-            aria-label="Einstellungen"
-            phx-click="open_settings"
-          >
-            <img
-              width="28"
-              height="28"
-              alt=""
-              aria-hidden="true"
-              src={~p"/images/settings_plush.webp"}
-            />
-          </button>
-        </div>
+        <.header title_class="ld-title">
+          <:leading>
+            <.link
+              class="btn btn-icon btn-light flex-shrink-0"
+              aria-label="Zurück"
+              navigate={~p"/switches"}
+            >
+              ←
+            </.link>
+          </:leading>
+          {@light.name}
+          <:actions>
+            <button
+              type="button"
+              class="btn btn-icon flex-shrink-0"
+              aria-label="Einstellungen"
+              phx-click="open_settings"
+            >
+              <img
+                width="28"
+                height="28"
+                alt=""
+                aria-hidden="true"
+                src={~p"/images/settings_plush.webp"}
+              />
+            </button>
+          </:actions>
+        </.header>
 
         <.power snapshot={@power_snapshot} />
 

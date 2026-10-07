@@ -39,7 +39,7 @@ defmodule ZiwoasWeb.WeatherLive do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} look={@look} current_path={@current_path}>
-      <h1 class="h2 mb-3">Wetter</h1>
+      <.header>Wetter</.header>
 
       <.empty current={@current} today={@today} days={@days} />
       <.current current={@current} sensor={@sensor} />
@@ -50,7 +50,7 @@ defmodule ZiwoasWeb.WeatherLive do
   end
 
   defp load(socket) do
-    config = Config.app_config()
+    config = Config.get()
     zone = config.location.timezone
     now = Clock.now()
 

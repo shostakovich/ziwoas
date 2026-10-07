@@ -3,12 +3,11 @@ defmodule Ziwoas.Trmnl.EnergyPushJob do
   @behaviour Ziwoas.Scheduler.Job
 
   alias Ziwoas.Clock
-  alias Ziwoas.Scheduler.Job
   alias Ziwoas.Trmnl.{EnergyPayload, Push}
 
   @impl true
-  def perform(context) do
-    config = Job.config(context)
+  def perform(opts) do
+    config = Keyword.fetch!(opts, :config)
 
     Push.run(:energy, config.trmnl.energy_webhook_url, fn ->
       EnergyPayload.build(config, Clock.now())

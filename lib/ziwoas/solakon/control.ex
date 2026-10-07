@@ -12,7 +12,7 @@ defmodule Ziwoas.Solakon.Control do
   `{:error, reason}`. `nil` switches off.
   """
   @spec set_eps_output(boolean | nil, GenServer.server()) :: {:ok, boolean | nil} | {:error, term}
-  def set_eps_output(enabled, monitor \\ monitor()) do
+  def set_eps_output(enabled, monitor \\ Monitor) do
     case Monitor.set_eps_output(monitor, enabled) do
       :ok -> {:ok, enabled}
       {:error, _} = error -> error
@@ -33,7 +33,4 @@ defmodule Ziwoas.Solakon.Control do
     state = State.current!()
     {:ok, if(active, do: State.resume!(state), else: State.pause!(state))}
   end
-
-  @doc "The monitor process the switches talk through (`config :ziwoas, :solakon_monitor`)."
-  def monitor, do: Application.get_env(:ziwoas, :solakon_monitor, Monitor)
 end

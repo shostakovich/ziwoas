@@ -103,13 +103,13 @@ defmodule ZiwoasWeb.EconomicsLive do
     assign(socket, price_form: to_form(Economics.change_price(price)))
   end
 
-  defp today, do: Clock.today(Config.app_config().location.timezone)
+  defp today, do: Clock.today(Config.get().location.timezone)
 
   @impl true
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} look={@look} current_path={@current_path}>
-      <h1 class="h2 mb-3">Wirtschaftlichkeit</h1>
+      <.header>Wirtschaftlichkeit</.header>
 
       <.overview_card result={@overview} title="Stand" link={false} />
 
@@ -136,7 +136,7 @@ defmodule ZiwoasWeb.EconomicsLive do
                 </div>
               </div>
               <span class="fw-semibold tabular-nums text-nowrap">
-                {de_number(item.amount_eur, precision: 2, unit: "€")}
+                {eur(item.amount_eur)}
               </span>
               <button
                 type="button"
@@ -152,7 +152,7 @@ defmodule ZiwoasWeb.EconomicsLive do
           <p class="d-flex justify-content-between">
             Summe
             <strong class="tabular-nums">
-              {de_number(@overview.acquisition_cost_eur, precision: 2, unit: "€")}
+              {eur(@overview.acquisition_cost_eur)}
             </strong>
           </p>
         <% else %>
@@ -205,7 +205,7 @@ defmodule ZiwoasWeb.EconomicsLive do
             >
               <span class="me-auto tabular-nums">ab {day(price.valid_from)}</span>
               <span class="fw-semibold tabular-nums text-nowrap">
-                {de_number(price.eur_per_kwh, precision: 4, unit: "€/kWh")}
+                {number(price.eur_per_kwh, precision: 4, unit: "€/kWh")}
               </span>
               <button
                 type="button"
@@ -254,6 +254,6 @@ defmodule ZiwoasWeb.EconomicsLive do
     """
   end
 
-  defp day(%Date{} = date), do: Calendar.strftime(date, "%d.%m.%Y")
-  defp day(iso) when is_binary(iso), do: iso |> Date.from_iso8601!() |> day()
+  defp day(%Date{} = day), do: date(day)
+  defp day(iso) when is_binary(iso), do: iso |> Date.from_iso8601!() |> date()
 end

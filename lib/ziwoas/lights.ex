@@ -2,11 +2,37 @@ defmodule Ziwoas.Lights do
   @moduledoc """
   The Govee lights as the Schalten page and a lamp's page show them, and the
   lamp settings form.
+
+  `subscribe/0` (every lamp) and `subscribe/1` (one lamp's key) deliver
+  `{:updated, key}` when a lamp's state changed.
   """
   import Ecto.Query
 
   alias Ziwoas.Lights.{Light, State}
-  alias Ziwoas.Repo
+  alias Ziwoas.{Live, Repo}
+
+  @topic inspect(__MODULE__)
+
+  @spec subscribe() :: :ok | {:error, term}
+  def subscribe, do: Phoenix.PubSub.subscribe(Ziwoas.PubSub, @topic)
+
+  @spec subscribe(String.t()) :: :ok | {:error, term}
+  def subscribe(key), do: Phoenix.PubSub.subscribe(Ziwoas.PubSub, topic(key))
+
+  @doc "Tells the subscribers that the lamp `key` changed."
+  @spec notify_updated(String.t()) :: :ok
+  def notify_updated(key) do
+    broadcast(@topic, :updated, key)
+    broadcast(topic(key), :updated, key)
+    Live.broadcast("light_#{key}", {:light_updated, key})
+    Live.broadcast("lights", {:light_updated, key})
+    :ok
+  end
+
+  defp topic(key), do: @topic <> ":" <> key
+
+  defp broadcast(topic, event, payload),
+    do: Phoenix.PubSub.broadcast(Ziwoas.PubSub, topic, {event, payload})
 
   defmodule Zone do
     @moduledoc "One zone of a zone lamp."
@@ -24,6 +50,10 @@ defmodule Ziwoas.Lights do
 
   @spec get_by_key(String.t()) :: Light.t() | nil
   def get_by_key(key), do: Repo.get_by(Light, key: key)
+
+  @doc "The light with `key`; raises `Ecto.NoResultsError` (a 404) when there is none."
+  @spec get_by_key!(String.t()) :: Light.t()
+  def get_by_key!(key), do: Repo.get_by!(Light, key: key)
 
   @doc "Every light by name with its state."
   @spec snapshots() :: [Snapshot.t()]

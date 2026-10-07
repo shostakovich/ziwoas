@@ -158,4 +158,24 @@ defmodule ZiwoasWeb.SwitchesLiveTest do
 
     assert has_element?(view, "#light_card_#{light.key} .small", "Aus")
   end
+
+  test "a lamp tile navigates to the lamp's page inside the live session", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/switches")
+
+    for selector <- ["a[aria-label='Wohnzimmer Stehlampe Details']", "a.link-secondary"] do
+      assert has_element?(
+               view,
+               "#light_card_ABCDEF01 #{selector}[data-phx-link=redirect][href='/lights/ABCDEF01']"
+             )
+    end
+
+    {:ok, lamp, _html} =
+      view
+      |> element("#light_card_ABCDEF01 a.link-secondary")
+      |> render_click()
+      |> follow_redirect(conn, ~p"/lights/ABCDEF01")
+
+    assert has_element?(lamp, "h1", "Wohnzimmer Stehlampe")
+    assert has_element?(lamp, "header a[data-phx-link=redirect][href='/switches']")
+  end
 end

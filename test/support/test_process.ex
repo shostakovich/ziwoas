@@ -44,10 +44,12 @@ end
 
 defmodule Ziwoas.TestClock do
   @moduledoc """
-  Freezes `Ziwoas.Clock` for a test and the processes it starts
-  (`config :ziwoas, frozen_clock: {Ziwoas.TestClock, :frozen}` in config/test.exs).
-  A frozen instant stands still.
+  `Ziwoas.Clock`'s source in tests (`config :ziwoas, clock: Ziwoas.TestClock` in
+  config/test.exs): the system clock, unless a test froze it for itself and the
+  processes it starts. A frozen instant stands still.
   """
+  @behaviour Ziwoas.Clock
+
   alias Ziwoas.TestProcess
 
   @doc "Pins now until `unfreeze/0`; takes a `DateTime` or ISO 8601 text with an offset."
@@ -57,30 +59,34 @@ defmodule Ziwoas.TestClock do
   @spec unfreeze() :: :ok
   def unfreeze, do: TestProcess.delete(:now)
 
-  @doc false
-  def frozen, do: TestProcess.get(:now)
+  @impl true
+  def utc_now, do: TestProcess.get(:now) || DateTime.utc_now()
 end
 
 defmodule Ziwoas.TestMqtt do
   @moduledoc """
-  Records `Ziwoas.Mqtt.publish/5` instead of reaching a broker, for a test and the
-  processes it starts (`config :ziwoas, mqtt_recorder: {Ziwoas.TestMqtt, :recorder}`
-  in config/test.exs).
+  `Ziwoas.Mqtt`'s publisher in tests (`config :ziwoas, mqtt_publisher:
+  Ziwoas.TestMqtt` in config/test.exs): a test that called `record/1` and the
+  processes it starts hand their publishes to its function, any other publish
+  goes to the broker (`Ziwoas.Mqtt.Broker`, e.g. `Ziwoas.FakeMqttBroker`).
   """
+  @behaviour Ziwoas.Mqtt
+
+  alias Ziwoas.Mqtt.Broker
   alias Ziwoas.TestProcess
 
   @doc """
-  `publish/5` hands `(client_id, topic, payload)` — or, to a 4-arity `fun`,
-  `(client_id, topic, payload, retain)` — to `fun` after the ownership check, and
-  returns what `fun` returns (`:ok` or `{:error, reason}`).
+  `Ziwoas.Mqtt.publish/4` hands `(client_id, topic, payload)` to `fun` and returns
+  what `fun` returns (`:ok` or `{:error, reason}`).
   """
-  @spec record(
-          (String.t(), String.t(), binary -> :ok | {:error, term})
-          | (String.t(), String.t(), binary, boolean -> :ok | {:error, term})
-        ) :: :ok
-  def record(fun) when is_function(fun, 3) or is_function(fun, 4),
-    do: TestProcess.put(:mqtt_recorder, fun)
+  @spec record((String.t(), String.t(), binary -> :ok | {:error, term})) :: :ok
+  def record(fun) when is_function(fun, 3), do: TestProcess.put(:mqtt_recorder, fun)
 
-  @doc false
-  def recorder, do: TestProcess.get(:mqtt_recorder)
+  @impl true
+  def publish(client_id, topic, payload, opts) do
+    case TestProcess.get(:mqtt_recorder) do
+      nil -> Broker.publish(client_id, topic, payload, opts)
+      record -> record.(client_id, topic, payload)
+    end
+  end
 end

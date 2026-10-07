@@ -1,25 +1,17 @@
 defmodule ZiwoasWeb.SolakonLiveConfigTest do
   # The pages with an inverter configured (TestConfigs.file(:inverter): the test
-  # config plus monitoring and control). Not async: it swaps the config path,
-  # which every process reads; ExUnit runs sync modules after the async ones.
+  # config plus monitoring and control). Not async: it swaps the config, which
+  # every process reads; ExUnit runs sync modules after the async ones.
   use ZiwoasWeb.ConnCase
 
-  alias Ziwoas.{Clock, Config, Repo, TestClock}
+  alias Ziwoas.{Clock, Repo, TestClock}
   alias Ziwoas.Solakon.{Control, Reading}
 
   @now "2026-10-05T12:00:00+02:00"
 
   setup do
-    previous = Application.fetch_env!(:ziwoas, :config_path)
-
-    Application.put_env(:ziwoas, :config_path, Ziwoas.TestConfigs.file(:inverter))
-
+    Ziwoas.TestConfigs.put(Ziwoas.TestConfigs.load(:inverter))
     TestClock.freeze(@now)
-
-    on_exit(fn ->
-      Application.put_env(:ziwoas, :config_path, previous)
-      Config.reset()
-    end)
   end
 
   defp page(conn, path), do: conn |> get(path) |> html_response(200) |> LazyHTML.from_document()

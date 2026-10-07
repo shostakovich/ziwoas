@@ -86,7 +86,7 @@ defmodule Ziwoas.Trmnl.PushTest do
     stub_trmnl()
     config = TestConfigs.plugs("trmnl:\n  energy_webhook_url: https://example.test/energy\n")
 
-    EnergyPushJob.perform(%{config: config})
+    EnergyPushJob.perform(config: config)
 
     assert_received {:posted, "POST", "https://example.test/energy", _, body}
     assert %{"merge_variables" => %{"stand" => "12:00", "pv_kwh" => +0.0}} = JSON.decode!(body)

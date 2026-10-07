@@ -15,6 +15,7 @@ defmodule ZiwoasWeb.DashboardLive do
   """
   use ZiwoasWeb, :live_view
 
+  import ZiwoasWeb.Components.EnergyFlow
   import ZiwoasWeb.DashboardComponents
 
   alias Ziwoas.{Clock, Config, EnergySummary, LiveState, Weather}
@@ -31,7 +32,7 @@ defmodule ZiwoasWeb.DashboardLive do
       :timer.send_interval(@summary_interval_ms, :refresh_summary)
     end
 
-    config = Config.app_config()
+    config = Config.get()
 
     {:ok,
      socket
@@ -58,7 +59,7 @@ defmodule ZiwoasWeb.DashboardLive do
   def handle_info({:solakon_reading, _id}, socket), do: {:noreply, load_live(socket)}
 
   def handle_info(:refresh_summary, socket) do
-    tiles = DashboardComponents.summary_tiles(EnergySummary.compute_today(Config.app_config()))
+    tiles = DashboardComponents.summary_tiles(EnergySummary.compute_today(Config.get()))
     {:noreply, assign(socket, :summary_tiles, tiles)}
   end
 
@@ -66,7 +67,7 @@ defmodule ZiwoasWeb.DashboardLive do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} look={@look} current_path={@current_path}>
-      <h1 class="h2 mb-3">Dashboard</h1>
+      <.header>Dashboard</.header>
 
       <div
         id="live_freshness"
@@ -86,17 +87,12 @@ defmodule ZiwoasWeb.DashboardLive do
           <.tile {tile(@summary_tiles, "tile_self_consumption")} />
         </div>
 
-        <.card
-          title="Energiefluss"
-          class="energy-flow-card live-dim"
-          {energy_flow_hook(@live)}
-        >
-          <.energy_flow
-            pv_asset={@weather_asset}
-            pv_alt={@weather_alt}
-            battery_asset={DashboardComponents.default_battery_asset()}
-          />
-        </.card>
+        <.energy_flow
+          live={@live}
+          pv_asset={@weather_asset}
+          pv_alt={@weather_alt}
+          class="live-dim"
+        />
 
         <h2 class="h6 text-uppercase text-body-secondary mt-4 mb-2">Steckdosen</h2>
         <.plug_bar live={@live} />
@@ -130,7 +126,7 @@ defmodule ZiwoasWeb.DashboardLive do
   defp tile(tiles, id), do: Enum.find(tiles, &(&1.id == id))
 
   defp load_live(socket) do
-    live = LiveState.build(Config.app_config(), Clock.now())
+    live = LiveState.build(Config.get(), Clock.now())
     {weather_asset, weather_alt} = Weather.dashboard_icon()
     beat = if Map.has_key?(socket.assigns, :live), do: socket.assigns.beat + 1, else: 0
 

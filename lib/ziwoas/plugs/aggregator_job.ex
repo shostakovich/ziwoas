@@ -5,11 +5,9 @@ defmodule Ziwoas.Plugs.AggregatorJob do
   `daily_energy_summary`, purges old raw samples, backs the database up and
   condenses the inverter readings into PV hours.
 
-  The backup directory is `config :ziwoas, :backup_dir`. A test passes
-  `:backup_dir` in the context, as it passes `:config`
-  (`Ziwoas.Scheduler.Job.config/1`), or `:backup`, a function of the directory
-  and the day in place of `Aggregator.backup!/2`: `VACUUM INTO` cannot run
-  inside the transaction a test's sandbox wraps around it.
+  Opts: `:config`, and `:backup_dir` (`config :ziwoas, :backup_dir`); without
+  one nothing is backed up, as in tests, where `VACUUM INTO` cannot run inside
+  the transaction the sandbox wraps around a test.
   """
   @behaviour Ziwoas.Scheduler.Job
 
@@ -17,12 +15,11 @@ defmodule Ziwoas.Plugs.AggregatorJob do
 
   alias Ziwoas.Clock
   alias Ziwoas.Plugs.Aggregator
-  alias Ziwoas.Scheduler.Job
   alias Ziwoas.Solakon.PvHourAggregator
 
   @impl true
-  def perform(context) do
-    config = Job.config(context)
+  def perform(opts) do
+    config = Keyword.fetch!(opts, :config)
     zone = config.location.timezone
     today = Clock.today(zone)
 
@@ -32,17 +29,9 @@ defmodule Ziwoas.Plugs.AggregatorJob do
     |> Aggregator.new()
     |> Aggregator.run_once(today: today)
 
-    backup(context, today)
+    if dir = opts[:backup_dir], do: Aggregator.backup!(dir, today)
     PvHourAggregator.run_once(zone, today)
 
     Logger.info("aggregator: done")
-  end
-
-  defp backup(context, today) do
-    dir =
-      Map.get_lazy(context, :backup_dir, fn -> Application.fetch_env!(:ziwoas, :backup_dir) end)
-
-    backup = Map.get(context, :backup, &Aggregator.backup!/2)
-    backup.(dir, today)
   end
 end

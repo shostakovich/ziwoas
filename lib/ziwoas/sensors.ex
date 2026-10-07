@@ -1,9 +1,29 @@
 defmodule Ziwoas.Sensors do
-  @moduledoc "Queries over `sensor_readings`."
+  @moduledoc """
+  The air sensors' readings (`sensor_readings`).
+
+  `subscribe/0` delivers `{:polled, instant}` after a poll stored its readings.
+  """
   import Ecto.Query
 
-  alias Ziwoas.Repo
+  alias Ziwoas.{Live, Repo}
   alias Ziwoas.Sensors.Reading
+
+  @topic inspect(__MODULE__)
+
+  @spec subscribe() :: :ok | {:error, term}
+  def subscribe, do: Phoenix.PubSub.subscribe(Ziwoas.PubSub, @topic)
+
+  @doc "Tells the subscribers that the poll at `instant` is stored."
+  @spec notify_polled(DateTime.t()) :: :ok
+  def notify_polled(%DateTime{} = instant) do
+    broadcast(:polled, instant)
+    Live.broadcast("sensors", {:sensors_updated})
+    :ok
+  end
+
+  defp broadcast(event, payload),
+    do: Phoenix.PubSub.broadcast(Ziwoas.PubSub, @topic, {event, payload})
 
   @outdoor_freshness_s 30 * 60
 

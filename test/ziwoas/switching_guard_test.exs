@@ -34,7 +34,7 @@ defmodule Ziwoas.SwitchingGuardTest do
     TestClock.freeze("2026-06-15T18:05:00+02:00")
     Rules.save_window("fridge", %{on_at_time: "18:00", off_at_time: "23:00", days: [1]})
 
-    config = %{Config.app_config() | mqtt: mqtt}
+    config = %{Config.get() | mqtt: mqtt}
     %{broker: broker, mqtt: mqtt, config: config}
   end
 

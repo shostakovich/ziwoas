@@ -7,7 +7,7 @@ defmodule ZiwoasWeb.LightsComponents do
   """
   use ZiwoasWeb, :html
 
-  alias Ziwoas.{GermanNumber, Lights}
+  alias Ziwoas.Lights
   alias Ziwoas.Lights.{Commands, Light, Snapshot}
 
   @swatches ~w[#ff4d4d #ff7a3d #ffd43b #43d97f #22b8cf #4d7cff #7c5cff #ff6bd6]
@@ -58,7 +58,7 @@ defmodule ZiwoasWeb.LightsComponents do
           on &&
             %{
               swatch: Lights.color_hex(snapshot) || "#ffd9a0",
-              label: GermanNumber.format(Lights.brightness(snapshot), unit: "%")
+              label: number(Lights.brightness(snapshot), unit: "%")
             }
       )
 
@@ -66,17 +66,20 @@ defmodule ZiwoasWeb.LightsComponents do
     <div class="card mb-3" id={"light_card_#{@light.key}"} data-light-key={@light.key}>
       <div class="card-body d-flex align-items-start gap-3">
         <div class="flex-grow-1">
-          <a
+          <.link
             class="d-block text-reset text-decoration-none"
             aria-label={"#{@light.name} Details"}
-            href={"/lights/#{@light.key}"}
+            navigate={~p"/lights/#{@light.key}"}
           >
             <h3 class="card-title h5 mb-1">{@light.name}</h3>
             <div class="small text-body-secondary">{@summary}</div>
-          </a>
-          <a class="d-inline-block small link-secondary mt-3" href={"/lights/#{@light.key}"}>
+          </.link>
+          <.link
+            class="d-inline-block small link-secondary mt-3"
+            navigate={~p"/lights/#{@light.key}"}
+          >
             Anpassen ›
-          </a>
+          </.link>
         </div>
 
         <div class="d-flex flex-column align-items-center gap-2">
@@ -221,7 +224,7 @@ defmodule ZiwoasWeb.LightsComponents do
             for="light_temp"
             class="text-body tabular-nums"
             data-light="temp-value"
-          >{GermanNumber.format(@slider, unit: "K")}</output>
+          >{number(@slider, unit: "K")}</output>
         </div>
         <input
           class="form-range ld-range ld-white"
@@ -241,8 +244,8 @@ defmodule ZiwoasWeb.LightsComponents do
           ></span>
         </div>
         <div class="d-flex justify-content-between small text-body-secondary mt-1">
-          <span>{GermanNumber.format(@min_k, unit: "K")} · warm</span>
-          <span>{GermanNumber.format(@max_k, unit: "K")} · kalt</span>
+          <span>{number(@min_k, unit: "K")} · warm</span>
+          <span>{number(@max_k, unit: "K")} · kalt</span>
         </div>
         <div class="d-flex gap-2 mt-3 ld-choices">
           <button

@@ -11,26 +11,19 @@ defmodule Ziwoas.Sensors.PollJob do
 
   require Logger
 
-  alias Ziwoas.{Clock, Live, Repo}
-  alias Ziwoas.Scheduler.Job
+  alias Ziwoas.{Clock, Live, Repo, Sensors}
   alias Ziwoas.Sensors.{Reading, SwitchBotClient}
   alias Ziwoas.Trmnl.{Push, SensorPayload}
 
   @impl true
-  def perform(context) do
-    config = Job.config(context)
+  def perform(opts) do
+    config = Keyword.fetch!(opts, :config)
+    now = Clock.now()
+    Enum.each(config.sensors, &poll(config.switchbot, &1, now))
+    push(config)
 
-    if is_nil(config.switchbot) or config.sensors == [] do
-      Logger.debug("sensors: not configured")
-    else
-      now = Clock.now()
-      Enum.each(config.sensors, &poll(config.switchbot, &1, now))
-      push(config)
-
-      Live.broadcast("sensors", {:sensors_updated})
-      Live.broadcast("weather", {:weather_updated})
-    end
-
+    Sensors.notify_polled(now)
+    Live.broadcast("weather", {:weather_updated})
     :ok
   end
 

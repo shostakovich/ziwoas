@@ -4,9 +4,9 @@ defmodule Ziwoas.Scheduler.Runner do
   runs the job in this process, sleeps again. A run that overlaps the next due
   instant skips it; nothing is made up after downtime.
 
-  Options: `:id`, `:schedule` (text or `Schedule`), `:job` (a
-  `Ziwoas.Scheduler.Job`), `:zone`; for tests `:clock` (0-arity, a UTC `DateTime`) and `:timer`
-  (`Process.send_after/3`'s shape).
+  Options: `:id`, `:schedule` (a `Schedule`), `:job` (`{module, opts}`, the
+  module a `Ziwoas.Scheduler.Job`), `:zone`; for tests `:clock` (0-arity, a UTC
+  `DateTime`) and `:timer` (`Process.send_after/3`'s shape).
   """
   use GenServer
 
@@ -25,7 +25,7 @@ defmodule Ziwoas.Scheduler.Runner do
 
     state = %{
       id: id,
-      schedule: schedule(Keyword.fetch!(opts, :schedule)),
+      schedule: Keyword.fetch!(opts, :schedule),
       job: Keyword.fetch!(opts, :job),
       zone: Keyword.fetch!(opts, :zone),
       clock: Keyword.get(opts, :clock, &Ziwoas.Clock.now/0),
@@ -44,15 +44,15 @@ defmodule Ziwoas.Scheduler.Runner do
       # The timer ran ahead of the clock: wait out the rest.
       {:noreply, arm_at(state, at, now)}
     else
-      perform(state, %{at: at})
+      perform(state, at)
       {:noreply, arm(state, latest(at, state.clock.()))}
     end
   end
 
   def handle_info({:due, _stale}, state), do: {:noreply, state}
 
-  defp perform(state, context) do
-    state.job.perform(context)
+  defp perform(%{job: {module, opts}} = state, at) do
+    module.perform(Keyword.put(opts, :at, at))
   rescue
     error ->
       Logger.error(
@@ -72,7 +72,4 @@ defmodule Ziwoas.Scheduler.Runner do
   end
 
   defp latest(a, b), do: if(DateTime.after?(b, a), do: b, else: a)
-
-  defp schedule(%Schedule{} = schedule), do: schedule
-  defp schedule(text), do: Schedule.parse!(text)
 end

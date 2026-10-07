@@ -15,7 +15,7 @@ defmodule ZiwoasWeb.ReportsLive do
 
   @impl true
   def mount(_params, _session, socket) do
-    config = Config.app_config()
+    config = Config.get()
 
     {:ok,
      assign(socket,
@@ -52,7 +52,7 @@ defmodule ZiwoasWeb.ReportsLive do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} look={@look} current_path={@current_path} main_class="app-main-wide">
-      <h1 class="h2 mb-3">Berichte</h1>
+      <.header>Berichte</.header>
 
       <div id="energy_report" phx-hook="EnergyReport">
         <.range_picker report={@report} params={@params} />

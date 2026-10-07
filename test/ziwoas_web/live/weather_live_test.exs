@@ -377,15 +377,4 @@ defmodule ZiwoasWeb.WeatherLiveTest do
     assert html =~ "99,9"
     refute html =~ "7,7"
   end
-
-  test "the look cookie sets the felt look", %{conn: conn} do
-    doc = conn |> put_req_cookie("look", "felt") |> page()
-    assert doc |> LazyHTML.query("html") |> LazyHTML.attribute("data-look") == ["felt"]
-
-    assert doc
-           |> LazyHTML.query("button.app-look-toggle.active")
-           |> LazyHTML.attribute("aria-pressed") == ["true"]
-
-    assert doc |> LazyHTML.query("input[name=look]") |> LazyHTML.attribute("value") == ["clean"]
-  end
 end

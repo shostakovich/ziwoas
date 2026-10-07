@@ -37,12 +37,13 @@ defmodule ZiwoasWeb.SolakonHistoryLive do
   def reload_history(socket, range),
     do: assign(socket, :history, History.payload(range, Clock.now(), zone()))
 
-  defp zone, do: Config.app_config().location.timezone
+  defp zone, do: Config.get().location.timezone
 
   @impl true
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} look={@look} current_path={@current_path}>
+      <.header class="visually-hidden">Solakon-Verlauf</.header>
       <.history history={@history} path={~p"/solakon/history"} />
     </Layouts.app>
     """

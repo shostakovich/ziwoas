@@ -4,7 +4,7 @@ defmodule Ziwoas.LiveState do
   measurement, and the energy flow built from the consumers' draw and the
   inverter's fresh reading. `now` is truncated to whole seconds.
   """
-  alias Ziwoas.{Config, EnergyFlow}
+  alias Ziwoas.{Config, EnergyFlow, Plugs}
   alias Ziwoas.Plugs.{Measurement, Roster}
   alias Ziwoas.Solakon.Reading
 
@@ -26,8 +26,7 @@ defmodule Ziwoas.LiveState do
     now = now |> DateTime.truncate(:second) |> DateTime.to_unix() |> DateTime.from_unix!()
     roster = Config.plug_roster(config)
 
-    measurements =
-      Measurement.for_plugs(Roster.ids(roster), DateTime.to_unix(now), offline_after_s)
+    measurements = Plugs.latest_measurements(Roster.ids(roster), now, offline_after_s)
 
     reading =
       if config.solakon && config.solakon.monitoring_enabled,

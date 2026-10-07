@@ -26,14 +26,14 @@ defmodule ZiwoasWeb.SensorsLive do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} look={@look} current_path={@current_path} main_class="app-main-wide">
-      <h1 class="h2 mb-3">Sensoren</h1>
+      <.header>Sensoren</.header>
       <.dashboard sensors={@sensors} latest={@latest} now={@now} />
     </Layouts.app>
     """
   end
 
   defp load(socket) do
-    sensors = Config.app_config().sensors
+    sensors = Config.get().sensors
 
     assign(socket,
       sensors: sensors,

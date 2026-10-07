@@ -6,8 +6,8 @@ defmodule Ziwoas.Switching.Row do
   """
   import Ecto.Query
 
+  alias Ziwoas.{Plugs, Repo}
   alias Ziwoas.Plugs.{Measurement, Plug, State}
-  alias Ziwoas.Repo
   alias Ziwoas.Switching.{Command, EdgeCalculator, Rule, Schedule}
 
   @lookahead_s 7 * 24 * 3600
@@ -36,12 +36,12 @@ defmodule Ziwoas.Switching.Row do
 
     states = Map.new(Repo.all(from s in State, where: s.plug_id in ^ids), &{&1.plug_id, &1})
     commands = latest_commands(ids)
-    samples = latest_samples(ids)
+    measurements = Plugs.latest_measurements(ids, now)
     until = DateTime.add(now, @lookahead_s)
 
     for plug <- plugs do
       plug_rules = Map.get(rules, plug.id, [])
-      {last_seen_ts, watt} = Map.get(samples, plug.id, {nil, nil})
+      measurement = measurements[plug.id]
 
       %__MODULE__{
         plug: plug,
@@ -53,8 +53,8 @@ defmodule Ziwoas.Switching.Row do
           |> Enum.filter(& &1.enabled)
           |> EdgeCalculator.next_edge_per_plug(now, until, zone)
           |> List.first(),
-        watt: watt,
-        last_seen_ts: last_seen_ts,
+        watt: measurement.watt,
+        last_seen_ts: measurement.last_seen_ts,
         now: now
       }
     end
@@ -119,24 +119,4 @@ defmodule Ziwoas.Switching.Row do
     |> Repo.all()
     |> Map.new(&{&1.plug_id, &1})
   end
-
-  # The newest sample's ts and watts per plug.
-  defp latest_samples([]), do: %{}
-
-  defp latest_samples(ids) do
-    marks = Enum.map_join(ids, ", ", fn _ -> "?" end)
-
-    %{rows: rows} =
-      Repo.query!(
-        "SELECT plug_id, ts, apower_w FROM samples WHERE plug_id IN (#{marks}) " <>
-          "AND (plug_id, ts) IN (SELECT plug_id, MAX(ts) FROM samples " <>
-          "WHERE plug_id IN (#{marks}) GROUP BY plug_id)",
-        ids ++ ids
-      )
-
-    Map.new(rows, fn [plug_id, ts, apower_w] -> {plug_id, {ts, to_float(apower_w)}} end)
-  end
-
-  defp to_float(nil), do: nil
-  defp to_float(value), do: value * 1.0
 end

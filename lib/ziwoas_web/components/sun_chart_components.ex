@@ -7,7 +7,7 @@ defmodule ZiwoasWeb.SunChartComponents do
   """
   use ZiwoasWeb, :html
 
-  alias Ziwoas.{GermanNumber, Plot, Ramp, Shading, SunCalendar}
+  alias Ziwoas.{Plot, Ramp, Shading, SunCalendar}
   alias Ziwoas.Shading.{Curve, YieldMap}
 
   @months ~w[Jan Feb Mär Apr Mai Jun Jul Aug Sep Okt Nov Dez]
@@ -201,7 +201,7 @@ defmodule ZiwoasWeb.SunChartComponents do
               0<span
                 class="legend-ramp"
                 style={"background: #{Ramp.css_gradient(Ramp.fetch(strip.ramp))}"}
-              ></span>{GermanNumber.format(strip.max, unit: strip.unit)}
+              ></span>{number(strip.max, unit: strip.unit)}
             </.legend_item>
             <.legend_item><span class="legend-box nodata"></span>keine Daten</.legend_item>
             <.legend_item :if={@cal.seam && strip.key == :pv}>
@@ -444,11 +444,9 @@ defmodule ZiwoasWeb.SunChartComponents do
       "Die gestrichelte Linie markiert den Wechsel."
   end
 
-  defp day_month(date), do: Calendar.strftime(date, "%d.%m.")
-
   defp day_title(day) do
     date =
-      "#{Enum.at(@weekdays, rem(Date.day_of_week(day.date), 7))} #{Calendar.strftime(day.date, "%d.%m.%Y")}"
+      "#{Enum.at(@weekdays, rem(Date.day_of_week(day.date), 7))} #{date(day.date)}"
 
     if Enum.all?([day.pv_kwh, day.irradiance_kwh_per_m2, day.cloud_avg], &is_nil/1) do
       "#{date} · keine Daten"
@@ -469,8 +467,7 @@ defmodule ZiwoasWeb.SunChartComponents do
   defp measure(label, nil, _unit, _precision, _mean), do: "#{label} keine Daten"
 
   defp measure(label, value, unit, precision, mean),
-    do:
-      "#{label} #{if mean, do: "Ø "}#{GermanNumber.format(value, precision: precision, unit: unit)}"
+    do: "#{label} #{if mean, do: "Ø "}#{number(value, precision: precision, unit: unit)}"
 
   # --- Shading ------------------------------------------------------------------
 
@@ -755,7 +752,7 @@ defmodule ZiwoasWeb.SunChartComponents do
         ),
       title:
         "Azimut #{bin.azimuth}–#{bin.azimuth + bin_size}° · Höhe #{bin.elevation}–#{bin.elevation + bin_size}° · " <>
-          "Ausbeute #{GermanNumber.format(bin.share * 100, unit: "%")} · #{bin.hours} Stunden · #{bin.first_hour}–#{bin.last_hour} Uhr"
+          "Ausbeute #{number(bin.share * 100, unit: "%")} · #{bin.hours} Stunden · #{bin.first_hour}–#{bin.last_hour} Uhr"
     }
   end
 
@@ -1042,7 +1039,7 @@ defmodule ZiwoasWeb.SunChartComponents do
   end
 
   defp watts(nil), do: "keine Daten"
-  defp watts(value), do: "Ø #{GermanNumber.format(value, unit: "W")}"
+  defp watts(value), do: "Ø #{number(value, unit: "W")}"
 
   # --- Panel curves -------------------------------------------------------------
 
@@ -1181,8 +1178,7 @@ defmodule ZiwoasWeb.SunChartComponents do
   defp period(%Shading.Panels{since: nil}), do: nil
 
   defp period(%Shading.Panels{since: since, days: days}),
-    do:
-      "seit #{Calendar.strftime(since, "%d.%m.%Y")} · #{days} #{if days == 1, do: "Tag", else: "Tage"}"
+    do: "seit #{date(since)} · #{days} #{if days == 1, do: "Tag", else: "Tage"}"
 
   defp panel_name(key), do: "Panel #{String.replace_prefix(Atom.to_string(key), "pv", "")}"
 

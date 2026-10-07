@@ -68,6 +68,8 @@ defmodule ZiwoasWeb do
       import Phoenix.HTML
       # Core UI components
       import ZiwoasWeb.CoreComponents
+      # German numbers, money, dates and clock times
+      import ZiwoasWeb.Format
 
       # Common modules used in templates
       alias Phoenix.LiveView.JS
