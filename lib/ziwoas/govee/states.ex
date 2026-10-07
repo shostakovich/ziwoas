@@ -1,4 +1,4 @@
-defmodule Ziwoas.Govee.StateStore do
+defmodule Ziwoas.Govee.States do
   @moduledoc """
   Per lamp the published (desired or confirmed) state and how sure the bridge
   is of it. Pure; the bridge keeps it in its state.

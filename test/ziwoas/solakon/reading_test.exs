@@ -20,20 +20,20 @@ defmodule Ziwoas.Solakon.ReadingTest do
       )
 
   test "battery_state ranks fault, heat, cold, a low charge, then the flow" do
-    assert Reading.battery_state(reading(battery_power_w: 40.0, battery_soc_pct: 18)) == "low"
-    assert Reading.battery_state(reading(battery_power_w: 40.0)) == "charging"
-    assert Reading.battery_state(reading(battery_power_w: -40.0)) == "discharging"
-    assert Reading.battery_state(reading(battery_power_w: 10.0)) == "normal"
-    assert Reading.battery_state(reading(battery_power_w: -10.0)) == "normal"
+    assert Reading.battery_state(reading(battery_power_w: 40.0, battery_soc_pct: 18)) == :low
+    assert Reading.battery_state(reading(battery_power_w: 40.0)) == :charging
+    assert Reading.battery_state(reading(battery_power_w: -40.0)) == :discharging
+    assert Reading.battery_state(reading(battery_power_w: 10.0)) == :normal
+    assert Reading.battery_state(reading(battery_power_w: -10.0)) == :normal
 
     assert Reading.battery_state(reading(battery_temperature_c: 45.0, battery_soc_pct: 5)) ==
-             "hot"
+             :hot
 
     assert Reading.battery_state(reading(battery_temperature_c: 5.0, battery_soc_pct: 5)) ==
-             "cold"
+             :cold
 
-    assert Reading.battery_state(reading(battery_temperature_c: 44.9)) == "normal"
-    assert Reading.battery_state(reading(alarm3: 2, battery_temperature_c: 50.0)) == "fault"
+    assert Reading.battery_state(reading(battery_temperature_c: 44.9)) == :normal
+    assert Reading.battery_state(reading(alarm3: 2, battery_temperature_c: 50.0)) == :fault
   end
 
   test "battery_display_power_w is positive while charging and negative while discharging" do

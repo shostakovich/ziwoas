@@ -23,7 +23,7 @@ defmodule Ziwoas.Plugs.AggregatorJobTest do
 
   test "aggregates the finished days and tells Plugs' subscribers" do
     seed_day()
-    Ziwoas.Plugs.subscribe()
+    Ziwoas.Plugs.subscribe(:aggregated)
 
     perform()
 

@@ -61,18 +61,8 @@ defmodule ZiwoasWeb.SwitchesLive do
 
   def handle_event("switch_plug", _params, socket), do: {:noreply, socket}
 
-  def handle_event("light_command", params, socket) do
-    case LightEvents.run(params) do
-      {:ok, _light, _result} ->
-        {:noreply, assign(socket, :snapshots, Lights.snapshots())}
-
-      {:error, :unreachable} ->
-        {:noreply, put_flash(socket, :error, LightEvents.failed_message())}
-
-      {:error, _reason} ->
-        {:noreply, socket}
-    end
-  end
+  def handle_event("light_command", params, socket),
+    do: {:noreply, start_async(socket, :light_command, fn -> LightEvents.run(params) end)}
 
   # --- The schedule editor -----------------------------------------------------------
 
@@ -154,6 +144,16 @@ defmodule ZiwoasWeb.SwitchesLive do
     name = Enum.find_value(socket.assigns.rows, plug_id, &(&1.plug.id == plug_id && &1.plug.name))
     {:noreply, put_flash(socket, :error, "#{name}: #{@failed}")}
   end
+
+  def handle_async(:light_command, {:ok, {:ok, _light, _result}}, socket),
+    do: {:noreply, assign(socket, :snapshots, Lights.snapshots())}
+
+  def handle_async(:light_command, {:ok, {:error, reason}}, socket)
+      when reason in [:not_found, :invalid],
+      do: {:noreply, socket}
+
+  def handle_async(:light_command, _unreachable, socket),
+    do: {:noreply, put_flash(socket, :error, LightEvents.failed_message())}
 
   # --- Helpers ----------------------------------------------------------------------
 

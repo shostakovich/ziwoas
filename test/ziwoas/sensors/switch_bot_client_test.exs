@@ -95,22 +95,6 @@ defmodule Ziwoas.Sensors.SwitchBotClientTest do
     assert SwitchBotClient.device_status(@auth, "X") == {:error, :unexpected_body}
   end
 
-  test "lists the meters among the devices" do
-    expect_get("/v1.1/devices", 200, """
-    {"statusCode": 100, "body": {"deviceList": [
-      {"deviceId": "AAA", "deviceName": "Wohnzimmer", "deviceType": "MeterPro(CO2)"},
-      {"deviceId": "BBB", "deviceName": "Balkon", "deviceType": "WoIOSensor"},
-      {"deviceId": "HUB", "deviceName": "Hub Wohn", "deviceType": "Hub 2"}]}}
-    """)
-
-    assert SwitchBotClient.list_sensor_devices(@auth) ==
-             {:ok,
-              [
-                %{id: "AAA", name: "Wohnzimmer", type: :meter_pro_co2},
-                %{id: "BBB", name: "Balkon", type: :outdoor_meter}
-              ]}
-  end
-
   test "lists all devices" do
     expect_get(
       "/v1.1/devices",

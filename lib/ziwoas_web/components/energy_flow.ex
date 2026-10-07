@@ -10,13 +10,13 @@ defmodule ZiwoasWeb.Components.EnergyFlow do
   alias Ziwoas.Energy.{Flow, LiveState}
 
   @battery_assets [
-    {"normal", "solakon_battery_normal.webp"},
-    {"discharging", "solakon_battery_normal.webp"},
-    {"charging", "solakon_battery_charging.webp"},
-    {"low", "solakon_battery_low.webp"},
-    {"hot", "solakon_battery_hot.webp"},
-    {"cold", "solakon_battery_cold.webp"},
-    {"fault", "solakon_battery_fault.webp"}
+    {:normal, "solakon_battery_normal.webp"},
+    {:discharging, "solakon_battery_normal.webp"},
+    {:charging, "solakon_battery_charging.webp"},
+    {:low, "solakon_battery_low.webp"},
+    {:hot, "solakon_battery_hot.webp"},
+    {:cold, "solakon_battery_cold.webp"},
+    {:fault, "solakon_battery_fault.webp"}
   ]
   @default_battery_asset "solakon_battery_normal.webp"
 
@@ -44,7 +44,7 @@ defmodule ZiwoasWeb.Components.EnergyFlow do
   ]
 
   @doc "The battery picture for a battery state; an unknown state shows the normal one."
-  @spec battery_asset(String.t() | nil) :: String.t()
+  @spec battery_asset(atom | nil) :: String.t()
   def battery_asset(state) do
     case List.keyfind(@battery_assets, state, 0) do
       {_, asset} -> asset

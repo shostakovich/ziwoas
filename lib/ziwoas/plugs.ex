@@ -4,11 +4,10 @@ defmodule Ziwoas.Plugs do
   totals, each plug's newest measurement, the nightly aggregation and the
   live updates.
 
-  `subscribe/0` delivers
-
-    * `{:live, deltas}`, at most every 5 s per ingesting process, with one
-      `Ziwoas.Plugs.Ingest.delta()` per plug that reported since;
-    * `{:aggregated, date}` once the nightly aggregation of `date` is done.
+  `subscribe/0` delivers `{:live, deltas}`, at most every 5 s per ingesting
+  process, with one `Ziwoas.Plugs.Ingest.delta()` per plug that reported since.
+  `subscribe(:aggregated)` delivers `{:aggregated, date}` once the nightly
+  aggregation of `date` is done.
   """
   import Ecto.Query
 
@@ -17,9 +16,13 @@ defmodule Ziwoas.Plugs do
   alias Ziwoas.Repo
 
   @topic inspect(__MODULE__)
+  @aggregated_topic @topic <> ":aggregated"
 
   @spec subscribe() :: :ok | {:error, term}
   def subscribe, do: Phoenix.PubSub.subscribe(Ziwoas.PubSub, @topic)
+
+  @spec subscribe(:aggregated) :: :ok | {:error, term}
+  def subscribe(:aggregated), do: Phoenix.PubSub.subscribe(Ziwoas.PubSub, @aggregated_topic)
 
   @doc "Sends the live deltas an ingesting process collected to the subscribers."
   @spec notify_live([map]) :: :ok
@@ -27,6 +30,9 @@ defmodule Ziwoas.Plugs do
     broadcast(:live, deltas)
     :ok
   end
+
+  defp broadcast(:aggregated, date),
+    do: Phoenix.PubSub.broadcast(Ziwoas.PubSub, @aggregated_topic, {:aggregated, date})
 
   defp broadcast(event, payload),
     do: Phoenix.PubSub.broadcast(Ziwoas.PubSub, @topic, {event, payload})

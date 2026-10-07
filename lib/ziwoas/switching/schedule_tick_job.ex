@@ -11,7 +11,7 @@ defmodule Ziwoas.Switching.ScheduleTickJob do
   require Logger
 
   alias Ziwoas.{Clock, Switching}
-  alias Ziwoas.Switching.EdgeCalculator
+  alias Ziwoas.Switching.Edges
 
   # Switching a running appliance off late is worse than not switching it at all.
   @grace_s 10 * 60
@@ -22,7 +22,7 @@ defmodule Ziwoas.Switching.ScheduleTickJob do
   def perform(opts), do: opts |> Keyword.fetch!(:config) |> tick(Clock.now())
 
   @doc "One tick at `now`; returns the edges it dispatched, `{plug_id, edge, :ok | :failed}`."
-  @spec tick(Ziwoas.Config.t(), DateTime.t()) :: [{String.t(), EdgeCalculator.Edge.t(), atom}]
+  @spec tick(Ziwoas.Config.t(), DateTime.t()) :: [{String.t(), Edges.Edge.t(), atom}]
   def tick(config, now) do
     zone = config.location.timezone
     plugs = Enum.filter(config.plugs, & &1.switchable)
@@ -52,7 +52,7 @@ defmodule Ziwoas.Switching.ScheduleTickJob do
         watermark -> if DateTime.compare(watermark, floor) == :gt, do: watermark, else: floor
       end
 
-    case EdgeCalculator.latest_edge_per_plug(rules, from, now, zone) do
+    case Edges.latest_edge_per_plug(rules, from, now, zone) do
       [edge | _] -> if Switching.manual_after?(plug_id, edge.at), do: nil, else: edge
       [] -> nil
     end

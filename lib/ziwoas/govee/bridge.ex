@@ -22,12 +22,13 @@ defmodule Ziwoas.Govee.Bridge do
 
   require Logger
 
-  alias Ziwoas.Govee.{CommandRouter, DeviceRegistry, Lan, PlatformApi, StateStore}
+  alias Ziwoas.Govee.{CommandRouter, DeviceRegistry, Lan, PlatformApi, States}
   alias Ziwoas.Lights
 
   @listen_backoff_min_ms 1_000
   @listen_backoff_max_ms 60_000
   @state_fields [:on, :reachable, :brightness, :color, :color_temp_k, :zone_states]
+  @command_timeout_ms Application.compile_env(:ziwoas, :govee_command_timeout_ms, 5_000)
 
   @type verb ::
           {:power, boolean}
@@ -42,15 +43,20 @@ defmodule Ziwoas.Govee.Bridge do
 
   @doc """
   Sends `verb` to the lamp `key`: `:ok` once it went out over the LAN or its API
-  call was started, `{:error, :unavailable}` without a running bridge,
-  `{:error, :unknown_lamp | :unknown_scene | {:lan, reason}}` otherwise.
+  call was started, `{:error, :unavailable}` without a running bridge or one
+  that does not answer in time, `{:error, :unknown_lamp | :unknown_scene |
+  {:lan, reason}}` otherwise.
   """
   @spec command(String.t(), verb, GenServer.server()) :: :ok | {:error, term}
   def command(key, verb, server \\ __MODULE__) do
     case GenServer.whereis(server) do
       nil -> {:error, :unavailable}
-      pid -> GenServer.call(pid, {:command, key, verb})
+      pid -> GenServer.call(pid, {:command, key, verb}, @command_timeout_ms)
     end
+  catch
+    :exit, reason ->
+      Logger.warning("Govee bridge: #{inspect(verb)} for #{key}: #{inspect(reason)}")
+      {:error, :unavailable}
   end
 
   @doc """
@@ -69,7 +75,7 @@ defmodule Ziwoas.Govee.Bridge do
       api: PlatformApi.new(govee.api_key, Keyword.get(opts, :api_req, [])),
       registry:
         DeviceRegistry.new(Map.new(govee.names, fn {mac, %{name: name}} -> {mac, name} end)),
-      store: StateStore.new(govee.pending_window_seconds * 1.0),
+      store: States.new(govee.pending_window_seconds * 1.0),
       clock: Keyword.get(opts, :clock, fn -> System.monotonic_time(:millisecond) / 1000 end),
       send: Keyword.get(opts, :send, &Lan.send_datagram/1),
       put_lamp: Keyword.get(opts, :put_lamp, &Lights.put_lamp/1),
@@ -293,7 +299,7 @@ defmodule Ziwoas.Govee.Bridge do
 
   defp apply_lan(state, device, status) do
     {result, store} =
-      StateStore.apply_telemetry(
+      States.apply_telemetry(
         state.store,
         device.key,
         Lan.telemetry(status),
@@ -321,7 +327,7 @@ defmodule Ziwoas.Govee.Bridge do
     case PlatformApi.telemetry(map, device.zones) do
       {:ok, telemetry} ->
         {result, store} =
-          StateStore.apply_telemetry(state.store, device.key, telemetry, :api, state.clock.())
+          States.apply_telemetry(state.store, device.key, telemetry, :api, state.clock.())
 
         if report? and result.changed, do: report_state(state, device.key, result.published)
         %{state | store: store}
@@ -371,8 +377,8 @@ defmodule Ziwoas.Govee.Bridge do
   end
 
   defp record(state, key, verb) do
-    changes = CommandRouter.changes(verb, StateStore.published(state.store, key))
-    {published, store} = StateStore.record_command(state.store, key, changes, state.clock.())
+    changes = CommandRouter.changes(verb, States.published(state.store, key))
+    {published, store} = States.record_command(state.store, key, changes, state.clock.())
     report_state(state, key, published)
     %{state | store: store}
   end
@@ -390,7 +396,8 @@ defmodule Ziwoas.Govee.Bridge do
           into: %{on: false, reachable: true},
           do: {field, value}
 
-    state.put_state.(key, lamp_state)
+    with {:error, reason} <- state.put_state.(key, lamp_state),
+         do: Logger.error("Govee bridge: state of #{key} not stored: #{inspect(reason)}")
   end
 
   defp async(state, tag, fun) do

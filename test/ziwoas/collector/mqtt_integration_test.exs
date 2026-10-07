@@ -45,30 +45,17 @@ defmodule Ziwoas.Collector.MqttIntegrationTest do
 
   test "a publisher connection publishes to the broker", ctx do
     start_supervised!(
-      Mqtt.connection_spec("ziwoas-phoenix-fritz", ctx.mqtt, {Tortoise311.Handler.Logger, []})
+      Mqtt.connection_spec(Mqtt.command_client_id(), ctx.mqtt, {Tortoise311.Handler.Logger, []})
     )
 
     assert FakeMqttBroker.await(ctx.broker, &(FakeMqttBroker.clients(&1) != []))
 
-    assert :ok =
-             Mqtt.publish(
-               "ziwoas-phoenix-fritz",
-               "shellies/washer/status/switch:0",
-               ~s({"apower":1.0})
-             )
+    assert :ok = Mqtt.publish(Mqtt.command_client_id(), "shellies/washer/command/switch:0", "on")
 
-    assert :ok =
-             Mqtt.publish("ziwoas-phoenix-fritz", "retained/K/state", "{}", retain: true)
-
-    assert FakeMqttBroker.await(ctx.broker, &(length(FakeMqttBroker.published(&1)) == 2))
+    assert FakeMqttBroker.await(ctx.broker, &(FakeMqttBroker.published(&1) != []))
 
     assert FakeMqttBroker.published(ctx.broker) == [
-             %{
-               topic: "shellies/washer/status/switch:0",
-               payload: ~s({"apower":1.0}),
-               retain: false
-             },
-             %{topic: "retained/K/state", payload: "{}", retain: true}
+             %{topic: "shellies/washer/command/switch:0", payload: "on", retain: false}
            ]
   end
 end

@@ -38,7 +38,7 @@ defmodule Ziwoas.Energy.Report do
 
   @doc """
   Options: `:plugs`, `:location` (weather needs its coordinates), `:today`
-  (the date an empty report shows) and `:price_book` (default: the prices on
+  (the date an empty report shows) and `:prices` (default: the prices on
   record).
   """
   @spec build(range, keyword) :: t
@@ -46,18 +46,18 @@ defmodule Ziwoas.Energy.Report do
     roster = Roster.new(Keyword.fetch!(opts, :plugs))
     location = Keyword.fetch!(opts, :location)
     today = Keyword.fetch!(opts, :today)
-    price_book = Keyword.get_lazy(opts, :price_book, &Economics.price_book/0)
+    prices = Keyword.get_lazy(opts, :prices, &Economics.kwh_prices/0)
 
     case Plugs.daily_total_range() do
-      nil -> empty(today, price_book)
-      aggregated -> report(range, aggregated, roster, location, price_book)
+      nil -> empty(today, prices)
+      aggregated -> report(range, aggregated, roster, location, prices)
     end
   end
 
   @spec empty?(t) :: boolean
   def empty?(%__MODULE__{daily_points: points}), do: points == []
 
-  defp report(range, aggregated, roster, location, price_book) do
+  defp report(range, aggregated, roster, location, prices) do
     {first, last} = resolve(range, aggregated)
     rows = Plugs.daily_totals(first, last)
     daily_points = daily_points(Energy.daily_summaries(first, last), first, last)
@@ -68,7 +68,7 @@ defmodule Ziwoas.Energy.Report do
       end_date: last,
       first_date: aggregated.first,
       last_date: aggregated.last,
-      summary: summarize(daily_points, price_book),
+      summary: summarize(daily_points, prices),
       daily_points: daily_points,
       producer_ranking: ranking(rows, roster, :producer),
       consumer_ranking: ranking(rows, roster, :consumer),
@@ -100,13 +100,13 @@ defmodule Ziwoas.Energy.Report do
     {Enum.max([first, floor], Date), last}
   end
 
-  defp empty(today, price_book) do
+  defp empty(today, prices) do
     %__MODULE__{
       start_date: today,
       end_date: today,
       first_date: today,
       last_date: today,
-      summary: summarize([], price_book),
+      summary: summarize([], prices),
       daily_points: [],
       producer_ranking: [],
       consumer_ranking: [],
@@ -136,7 +136,7 @@ defmodule Ziwoas.Energy.Report do
     end
   end
 
-  defp summarize(daily_points, price_book) do
+  defp summarize(daily_points, prices) do
     covered = Enum.filter(daily_points, & &1.covered)
     produced = covered |> Enum.map(& &1.produced) |> Amount.sum()
     consumed = covered |> Enum.map(& &1.consumed) |> Amount.sum()
@@ -147,7 +147,7 @@ defmodule Ziwoas.Energy.Report do
       produced_kwh: rounded_kwh(produced),
       consumed_kwh: rounded_kwh(consumed),
       self_consumed_kwh: rounded_kwh(self_consumed),
-      savings_eur: savings_eur(covered, price_book),
+      savings_eur: savings_eur(covered, prices),
       balance_kwh: rounded_kwh(Amount.subtract(produced, consumed)),
       avg_produced_kwh: average_kwh(produced, days),
       avg_consumed_kwh: average_kwh(consumed, days),
@@ -157,10 +157,10 @@ defmodule Ziwoas.Energy.Report do
   end
 
   # Each day carries the price in force on it, so a range spanning a price change isn't levelled.
-  defp savings_eur(covered_points, price_book) do
+  defp savings_eur(covered_points, prices) do
     dated = Enum.map(covered_points, &{&1.date, &1.self_consumed})
 
-    case Economics.total_savings_eur(price_book, dated) do
+    case Economics.total_savings_eur(prices, dated) do
       nil -> nil
       total -> Float.round(total * 1.0, 2)
     end

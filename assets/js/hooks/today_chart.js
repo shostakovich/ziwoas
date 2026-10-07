@@ -59,7 +59,6 @@ export default {
       // The plug was silent: a null point breaks the line instead of bridging the gap.
       dataset.data.push({ x: last.x + 1, y: null }, { x, y })
     } else if (last.x === x) {
-
       last.y = y
     } else {
       dataset.data.push({ x, y })

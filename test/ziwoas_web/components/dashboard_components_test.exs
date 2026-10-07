@@ -69,7 +69,7 @@ defmodule ZiwoasWeb.DashboardComponentsTest do
             solakon_online: true,
             solar_w: 432.6,
             battery_soc_pct: 57,
-            battery_state: "charging"
+            battery_state: :charging
           )
         )
 
@@ -365,7 +365,7 @@ defmodule ZiwoasWeb.DashboardComponentsTest do
     end
 
     test "the battery picture follows the state, the normal one when unknown" do
-      assert Components.EnergyFlow.battery_asset("charging") == "solakon_battery_charging.webp"
+      assert Components.EnergyFlow.battery_asset(:charging) == "solakon_battery_charging.webp"
       assert Components.EnergyFlow.battery_asset(nil) == "solakon_battery_normal.webp"
     end
   end

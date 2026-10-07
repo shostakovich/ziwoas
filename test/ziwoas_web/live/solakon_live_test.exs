@@ -346,6 +346,15 @@ defmodule ZiwoasWeb.SolakonLiveTest do
   end
 
   describe "connected" do
+    test "the nightly aggregation leaves the page running", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/solakon")
+
+      Ziwoas.Plugs.aggregate("Europe/Berlin", [], today: ~D[2026-10-05])
+
+      assert has_element?(view, "#energy_flow")
+      assert Process.alive?(view.pid)
+    end
+
     test "plug deltas and readings move the freshness beat, and leave the history be", %{
       conn: conn
     } do

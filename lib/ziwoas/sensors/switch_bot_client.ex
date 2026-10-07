@@ -10,7 +10,6 @@ defmodule Ziwoas.Sensors.SwitchBotClient do
 
   @base_url "https://api.switch-bot.com"
   @timeout_ms 4_000
-  @types %{"MeterPro(CO2)" => :meter_pro_co2, "WoIOSensor" => :outdoor_meter}
 
   @type status :: %{
           temperature: number | nil,
@@ -45,19 +44,6 @@ defmodule Ziwoas.Sensors.SwitchBotClient do
         |> Enum.map(&%{id: &1["deviceId"], name: &1["deviceName"], device_type: &1["deviceType"]})
 
       {:ok, devices}
-    end
-  end
-
-  @doc "The devices that are air sensors ZiWoAS reads, with their sensor type."
-  @spec list_sensor_devices(Switchbot.t()) :: {:ok, [map]} | {:error, reason}
-  def list_sensor_devices(%Switchbot{} = auth) do
-    with {:ok, devices} <- list_all_devices(auth) do
-      {:ok,
-       for(
-         device <- devices,
-         type = @types[device.device_type],
-         do: %{id: device.id, name: device.name, type: type}
-       )}
     end
   end
 

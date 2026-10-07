@@ -12,9 +12,6 @@ defmodule Ziwoas.Energy.Amount do
   @spec wh(number) :: t
   def wh(value) when is_number(value), do: %__MODULE__{wh: :erlang.float(value)}
 
-  @spec from_kwh(number) :: t
-  def from_kwh(value), do: wh(value * 1000.0)
-
   @spec zero() :: t
   def zero, do: wh(0.0)
 

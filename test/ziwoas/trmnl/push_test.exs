@@ -80,11 +80,14 @@ defmodule Ziwoas.Trmnl.PushTest do
   test "an HTTP error is a warning with the status" do
     stub_trmnl(500)
 
-    assert capture_log(fn ->
-             assert Push.run(:energy, "https://example/", fn -> @payload end) ==
-                      {:error, {:http_status, 500}}
-           end) =~
-             "TRMNL push failed: HTTP 500 Internal Server Error"
+    log =
+      capture_log(fn ->
+        assert Push.run(:energy, "https://example/", fn -> @payload end) ==
+                 {:error, {:http_status, 500}}
+      end)
+
+    assert log =~ "TRMNL push failed: HTTP 500"
+    refute log =~ "Internal Server Error"
   end
 
   test "EnergyPushJob pushes the energy widget to its webhook" do

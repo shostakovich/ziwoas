@@ -7,7 +7,7 @@ defmodule ZiwoasWeb.DashboardLive do
       energy-flow state; plug deltas also go to the 24 h chart
       (`"today_chart:deltas"`), and the day's tiles are recomputed at most once
       a minute;
-    * `{:aggregated, _}` from `Ziwoas.Plugs` redraws the 14-day chart;
+    * `{:aggregated, _}` from `Ziwoas.Plugs.subscribe(:aggregated)` redraws the 14-day chart;
     * timers only where the clock itself is the trigger: local midnight starts
       the day's tiles afresh, and every hour the 24 h window slides on.
 
@@ -41,6 +41,7 @@ defmodule ZiwoasWeb.DashboardLive do
 
     if connected?(socket) do
       Plugs.subscribe()
+      Plugs.subscribe(:aggregated)
       Solakon.subscribe()
       schedule_midnight(config)
       Process.send_after(self(), :slide_today_chart, @today_chart_refresh_ms)

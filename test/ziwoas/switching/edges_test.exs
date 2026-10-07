@@ -1,8 +1,8 @@
-defmodule Ziwoas.Switching.EdgeCalculatorTest do
+defmodule Ziwoas.Switching.EdgesTest do
   # Plain rules, no database.
   use ExUnit.Case, async: true
 
-  alias Ziwoas.Switching.{EdgeCalculator, Rule}
+  alias Ziwoas.Switching.{Edges, Rule}
 
   @zone "Europe/Berlin"
 
@@ -36,8 +36,8 @@ defmodule Ziwoas.Switching.EdgeCalculatorTest do
     ]
   end
 
-  defp between(rules, from, to), do: EdgeCalculator.edges_between(rules, from, to, @zone)
-  defp next(rules, from, to), do: EdgeCalculator.next_edge_per_plug(rules, from, to, @zone)
+  defp between(rules, from, to), do: Edges.edges_between(rules, from, to, @zone)
+  defp next(rules, from, to), do: Edges.next_edge_per_plug(rules, from, to, @zone)
   defp same?(a, b), do: DateTime.compare(a, b) == :eq
 
   test "fires on and off edges on configured weekdays" do

@@ -1,8 +1,9 @@
 import { renderChart, vizToken, tonesByOrder, timeScale, timeTooltipTitle } from "../lib/chart_theme.js"
 
-const CO2_THRESHOLDS = [
-  { value: 1000, name: "Lüften", tone: "--felt-warning", textTone: "--felt-warning-text" },
-  { value: 1400, name: "Grenzwert", tone: "--felt-danger", textTone: "--felt-danger-text" },
+// The server's [warn, bad] ppm get these names and tones.
+const CO2_LINES = [
+  { name: "Lüften", tone: "--felt-warning", textTone: "--felt-warning-text" },
+  { name: "Grenzwert", tone: "--felt-danger", textTone: "--felt-danger-text" },
 ]
 // Room for the top threshold's label on a tick a phone's 500-step axis shares (1.400 × 1.1 rounds up to 2.000).
 const CO2_AXIS_TOP = 1500
@@ -27,7 +28,8 @@ export default {
     const tones = tonesByOrder(data.temperature.map((s) => s.device_id))
     this.render("temperature", data.temperature, tones, "°C")
     this.render("humidity", data.humidity, tones, "%")
-    this.render("co2", data.co2, tones, "ppm", { thresholds: CO2_THRESHOLDS, suggestedMax: CO2_AXIS_TOP })
+    const thresholds = data.co2_thresholds.map((value, i) => ({ ...CO2_LINES[i], value }))
+    this.render("co2", data.co2, tones, "ppm", { thresholds, suggestedMax: CO2_AXIS_TOP })
   },
 
   render(key, series, tones, unit, { thresholds = [], suggestedMax } = {}) {

@@ -158,7 +158,8 @@ defmodule ZiwoasWeb.SensorsLiveTest do
           %{device_id: "TEST_INDOOR", points: [[^since_ms, 41]]},
           %{device_id: "TEST_OUTDOOR", points: [[^outdoor_ms, 70]]}
         ],
-        co2: [%{device_id: "TEST_INDOOR", name: "Test Wohnzimmer", points: [[^recent_ms, 650]]}]
+        co2: [%{device_id: "TEST_INDOOR", name: "Test Wohnzimmer", points: [[^recent_ms, 650]]}],
+        co2_thresholds: [1000, 1400]
       })
     end
   end

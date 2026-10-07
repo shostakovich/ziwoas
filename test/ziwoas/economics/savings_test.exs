@@ -2,17 +2,24 @@ defmodule Ziwoas.Economics.SavingsTest do
   use ExUnit.Case, async: true
 
   alias Ziwoas.Economics
-  alias Ziwoas.Economics.PriceBook
   alias Ziwoas.Energy.Amount
 
-  defp book(entries) do
-    entries
-    |> Enum.map(fn {date, price} -> %PriceBook.Entry{valid_from: date, eur_per_kwh: price} end)
-    |> PriceBook.new()
+  setup do
+    {:ok, book: [{~D[2026-01-01], 0.30}, {~D[2026-07-01], 0.20}]}
   end
 
-  setup do
-    {:ok, book: book([{~D[2026-01-01], 0.30}, {~D[2026-07-01], 0.20}])}
+  test "a price applies from its date until the next one begins" do
+    prices = [{~D[2026-01-01], 0.30}, {~D[2026-07-01], 0.25}]
+
+    assert Economics.price_on(prices, ~D[2026-01-01]) == 0.30
+    assert Economics.price_on(prices, ~D[2026-06-30]) == 0.30
+    assert Economics.price_on(prices, ~D[2026-07-01]) == 0.25
+    assert Economics.price_on(prices, ~D[2030-01-01]) == 0.25
+  end
+
+  test "the earliest price also covers every day before it; no prices know no price" do
+    assert Economics.price_on([{~D[2026-01-01], 0.30}], ~D[2020-05-05]) == 0.30
+    assert Economics.price_on([], ~D[2026-01-01]) == nil
   end
 
   test "prices a day's self-consumption at that day's price", %{book: book} do
@@ -33,7 +40,7 @@ defmodule Ziwoas.Economics.SavingsTest do
   end
 
   test "without a price the savings are unknown, not zero" do
-    book = book([])
+    book = []
 
     refute Economics.priced?(book)
     assert Economics.savings_eur(book, Amount.wh(1_000), ~D[2026-03-01]) == nil

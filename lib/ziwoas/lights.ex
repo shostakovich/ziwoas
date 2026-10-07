@@ -101,9 +101,10 @@ defmodule Ziwoas.Lights do
   Creates or updates the lamp the bridge knows (`key`, `name`, `sku`,
   `supports_color`, `supports_color_temp`, `color_temp_min_k`, `color_temp_max_k`,
   `zones`, `scenes`). A stored name is kept: it is the settings form's. An empty
-  zone or scene list is stored as NULL.
+  zone or scene list is stored as NULL. Values that do not cast are refused
+  with the changeset.
   """
-  @spec put_lamp(map) :: :ok | {:error, :invalid}
+  @spec put_lamp(map) :: {:ok, Light.t()} | {:error, :invalid | Ecto.Changeset.t()}
   def put_lamp(%{key: key} = lamp) do
     {light, name} =
       case Repo.get_by(Light, key: key) do
@@ -124,8 +125,7 @@ defmodule Ziwoas.Lights do
       |> put_unless_nil(:color_temp_max_k, lamp[:color_temp_max_k])
 
     if is_binary(key) and Regex.match?(@key_format, key) do
-      light |> Ecto.Changeset.change(changes) |> Repo.insert_or_update!()
-      :ok
+      light |> Ecto.Changeset.cast(changes, Map.keys(changes)) |> Repo.insert_or_update()
     else
       {:error, :invalid}
     end
@@ -135,9 +135,12 @@ defmodule Ziwoas.Lights do
   Records the state the bridge reports for the lamp `key` and tells the
   subscribers: `on` and `reachable` always, `brightness`, `color`
   (`%{r:, g:, b:}`), `color_temp_k` and `zone_states` when given; an absent
-  field stays untouched, zone bits merge into the stored ones.
+  field stays untouched, zone bits merge into the stored ones. A reading that
+  does not cast is refused with the changeset, a database that refuses the
+  write with its `Exqlite.Error`; then nobody is told.
   """
-  @spec put_state(String.t(), map) :: :ok
+  @spec put_state(String.t(), map) ::
+          {:ok, State.t()} | {:error, Ecto.Changeset.t() | Exqlite.Error.t()}
   def put_state(key, state) when is_binary(key) and key != "" do
     row = Repo.get_by(State, light_key: key) || %State{light_key: key}
 
@@ -148,8 +151,13 @@ defmodule Ziwoas.Lights do
       |> put_color(state)
       |> put_zones(row, state)
 
-    row |> Ecto.Changeset.change(changes) |> Repo.insert_or_update!()
-    notify_updated(key)
+    with {:ok, row} <-
+           row |> Ecto.Changeset.cast(changes, Map.keys(changes)) |> Repo.insert_or_update() do
+      notify_updated(key)
+      {:ok, row}
+    end
+  rescue
+    error in Exqlite.Error -> {:error, error}
   end
 
   defp put_color(changes, %{color: %{r: r, g: g, b: b}}),

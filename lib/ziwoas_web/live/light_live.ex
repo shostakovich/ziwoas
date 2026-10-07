@@ -4,10 +4,12 @@ defmodule ZiwoasWeb.LightLive do
   settings gear. `Ziwoas.Lights`' update for the lamp reloads the hero's
   snapshot alone, so the controls keep what the hand is doing.
 
-  Every control sends `"light_command"` (`ZiwoasWeb.LightEvents`): the
+  Every control sends `"light_command"` (`ZiwoasWeb.LightEvents`, run off the
+  LiveView process by `start_async`): the
   brightness and white sliders as forms debounced by `phx-debounce`, the buttons
   and swatches by `phx-click`, the colour wheel through the `LightDetail` hook.
-  What a command set is kept in assigns (`brightness`, `kelvin`, `color`); the
+  What a command set is kept in assigns (`brightness`, `kelvin`, `color`), and
+  a refused command puts the sliders back there (`revert`); the
   tabs are an assign too. The gear opens the settings sheet in place.
   """
   use ZiwoasWeb, :live_view
@@ -37,6 +39,7 @@ defmodule ZiwoasWeb.LightLive do
        brightness: max(Lights.brightness(snapshot), 1),
        kelvin: Lights.color_temp_k(snapshot),
        color: if(Lights.white?(snapshot), do: nil, else: color_hex(snapshot)),
+       revert: nil,
        toast: %{message: nil, undo: nil},
        toast_timer: nil,
        settings: nil
@@ -59,23 +62,8 @@ defmodule ZiwoasWeb.LightLive do
   def handle_event("light_command", params, socket) do
     params = Map.put(params, "light_key", socket.assigns.light.key)
 
-    case LightEvents.run(params) do
-      {:ok, light, {:zones, _keys, toast}} ->
-        socket = refresh_power(socket)
-        {:noreply, if(toast, do: show_toast(socket, toast_assigns(light, toast)), else: socket)}
-
-      {:ok, _light, :power} ->
-        {:noreply, refresh_power(socket)}
-
-      {:ok, _light, {:sent, verb}} ->
-        {:noreply, keep(socket, verb)}
-
-      {:error, :unreachable} ->
-        {:noreply, put_flash(socket, :error, LightEvents.failed_message())}
-
-      {:error, _reason} ->
-        {:noreply, socket}
-    end
+    {:noreply,
+     start_async(socket, {:light_command, params["command"]}, fn -> LightEvents.run(params) end)}
   end
 
   def handle_event("select_tab", %{"tab" => tab}, socket) do
@@ -109,6 +97,38 @@ defmodule ZiwoasWeb.LightLive do
       {:error, changeset} ->
         {:noreply, socket |> clear_flash() |> assign(:settings, to_form(changeset))}
     end
+  end
+
+  @impl true
+  def handle_async({:light_command, _command}, {:ok, result}, socket) do
+    case result do
+      {:ok, light, {:zones, _keys, toast}} ->
+        socket = refresh_power(socket)
+        {:noreply, if(toast, do: show_toast(socket, toast_assigns(light, toast)), else: socket)}
+
+      {:ok, _light, :power} ->
+        {:noreply, refresh_power(socket)}
+
+      {:ok, _light, {:sent, verb}} ->
+        {:noreply, socket |> assign(:revert, nil) |> keep(verb)}
+
+      {:error, :unreachable} ->
+        {:noreply, failed(socket)}
+
+      {:error, _reason} ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_async({:light_command, _command}, {:exit, _reason}, socket),
+    do: {:noreply, failed(socket)}
+
+  # The sliders' thumbs moved on the client; a new `revert` sends them back to
+  # the values kept here, focused or not.
+  defp failed(socket) do
+    socket
+    |> put_flash(:error, LightEvents.failed_message())
+    |> update(:revert, &((&1 || 0) + 1))
   end
 
   # What the hand set stays on the controls; the lamp's report only redraws the hero.
@@ -160,10 +180,10 @@ defmodule ZiwoasWeb.LightLive do
         </.header>
 
         <.power snapshot={@power_snapshot} />
-        <.brightness_panel brightness={@brightness} />
+        <.brightness_panel brightness={@brightness} revert={@revert} />
         <.tabs tabs={@tabs} active={@tab} />
 
-        <.white_panel light={@light} kelvin={@kelvin} hidden={@tab != "white"} />
+        <.white_panel light={@light} kelvin={@kelvin} revert={@revert} hidden={@tab != "white"} />
         <.color_panel
           :if={@light.supports_color}
           color={@color}

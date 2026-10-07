@@ -21,7 +21,10 @@ defmodule Ziwoas.Weather do
 
   @doc "Tells the subscribers that a sync on the local date `today` is stored."
   @spec notify_synced(Date.t()) :: :ok
-  def notify_synced(%Date{} = today), do: broadcast(:synced, today)
+  def notify_synced(%Date{} = today) do
+    broadcast(:synced, today)
+    :ok
+  end
 
   defp broadcast(event, payload),
     do: Phoenix.PubSub.broadcast(Ziwoas.PubSub, @topic, {event, payload})

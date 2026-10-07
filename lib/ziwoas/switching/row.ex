@@ -5,7 +5,7 @@ defmodule Ziwoas.Switching.Row do
   edge within a week and its latest measurement.
   """
   alias Ziwoas.Plugs.{Plug, State}
-  alias Ziwoas.Switching.{Command, EdgeCalculator, Schedule}
+  alias Ziwoas.Switching.{Command, Edges, Schedule}
 
   @enforce_keys [
     :plug,
@@ -25,7 +25,7 @@ defmodule Ziwoas.Switching.Row do
           entries: [Schedule.entry()],
           state: State.t() | nil,
           last_command: Command.t() | nil,
-          next_edge: EdgeCalculator.Edge.t() | nil,
+          next_edge: Edges.Edge.t() | nil,
           watt: float | nil,
           last_seen_ts: integer | nil,
           offline: boolean,

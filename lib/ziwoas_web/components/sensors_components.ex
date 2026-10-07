@@ -161,9 +161,15 @@ defmodule ZiwoasWeb.SensorsComponents do
 
   @doc """
   The `SensorsChart` hook's series from `readings`: per chart one entry per
-  sensor (CO₂ only the CO₂ meters) with its `[unix_ms, value]` points.
+  sensor (CO₂ only the CO₂ meters) with its `[unix_ms, value]` points, and
+  the CO₂ chart's `[warn, bad]` lines in ppm.
   """
-  @spec chart_data([map], [map]) :: %{temperature: [map], humidity: [map], co2: [map]}
+  @spec chart_data([map], [map]) :: %{
+          temperature: [map],
+          humidity: [map],
+          co2: [map],
+          co2_thresholds: [pos_integer]
+        }
   def chart_data(sensors, readings) do
     grouped = Enum.group_by(readings, & &1.device_id)
     co2_sensors = Enum.filter(sensors, &(&1.type == :meter_pro_co2))
@@ -171,7 +177,8 @@ defmodule ZiwoasWeb.SensorsComponents do
     %{
       temperature: series(grouped, sensors, :temperature),
       humidity: series(grouped, sensors, :humidity),
-      co2: series(grouped, co2_sensors, :co2)
+      co2: series(grouped, co2_sensors, :co2),
+      co2_thresholds: [Sensors.co2_warn_ppm(), Sensors.co2_bad_ppm()]
     }
   end
 
