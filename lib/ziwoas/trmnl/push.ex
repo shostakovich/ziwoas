@@ -7,7 +7,6 @@ defmodule Ziwoas.Trmnl.Push do
   """
   require Logger
 
-  alias Plug.Conn.Status
   alias Ziwoas.Http
 
   @max_payload_bytes 2048
@@ -59,7 +58,7 @@ defmodule Ziwoas.Trmnl.Push do
         {:ok, :sent}
 
       {:ok, %Req.Response{status: status}} ->
-        Logger.warning("#{push(widget)} failed: HTTP #{status} #{reason_phrase(status)}")
+        Logger.warning("#{push(widget)} failed: HTTP #{status}")
         {:error, {:http_status, status}}
 
       {:error, exception} ->
@@ -76,11 +75,4 @@ defmodule Ziwoas.Trmnl.Push do
 
   defp payload(:energy), do: "TRMNL payload"
   defp payload(:sensors), do: "TRMNL sensor payload"
-
-  # Plug knows only the registered codes and raises for the others.
-  defp reason_phrase(status) do
-    Status.reason_phrase(status)
-  rescue
-    ArgumentError -> ""
-  end
 end

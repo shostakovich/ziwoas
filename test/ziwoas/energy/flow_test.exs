@@ -39,7 +39,7 @@ defmodule Ziwoas.Energy.FlowTest do
     assert flow.home_w == 200.0
     assert flow.solakon_ac_w == 260.0
     assert flow.battery_soc_pct == 84
-    assert flow.battery_state == "charging"
+    assert flow.battery_state == :charging
     assert flow.grid_w == -60.0
     assert flow.solar_w == 310.0
     assert flow.battery_w == 50.0

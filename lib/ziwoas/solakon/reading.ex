@@ -109,13 +109,13 @@ defmodule Ziwoas.Solakon.Reading do
   def battery_display_power_w(%__MODULE__{battery_power_w: watts}), do: (watts || 0) * 1.0
 
   @doc "The battery character the UI shows; a fault wins, then thermal, then charge level and flow."
-  @spec battery_state(t) :: String.t()
+  @spec battery_state(t) :: :fault | :hot | :cold | :low | :charging | :discharging | :normal
   def battery_state(%__MODULE__{} = reading) do
     cond do
-      alarmed?(reading) -> "fault"
-      battery_hot?(reading) -> "hot"
-      battery_cold?(reading) -> "cold"
-      battery_low?(reading) -> "low"
+      alarmed?(reading) -> :fault
+      battery_hot?(reading) -> :hot
+      battery_cold?(reading) -> :cold
+      battery_low?(reading) -> :low
       true -> flow_state(battery_display_power_w(reading))
     end
   end
@@ -129,7 +129,7 @@ defmodule Ziwoas.Solakon.Reading do
   defp battery_low?(%__MODULE__{battery_soc_pct: soc}),
     do: not is_nil(soc) and soc <= @low_soc_pct
 
-  defp flow_state(power) when power > @charge_deadband_w, do: "charging"
-  defp flow_state(power) when power < -@charge_deadband_w, do: "discharging"
-  defp flow_state(_power), do: "normal"
+  defp flow_state(power) when power > @charge_deadband_w, do: :charging
+  defp flow_state(power) when power < -@charge_deadband_w, do: :discharging
+  defp flow_state(_power), do: :normal
 end

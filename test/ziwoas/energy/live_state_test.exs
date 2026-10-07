@@ -84,7 +84,7 @@ defmodule Ziwoas.Energy.LiveStateTest do
     assert flow.solar_w == 310.0
     assert flow.battery_soc_pct == 84
     assert flow.battery_w == 50.0
-    assert flow.battery_state == "charging"
+    assert flow.battery_state == :charging
     assert flow.grid_w == -60.0
     assert flow.flows.solar_to_battery_w == 50.0
   end
