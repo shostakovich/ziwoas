@@ -4,7 +4,8 @@ defmodule ZiwoasWeb.LightLive do
   settings gear. `Ziwoas.Lights`' update for the lamp reloads the hero's
   snapshot alone, so the controls keep what the hand is doing.
 
-  Every control sends `"light_command"` (`ZiwoasWeb.LightEvents`): the
+  Every control sends `"light_command"` (`ZiwoasWeb.LightEvents`, run off the
+  LiveView process by `start_async`): the
   brightness and white sliders as forms debounced by `phx-debounce`, the buttons
   and swatches by `phx-click`, the colour wheel through the `LightDetail` hook.
   What a command set is kept in assigns (`brightness`, `kelvin`, `color`); the
@@ -59,23 +60,8 @@ defmodule ZiwoasWeb.LightLive do
   def handle_event("light_command", params, socket) do
     params = Map.put(params, "light_key", socket.assigns.light.key)
 
-    case LightEvents.run(params) do
-      {:ok, light, {:zones, _keys, toast}} ->
-        socket = refresh_power(socket)
-        {:noreply, if(toast, do: show_toast(socket, toast_assigns(light, toast)), else: socket)}
-
-      {:ok, _light, :power} ->
-        {:noreply, refresh_power(socket)}
-
-      {:ok, _light, {:sent, verb}} ->
-        {:noreply, keep(socket, verb)}
-
-      {:error, :unreachable} ->
-        {:noreply, put_flash(socket, :error, LightEvents.failed_message())}
-
-      {:error, _reason} ->
-        {:noreply, socket}
-    end
+    {:noreply,
+     start_async(socket, {:light_command, params["command"]}, fn -> LightEvents.run(params) end)}
   end
 
   def handle_event("select_tab", %{"tab" => tab}, socket) do
@@ -110,6 +96,30 @@ defmodule ZiwoasWeb.LightLive do
         {:noreply, socket |> clear_flash() |> assign(:settings, to_form(changeset))}
     end
   end
+
+  @impl true
+  def handle_async({:light_command, _command}, {:ok, result}, socket) do
+    case result do
+      {:ok, light, {:zones, _keys, toast}} ->
+        socket = refresh_power(socket)
+        {:noreply, if(toast, do: show_toast(socket, toast_assigns(light, toast)), else: socket)}
+
+      {:ok, _light, :power} ->
+        {:noreply, refresh_power(socket)}
+
+      {:ok, _light, {:sent, verb}} ->
+        {:noreply, keep(socket, verb)}
+
+      {:error, :unreachable} ->
+        {:noreply, put_flash(socket, :error, LightEvents.failed_message())}
+
+      {:error, _reason} ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_async({:light_command, _command}, {:exit, _reason}, socket),
+    do: {:noreply, put_flash(socket, :error, LightEvents.failed_message())}
 
   # What the hand set stays on the controls; the lamp's report only redraws the hero.
   defp keep(socket, {:brightness, value}), do: assign(socket, :brightness, value)

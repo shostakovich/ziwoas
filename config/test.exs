@@ -34,3 +34,6 @@ config :ziwoas, http_stubs: true, brightsky_retry_base_ms: 0
 # MQTT publisher tests can record (Ziwoas.TestMqtt.record/1), both in test/support,
 # seen by the processes a test starts as well.
 config :ziwoas, clock: Ziwoas.TestClock, mqtt_publisher: Ziwoas.TestMqtt
+
+# Read at compile time: a busy Govee bridge answers a command with an error this soon.
+config :ziwoas, govee_command_timeout_ms: 200

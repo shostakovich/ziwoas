@@ -26,9 +26,9 @@ defmodule ZiwoasWeb.LightLiveEventsTest do
     %{light: light}
   end
 
-  defp bridge!(answer) do
+  defp bridge!(answer, opts \\ []) do
     if GenServer.whereis(Ziwoas.Govee.Bridge), do: stop_supervised!(FakeGoveeBridge)
-    start_supervised!({FakeGoveeBridge, test: self(), answer: answer})
+    start_supervised!({FakeGoveeBridge, [test: self(), answer: answer] ++ opts})
   end
 
   defp open_page(conn) do
@@ -42,6 +42,7 @@ defmodule ZiwoasWeb.LightLiveEventsTest do
   test "the power buttons turn the lamp and redraw the hero", %{conn: conn} do
     view = open_page(conn)
     view |> element("#light_power button", "An") |> render_click()
+    render_async(view)
 
     assert_received {:govee, "UP1", {:zone, "powerSwitch", true}}
     assert Repo.get_by(State, light_key: "UP1").on
@@ -52,6 +53,19 @@ defmodule ZiwoasWeb.LightLiveEventsTest do
     bridge!({:error, :unknown_lamp})
     view = open_page(conn)
     view |> element("#light_power button", "An") |> render_click()
+    render_async(view)
+
+    assert has_element?(view, "#flash-error", "Lampe nicht erreichbar")
+    refute Repo.get_by(State, light_key: "UP1").on
+  end
+
+  test "a busy bridge is a flash and the page stays", %{conn: conn} do
+    bridge!(:ok, sleep_ms: 1_000)
+    view = open_page(conn)
+    view |> element("#light_power button", "An") |> render_click()
+    refute has_element?(view, "#flash-error")
+    render_async(view)
+    render_async(view)
 
     assert has_element?(view, "#flash-error", "Lampe nicht erreichbar")
     refute Repo.get_by(State, light_key: "UP1").on
@@ -63,6 +77,7 @@ defmodule ZiwoasWeb.LightLiveEventsTest do
     view = open_page(conn)
 
     view |> element("#zone_rippleLightToggle") |> render_click()
+    render_async(view)
 
     assert view |> element("#light_toast span") |> render() =~
              "Seite ausgeschaltet · max. 2 Zonen"
@@ -72,6 +87,7 @@ defmodule ZiwoasWeb.LightLiveEventsTest do
     refute has_element?(view, "#zone_sideLightToggle.active")
 
     view |> element("#light_toast button", "Rückgängig") |> render_click()
+    render_async(view)
 
     assert Repo.get_by(State, light_key: "UP1").zone_states ==
              %{
@@ -88,6 +104,7 @@ defmodule ZiwoasWeb.LightLiveEventsTest do
     Commands.record_zone_state("UP1", "sideLightToggle", true)
     view = open_page(conn)
     view |> element("#zone_rippleLightToggle") |> render_click()
+    render_async(view)
 
     send(view.pid, :hide_toast)
     assert has_element?(view, "#light_toast[hidden]")
@@ -98,6 +115,7 @@ defmodule ZiwoasWeb.LightLiveEventsTest do
     assert has_element?(view, "#light_brightness_form input#light_brightness[phx-debounce]")
 
     view |> form("#light_brightness_form", %{"value" => "42"}) |> render_change()
+    render_async(view)
 
     assert_received {:govee, "UP1", {:brightness, 42}}
     assert has_element?(view, "#light_brightness_form output", "42 %")
@@ -109,10 +127,12 @@ defmodule ZiwoasWeb.LightLiveEventsTest do
     assert has_element?(view, "#light_panel_white input#light_temp[phx-debounce]")
 
     view |> form("#light_panel_white", %{"temp_k" => "4000"}) |> render_change()
+    render_async(view)
     assert_received {:govee, "UP1", {:color_temp, 4000}}
     assert has_element?(view, "#light_temp[value='4000']")
 
     view |> element("#light_panel_white button", "Gemütlich") |> render_click()
+    render_async(view)
     assert_received {:govee, "UP1", {:color_temp, 2700}}
     assert has_element?(view, "#light_panel_white button.active[aria-pressed=true]", "Gemütlich")
   end
@@ -122,12 +142,15 @@ defmodule ZiwoasWeb.LightLiveEventsTest do
     view = open_page(conn)
 
     view |> element("#light_color_1") |> render_click()
+    render_async(view)
     assert_received {:govee, "UP1", {:color, %{r: 255, g: 122, b: 61}}}
     assert has_element?(view, "#light_color_1[checked]")
 
     view
     |> element("#light_color_wheel[phx-hook=LightDetail]")
     |> render_hook("light_command", %{"command" => "color", "r" => 1, "g" => 2, "b" => 3})
+
+    render_async(view)
 
     assert_received {:govee, "UP1", {:color, %{r: 1, g: 2, b: 3}}}
     refute has_element?(view, "input[name=light_color][checked]")
@@ -158,6 +181,7 @@ defmodule ZiwoasWeb.LightLiveEventsTest do
     render_hook(view, "light_command", %{"command" => "color", "r" => 256, "g" => 0, "b" => 0})
     render_hook(view, "light_command", %{"command" => "explode"})
     render_hook(view, "light_command", %{})
+    render_async(view)
 
     refute_received {:govee, _, _}
   end
@@ -172,12 +196,15 @@ defmodule ZiwoasWeb.LightLiveEventsTest do
       "value" => "10"
     })
 
+    render_async(view)
+
     assert_received {:govee, "UP1", {:brightness, 10}}
   end
 
   test "a scene is sent and nothing redraws", %{conn: conn} do
     view = open_page(conn)
     view |> element("#light_panel_scenes button", "Lesen") |> render_click()
+    render_async(view)
     assert_received {:govee, "UP1", {:scene, "Lesen"}}
   end
 

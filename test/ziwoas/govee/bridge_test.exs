@@ -165,6 +165,11 @@ defmodule Ziwoas.Govee.BridgeTest do
     refute_received {:state, _, _}
   end
 
+  test "a bridge that does not answer in time is unavailable" do
+    busy = spawn_link(fn -> Process.sleep(:infinity) end)
+    assert Bridge.command(@key, {:power, true}, busy) == {:error, :unavailable}
+  end
+
   test "a failing API control records nothing" do
     test = self()
 

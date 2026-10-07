@@ -28,6 +28,7 @@ defmodule Ziwoas.Govee.Bridge do
   @listen_backoff_min_ms 1_000
   @listen_backoff_max_ms 60_000
   @state_fields [:on, :reachable, :brightness, :color, :color_temp_k, :zone_states]
+  @command_timeout_ms Application.compile_env(:ziwoas, :govee_command_timeout_ms, 5_000)
 
   @type verb ::
           {:power, boolean}
@@ -42,15 +43,20 @@ defmodule Ziwoas.Govee.Bridge do
 
   @doc """
   Sends `verb` to the lamp `key`: `:ok` once it went out over the LAN or its API
-  call was started, `{:error, :unavailable}` without a running bridge,
-  `{:error, :unknown_lamp | :unknown_scene | {:lan, reason}}` otherwise.
+  call was started, `{:error, :unavailable}` without a running bridge or one
+  that does not answer in time, `{:error, :unknown_lamp | :unknown_scene |
+  {:lan, reason}}` otherwise.
   """
   @spec command(String.t(), verb, GenServer.server()) :: :ok | {:error, term}
   def command(key, verb, server \\ __MODULE__) do
     case GenServer.whereis(server) do
       nil -> {:error, :unavailable}
-      pid -> GenServer.call(pid, {:command, key, verb})
+      pid -> GenServer.call(pid, {:command, key, verb}, @command_timeout_ms)
     end
+  catch
+    :exit, reason ->
+      Logger.warning("Govee bridge: #{inspect(verb)} for #{key}: #{inspect(reason)}")
+      {:error, :unavailable}
   end
 
   @doc """

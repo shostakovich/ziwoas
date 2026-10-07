@@ -138,6 +138,7 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
     test "turns its lamp", %{conn: conn} do
       view = open_page(conn)
       view |> element("#light_card_ABCDEF01 button.sw-knob") |> render_click()
+      render_async(view)
 
       assert_received {:govee, "ABCDEF01", {:power, true}}
       assert has_element?(view, "#light_card_ABCDEF01 .small", "An · Weiß")
@@ -147,6 +148,18 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
       stop_supervised!(Ziwoas.FakeGoveeBridge)
       view = open_page(conn)
       view |> element("#light_card_ABCDEF01 button.sw-knob") |> render_click()
+      render_async(view)
+
+      assert has_element?(view, "#flash-error", "Lampe nicht erreichbar")
+    end
+
+    test "a busy bridge is a flash and the page stays", %{conn: conn} do
+      stop_supervised!(Ziwoas.FakeGoveeBridge)
+      start_supervised!({Ziwoas.FakeGoveeBridge, test: self(), sleep_ms: 1_000})
+      view = open_page(conn)
+      view |> element("#light_card_ABCDEF01 button.sw-knob") |> render_click()
+      refute has_element?(view, "#flash-error")
+      render_async(view)
 
       assert has_element?(view, "#flash-error", "Lampe nicht erreichbar")
     end
@@ -155,6 +168,7 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
       view = open_page(conn)
       render_hook(view, "light_command", %{"light_key" => "nope", "command" => "turn"})
       render_hook(view, "light_command", %{"light_key" => "ABCDEF01", "command" => "explode"})
+      render_async(view)
       refute_received {:govee, _, _}
     end
   end
