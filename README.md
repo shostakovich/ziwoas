@@ -1,43 +1,43 @@
-<img src="priv/static/icon.png" alt="Zipfelmaus – Wohnungsautomatisierung" width="120">
+<img src="priv/static/icon.png" alt="Zipfelmaus – home automation" width="120">
 
 # ZiWoAS – Zipfelmaus Wohnungs Automatisierungs System
 
-Ein Projekt von [zipfelmaus.com](https://zipfelmaus.com).
+A project by [zipfelmaus.com](https://zipfelmaus.com).
 
-ZiWoAS ist eine selbst gehostete Energie- und Wohnungsautomatisierung: Es misst Verbrauch und
-Erzeugung über Shelly-Steckdosen (MQTT) und Fritz!DECT-Steckdosen, liest und regelt den
-Solakon-ONE-Wechselrichter per Modbus TCP, schaltet Steckdosen nach Zeitplan, steuert
-Govee-Lampen, sammelt SwitchBot-Sensoren und Wetter (Bright Sky) und schickt Widgets an TRMNL.
-Alles in einer Phoenix-1.8-App mit LiveView und SQLite.
+ZiWoAS is self-hosted energy and home automation: it measures consumption and generation
+through Shelly plugs (MQTT) and Fritz!DECT plugs, reads and controls the Solakon ONE inverter over
+Modbus TCP, switches plugs on a schedule, controls Govee lamps, collects SwitchBot sensors and the
+weather (Bright Sky) and sends widgets to TRMNL. All in one Phoenix 1.8 app with LiveView and
+SQLite. The UI is in German.
 
-## Voraussetzungen
+## Requirements
 
-- Erlang/OTP und Elixir in den Versionen aus [`.tool-versions`](.tool-versions)
-  (z. B. mit `asdf` oder `mise`). Node ist nicht nötig.
-- Für echte Geräte: ein MQTT-Broker (z. B. Mosquitto), optional Fritz!Box, Solakon ONE,
-  Govee-API-Key, SwitchBot-Token, TRMNL-Webhooks.
+- Erlang/OTP and Elixir in the versions from [`.tool-versions`](.tool-versions)
+  (e.g. with `asdf` or `mise`). No Node needed.
+- For real devices: an MQTT broker (e.g. Mosquitto), optionally a Fritz!Box, a Solakon ONE,
+  a Govee API key, a SwitchBot token, TRMNL webhooks.
 
-## Einrichten und starten
+## Setup and start
 
 ```bash
-cp config/ziwoas.example.yml config/ziwoas.yml   # anpassen: Standort, MQTT, Steckdosen, …
-mix setup                                        # Deps, Datenbank, esbuild, Assets
+cp config/ziwoas.example.yml config/ziwoas.yml   # adjust: location, MQTT, plugs, …
+mix setup                                        # deps, database, esbuild, assets
 mix phx.server                                   # http://localhost:4000
 ```
 
-`config/ziwoas.yml` beschreibt die Geräte und ist nicht im Repo. Kostenposten und Strompreise
-stehen in der Datenbank und werden unter PV › Wirtschaftlichkeit gepflegt
+`config/ziwoas.yml` describes the devices and is not in the repo. Cost items and electricity
+prices live in the database and are maintained under PV › Wirtschaftlichkeit
 ([ADR-0004](docs/adr/0004-economics-data-lives-in-the-database.md)).
 
-| Variable | Bedeutung |
+| Variable | Meaning |
 | --- | --- |
-| `ZIWOAS_CONFIG` | Gerätekonfiguration; Standard `config/ziwoas.yml` |
-| `ZIWOAS_DB` | SQLite-Datei; Standard `storage/development.sqlite3` |
+| `ZIWOAS_CONFIG` | Device configuration; default `config/ziwoas.yml` |
+| `ZIWOAS_DB` | SQLite file; default `storage/development.sqlite3` |
 
-Lokal am besten eine Konfiguration ohne echte Geräte verwenden: mit echter Konfiguration
-schaltet die App Steckdosen, Lampen und den Wechselrichter wirklich.
+Locally, prefer a configuration without real devices: with the real one, the app really switches
+plugs, lamps and the inverter.
 
-## Tests und Prüfungen
+## Tests and checks
 
 ```bash
 mix format --check-formatted
@@ -46,60 +46,59 @@ mix credo --strict
 mix test
 ```
 
-`mix test` legt `tmp/test.sqlite3` an und migriert sie; jeder Test läuft in einer Transaktion der
-Ecto-SQL-Sandbox. CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) führt dieselben
-Schritte aus und baut zusätzlich die Assets.
+`mix test` creates and migrates `tmp/test.sqlite3`; every test runs in a transaction of the Ecto
+SQL sandbox. CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs the same steps and
+also builds the assets.
 
 ## Assets
 
-esbuild läuft als eigenständiges Binary (kein Node) und bündelt `assets/js/app.js` mit den
-LiveView-Hooks aus `assets/js/hooks/` sowie `assets/css/app.css` nach `priv/static/assets/`.
-Chart.js liegt unter `assets/vendor/`, felt-css kommt vom CDN
+esbuild runs as a standalone binary (no Node) and bundles `assets/js/app.js` with the LiveView
+hooks from `assets/js/hooks/`, and `assets/css/app.css`, into `priv/static/assets/`. Chart.js lives
+in `assets/vendor/`, felt-css comes from the CDN
 ([ADR-0005](docs/adr/0005-felt-css-as-the-ui-foundation.md)).
 
 ```bash
-mix assets.setup    # esbuild-Binary laden
-mix assets.build    # Entwicklung (mix phx.server baut bei Änderungen selbst neu)
-mix assets.deploy   # minifiziert und mit Digest, für ein Release
+mix assets.setup    # fetch the esbuild binary
+mix assets.build    # development (mix phx.server rebuilds on changes itself)
+mix assets.deploy   # minified and digested, for a release
 ```
 
-## Release und Datenbank
+## Release and database
 
-Ecto-Migrationen in `priv/repo/migrations/` besitzen das Schema. Ein Release (`mix release`)
-bringt zwei Skripte mit:
+Ecto migrations in `priv/repo/migrations/` own the schema. A release (`mix release`) ships two
+scripts:
 
-- `bin/migrate` – übernimmt bei Bedarf eine alte Datenbank und führt alle offenen Migrationen
-  aus.
-- `bin/server` – startet die App mit `PHX_SERVER=true`.
+- `bin/migrate` – adopts an old database if needed and runs all pending migrations.
+- `bin/server` – starts the app with `PHX_SERVER=true`.
 
-Im Release sind `ZIWOAS_DB`, `ZIWOAS_CONFIG` und `SECRET_KEY_BASE` Pflicht, dazu `PHX_HOST`;
-optional `PORT` (Standard 4000), `POOL_SIZE` (5) und `ZIWOAS_ALLOWED_HOSTS` (Hosts, unter
-denen der Browser ZiWoAS erreicht, kommagetrennt; ohne: der Host, der die Seite ausgeliefert hat).
+In a release, `ZIWOAS_DB`, `ZIWOAS_CONFIG`, `SECRET_KEY_BASE` and `PHX_HOST` are required;
+optional are `PORT` (default 4000), `POOL_SIZE` (5) and `ZIWOAS_ALLOWED_HOSTS` (hosts the browser
+reaches ZiWoAS under, comma-separated; without it: the host that served the page).
 
-**Container.** Das `Dockerfile` baut das Release (Debian, uid 1000, Port 3000, Healthcheck auf
-`/up`) und startet `bin/migrate`, dann `bin/server`; `ZIWOAS_DB` und `ZIWOAS_CONFIG` zeigen
-nach `/app/storage` und `/app/config`. `docker-compose.yml` ist ein Dienst im Host-Netz (Govee
-antwortet per Multicast auf UDP 4002) und erwartet `ZIWOAS_TAG` und `SECRET_KEY_BASE`. Images
-veröffentlicht `.github/workflows/docker.yml` nur unter einem expliziten Tag, nie `latest`.
-Generalprobe und Umstieg: [`docs/cutover.md`](docs/cutover.md).
+**Container.** The `Dockerfile` builds the release (Debian, uid 1000, port 3000, healthcheck on
+`/up`, `sqlite3` for backups) and runs `bin/migrate`, then `bin/server`; `ZIWOAS_DB` and
+`ZIWOAS_CONFIG` point to `/app/storage` and `/app/config`. `docker-compose.yml` is one service on
+the host network (Govee answers by multicast on UDP 4002) and expects `ZIWOAS_TAG` and
+`SECRET_KEY_BASE`. `.github/workflows/docker.yml` publishes images for `linux/amd64` only under an
+explicit tag, never `latest`. Rehearsal and cutover: [`docs/cutover.md`](docs/cutover.md).
 
-**Übernahme einer alten Datenbank.** Eine SQLite-Datei aus der früheren Rails-App wird beim
-ersten `bin/migrate` (bzw. `mix ecto.migrate` in der Entwicklung) einmalig übernommen:
-`Ziwoas.Release.adopt_rails_database!/0` prüft die Tabellen und entfernt Rails' Migrationsbuchhaltung,
-danach übernehmen die Ecto-Migrationen. Ein zweiter Lauf ändert nichts. Von Hand:
+**Adopting an old database.** A SQLite file from the former Rails app is adopted once, on the
+first `bin/migrate` (or `mix ecto.migrate` in development): `Ziwoas.Release.adopt_rails_database!/0`
+checks the tables and removes Rails' migration bookkeeping, then the Ecto migrations take over. A
+second run changes nothing. By hand:
 
 ```bash
 ZIWOAS_DB=storage/production.sqlite3 mix ziwoas.adopt
 ```
 
-Vorher immer eine Sicherung anlegen (`sqlite3 … ".backup …"`). Die App selbst sichert die
-Datenbank jede Nacht nach `backup/` neben der Datenbankdatei.
+Always take a backup first (`sqlite3 … ".backup …"`). The app itself backs up the database every
+night into `backup/` next to the database file.
 
-## Weiterlesen
+## Further reading
 
-- [`CONTEXT.md`](CONTEXT.md) – Fachbegriffe (Schaltzeit, Flanke, Regelung, Eigenverbrauch, …)
-- [`docs/architecture.md`](docs/architecture.md) – Aufbau der App
-- [`docs/adr/`](docs/adr/) – Architekturentscheidungen
-- [`docs/solakon-modbus-protokoll.md`](docs/solakon-modbus-protokoll.md) – Modbus-Register des
+- [`CONTEXT.md`](CONTEXT.md) – domain vocabulary (Schaltzeit, Flanke, Regelung, Eigenverbrauch, …)
+- [`docs/architecture.md`](docs/architecture.md) – how the app is built
+- [`docs/adr/`](docs/adr/) – architecture decisions
+- [`docs/solakon-modbus-protocol.md`](docs/solakon-modbus-protocol.md) – Modbus registers of the
   Solakon ONE
-- [`docs/trmnl/`](docs/trmnl/) – Liquid-Vorlagen der TRMNL-Widgets
+- [`docs/trmnl/`](docs/trmnl/) – Liquid templates of the TRMNL widgets

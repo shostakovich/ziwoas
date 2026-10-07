@@ -109,7 +109,7 @@ Ziwoas.Collector
   write goes through it, so requests never interleave. `Ziwoas.Solakon.Modbus` speaks FC03, FC06
   and FC16 on `:gen_tcp`; its connection (`%Modbus{}`) carries the transaction id, which every
   request moves on and hands back. `Ziwoas.Solakon.Client` knows the registers
-  ([`solakon-modbus-protokoll.md`](solakon-modbus-protokoll.md), skill `solakon-modbus`) and
+  ([`solakon-modbus-protocol.md`](solakon-modbus-protocol.md), skill `solakon-modbus`) and
   threads that connection through a reading's many reads. After a failure the monitor backs off
   1 s → 60 s; a reused connection that fails is retried once on a fresh one.
 

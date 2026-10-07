@@ -5,8 +5,8 @@ description: Modbus registers, scaling factors, alarms, grid codes and remote co
 
 # Solakon ONE – Modbus
 
-The full reference is [`docs/solakon-modbus-protokoll.md`](../../../docs/solakon-modbus-protokoll.md)
-(German). It merges the official PDF "Solakon ONE Modbus Protokoll v.02/26" with how the code
+The full reference is [`docs/solakon-modbus-protocol.md`](../../../docs/solakon-modbus-protocol.md).
+It merges the official PDF "Solakon ONE Modbus Protokoll v.02/26" with how the code
 under [`lib/ziwoas/solakon/`](../../../lib/ziwoas/solakon/) actually uses it:
 
 - [`client.ex`](../../../lib/ziwoas/solakon/client.ex) – `Ziwoas.Solakon.Client`: which registers

@@ -3,7 +3,7 @@ defmodule Ziwoas.Solakon.Client do
   Which holding registers make a reading (`read_state/1`, the 30 s monitor) and
   a snapshot (`read_snapshot/1`, every two minutes), how their words decode, and
   what the control writes (`apply_control/4`, `set_eps_output/2`,
-  `release_control/1`) — `docs/solakon-modbus-protokoll.md` §2 and §9. Registers
+  `release_control/1`) — `docs/solakon-modbus-protocol.md` §2 and §9. Registers
   are read one field at a time.
 
   Every function takes the monitor's connection (`Ziwoas.Solakon.Modbus`) and
