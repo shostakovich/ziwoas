@@ -1,44 +1,38 @@
 defmodule Ziwoas.Lights.CommandsTest do
   use Ziwoas.DataCase
 
+  alias Ziwoas.FakeGoveeBridge
   alias Ziwoas.Lights.{Commands, Light, State}
-  alias Ziwoas.{Repo, TestClock, TestMqtt}
+  alias Ziwoas.{Repo, TestClock}
 
   setup do
     TestClock.freeze("2026-06-15T18:00:00Z")
-    record(:ok)
+    :ok
   end
 
-  defp record(answer) do
-    test = self()
-
-    TestMqtt.record(fn _client, topic, payload ->
-      send(test, {:published, topic, payload})
-      answer
-    end)
-  end
+  defp bridge!(answer \\ :ok),
+    do: start_supervised!({FakeGoveeBridge, test: self(), answer: answer})
 
   defp light!(attrs), do: Repo.insert!(struct!(%Light{name: "L"}, attrs))
   defp state(key), do: Repo.get_by(State, light_key: key)
 
   defp sent do
     receive do
-      {:published, topic, payload} -> [{topic, payload} | sent()]
+      {:govee, key, verb} -> [{key, verb} | sent()]
     after
       0 -> []
     end
   end
 
   describe "turn" do
+    setup do: %{bridge: bridge!()}
+
     test "a simple lamp gets the power verb; the state is recorded; the hero redraws" do
       light!(%{key: "S1", zones: []})
       assert {:ok, :power} = Commands.run(light!(%{key: "S0"}), "turn", %{"on" => "true"})
-      assert {:ok, :power} = Commands.run(Repo.get_by(Light, key: "S1"), "turn", %{"on" => "off"})
+      assert {:ok, :power} = Commands.run(Repo.get_by(Light, key: "S1"), "turn", %{"on" => false})
 
-      assert sent() == [
-               {"govees/S0/set", ~s({"power":"on"})},
-               {"govees/S1/set", ~s({"power":"off"})}
-             ]
+      assert sent() == [{"S0", {:power, true}}, {"S1", {:power, false}}]
 
       assert %State{on: true, zone_states: nil} = state("S0")
       assert %State{on: false} = state("S1")
@@ -47,7 +41,7 @@ defmodule Ziwoas.Lights.CommandsTest do
     test "a zone lamp routes power through powerSwitch" do
       light = light!(%{key: "U1", zones: ~w[bottomLightToggle sideLightToggle]})
       Commands.run(light, "turn", %{"on" => "1"})
-      assert sent() == [{"govees/U1/set", ~s({"zone":{"name":"powerSwitch","on":true}})}]
+      assert sent() == [{"U1", {:zone, "powerSwitch", true}}]
     end
 
     test "an unchanged state is not written again" do
@@ -57,7 +51,7 @@ defmodule Ziwoas.Lights.CommandsTest do
       assert state("S2").updated_at == ~U[2026-01-01 00:00:00.000000Z]
     end
 
-    test "an uncoercible flag is invalid and sends nothing" do
+    test "a flag that does not cast is invalid and sends nothing" do
       light = light!(%{key: "S3"})
 
       for params <- [%{"on" => ""}, %{"on" => "maybe"}, %{}] do
@@ -67,35 +61,55 @@ defmodule Ziwoas.Lights.CommandsTest do
       assert sent() == []
     end
 
-    test "a broker failure is a commander failure and records nothing" do
-      record({:error, :timeout})
+    test "a refused verb is unreachable and records nothing", %{bridge: bridge} do
+      stop_supervised!(FakeGoveeBridge)
+      refute Process.alive?(bridge)
+      bridge!({:error, :unknown_lamp})
       light = light!(%{key: "S4"})
-      assert {:error, :commander} = Commands.run(light, "turn", %{"on" => "true"})
+      assert {:error, :unreachable} = Commands.run(light, "turn", %{"on" => "true"})
       assert state("S4") == nil
+    end
+
+    test "without a running bridge the lamp is unreachable" do
+      stop_supervised!(FakeGoveeBridge)
+      light = light!(%{key: "S5"})
+      assert {:error, :unreachable} = Commands.run(light, "turn", %{"on" => "true"})
+      assert state("S5") == nil
     end
   end
 
   describe "values" do
-    setup do: %{light: light!(%{key: "C1", color_temp_min_k: 2700, color_temp_max_k: 6500})}
+    setup do
+      bridge!()
+      %{light: light!(%{key: "C1", color_temp_min_k: 2700, color_temp_max_k: 6500})}
+    end
 
     test "brightness, colour, white and scenes are fire and forget", %{light: light} do
-      assert {:ok, :sent} = Commands.run(light, "brightness", %{"value" => " 42 "})
+      assert {:ok, {:sent, {:brightness, 42}}} =
+               Commands.run(light, "brightness", %{"value" => "42"})
 
-      assert {:ok, :sent} =
-               Commands.run(light, "color", %{"r" => "10", "g" => "20", "b" => "30"})
+      assert {:ok, {:sent, {:color, %{r: 10, g: 20, b: 30}}}} =
+               Commands.run(light, "color", %{"r" => "10", "g" => "20", "b" => 30})
 
-      assert {:ok, :sent} = Commands.run(light, "color_temp", %{"temp_k" => "2200"})
-      assert {:ok, :sent} = Commands.run(light, "color_temp", %{"temp_k" => "9000"})
-      assert {:ok, :sent} = Commands.run(light, "effect", %{"effect" => "Forest"})
-      assert {:ok, :sent} = Commands.run(light, "scene", %{"scene" => "Rock & <Roll>"})
+      assert {:ok, {:sent, {:color_temp, 2700}}} =
+               Commands.run(light, "color_temp", %{"temp_k" => "2200"})
+
+      assert {:ok, {:sent, {:color_temp, 6500}}} =
+               Commands.run(light, "color_temp", %{"temp_k" => "9000"})
+
+      assert {:ok, {:sent, {:scene, "Forest"}}} =
+               Commands.run(light, "effect", %{"effect" => "Forest"})
+
+      assert {:ok, {:sent, {:scene, "Rock & <Roll>"}}} =
+               Commands.run(light, "scene", %{"scene" => "Rock & <Roll>"})
 
       assert sent() == [
-               {"govees/C1/set", ~s({"brightness":42})},
-               {"govees/C1/set", ~s({"color":{"b":30,"g":20,"r":10}})},
-               {"govees/C1/set", ~s({"color_temp_k":2700})},
-               {"govees/C1/set", ~s({"color_temp_k":6500})},
-               {"govees/C1/set", ~s({"scene":"Forest"})},
-               {"govees/C1/set", ~s({"scene":"Rock & <Roll>"})}
+               {"C1", {:brightness, 42}},
+               {"C1", {:color, %{r: 10, g: 20, b: 30}}},
+               {"C1", {:color_temp, 2700}},
+               {"C1", {:color_temp, 6500}},
+               {"C1", {:scene, "Forest"}},
+               {"C1", {:scene, "Rock & <Roll>"}}
              ]
 
       assert state("C1") == nil
@@ -111,7 +125,8 @@ defmodule Ziwoas.Lights.CommandsTest do
             {"color_temp", %{"temp_k" => "1499"}},
             {"color_temp", %{"temp_k" => "9001"}},
             {"effect", %{"effect" => ""}},
-            {"scene", %{}}
+            {"scene", %{}},
+            {"explode", %{}}
           ] do
         assert {:error, :invalid} = Commands.run(light, command, params),
                "#{command} #{inspect(params)}"
@@ -122,13 +137,15 @@ defmodule Ziwoas.Lights.CommandsTest do
   end
 
   describe "zones" do
+    setup do: %{bridge: bridge!()}
+
     test "a valid zone is switched and recorded, without a toast" do
       light = light!(%{key: "Z0", zones: ~w[bottomLightToggle rippleLightToggle]})
 
       assert {:ok, {:zones, ["rippleLightToggle"], nil}} =
                Commands.run(light, "zone", %{"zone" => "rippleLightToggle", "on" => "true"})
 
-      assert sent() == [{"govees/Z0/set", ~s({"zone":{"name":"rippleLightToggle","on":true}})}]
+      assert sent() == [{"Z0", {:zone, "rippleLightToggle", true}}]
       assert state("Z0").zone_states == %{"rippleLightToggle" => true}
     end
 
@@ -158,8 +175,8 @@ defmodule Ziwoas.Lights.CommandsTest do
       assert toast == %{evicted: "rippleLightToggle", added: "sideLightToggle"}
 
       assert sent() == [
-               {"govees/Z1/set", ~s({"zone":{"name":"rippleLightToggle","on":false}})},
-               {"govees/Z1/set", ~s({"zone":{"name":"sideLightToggle","on":true}})}
+               {"Z1", {:zone, "rippleLightToggle", false}},
+               {"Z1", {:zone, "sideLightToggle", true}}
              ]
 
       assert state("Z1").zone_states ==
@@ -189,12 +206,12 @@ defmodule Ziwoas.Lights.CommandsTest do
       assert state("Z5").updated_at == stamp
     end
 
-    test "a commander failure leaves the stored zones alone" do
-      record({:error, :closed})
+    test "an unreachable lamp leaves the stored zones alone" do
+      stop_supervised!(FakeGoveeBridge)
       light = light!(%{key: "K", sku: "H60B0", zones: ~w[rippleLightToggle sideLightToggle]})
       Repo.insert!(%State{light_key: "K", zone_states: %{}})
 
-      assert {:error, :commander} =
+      assert {:error, :unreachable} =
                Commands.run(light, "zone", %{"zone" => "rippleLightToggle", "on" => "true"})
 
       assert state("K").zone_states == %{}

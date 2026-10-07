@@ -5,10 +5,6 @@ defmodule Ziwoas.Solakon.Snapshot do
   """
   use Ziwoas.Schema
 
-  import Ecto.Query
-
-  alias Ziwoas.Repo
-
   @type t :: %__MODULE__{}
 
   schema "solakon_snapshots" do
@@ -80,21 +76,8 @@ defmodule Ziwoas.Solakon.Snapshot do
     Ecto.Changeset.cast(%__MODULE__{}, attrs, Map.keys(attrs))
   end
 
-  @spec latest() :: t | nil
-  def latest, do: Repo.one(from s in __MODULE__, order_by: [desc: s.taken_at], limit: 1)
-
-  @doc "Snapshots taken in `from..to` (both inclusive, SQL `BETWEEN`), oldest first."
-  @spec in_range(DateTime.t(), DateTime.t()) :: [t]
-  def in_range(from, to) do
-    Repo.all(
-      from s in __MODULE__,
-        where: s.taken_at >= ^from and s.taken_at <= ^to,
-        order_by: s.taken_at
-    )
-  end
-
   @doc "Every panel, wired or not: an idle one reports 0 W rather than going absent."
-  @spec panels(t) :: [%{label: String.t(), power_w: float, voltage_v: float, current_a: float}]
+  @spec panels(t) :: [%{index: 1..4, power_w: float, voltage_v: float, current_a: float}]
   def panels(%__MODULE__{} = snapshot) do
     for {idx, power, voltage, current} <- [
           {1, snapshot.pv1_power_w, snapshot.pv1_voltage_v, snapshot.pv1_current_a},
@@ -103,7 +86,7 @@ defmodule Ziwoas.Solakon.Snapshot do
           {4, snapshot.pv4_power_w, snapshot.pv4_voltage_v, snapshot.pv4_current_a}
         ] do
       %{
-        label: "Panel #{idx}",
+        index: idx,
         power_w: to_float(power),
         voltage_v: to_float(voltage),
         current_a: to_float(current)
@@ -121,8 +104,4 @@ defmodule Ziwoas.Solakon.Snapshot do
 
   defp to_float(nil), do: 0.0
   defp to_float(value), do: value * 1.0
-
-  @spec status_messages(t) :: [String.t()]
-  def status_messages(%__MODULE__{} = snapshot),
-    do: Ziwoas.Solakon.status_messages(snapshot, snapshot.bms_faults || [])
 end

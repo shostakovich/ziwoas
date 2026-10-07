@@ -1,8 +1,9 @@
 defmodule Ziwoas.Solakon.HistoryTest do
   use Ziwoas.DataCase
 
-  alias Ziwoas.Repo
+  alias Ziwoas.{Repo, Solakon}
   alias Ziwoas.Solakon.{History, Reading, Snapshot}
+  alias ZiwoasWeb.SolakonComponents
 
   # 2026-06-20 12:00 Europe/Berlin
   @now ~U[2026-06-20 10:00:00.000000Z]
@@ -17,14 +18,15 @@ defmodule Ziwoas.Solakon.HistoryTest do
     Repo.insert!(struct!(%Snapshot{taken_at: DateTime.add(@now, -seconds_ago)}, floats))
   end
 
-  defp payload(range \\ "24h"), do: History.payload(range, @now, "Europe/Berlin")
-  defp shares(payload), do: Enum.map(payload.balance_rows, & &1.share)
-  defp dataset(payload, index), do: payload.chart |> datasets() |> Enum.at(index) |> data()
+  defp history(range \\ "24h"), do: Solakon.history(range, @now, "Europe/Berlin")
+  defp shares(history), do: Enum.map(SolakonComponents.balance_rows(history), & &1.share)
+  defp chart(history), do: SolakonComponents.history_chart(history)
+  defp dataset(history, index), do: history |> chart() |> datasets() |> Enum.at(index) |> data()
   defp datasets(chart), do: chart.datasets
   defp data(dataset), do: dataset.data
   defp label(dataset), do: dataset.label
 
-  test "payload builds signed chart series and balance rows from snapshots" do
+  test "signed power series and the energy balance from snapshots, labelled in the web" do
     # 40 + 10 Wh each way: the middle interval straddles zero and splits into two triangles.
     snapshot!(360,
       pv1_power_w: 100,
@@ -74,16 +76,30 @@ defmodule Ziwoas.Solakon.HistoryTest do
       battery_discharge_total_kwh: 3.3
     )
 
-    payload = payload()
+    history = history()
 
-    assert payload.range == "24h"
-    assert Enum.map(datasets(payload.chart), &label/1) == ["PV", "Akku", "Außensteckdose", "0 W"]
-    assert dataset(payload, 0) == [200.0, 300.0, 200.0, 250.0]
-    assert dataset(payload, 1) == [20.0, -40.0, 30.0, -10.0]
-    assert dataset(payload, 2) == [1200.0, 1200.0, -1200.0, -1200.0]
-    assert dataset(payload, 3) === [0, 0, 0, 0]
+    assert history.range == "24h"
+    assert history.pv_w == [200.0, 300.0, 200.0, 250.0]
+    assert history.battery_w == [20.0, -40.0, 30.0, -10.0]
+    assert history.outlet_w == [1200.0, 1200.0, -1200.0, -1200.0]
 
-    rows = payload.balance_rows
+    assert history.balance == %{
+             pv_kwh: 1.2,
+             charged_kwh: 0.4,
+             discharged_kwh: 0.3,
+             delivered_kwh: 0.05,
+             drawn_kwh: 0.05
+           }
+
+    assert_in_delta history.outlet_average_w, 0.0, 1.0e-9
+
+    chart = chart(history)
+    assert chart.range == "24h"
+    assert Enum.map(datasets(chart), &label/1) == ["PV", "Akku", "Außensteckdose", "0 W"]
+    assert dataset(history, 0) == [200.0, 300.0, 200.0, 250.0]
+    assert dataset(history, 3) === [0, 0, 0, 0]
+
+    rows = SolakonComponents.balance_rows(history)
 
     assert Enum.map(rows, & &1.label) ==
              [
@@ -104,9 +120,8 @@ defmodule Ziwoas.Solakon.HistoryTest do
              "0,05 kWh"
            ]
 
-    assert shares(payload) == [100.0, 33.3, 25.0, 4.2, 4.2]
-    assert payload.outlet_average == "0 W"
-    assert payload.message == nil
+    assert shares(history) == [100.0, 33.3, 25.0, 4.2, 4.2]
+    assert SolakonComponents.outlet_average(history) == "0 W"
   end
 
   test "the mean outlet power is a plain figure with its direction in words" do
@@ -120,7 +135,7 @@ defmodule Ziwoas.Solakon.HistoryTest do
       snapshot!(120, active_power_w: watts)
       snapshot!(0, active_power_w: watts)
 
-      assert payload().outlet_average == expected, "at #{watts} W"
+      assert SolakonComponents.outlet_average(history()) == expected, "at #{watts} W"
     end
   end
 
@@ -129,7 +144,7 @@ defmodule Ziwoas.Solakon.HistoryTest do
     snapshot!(0, active_power_w: 3000, pv_total_kwh: 1.5)
 
     # 0,5 kWh PV and 0,1 kWh delivered: the 3 kW mean would set the scale if it counted.
-    assert shares(payload()) == [100.0, 0.0, 0.0, 20.0, 0.0]
+    assert shares(history()) == [100.0, 0.0, 0.0, 20.0, 0.0]
   end
 
   test "whichever outlet direction moved the most energy sets the bars' scale" do
@@ -141,7 +156,7 @@ defmodule Ziwoas.Solakon.HistoryTest do
       snapshot!(120, active_power_w: watts, pv_total_kwh: 1.0)
       snapshot!(0, active_power_w: watts, pv_total_kwh: 1.05)
 
-      assert shares(payload()) == shares, "at #{watts} W"
+      assert shares(history()) == shares, "at #{watts} W"
     end
   end
 
@@ -149,14 +164,14 @@ defmodule Ziwoas.Solakon.HistoryTest do
     snapshot!(120, pv_total_kwh: 1.0)
     snapshot!(0, pv_total_kwh: 1.0)
 
-    assert shares(payload()) == List.duplicate(0.0, 5)
+    assert shares(history()) == List.duplicate(0.0, 5)
   end
 
   test "the battery can set the bars' scale too" do
     snapshot!(120, pv_total_kwh: 1.0, battery_charge_total_kwh: 5.0)
     snapshot!(0, pv_total_kwh: 1.1, battery_charge_total_kwh: 5.4)
 
-    assert shares(payload()) == [25.0, 100.0, 0.0, 0.0, 0.0]
+    assert shares(history()) == [25.0, 100.0, 0.0, 0.0, 0.0]
   end
 
   test "snapshots outside the range stay out" do
@@ -164,7 +179,7 @@ defmodule Ziwoas.Solakon.HistoryTest do
     snapshot!(0, pv1_power_w: 100)
     snapshot!(-300, pv1_power_w: 700)
 
-    assert dataset(payload(), 0) == [100.0]
+    assert dataset(history(), 0) == [100.0]
   end
 
   test "the range is one of 24h, 7d and 30d, anything else reads as 24h" do
@@ -172,11 +187,11 @@ defmodule Ziwoas.Solakon.HistoryTest do
     snapshot!(20 * 86_400, pv1_power_w: 200)
     snapshot!(0, pv1_power_w: 100)
 
-    assert dataset(payload("7d"), 0) == [300.0, 100.0]
-    assert dataset(payload("30d"), 0) == [200.0, 300.0, 100.0]
-    assert payload("1y").range == "24h"
-    assert payload(["7d"]).range == "24h"
-    assert payload(nil).range == "24h"
+    assert dataset(history("7d"), 0) == [300.0, 100.0]
+    assert dataset(history("30d"), 0) == [200.0, 300.0, 100.0]
+    assert history("1y").range == "24h"
+    assert history(["7d"]).range == "24h"
+    assert history(nil).range == "24h"
   end
 
   # 7 and 30 days step calendar days on the local clock (Europe/Berlin):
@@ -209,21 +224,21 @@ defmodule Ziwoas.Solakon.HistoryTest do
       Repo.insert!(%Snapshot{taken_at: DateTime.add(now, -seconds_ago), pv1_power_w: watts * 1.0})
     end
 
-    assert History.payload("30d", now, "Europe/Berlin") |> dataset(0) == [300.0, 100.0]
+    assert Solakon.history("30d", now, "Europe/Berlin") |> dataset(0) == [300.0, 100.0]
   end
 
   test "snapshots predating the third and fourth panel keep their PV series" do
     snapshot!(120, pv1_power_w: 100, pv2_power_w: 50)
     snapshot!(0, pv1_power_w: 120, pv2_power_w: 80)
 
-    assert dataset(payload(), 0) == [150.0, 200.0]
+    assert dataset(history(), 0) == [150.0, 200.0]
   end
 
   test "sign-straddling interval contributes to both directions, not zero" do
     snapshot!(120, active_power_w: 1200)
     snapshot!(0, active_power_w: -1200)
 
-    rows = payload().balance_rows
+    rows = SolakonComponents.balance_rows(history())
 
     # Averaging the endpoints first would report 0,00 kWh both ways.
     assert Enum.find(rows, &(&1.label == "Ins Hausnetz geliefert")).value == "0,01 kWh"
@@ -244,10 +259,10 @@ defmodule Ziwoas.Solakon.HistoryTest do
       })
     end
 
-    assert dataset(payload(), 2) == [111.0, 222.0]
+    assert dataset(history(), 2) == [111.0, 222.0]
   end
 
-  test "chart_payload rounds series precisely and leaves the labels to the chart" do
+  test "the chart rounds the series to one decimal" do
     snapshot!(0,
       pv1_power_w: 100.111,
       pv2_power_w: 20.222,
@@ -257,33 +272,66 @@ defmodule Ziwoas.Solakon.HistoryTest do
       active_power_w: 12.34
     )
 
-    payload = payload()
+    history = history()
 
-    assert dataset(payload, 0) == [123.5]
-    assert dataset(payload, 1) == [45.7]
-    assert dataset(payload, 2) == [12.3]
+    assert dataset(history, 0) == [123.5]
+    assert dataset(history, 1) == [45.7]
+    assert dataset(history, 2) == [12.3]
   end
 
-  test "chart_payload carries each instant in epoch milliseconds, below the millisecond dropped" do
+  test "the chart carries each instant in epoch milliseconds, below the millisecond dropped" do
     for {usec_ago, ms} <- [{250_000, 750}, {250_500, 749}] do
       Repo.delete_all(Snapshot)
       taken_at = DateTime.add(@now, -usec_ago, :microsecond)
       Repo.insert!(%Snapshot{taken_at: taken_at, pv1_power_w: 100.0})
 
-      assert payload().chart.times ==
+      assert chart(history()).times ==
                [DateTime.to_unix(taken_at) * 1000 + ms]
     end
   end
 
-  test "empty payload is stable" do
-    payload = payload("7d")
+  test "an empty range is stable" do
+    history = history("7d")
 
-    assert payload.range == "7d"
-    assert payload.chart.times == []
-    assert Enum.map(datasets(payload.chart), &label/1) == ["PV", "Akku", "Außensteckdose", "0 W"]
-    assert Enum.map(datasets(payload.chart), &data/1) == [[], [], [], []]
-    assert payload.balance_rows == []
-    assert payload.outlet_average == nil
-    assert payload.message == "Keine Solakon-Historie"
+    assert %History{range: "7d", times: [], balance: nil, outlet_average_w: nil} = history
+    assert chart(history).times == []
+    assert Enum.map(datasets(chart(history)), &label/1) == ["PV", "Akku", "Außensteckdose", "0 W"]
+    assert Enum.map(datasets(chart(history)), &data/1) == [[], [], [], []]
+    assert SolakonComponents.balance_rows(history) == []
+    assert SolakonComponents.outlet_average(history) == nil
+  end
+
+  test "the nearest readings of many snapshots without active power come in one query" do
+    for seconds_ago <- [480, 360, 240, 120, 0] do
+      snapshot!(seconds_ago, pv1_power_w: 100)
+
+      Repo.insert!(%Reading{
+        taken_at: DateTime.add(@now, -seconds_ago + 10),
+        active_power_w: seconds_ago * 1.0,
+        pv_power_w: 0.0,
+        battery_power_w: 0.0,
+        battery_soc_pct: 50
+      })
+    end
+
+    ref = :telemetry_test.attach_event_handlers(self(), [[:ziwoas, :repo, :query]])
+    history = history()
+    :telemetry.detach(ref)
+
+    assert history.outlet_w == [480.0, 360.0, 240.0, 120.0, 0.0]
+
+    queries =
+      for {[:ziwoas, :repo, :query], ^ref, _measurements, %{source: source}} <- flush(),
+          do: source
+
+    assert Enum.sort(queries) == ["solakon_readings", "solakon_snapshots"]
+  end
+
+  defp flush do
+    receive do
+      message -> [message | flush()]
+    after
+      0 -> []
+    end
   end
 end

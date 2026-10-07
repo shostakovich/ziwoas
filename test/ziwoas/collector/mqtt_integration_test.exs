@@ -1,13 +1,12 @@
 defmodule Ziwoas.Collector.MqttIntegrationTest do
   # Tortoise311 against a broker on a socket: the ingest connection subscribes and
-  # writes what arrives, a publisher publishes, commands reach the Govee bridge. Client
-  # ids are global names, so this module runs alone. The connections' handlers write
-  # from processes of Tortoise's own, hence the shared sandbox.
+  # writes what arrives, a publisher publishes. Client ids are global names, so this
+  # module runs alone. The connections' handlers write from processes of Tortoise's own,
+  # hence the shared sandbox.
   use Ziwoas.DataCase
 
   alias Ziwoas.Collector.MqttRouter
   alias Ziwoas.{FakeMqttBroker, Mqtt, Repo, TestConfigs}
-  alias Ziwoas.Lights.GoveeSubscriber
   alias Ziwoas.Plugs.{Sample, ShellyStatusHandler}
 
   @moduletag :capture_log
@@ -19,10 +18,7 @@ defmodule Ziwoas.Collector.MqttIntegrationTest do
   end
 
   test "the ingest connection subscribes to its handlers' topics and writes what arrives", ctx do
-    handlers = [
-      {ShellyStatusHandler, ShellyStatusHandler.new(TestConfigs.plugs())},
-      {GoveeSubscriber, GoveeSubscriber.new()}
-    ]
+    handlers = [{ShellyStatusHandler, ShellyStatusHandler.new(TestConfigs.plugs())}]
 
     start_supervised!(
       Mqtt.connection_spec(
@@ -33,11 +29,9 @@ defmodule Ziwoas.Collector.MqttIntegrationTest do
       )
     )
 
-    assert FakeMqttBroker.await(ctx.broker, &(length(FakeMqttBroker.subscriptions(&1)) == 3))
+    assert FakeMqttBroker.await(ctx.broker, &(length(FakeMqttBroker.subscriptions(&1)) == 1))
     assert FakeMqttBroker.clients(ctx.broker) == ["ziwoas-phoenix-ingest"]
-
-    assert Enum.sort(FakeMqttBroker.subscriptions(ctx.broker)) ==
-             ["govees/+/config", "govees/+/state", "shellies/+/status/switch:0"]
+    assert FakeMqttBroker.subscriptions(ctx.broker) == ["shellies/+/status/switch:0"]
 
     FakeMqttBroker.publish(
       ctx.broker,
@@ -64,7 +58,7 @@ defmodule Ziwoas.Collector.MqttIntegrationTest do
              )
 
     assert :ok =
-             Mqtt.publish("ziwoas-phoenix-fritz", "govees/K/state", "{}", retain: true)
+             Mqtt.publish("ziwoas-phoenix-fritz", "retained/K/state", "{}", retain: true)
 
     assert FakeMqttBroker.await(ctx.broker, &(length(FakeMqttBroker.published(&1)) == 2))
 
@@ -74,27 +68,7 @@ defmodule Ziwoas.Collector.MqttIntegrationTest do
                payload: ~s({"apower":1.0}),
                retain: false
              },
-             %{topic: "govees/K/state", payload: "{}", retain: true}
+             %{topic: "retained/K/state", payload: "{}", retain: true}
            ]
-  end
-
-  test "a set verb on the broker reaches the Govee bridge", ctx do
-    start_supervised!(
-      Mqtt.connection_spec(
-        "ziwoas-phoenix-govee",
-        ctx.mqtt,
-        {Ziwoas.Govee.CommandHandler, [self()]},
-        ["govees/+/set"]
-      )
-    )
-
-    assert FakeMqttBroker.await(
-             ctx.broker,
-             &(FakeMqttBroker.subscriptions(&1) == ["govees/+/set"])
-           )
-
-    FakeMqttBroker.publish(ctx.broker, "govees/K/set", ~s({"power":"on"}))
-
-    assert_receive {:set, "K", ~s({"power":"on"})}, 1_000
   end
 end

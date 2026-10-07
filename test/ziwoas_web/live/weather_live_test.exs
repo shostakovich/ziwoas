@@ -19,7 +19,7 @@ defmodule ZiwoasWeb.WeatherLiveTest do
       |> usec()
 
   defp weather!(attrs) do
-    defaults = %{kind: "forecast", lat: 52.52, lon: 13.405, daytime: "day", icon: "clear-day"}
+    defaults = %{kind: :forecast, lat: 52.52, lon: 13.405, daytime: "day", icon: "clear-day"}
     Repo.insert!(struct!(Record, Map.merge(defaults, Map.new(attrs))))
   end
 
@@ -41,7 +41,7 @@ defmodule ZiwoasWeb.WeatherLiveTest do
 
   test "current weather, today and the next days", %{conn: conn} do
     weather!(
-      kind: "current",
+      kind: :current,
       timestamp: at("2026-05-04T12:00:00"),
       icon: "cloudy",
       temperature: 16.2,
@@ -212,7 +212,7 @@ defmodule ZiwoasWeb.WeatherLiveTest do
 
   test "the current card: W/m² by day, a dash without value, Nacht at night", %{conn: conn} do
     weather!(
-      kind: "current",
+      kind: :current,
       timestamp: at("2026-05-04T12:00:00"),
       temperature: 20.8,
       solar: 0.072
@@ -221,13 +221,13 @@ defmodule ZiwoasWeb.WeatherLiveTest do
     assert hd(texts(page(conn), ".weather-current-solar")) =~ "432 W/m²"
 
     Repo.query!("DELETE FROM weather_records")
-    weather!(kind: "current", timestamp: at("2026-05-04T12:00:00"), icon: "cloudy", solar: nil)
+    weather!(kind: :current, timestamp: at("2026-05-04T12:00:00"), icon: "cloudy", solar: nil)
     assert texts(page(conn), ".weather-current-solar .tabular-nums") == ["— W/m²"]
 
     Repo.query!("DELETE FROM weather_records")
 
     weather!(
-      kind: "current",
+      kind: :current,
       timestamp: at("2026-05-04T23:00:00"),
       daytime: "night",
       icon: "clear-night",
@@ -349,7 +349,7 @@ defmodule ZiwoasWeb.WeatherLiveTest do
   test "a fresh outdoor sensor reading beats the forecast temperature, a stale one does not", %{
     conn: conn
   } do
-    weather!(kind: "current", timestamp: Clock.now(), temperature: 99.9)
+    weather!(kind: :current, timestamp: Clock.now(), temperature: 99.9)
 
     Repo.insert!(%Reading{
       device_id: "TEST_OUTDOOR",

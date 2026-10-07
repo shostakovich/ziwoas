@@ -1,7 +1,9 @@
 defmodule Ziwoas.Govee.PlatformApi do
   @moduledoc """
   Govee's documented, API-key-only cloud API. The status code lives in the JSON
-  body, not in HTTP's. Every call returns `{:ok, value}` or `{:error, message}`.
+  body, not in HTTP's. Every call returns `{:ok, value}` or `{:error, reason}`:
+  `{:http_status, status}`, `{:api, code, message}`, `:invalid_json` or the
+  transport's exception.
   Every call counts against Govee's daily request quota.
 
   `api` is `%{key: api_key, req: keyword}`; `req` are extra Req options
@@ -9,19 +11,25 @@ defmodule Ziwoas.Govee.PlatformApi do
   """
   @base "https://openapi.api.govee.com"
 
+  import Bitwise
+
+  alias Ziwoas.Govee.Types
+
   @type api :: %{key: String.t(), req: keyword}
+  @type error ::
+          {:http_status, pos_integer} | {:api, term, term} | :invalid_json | Exception.t()
 
   @spec new(String.t(), keyword) :: api
   def new(api_key, req \\ []), do: %{key: api_key, req: req}
 
-  @spec devices(api) :: {:ok, [map]} | {:error, String.t()}
+  @spec devices(api) :: {:ok, [map]} | {:error, error}
   def devices(api) do
     with {:ok, body} <- request(api, :get, "/router/api/v1/user/devices", nil),
          do: {:ok, List.wrap(body["data"])}
   end
 
   @doc "The capability states of a lamp, flattened to `%{instance => value}`."
-  @spec state(api, String.t(), String.t()) :: {:ok, map} | {:error, String.t()}
+  @spec state(api, String.t(), String.t()) :: {:ok, map} | {:error, error}
   def state(api, sku, device) do
     with {:ok, body} <-
            request(api, :post, "/router/api/v1/device/state", %{"sku" => sku, "device" => device}),
@@ -38,7 +46,7 @@ defmodule Ziwoas.Govee.PlatformApi do
     end)
   end
 
-  @spec scenes(api, String.t(), String.t()) :: {:ok, [map]} | {:error, String.t()}
+  @spec scenes(api, String.t(), String.t()) :: {:ok, [map]} | {:error, error}
   def scenes(api, sku, device) do
     with {:ok, body} <-
            request(api, :post, "/router/api/v1/device/scenes", %{"sku" => sku, "device" => device}) do
@@ -52,8 +60,70 @@ defmodule Ziwoas.Govee.PlatformApi do
     end
   end
 
+  @doc """
+  A state's capabilities (`state/3`) as store telemetry: an unreachable lamp
+  is never on, whatever the cloud remembers. Numbers may come as strings.
+  """
+  @spec telemetry(map, [String.t()]) :: {:ok, map} | :error
+  def telemetry(map, zone_keys) do
+    online = Map.get(map, "online", true)
+    reachable = online === true or online == 1
+
+    telemetry = %{
+      on: reachable and to_int(map["powerSwitch"]) == 1,
+      reachable: reachable
+    }
+
+    with {:ok, telemetry} <-
+           optional(telemetry, map, "brightness", :brightness, &Types.brightness/1),
+         {:ok, telemetry} <- color_or_kelvin(telemetry, map, to_int(map["colorRgb"])) do
+      zones =
+        for zone <- zone_keys,
+            (value = map[zone]) not in [nil, ""],
+            into: %{},
+            do: {zone, to_int(value) == 1}
+
+      {:ok, if(zones == %{}, do: telemetry, else: Map.put(telemetry, :zone_states, zones))}
+    end
+  end
+
+  defp color_or_kelvin(telemetry, _map, rgb) when rgb > 0,
+    do:
+      {:ok,
+       Map.put(telemetry, :color, %{
+         r: rgb >>> 16 &&& 0xFF,
+         g: rgb >>> 8 &&& 0xFF,
+         b: rgb &&& 0xFF
+       })}
+
+  defp color_or_kelvin(telemetry, map, _rgb) do
+    if to_int(map["colorTemperatureK"]) > 0,
+      do: optional(telemetry, map, "colorTemperatureK", :color_temp_k, &Types.kelvin/1),
+      else: {:ok, telemetry}
+  end
+
+  defp optional(acc, map, key, field, fun) do
+    case Map.fetch(map, key) do
+      {:ok, value} -> with {:ok, coerced} <- fun.(value), do: {:ok, Map.put(acc, field, coerced)}
+      :error -> {:ok, acc}
+    end
+  end
+
+  # Lenient: the cloud sends numbers or numeric strings; anything else counts as 0.
+  defp to_int(value) when is_integer(value), do: value
+  defp to_int(value) when is_float(value), do: trunc(value)
+
+  defp to_int(value) when is_binary(value) do
+    case Integer.parse(String.trim(value)) do
+      {integer, _rest} -> integer
+      :error -> 0
+    end
+  end
+
+  defp to_int(_value), do: 0
+
   @doc "Switches a capability (`sku:, device:, type:, instance:, value:`)."
-  @spec control(api, keyword) :: {:ok, true} | {:error, String.t()}
+  @spec control(api, keyword) :: {:ok, true} | {:error, error}
   def control(api, opts) do
     payload = %{
       "sku" => opts[:sku],
@@ -93,8 +163,8 @@ defmodule Ziwoas.Govee.PlatformApi do
 
     case Req.request(req) do
       {:ok, %Req.Response{status: status, body: body}} when status in 200..299 -> check(body)
-      {:ok, %Req.Response{status: status}} -> {:error, "HTTP #{status}"}
-      {:error, exception} -> {:error, Exception.message(exception)}
+      {:ok, %Req.Response{status: status}} -> {:error, {:http_status, status}}
+      {:error, exception} -> {:error, exception}
     end
   end
 
@@ -103,10 +173,10 @@ defmodule Ziwoas.Govee.PlatformApi do
       {:ok, %{} = parsed} ->
         if parsed["code"] in [200, "200"],
           do: {:ok, parsed},
-          else: {:error, "code #{parsed["code"]}: #{parsed["message"] || parsed["msg"]}"}
+          else: {:error, {:api, parsed["code"], parsed["message"] || parsed["msg"]}}
 
       _ ->
-        {:error, "invalid JSON"}
+        {:error, :invalid_json}
     end
   end
 

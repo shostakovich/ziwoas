@@ -37,9 +37,9 @@ defmodule Ziwoas.Govee.DeviceRegistry do
 
   @doc """
   Rebuilds every device from the API's device list, keeping a LAN IP found
-  earlier. `scenes` is `fn raw -> {:ok, options} | {:error, message} end`.
+  earlier. `scenes` is `fn raw -> {:ok, options} | {:error, reason} end`.
   """
-  @spec refresh(t, [map], (map -> {:ok, [map]} | {:error, String.t()})) :: t
+  @spec refresh(t, [map], (map -> {:ok, [map]} | {:error, term})) :: t
   def refresh(%__MODULE__{} = registry, raw_devices, scenes) do
     built =
       for raw <- raw_devices, device = build(registry, raw, scenes), not is_nil(device) do
@@ -112,8 +112,11 @@ defmodule Ziwoas.Govee.DeviceRegistry do
       {:ok, options} ->
         Enum.reduce(List.wrap(options), {[], %{}}, &add_scene/2)
 
-      {:error, message} ->
-        Logger.warning("Govee.DeviceRegistry: scenes for #{raw["device"]} failed: #{message}")
+      {:error, reason} ->
+        Logger.warning(
+          "Govee.DeviceRegistry: scenes for #{raw["device"]} failed: #{inspect(reason)}"
+        )
+
         {[], %{}}
     end
   end

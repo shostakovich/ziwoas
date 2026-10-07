@@ -6,10 +6,10 @@ defmodule ZiwoasWeb.SwitchesComponents do
   """
   use ZiwoasWeb, :html
 
-  alias Ziwoas.Switching.{Row, Rule, Schedule}
+  alias Ziwoas.Switching.{Row, Schedule}
 
   @day_abbr [{1, "Mo"}, {2, "Di"}, {3, "Mi"}, {4, "Do"}, {5, "Fr"}, {6, "Sa"}, {7, "So"}]
-  @source_label %{"manual" => "manuell", "schedule" => "Zeitplan"}
+  @source_label %{manual: "manuell", schedule: "Zeitplan"}
 
   # Drawn in the text colour: emoji render as boxes or in their own colours, depending on the device.
   @ui_icons %{
@@ -252,7 +252,7 @@ defmodule ZiwoasWeb.SwitchesComponents do
     )
   end
 
-  defp direction("on"), do: "→ an"
+  defp direction(:on), do: "→ an"
   defp direction(_action), do: "→ aus"
 
   attr :name, :atom, required: true
@@ -449,7 +449,7 @@ defmodule ZiwoasWeb.SwitchesComponents do
   def weekday_label(days) do
     sorted = Enum.sort(days)
 
-    if sorted == Rule.iso_days() do
+    if sorted == Enum.map(@day_abbr, &elem(&1, 0)) do
       "täglich"
     else
       sorted
@@ -472,9 +472,12 @@ defmodule ZiwoasWeb.SwitchesComponents do
 
   @doc "A window's days come from its on rule, which reads a shift past midnight back out."
   def entry_label(entry) do
-    times = entry |> Schedule.rules() |> Enum.map_join("–", &Rule.at_minute_time/1)
+    times = entry |> Schedule.rules() |> Enum.map_join("–", &hhmm(&1.at_minute))
     "#{weekday_label(Schedule.days(entry))} · #{times}"
   end
+
+  defp hhmm(minute), do: "#{pad(div(minute, 60))}:#{pad(rem(minute, 60))}"
+  defp pad(number), do: number |> Integer.to_string() |> String.pad_leading(2, "0")
 
   @doc "The plug's state, where it came from and what the schedule does next."
   @spec status_line(Row.t(), String.t()) :: String.t()
@@ -487,7 +490,7 @@ defmodule ZiwoasWeb.SwitchesComponents do
       command = row.last_command
 
       first =
-        if command && command.action == "on" == on,
+        if command && command.action == :on == on,
           do:
             "#{word} seit #{clock(command.inserted_at, zone)} (#{@source_label[command.source]})",
           else: word

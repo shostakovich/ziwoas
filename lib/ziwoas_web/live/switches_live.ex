@@ -4,8 +4,8 @@ defmodule ZiwoasWeb.SwitchesLive do
   Schaltzeiten of a plug no longer in `ziwoas.yml` stay in the database unseen
   and switch nothing.
 
-  `{:dashboard_live, _}` on the `dashboard` topic rebuilds the plug rows,
-  `{:light_updated, _}` on `lights` the lamp tiles. The plug button, the lamp
+  `Ziwoas.Plugs`' live updates rebuild the plug rows, `Ziwoas.Lights`' updates
+  the lamp tiles. The plug button (switched off the LiveView process), the lamp
   tiles (`ZiwoasWeb.LightEvents`) and the inline schedule editor — one per
   plug, for a new entry or in place of an existing one — are events here.
   """
@@ -14,8 +14,7 @@ defmodule ZiwoasWeb.SwitchesLive do
   import ZiwoasWeb.LightsComponents
   import ZiwoasWeb.SwitchesComponents
 
-  alias Ziwoas.{Clock, Config, Lights}
-  alias Ziwoas.Switching.{Commander, Row, Rule, Rules, Window}
+  alias Ziwoas.{Clock, Config, Lights, Plugs, Switching}
   alias ZiwoasWeb.LightEvents
 
   @failed "Schalten fehlgeschlagen — MQTT-Broker nicht erreichbar"
@@ -26,35 +25,37 @@ defmodule ZiwoasWeb.SwitchesLive do
   @impl true
   def mount(_params, _session, socket) do
     if connected?(socket) do
-      Phoenix.PubSub.subscribe(Ziwoas.PubSub, "dashboard")
-      Phoenix.PubSub.subscribe(Ziwoas.PubSub, "lights")
+      Plugs.subscribe()
+      Lights.subscribe()
     end
 
     {:ok, socket |> assign(page_title: "Schalten", editors: %{}) |> load()}
   end
 
   @impl true
-  def handle_info({:dashboard_live, _deltas}, socket), do: {:noreply, load(socket)}
+  def handle_info({:live, _deltas}, socket), do: {:noreply, load(socket)}
 
-  def handle_info({:light_updated, _key}, socket),
+  def handle_info({:updated, _key}, socket),
     do: {:noreply, assign(socket, :snapshots, Lights.snapshots())}
-
-  def handle_info(_message, socket), do: {:noreply, socket}
 
   # --- The plug button and the lamp tiles ------------------------------------------
 
   @impl true
   def handle_event("switch_plug", %{"plug_id" => plug_id, "state" => state}, socket)
       when state in ~w[on off] do
+    action = if state == "on", do: :on, else: :off
+
     case plug(socket, plug_id) do
       nil ->
         {:noreply, socket}
 
       plug ->
-        case Commander.switch(plug, String.to_existing_atom(state), :manual, mqtt()) do
-          {:ok, _command} -> {:noreply, load(socket)}
-          {:error, _message} -> {:noreply, put_flash(socket, :error, "#{plug.name}: #{@failed}")}
-        end
+        mqtt = mqtt()
+
+        {:noreply,
+         start_async(socket, {:switch, plug.id}, fn ->
+           Switching.switch(plug, action, :manual, mqtt)
+         end)}
     end
   end
 
@@ -65,7 +66,7 @@ defmodule ZiwoasWeb.SwitchesLive do
       {:ok, _light, _result} ->
         {:noreply, assign(socket, :snapshots, Lights.snapshots())}
 
-      {:error, :commander} ->
+      {:error, :unreachable} ->
         {:noreply, put_flash(socket, :error, LightEvents.failed_message())}
 
       {:error, _reason} ->
@@ -78,8 +79,8 @@ defmodule ZiwoasWeb.SwitchesLive do
   def handle_event("new_entry", %{"plug_id" => plug_id, "kind" => kind}, socket) do
     editor =
       case kind do
-        "window" -> editor(:window, nil, Rules.change_window())
-        _ -> editor(:rule, nil, Rules.change_single())
+        "window" -> editor(:window, nil, Switching.change_window())
+        _ -> editor(:rule, nil, Switching.change_single())
       end
 
     {:noreply, open_editor(socket, plug_id, editor)}
@@ -89,12 +90,12 @@ defmodule ZiwoasWeb.SwitchesLive do
     editor =
       case kind do
         "window" ->
-          with %Window{} = window <- Rules.window(plug_id, id),
-               do: editor(:window, id, Rules.change_window(window))
+          if window = Switching.window(plug_id, id),
+            do: editor(:window, id, Switching.change_window(window))
 
         _ ->
-          with %Rule{} = rule <- Rules.single(plug_id, id),
-               do: editor(:rule, id, Rules.change_single(rule))
+          if rule = Switching.single(plug_id, id),
+            do: editor(:rule, id, Switching.change_single(rule))
       end
 
     {:noreply, if(editor, do: open_editor(socket, plug_id, editor), else: socket)}
@@ -129,7 +130,7 @@ defmodule ZiwoasWeb.SwitchesLive do
         {:noreply, socket}
 
       rules ->
-        Rules.set_enabled(rules, params["enabled"] == "true")
+        Switching.set_enabled(rules, params["enabled"] == "true")
         {:noreply, load(socket)}
     end
   end
@@ -140,9 +141,18 @@ defmodule ZiwoasWeb.SwitchesLive do
         {:noreply, socket}
 
       rules ->
-        Rules.delete(rules)
+        Switching.delete_rules(rules)
         {:noreply, socket |> put_flash(:info, "#{noun(params["kind"])} gelöscht.") |> load()}
     end
+  end
+
+  @impl true
+  def handle_async({:switch, _plug_id}, {:ok, {:ok, _command}}, socket),
+    do: {:noreply, load(socket)}
+
+  def handle_async({:switch, plug_id}, _failed, socket) do
+    name = Enum.find_value(socket.assigns.rows, plug_id, &(&1.plug.id == plug_id && &1.plug.name))
+    {:noreply, put_flash(socket, :error, "#{name}: #{@failed}")}
   end
 
   # --- Helpers ----------------------------------------------------------------------
@@ -150,32 +160,29 @@ defmodule ZiwoasWeb.SwitchesLive do
   defp editor(kind, id, changeset), do: %{kind: kind, id: id, form: to_form(changeset)}
 
   defp change(%{kind: :window, id: id}, plug_id, params),
-    do: Rules.change_window(Rules.window(plug_id, id || "") || %Window{}, params["window"] || %{})
+    do: Switching.change_window(id && Switching.window(plug_id, id), params["window"] || %{})
 
   defp change(%{kind: :rule, id: id}, plug_id, params),
-    do: Rules.change_single(stored_single(plug_id, id), params["rule"] || %{})
-
-  defp stored_single(_plug_id, nil), do: %Rule{}
-  defp stored_single(plug_id, id), do: Rules.single(plug_id, id) || %Rule{}
+    do: Switching.change_single(id && Switching.single(plug_id, id), params["rule"] || %{})
 
   defp save(socket, plug_id, %{kind: :window, id: id} = editor, params) do
-    if id && is_nil(Rules.window(plug_id, id)) do
+    if id && is_nil(Switching.window(plug_id, id)) do
       socket |> close_editor(plug_id) |> load()
     else
       plug_id
-      |> Rules.save_window(params["window"] || %{}, id)
+      |> Switching.save_window(params["window"] || %{}, id)
       |> saved(socket, plug_id, editor)
     end
   end
 
   defp save(socket, plug_id, %{kind: :rule, id: id} = editor, params) do
-    rule = id && Rules.single(plug_id, id)
+    rule = id && Switching.single(plug_id, id)
 
     if id && is_nil(rule) do
       socket |> close_editor(plug_id) |> load()
     else
       plug_id
-      |> Rules.save_single(params["rule"] || %{}, rule)
+      |> Switching.save_single(params["rule"] || %{}, rule)
       |> saved(socket, plug_id, editor)
     end
   end
@@ -197,8 +204,8 @@ defmodule ZiwoasWeb.SwitchesLive do
   defp rules_of(socket, %{"plug_id" => plug_id, "kind" => kind, "id" => id}) do
     cond do
       is_nil(plug(socket, plug_id)) -> []
-      kind == "window" -> Rules.group(plug_id, id)
-      true -> plug_id |> Rules.single(id) |> List.wrap()
+      kind == "window" -> Switching.group(plug_id, id)
+      true -> plug_id |> Switching.single(id) |> List.wrap()
     end
   end
 
@@ -250,7 +257,7 @@ defmodule ZiwoasWeb.SwitchesLive do
 
     assign(socket,
       zone: zone,
-      rows: Row.build_all(plugs, Clock.now(), zone),
+      rows: Switching.rows(plugs, Clock.now(), zone),
       snapshots: Lights.snapshots()
     )
   end

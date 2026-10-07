@@ -93,58 +93,58 @@ defmodule Ziwoas.Fritz.DectClientTest do
         _, _ -> {403, ""}
       end
 
-      assert {:error, "HTTP 403 from fritz.box after re-auth", %DectClient{sid: @sid}} =
+      assert {:error, :forbidden_after_reauth, %DectClient{sid: @sid}} =
                DectClient.fetch(%{client(routes) | sid: "expired000000000"}, @ain)
     end
 
     test "a rejected password is an authentication error and keeps no session" do
       routes = fn "/login_sid.lua", _ -> {200, session("0000000000000000")} end
 
-      assert {:error, "authentication failed for user u", %DectClient{sid: nil}} =
+      assert {:error, :auth_failed, %DectClient{sid: nil}} =
                DectClient.fetch(client(routes), @ain)
     end
 
     test "an empty session id is an authentication error" do
       routes = fn "/login_sid.lua", _ -> {200, session("")} end
 
-      assert {:error, "authentication failed for user u", %DectClient{sid: nil}} =
+      assert {:error, :auth_failed, %DectClient{sid: nil}} =
                DectClient.fetch(client(routes), @ain)
     end
 
     test "an HTTP error during login names the status" do
       routes = fn "/login_sid.lua", _ -> {500, ""} end
 
-      assert {:error, "HTTP 500 during auth", %DectClient{sid: nil}} =
+      assert {:error, {:auth_status, 500}, %DectClient{sid: nil}} =
                DectClient.fetch(client(routes), @ain)
     end
 
     test "an invalid login page reads as a missing challenge" do
       routes = fn "/login_sid.lua", _ -> {200, "<html>no xml"} end
 
-      assert {:error, "no challenge in auth response", _} = DectClient.fetch(client(routes), @ain)
+      assert {:error, :no_challenge, _} = DectClient.fetch(client(routes), @ain)
     end
 
-    test "an HTTP error from a command names the status and the host" do
+    test "an HTTP error from a command names the status" do
       routes = fn
         "/login_sid.lua", %{"response" => _} -> {200, session(@sid)}
         "/login_sid.lua", _ -> {200, session("0000000000000000")}
         _, _ -> {500, "oops"}
       end
 
-      assert {:error, "HTTP 500 from fritz.box", %DectClient{sid: @sid}} =
+      assert {:error, {:http_status, 500}, %DectClient{sid: @sid}} =
                DectClient.fetch(client(routes), @ain)
     end
 
     test "a blank answer is an error" do
-      assert {:error, "blank response from fritz.box", _} =
+      assert {:error, :blank_response, _} =
                DectClient.fetch(client(healthy_box(" \n")), @ain)
     end
 
     test "an unknown plug answers inval, which is an unexpected response" do
-      assert {:error, "unexpected response from fritz.box: inval", _} =
+      assert {:error, {:unexpected_response, "inval"}, _} =
                DectClient.fetch(client(healthy_box("inval\n")), @ain)
 
-      assert {:error, "unexpected response from fritz.box: 1.5", _} =
+      assert {:error, {:unexpected_response, "1.5"}, _} =
                DectClient.fetch(client(healthy_box("1000", "1.5")), @ain)
     end
 
@@ -152,7 +152,8 @@ defmodule Ziwoas.Fritz.DectClientTest do
       plug = fn conn -> Req.Test.transport_error(conn, :timeout) end
       client = DectClient.new(host: "fritz.box", user: "u", password: "p", req: [plug: plug])
 
-      assert {:error, "network: " <> _, %DectClient{sid: nil}} = DectClient.fetch(client, "1")
+      assert {:error, %Req.TransportError{reason: :timeout}, %DectClient{sid: nil}} =
+               DectClient.fetch(client, "1")
     end
 
     test "a timeout during a command keeps the session" do
@@ -163,7 +164,8 @@ defmodule Ziwoas.Fritz.DectClientTest do
         | sid: @sid
       }
 
-      assert {:error, "network: " <> _, %DectClient{sid: @sid}} = DectClient.fetch(client, @ain)
+      assert {:error, %Req.TransportError{reason: :timeout}, %DectClient{sid: @sid}} =
+               DectClient.fetch(client, @ain)
     end
   end
 

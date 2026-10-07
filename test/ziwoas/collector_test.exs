@@ -55,28 +55,22 @@ defmodule Ziwoas.CollectorTest do
     assert ids(Collector.children(@config)) == [
              {Ziwoas.Mqtt, "ziwoas-phoenix-ingest"},
              {Ziwoas.Solakon.Monitor, nil},
-             {Ziwoas.Mqtt, "ziwoas-phoenix-fritz"},
              {Ziwoas.Fritz.Bridge, "washer"},
+             {Task.Supervisor, nil},
              {Ziwoas.Govee.Bridge, nil},
-             {Ziwoas.Mqtt, "ziwoas-phoenix-govee"},
              {Ziwoas.Mqtt, "ziwoas-phoenix-command"}
            ]
   end
 
-  test "one MQTT connection carries both handlers, subscribed to their union" do
+  test "the ingest connection carries the status handler, subscribed to its topic" do
     [ingest | _] = Collector.children(@bare)
 
     assert ingest.id == {Ziwoas.Mqtt, "ziwoas-phoenix-ingest"}
     {Tortoise311.Connection, :start_link, [opts]} = ingest.start
 
-    assert opts[:subscriptions] == [
-             {"shellies/+/status/switch:0", 0},
-             {"govees/+/config", 0},
-             {"govees/+/state", 0}
-           ]
+    assert opts[:subscriptions] == [{"shellies/+/status/switch:0", 0}]
 
-    assert {Ziwoas.Collector.MqttRouter,
-            [{Ziwoas.Plugs.ShellyStatusHandler, _}, {Ziwoas.Lights.GoveeSubscriber, _}]} =
+    assert {Ziwoas.Collector.MqttRouter, [{Ziwoas.Plugs.ShellyStatusHandler, _}]} =
              opts[:handler]
   end
 
@@ -108,7 +102,6 @@ defmodule Ziwoas.CollectorTest do
              Enum.find(Collector.children(@config), &match?({Ziwoas.Fritz.Bridge, _}, &1))
 
     assert opts[:plug].id == "washer"
-    assert opts[:topic_prefix] == "shellies"
     assert %Ziwoas.Fritz.DectClient{host: "fritz.box", user: "u", timeout_s: 2} = opts[:client]
   end
 

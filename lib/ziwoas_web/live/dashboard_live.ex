@@ -1,66 +1,84 @@
 defmodule ZiwoasWeb.DashboardLive do
   @moduledoc """
-  The dashboard. Two cadences keep it current:
+  The dashboard. What keeps it current:
 
-    * `{:dashboard_live, deltas}` on the `dashboard` topic
-      (`Ziwoas.Plugs.ShellyStatusHandler`) and `{:solakon_reading, id}` on
-      `solakon` (`Ziwoas.Solakon.MonitorJob`) re-render the hero, the live
-      tiles, the plug bar and the energy-flow state, and push the plug deltas
-      to the 24 h chart when there are any;
-    * a timer recomputes the day's tiles once a minute (`:refresh_summary`).
+    * `{:live, deltas}` from `Ziwoas.Plugs` and `{:reading, _}` from
+      `Ziwoas.Solakon` re-render the hero, the live tiles, the plug bar and the
+      energy-flow state; plug deltas also go to the 24 h chart
+      (`"today_chart:deltas"`), and the day's tiles are recomputed at most once
+      a minute;
+    * `{:aggregated, _}` from `Ziwoas.Plugs` redraws the 14-day chart;
+    * timers only where the clock itself is the trigger: local midnight starts
+      the day's tiles afresh, and every hour the 24 h window slides on.
 
-  Every live update moves `beat`, the `LiveFreshness` hook's heartbeat, and the
-  energy flow's `data-state`; plug deltas go to the `TodayChart` hook as a
-  `"plug_deltas"` event, which appends them to the 24 h chart in place.
+  The charts get their data by `push_event` once connected: `"today_chart:data"`
+  and `"history_chart:data"` (`ZiwoasWeb.Charts.Dashboard`). Every live update
+  moves `beat`, the `LiveFreshness` hook's heartbeat, and the energy flow's
+  `data-state`.
   """
   use ZiwoasWeb, :live_view
 
   import ZiwoasWeb.Components.EnergyFlow
   import ZiwoasWeb.DashboardComponents
 
-  alias Ziwoas.{Clock, Config, EnergySummary, LiveState, Weather}
+  alias Ziwoas.{Clock, Config, Energy, LocalDay, Plugs, Solakon, Weather}
   alias Ziwoas.Plugs.Measurement
+  alias ZiwoasWeb.Charts
   alias ZiwoasWeb.DashboardComponents
 
-  @summary_interval_ms 60_000
+  @summary_throttle_s 60
+  @today_chart_refresh_ms 3_600_000
 
   @impl true
   def mount(_params, _session, socket) do
-    if connected?(socket) do
-      Phoenix.PubSub.subscribe(Ziwoas.PubSub, "dashboard")
-      Phoenix.PubSub.subscribe(Ziwoas.PubSub, "solakon")
-      :timer.send_interval(@summary_interval_ms, :refresh_summary)
-    end
-
     config = Config.get()
 
+    socket =
+      socket
+      |> assign(page_title: "Dashboard", beat: 0)
+      |> assign_summary(config)
+      |> load_live()
+
+    if connected?(socket) do
+      Plugs.subscribe()
+      Solakon.subscribe()
+      schedule_midnight(config)
+      Process.send_after(self(), :slide_today_chart, @today_chart_refresh_ms)
+    end
+
     {:ok,
-     socket
-     |> assign(page_title: "Dashboard", beat: 0)
-     |> assign(
-       :summary_tiles,
-       DashboardComponents.summary_tiles(EnergySummary.compute_today(config))
-     )
-     |> load_live()}
+     if(connected?(socket),
+       do: socket |> push_today_chart(config) |> push_history_chart(config),
+       else: socket
+     )}
   end
 
   @impl true
-  def handle_info({:dashboard_live, deltas}, socket) do
-    socket = load_live(socket)
+  def handle_info({:live, deltas}, socket) do
+    socket = socket |> load_live() |> maybe_refresh_summary()
 
     socket =
       if deltas == [],
         do: socket,
-        else: push_event(socket, "plug_deltas", %{deltas: deltas})
+        else: push_event(socket, "today_chart:deltas", %{deltas: deltas})
 
     {:noreply, socket}
   end
 
-  def handle_info({:solakon_reading, _id}, socket), do: {:noreply, load_live(socket)}
+  def handle_info({:reading, _reading}, socket), do: {:noreply, load_live(socket)}
 
-  def handle_info(:refresh_summary, socket) do
-    tiles = DashboardComponents.summary_tiles(EnergySummary.compute_today(Config.get()))
-    {:noreply, assign(socket, :summary_tiles, tiles)}
+  def handle_info({:aggregated, _date}, socket),
+    do: {:noreply, push_history_chart(socket, Config.get())}
+
+  def handle_info(:midnight, socket) do
+    config = Config.get()
+    schedule_midnight(config)
+    {:noreply, socket |> assign_summary(config) |> push_history_chart(config)}
+  end
+
+  def handle_info(:slide_today_chart, socket) do
+    Process.send_after(self(), :slide_today_chart, @today_chart_refresh_ms)
+    {:noreply, push_today_chart(socket, Config.get())}
   end
 
   @impl true
@@ -125,9 +143,37 @@ defmodule ZiwoasWeb.DashboardLive do
 
   defp tile(tiles, id), do: Enum.find(tiles, &(&1.id == id))
 
+  defp assign_summary(socket, config) do
+    assign(socket,
+      summary_tiles: DashboardComponents.summary_tiles(Energy.today(config)),
+      summary_at: Clock.unix_now()
+    )
+  end
+
+  defp maybe_refresh_summary(socket) do
+    if Clock.unix_now() - socket.assigns.summary_at >= @summary_throttle_s,
+      do: assign_summary(socket, Config.get()),
+      else: socket
+  end
+
+  defp schedule_midnight(config) do
+    zone = config.location.timezone
+    next_midnight = zone |> Clock.today() |> Date.add(1) |> LocalDay.midnight(zone)
+    delay_ms = max(DateTime.diff(next_midnight, Clock.now(), :millisecond), 0)
+    Process.send_after(self(), :midnight, delay_ms)
+  end
+
+  defp push_today_chart(socket, config),
+    do: push_event(socket, "today_chart:data", Charts.Dashboard.today(config))
+
+  defp push_history_chart(socket, config) do
+    today = Clock.today(config.location.timezone)
+    push_event(socket, "history_chart:data", Charts.Dashboard.history(config, today))
+  end
+
   defp load_live(socket) do
-    live = LiveState.build(Config.get(), Clock.now())
-    {weather_asset, weather_alt} = Weather.dashboard_icon()
+    live = Energy.live_state(Config.get(), Clock.now())
+    {weather_asset, weather_alt} = ZiwoasWeb.WeatherIcon.dashboard(Weather.latest_current())
     beat = if Map.has_key?(socket.assigns, :live), do: socket.assigns.beat + 1, else: 0
 
     assign(socket,

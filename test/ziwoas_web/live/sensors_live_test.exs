@@ -3,7 +3,7 @@ defmodule ZiwoasWeb.SensorsLiveTest do
 
   import Phoenix.LiveViewTest
 
-  alias Ziwoas.{Clock, Repo, TestClock}
+  alias Ziwoas.{Clock, Repo, Sensors, TestClock}
   alias Ziwoas.Sensors.Reading
 
   @now "2026-05-04T12:00:00+02:00"
@@ -55,7 +55,7 @@ defmodule ZiwoasWeb.SensorsLiveTest do
     assert count(doc, "section[aria-label=Sensoren].row-cols-sm-2.row-cols-lg-2") == 1,
            "two sensors fill a row of two on desktops instead of leaving a third slot empty"
 
-    assert attrs(doc, "#sensors_chart[phx-hook=SensorsChart]", "data-url") == ["/sensors/series"]
+    assert count(doc, "#sensors_chart[phx-hook=SensorsChart]:not([data-url])") == 1
 
     assert attrs(doc, "#sensors_chart [phx-update=ignore][id] > canvas", "data-series") ==
              ~w[co2 temperature humidity]
@@ -101,7 +101,7 @@ defmodule ZiwoasWeb.SensorsLiveTest do
     refute has_element?(view, ".alert:not([hidden])")
 
     reading!("TEST_INDOOR", 0, temperature: 23.4, humidity: 48, co2: 1500, battery_pct: 10)
-    Phoenix.PubSub.broadcast(Ziwoas.PubSub, "sensors", {:sensors_updated})
+    Sensors.notify_polled(Clock.now())
 
     doc = view |> render() |> LazyHTML.from_fragment()
     indoor = card(doc, "Test Wohnzimmer")
@@ -114,7 +114,10 @@ defmodule ZiwoasWeb.SensorsLiveTest do
            ]
 
     assert texts(doc, ".alert:not([hidden])") == ["Batterie schwach: Test Wohnzimmer"]
-    assert_push_event(view, "sensors_updated", %{})
+
+    assert_push_event(view, "sensors_chart:data", %{
+      temperature: [%{device_id: "TEST_INDOOR", points: [[_, 21.0], [_, 23.4]]} | _]
+    })
   end
 
   test "the first reading replaces the empty state", %{conn: conn} do
@@ -122,9 +125,41 @@ defmodule ZiwoasWeb.SensorsLiveTest do
     assert has_element?(view, ".card-title", "Noch keine Sensordaten")
 
     reading!("TEST_OUTDOOR", 1, temperature: 12.0, humidity: 70, battery_pct: 100)
-    send(view.pid, {:sensors_updated})
+    Sensors.notify_polled(Clock.now())
 
     refute has_element?(view, ".card-title", "Noch keine Sensordaten")
     assert has_element?(view, "#sensors_chart[phx-hook=SensorsChart]")
+  end
+
+  describe "the SensorsChart hook's data" do
+    test "comes on connect: the last 24 hours in milliseconds, oldest first, without gaps",
+         %{conn: conn} do
+      reading!("TEST_INDOOR", 24 * 60 + 1, temperature: 19.0, humidity: 40, co2: 500)
+      reading!("TEST_INDOOR", 24 * 60, temperature: 20.0, humidity: 41, co2: nil)
+      reading!("TEST_INDOOR", 10, temperature: 21.5, humidity: nil, co2: 650)
+      reading!("TEST_OUTDOOR", 30, temperature: 12.0, humidity: 70, battery_pct: 100)
+
+      {:ok, view, _html} = live(conn, ~p"/sensors")
+
+      since_ms = (@now |> Clock.parse!() |> DateTime.to_unix(:millisecond)) - 24 * 3600 * 1000
+      recent_ms = since_ms + 1430 * 60_000
+      outdoor_ms = since_ms + 1410 * 60_000
+
+      assert_push_event(view, "sensors_chart:data", %{
+        temperature: [
+          %{
+            device_id: "TEST_INDOOR",
+            name: "Test Wohnzimmer",
+            points: [[^since_ms, 20.0], [^recent_ms, 21.5]]
+          },
+          %{device_id: "TEST_OUTDOOR", name: "Test Balkon", points: [[^outdoor_ms, 12.0]]}
+        ],
+        humidity: [
+          %{device_id: "TEST_INDOOR", points: [[^since_ms, 41]]},
+          %{device_id: "TEST_OUTDOOR", points: [[^outdoor_ms, 70]]}
+        ],
+        co2: [%{device_id: "TEST_INDOOR", name: "Test Wohnzimmer", points: [[^recent_ms, 650]]}]
+      })
+    end
   end
 end

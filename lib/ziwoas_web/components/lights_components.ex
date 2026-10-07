@@ -1,17 +1,36 @@
 defmodule ZiwoasWeb.LightsComponents do
   @moduledoc """
   A lamp on the Schalten page and on its own page: the tile, the power hero
-  with its zones, the white, colour and scene panels, the toast and the
-  settings form. The controls send `"light_command"` with `light_key`,
-  `command` and its parameters (`ZiwoasWeb.LightEvents`).
+  with its zones, the brightness, white, colour and scene panels, the toast and
+  the settings form. The controls send `"light_command"` with `command` and its
+  parameters (`ZiwoasWeb.LightEvents`); the tile adds `light_key`.
   """
   use ZiwoasWeb, :html
 
   alias Ziwoas.Lights
-  alias Ziwoas.Lights.{Commands, Light, Snapshot}
+  alias Ziwoas.Lights.Snapshot
 
   @swatches ~w[#ff4d4d #ff7a3d #ffd43b #43d97f #22b8cf #4d7cff #7c5cff #ff6bd6]
   @preset_max_k 5400
+
+  @plush_types %{
+    "H60B0" => "uplighter",
+    "H607C" => "floorlamp",
+    "H6038" => "sconce",
+    "H60A6" => "ceiling"
+  }
+
+  @zone_labels %{
+    "bottomLightToggle" => "Leselicht",
+    "rippleLightToggle" => "Welle",
+    "sideLightToggle" => "Seite",
+    "baseLightToggle" => "Sockel",
+    "pillarLightToggle" => "Säule",
+    "leftLightToggle" => "Links",
+    "rightLightToggle" => "Rechts",
+    "mainLightToggle" => "Hauptlampe",
+    "backgroundLightToggle" => "Ring"
+  }
 
   # The bridge only gives scene names, so names that say what they look like get a matching palette.
   @palettes [
@@ -57,7 +76,7 @@ defmodule ZiwoasWeb.LightsComponents do
         chip:
           on &&
             %{
-              swatch: Lights.color_hex(snapshot) || "#ffd9a0",
+              swatch: color_hex(snapshot) || "#ffd9a0",
               label: number(Lights.brightness(snapshot), unit: "%")
             }
       )
@@ -89,7 +108,7 @@ defmodule ZiwoasWeb.LightsComponents do
             aria-label={"#{@light.name} umschalten"}
             {command(@light.key, "turn", on: not @on)}
           >
-            <img alt="" class="sw-knob-plush" src={~p"/images/#{Light.plush_image(@light, @on)}"} />
+            <img alt="" class="sw-knob-plush" src={~p"/images/#{plush_image(@light, @on)}"} />
           </button>
 
           <span :if={@chip} class="badge border tabular-nums">
@@ -100,6 +119,25 @@ defmodule ZiwoasWeb.LightsComponents do
     </div>
     """
   end
+
+  defp plush_image(light, on) do
+    type = Map.get(@plush_types, String.upcase(light.sku || ""), "generic")
+    "lamp_#{type}_#{if on, do: "on", else: "off"}.webp"
+  end
+
+  @doc "`#rrggbb` of the lamp's colour, nil without one."
+  @spec color_hex(Snapshot.t()) :: String.t() | nil
+  def color_hex(snapshot) do
+    case Lights.rgb(snapshot) do
+      nil -> nil
+      rgb -> rgb_hex(rgb)
+    end
+  end
+
+  defp rgb_hex({r, g, b}), do: "#" <> Enum.map_join([r, g, b], &hex_byte/1)
+
+  defp hex_byte(value),
+    do: value |> Integer.to_string(16) |> String.downcase() |> String.pad_leading(2, "0")
 
   defp summary(snapshot) do
     cond do
@@ -142,7 +180,7 @@ defmodule ZiwoasWeb.LightsComponents do
               height="112"
               alt=""
               class="sw-knob-plush"
-              src={~p"/images/#{Light.plush_image(@light, @on)}"}
+              src={~p"/images/#{plush_image(@light, @on)}"}
             />
           </span>
           <div class="btn-group flex-grow-1" role="group" aria-label="Lampe">
@@ -179,62 +217,118 @@ defmodule ZiwoasWeb.LightsComponents do
         id={"zone_#{@zone.key}"}
         class={["btn btn-outline-primary w-100 px-2", @zone.on && "active"]}
         aria-pressed={to_string(@zone.on)}
-        aria-label={"#{@zone.label} an/aus"}
+        aria-label={"#{zone_label(@zone.key)} an/aus"}
         {command(@light_key, "zone", zone: @zone.key, on: not @zone.on)}
       >
-        {@zone.label}
+        {zone_label(@zone.key)}
       </button>
     </div>
     """
   end
 
+  defp zone_label(key), do: Map.fetch!(@zone_labels, key)
+
   # --- The panels -----------------------------------------------------------------
 
-  attr :snapshot, Snapshot, required: true
+  attr :brightness, :integer, required: true
+
+  @doc "The brightness slider: a form, so the server hears it debounced."
+  def brightness_panel(assigns) do
+    assigns = assign(assigns, :fill, share(assigns.brightness, 1, 100) * 100)
+
+    ~H"""
+    <form id="light_brightness_form" class="card mb-3" phx-change="light_command">
+      <div class="card-body">
+        <input type="hidden" name="command" value="brightness" />
+        <div class="d-flex gap-1 mb-2 small text-uppercase text-body-secondary">
+          <label for="light_brightness">Helligkeit</label><span aria-hidden="true">·</span>
+          <output for="light_brightness" class="text-body tabular-nums">
+            {number(@brightness, unit: "%")}
+          </output>
+        </div>
+        <input
+          class="form-range ld-range"
+          type="range"
+          id="light_brightness"
+          name="value"
+          min="1"
+          max="100"
+          value={@brightness}
+          style={"--felt-form-range-fill: #{@fill}%"}
+          phx-debounce="250"
+        />
+      </div>
+    </form>
+    """
+  end
+
+  attr :tabs, :list, required: true, doc: "`[{key, label}]`"
+  attr :active, :string, required: true
+
+  def tabs(assigns) do
+    ~H"""
+    <div class="nav nav-pills nav-fill mb-3" role="tablist" aria-label="Lichtart">
+      <button
+        :for={{key, label} <- @tabs}
+        type="button"
+        class={["nav-link", @active == key && "active"]}
+        role="tab"
+        id={"light_tab_#{key}"}
+        aria-controls={"light_panel_#{key}"}
+        aria-selected={to_string(@active == key)}
+        data-tab={key}
+        phx-click="select_tab"
+        phx-value-tab={key}
+      >
+        {label}
+      </button>
+    </div>
+    """
+  end
+
+  attr :light, :map, required: true
+  attr :kelvin, :integer, default: nil, doc: "the colour temperature last set, nil for none"
+  attr :hidden, :boolean, default: false
 
   def white_panel(assigns) do
-    snapshot = assigns.snapshot
-    light = snapshot.light
-    min_k = Light.color_temp_min_k(light)
-    max_k = Light.color_temp_max_k(light)
-    kelvin = Lights.color_temp_k(snapshot)
+    {min_k, max_k} = Lights.color_temp_range(assigns.light)
 
     assigns =
       assign(assigns,
         min_k: min_k,
         max_k: max_k,
-        kelvin: kelvin,
-        slider: kelvin || min_k,
+        slider: assigns.kelvin || min_k,
         presets: presets(min_k, max_k)
       )
 
     ~H"""
-    <div
+    <form
       class="card mb-3"
       id="light_panel_white"
-      phx-update="ignore"
       role="tabpanel"
       aria-labelledby="light_tab_white"
       data-tab="white"
+      hidden={@hidden}
+      phx-change="light_command"
     >
       <div class="card-body">
+        <input type="hidden" name="command" value="color_temp" />
         <div class="d-flex gap-1 mb-2 small text-uppercase text-body-secondary">
           <label for="light_temp">Lichtfarbe</label><span aria-hidden="true">·</span>
-          <output
-            for="light_temp"
-            class="text-body tabular-nums"
-            data-light="temp-value"
-          >{number(@slider, unit: "K")}</output>
+          <output for="light_temp" class="text-body tabular-nums">
+            {number(@slider, unit: "K")}
+          </output>
         </div>
         <input
           class="form-range ld-range ld-white"
           type="range"
           id="light_temp"
+          name="temp_k"
           min={@min_k}
           max={@max_k}
           step="100"
           value={@slider}
-          data-light="temp"
+          phx-debounce="250"
         />
         <div class="ld-ticks" aria-hidden="true">
           <span
@@ -252,14 +346,17 @@ defmodule ZiwoasWeb.LightsComponents do
             :for={{label, preset} <- @presets}
             type="button"
             class={["btn btn-sm btn-outline-primary flex-fill", @kelvin == preset && "active"]}
-            data-temp={preset}
             aria-pressed={to_string(@kelvin == preset)}
+            data-temp={preset}
+            phx-click="light_command"
+            phx-value-command="color_temp"
+            phx-value-temp_k={preset}
           >
             {label}
           </button>
         </div>
       </div>
-    </div>
+    </form>
     """
   end
 
@@ -274,37 +371,37 @@ defmodule ZiwoasWeb.LightsComponents do
     ]
   end
 
-  defp share(kelvin, min_k, max_k) do
-    span = max_k - min_k
-    if span > 0, do: Float.to_string(Float.round((kelvin - min_k) / span, 4)), else: "0"
+  defp share(value, min, max) do
+    span = max - min
+    if span > 0, do: Float.round((value - min) / span, 4), else: 0
   end
 
-  attr :snapshot, Snapshot, required: true
+  attr :color, :string, default: nil, doc: "the colour last set as `#rrggbb`, nil for white"
+  attr :zone_lamp, :boolean, default: false
+  attr :hidden, :boolean, default: false
 
+  @doc """
+  The swatches are radios that send their colour; the wheel is the
+  `LightDetail` hook, which sends what the native picker chose, debounced.
+  """
   def color_panel(assigns) do
-    snapshot = assigns.snapshot
-    white = Lights.white?(snapshot)
-    hex = Lights.color_hex(snapshot)
-    custom = not white and hex not in @swatches
+    custom = not is_nil(assigns.color) and assigns.color not in @swatches
 
     assigns =
       assign(assigns,
         swatches: Enum.with_index(@swatches),
-        selected: if(white, do: nil, else: hex),
         custom: custom,
-        hex: hex,
-        label: if(Lights.zone_lamp?(snapshot), do: "Farbe · Welle + Seite", else: "Farbe")
+        label: if(assigns.zone_lamp, do: "Farbe · Welle + Seite", else: "Farbe")
       )
 
     ~H"""
     <div
       class="card mb-3"
       id="light_panel_color"
-      phx-update="ignore"
       role="tabpanel"
       aria-labelledby="light_tab_color"
       data-tab="color"
-      hidden
+      hidden={@hidden}
     >
       <div class="card-body">
         <p class="d-block mb-2 small text-uppercase text-body-secondary" id="light_color_label">
@@ -318,8 +415,11 @@ defmodule ZiwoasWeb.LightsComponents do
               name="light_color"
               id={"light_color_#{index}"}
               autocomplete="off"
-              checked={@selected == swatch}
+              checked={@color == swatch}
               data-color={swatch}
+              phx-click="light_command"
+              phx-value-command="color"
+              {rgb_values(swatch)}
             />
             <label
               class="btn btn-icon border ld-swatch"
@@ -333,10 +433,15 @@ defmodule ZiwoasWeb.LightsComponents do
             class={["btn btn-icon border ld-swatch ld-swatch-wheel", @custom && "ld-swatch-custom"]}
             title="Weitere Farbe"
             data-light="wheel"
-            style={@custom && "--ld-custom: #{@hex}"}
+            style={@custom && "--ld-custom: #{@color}"}
           >
             <span class="visually-hidden">Weitere Farbe</span>
-            <input type="color" value={@hex || "#ff7a3d"} />
+            <input
+              type="color"
+              id="light_color_wheel"
+              phx-hook="LightDetail"
+              value={@color || "#ff7a3d"}
+            />
           </label>
         </div>
       </div>
@@ -344,20 +449,31 @@ defmodule ZiwoasWeb.LightsComponents do
     """
   end
 
-  attr :light, Light, required: true
+  defp rgb_values("#" <> hex) do
+    <<r::binary-2, g::binary-2, b::binary-2>> = hex
+
+    for {name, byte} <- [r: r, g: g, b: b],
+        do: {:"phx-value-#{name}", Integer.to_string(String.to_integer(byte, 16))}
+  end
+
+  @doc "`#rrggbb` of a colour command's `%{r:, g:, b:}`."
+  @spec hex(%{r: 0..255, g: 0..255, b: 0..255}) :: String.t()
+  def hex(%{r: r, g: g, b: b}), do: rgb_hex({r, g, b})
+
+  attr :light, :map, required: true
+  attr :hidden, :boolean, default: false
 
   def scenes(assigns) do
-    assigns = assign(assigns, :scenes, Light.firmware_scenes(assigns.light))
+    assigns = assign(assigns, :scenes, Lights.scenes(assigns.light))
 
     ~H"""
     <div
       class="card mb-3"
       id="light_panel_scenes"
-      phx-update="ignore"
       role="tabpanel"
       aria-labelledby="light_tab_scenes"
       data-tab="scenes"
-      hidden
+      hidden={@hidden}
     >
       <div class="card-body">
         <%= if @scenes != [] do %>
@@ -432,11 +548,10 @@ defmodule ZiwoasWeb.LightsComponents do
   def toast_assigns(_light, :clear), do: %{message: nil, undo: nil}
 
   def toast_assigns(light, %{evicted: evicted, added: added}) do
-    {label, _role} = Light.zone_meta(evicted)
-    max = Commands.max_active_zones(light)
+    max = Lights.max_active_zones(light)
 
     %{
-      message: "#{label} ausgeschaltet · max. #{max} Zonen",
+      message: "#{zone_label(evicted)} ausgeschaltet · max. #{max} Zonen",
       undo: %{light_key: light.key, victim: evicted, added: added}
     }
   end

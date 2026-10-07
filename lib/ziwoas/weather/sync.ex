@@ -1,135 +1,92 @@
 defmodule Ziwoas.Weather.Sync do
   @moduledoc """
-  Bright Sky into `weather_records`: one `current` row per location, `forecast`
-  hours that a day's observations later replace as `historic`. Rows are keyed by
-  kind, location and timestamp (`idx_weather_records_identity`); syncing a known
-  hour again updates its row.
+  Bright Sky into `Ziwoas.Weather`: one `current` record per location, `forecast`
+  hours that a day's observations later replace as `historic`. A date Bright Sky
+  answers with 404 is past the end of its range and stores nothing.
   """
-  import Ecto.Query
+  require Logger
 
-  alias Ziwoas.{Clock, LocalDay, Location, Repo, Weather}
-  alias Ziwoas.Plugs.DailyTotal
+  alias Ziwoas.{Clock, Location, Plugs, Weather}
   alias Ziwoas.Weather.{BrightskyClient, Record}
 
   @forecast_max_days 10
-  @identity [:kind, :lat, :lon, :timestamp]
+
+  @type error :: {:error, BrightskyClient.reason() | Ecto.Changeset.t()}
 
   @doc """
   A weather job's frame: runs `sync` with the configured location (which has
-  coordinates, else the scheduler starts no weather job) and today's date, then
-  tells the subscribers.
+  coordinates, else the scheduler starts no weather job) and today's date. Tells
+  the subscribers when it succeeded, logs the reason when not.
   """
-  @spec perform(keyword, (Location.t(), Date.t() -> any)) :: :ok
+  @spec perform(keyword, (Location.t(), Date.t() -> :ok | {:ok, term} | error)) ::
+          :ok | error
   def perform(opts, sync) do
     location = Keyword.fetch!(opts, :config).location
     today = Clock.today(location.timezone)
-    sync.(location, today)
-    Weather.notify_synced(today)
+
+    case sync.(location, today) do
+      {:error, reason} = error ->
+        Logger.warning("Bright Sky sync failed: #{describe(reason)}")
+        error
+
+      _ok ->
+        Weather.notify_synced(today)
+    end
   end
 
-  @spec sync_current(Location.t()) :: Record.t()
+  defp describe(%Ecto.Changeset{errors: errors}), do: "invalid record #{inspect(errors)}"
+  defp describe(%{__exception__: true} = exception), do: Exception.message(exception)
+  defp describe(reason), do: inspect(reason)
+
+  @spec sync_current(Location.t()) :: {:ok, Record.t()} | error
   def sync_current(%Location{} = location) do
-    row = BrightskyClient.current_weather(location)
-    {lat, lon} = coordinates(location)
-
-    {:ok, record} =
-      Repo.transact(fn ->
-        Repo.delete_all(
-          from r in Record, where: r.kind == "current" and r.lat == ^lat and r.lon == ^lon
-        )
-
-        {:ok, Repo.insert!(changeset("current", row, location))}
-      end)
-
-    record
+    with {:ok, row} <- BrightskyClient.current_weather(location) do
+      Weather.replace_current(location, row)
+    end
   end
 
-  @spec sync_today(Location.t(), Date.t()) :: :ok
+  @spec sync_today(Location.t(), Date.t()) :: :ok | error
   def sync_today(%Location{} = location, %Date{} = today) do
     case BrightskyClient.weather_for_date(location, today) do
-      :range_end -> :ok
-      rows -> Enum.each(rows, &upsert!("forecast", &1, location))
+      {:ok, rows} -> Weather.put_forecast(location, rows)
+      {:error, {:http_status, 404}} -> :ok
+      error -> error
     end
   end
 
   @doc "The days after `today`, one request each, until Bright Sky has no more."
-  @spec sync_forecast(Location.t(), Date.t(), pos_integer) :: :ok
+  @spec sync_forecast(Location.t(), Date.t(), pos_integer) :: :ok | error
   def sync_forecast(%Location{} = location, %Date{} = today, max_days \\ @forecast_max_days) do
     Enum.reduce_while(1..max_days, :ok, fn offset, :ok ->
       case BrightskyClient.weather_for_date(location, Date.add(today, offset)) do
-        rows when rows in [:range_end, []] ->
-          {:halt, :ok}
-
-        rows ->
-          Enum.each(rows, &upsert!("forecast", &1, location))
-          {:cont, :ok}
+        {:ok, []} -> {:halt, :ok}
+        {:error, {:http_status, 404}} -> {:halt, :ok}
+        {:ok, rows} -> {:cont, Weather.put_forecast(location, rows)}
+        error -> {:halt, error}
       end
     end)
   end
 
   @doc "A day's observed hours as `historic`, each replacing the forecast for its hour."
-  @spec sync_historic_date(Location.t(), Date.t()) :: :ok
+  @spec sync_historic_date(Location.t(), Date.t()) :: :ok | error
   def sync_historic_date(%Location{} = location, %Date{} = date) do
     case BrightskyClient.weather_for_date(location, date) do
-      :range_end ->
-        :ok
-
-      rows ->
-        {lat, lon} = coordinates(location)
-
-        Enum.each(rows, fn row ->
-          Repo.delete_all(
-            from r in Record,
-              where:
-                r.kind == "forecast" and r.lat == ^lat and r.lon == ^lon and
-                  r.timestamp == ^row.timestamp
-          )
-
-          upsert!("historic", row, location)
-        end)
+      {:ok, rows} -> Weather.put_historic(location, rows)
+      {:error, {:http_status, 404}} -> :ok
+      error -> error
     end
   end
 
   @doc "Fetches the observations of every day with energy totals that lacks 24 historic hours."
-  @spec backfill_historic_from_daily_totals(Location.t()) :: :ok
+  @spec backfill_historic_from_daily_totals(Location.t()) :: :ok | error
   def backfill_historic_from_daily_totals(%Location{} = location) do
-    from(d in DailyTotal, distinct: true, select: d.date)
-    |> Repo.all()
-    |> Enum.sort()
-    |> Enum.map(&Date.from_iso8601!/1)
-    |> Enum.reject(&historic_complete?(location, &1))
-    |> Enum.each(&sync_historic_date(location, &1))
+    Plugs.dates_with_daily_totals()
+    |> Enum.reject(&Weather.historic_complete?(location, &1))
+    |> Enum.reduce_while(:ok, fn date, :ok ->
+      case sync_historic_date(location, date) do
+        :ok -> {:cont, :ok}
+        error -> {:halt, error}
+      end
+    end)
   end
-
-  defp upsert!(kind, row, location) do
-    Repo.insert!(changeset(kind, row, location),
-      on_conflict: {:replace_all_except, [:id, :inserted_at]},
-      conflict_target: @identity
-    )
-  end
-
-  defp changeset(kind, row, location) do
-    {lat, lon} = coordinates(location)
-    Record.changeset(Map.merge(row, %{kind: kind, lat: lat, lon: lon}))
-  end
-
-  defp coordinates(%Location{lat: lat, lon: lon}), do: {lat * 1.0, lon * 1.0}
-
-  # The hours from local midnight to the next one.
-  defp historic_complete?(location, date) do
-    {lat, lon} = coordinates(location)
-    from = date |> LocalDay.midnight(location.timezone) |> utc()
-    to = date |> Date.add(1) |> LocalDay.midnight(location.timezone) |> utc()
-
-    Repo.aggregate(
-      from(r in Record,
-        where:
-          r.kind == "historic" and r.lat == ^lat and r.lon == ^lon and
-            r.timestamp >= ^from and r.timestamp < ^to
-      ),
-      :count
-    ) >= 24
-  end
-
-  defp utc(time), do: DateTime.shift_zone!(time, "Etc/UTC")
 end

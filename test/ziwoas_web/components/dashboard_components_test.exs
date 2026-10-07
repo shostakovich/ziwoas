@@ -4,8 +4,9 @@ defmodule ZiwoasWeb.DashboardComponentsTest do
 
   import Phoenix.LiveViewTest, only: [render_component: 2]
 
-  alias Ziwoas.{Energy, EnergyFlow, EnergySummary, LiveState}
-  alias Ziwoas.EnergyFlow.Flows
+  alias Ziwoas.Energy.{Amount, Balance, LiveState}
+  alias Ziwoas.Energy.Flow, as: EnergyFlow
+  alias Ziwoas.Energy.Flow.Flows
   alias ZiwoasWeb.{Components, CoreComponents, DashboardComponents}
 
   defp live(plugs \\ [], flow \\ []) do
@@ -205,12 +206,12 @@ defmodule ZiwoasWeb.DashboardComponentsTest do
     defp tile(assigns), do: html(&CoreComponents.tile/1, assigns)
 
     defp summary(produced_wh, consumed_wh, self_consumed_wh \\ 0.0, savings_eur \\ 0.0) do
-      %EnergySummary{
-        produced: Energy.wh(produced_wh),
-        consumed: Energy.wh(consumed_wh),
-        self_consumed: Energy.wh(self_consumed_wh),
+      %Balance{
+        produced: Amount.wh(produced_wh),
+        consumed: Amount.wh(consumed_wh),
+        self_consumed: Amount.wh(self_consumed_wh),
         savings_eur: savings_eur,
-        date: "2026-10-05"
+        date: ~D[2026-10-05]
       }
     end
 

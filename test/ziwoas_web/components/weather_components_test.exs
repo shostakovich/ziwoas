@@ -5,8 +5,8 @@ defmodule ZiwoasWeb.WeatherComponentsTest do
   alias ZiwoasWeb.WeatherComponents, as: W
   alias ZiwoasWeb.WeatherComponents.Cell
 
-  defp hour(attrs \\ []), do: struct!(%Record{kind: "forecast", daytime: "night"}, attrs)
-  defp segment(records), do: %Segment{label: "Test", hours: 0..5//1, records: records}
+  defp hour(attrs \\ []), do: struct!(%Record{kind: :forecast, daytime: "night"}, attrs)
+  defp segment(records), do: %Segment{label: :night, hours: 0..5//1, records: records}
 
   test "names every Bright Sky condition in German, nothing for others" do
     assert Enum.map(~w[dry fog rain sleet snow hail thunderstorm], &W.condition_label/1) ==
@@ -14,6 +14,17 @@ defmodule ZiwoasWeb.WeatherComponentsTest do
 
     assert W.condition_label(nil) == nil
     assert W.condition_label("drizzle") == nil
+  end
+
+  test "German weekdays and segment names" do
+    assert W.weekday(~D[2026-05-04]) == "Montag"
+    assert W.weekday(~D[2026-05-03]) == "Sonntag"
+
+    assert Enum.map(
+             ~w[night morning afternoon evening]a,
+             &W.segment_label(%{segment([]) | label: &1})
+           ) ==
+             ~w[Nacht Vormittag Nachmittag Abend]
   end
 
   test "icon labels fall back to Wetter" do

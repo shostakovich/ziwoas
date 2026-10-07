@@ -1,143 +1,148 @@
 defmodule ZiwoasWeb.SolakonLive do
   @moduledoc """
-  The PV page. It listens to the dashboard's live beat: `{:dashboard_live, _}`
-  and `{:solakon_reading, _}` replace the energy-flow state, the only live
-  region on this page. The Solakon-Verlauf reloads itself every minute, and its
-  range tabs swap it in place.
+  The PV page. Plug deltas (`Ziwoas.Plugs.subscribe/0`) and stored readings
+  (`Ziwoas.Solakon.subscribe/0`) replace the energy-flow state and move the
+  freshness beat; a stored snapshot refreshes the Solakon-Verlauf
+  (`ZiwoasWeb.SolakonHistoryComponent`), whose range tabs patch `?range=`.
+  The sun calendar, the shading report and the Wirtschaftlichkeit load after
+  the page is connected.
 
   The EPS and Auto-Regelung switches are the events `"toggle_eps"` and
-  `"toggle_control"`.
+  `"toggle_control"`; their writes run off the LiveView process.
   """
   use ZiwoasWeb, :live_view
 
   import ZiwoasWeb.Components.EnergyFlow
+  import ZiwoasWeb.Components.Shading
+  import ZiwoasWeb.Components.SunCalendar
   import ZiwoasWeb.EconomicsComponents
   import ZiwoasWeb.SolakonComponents
-  import ZiwoasWeb.SunChartComponents
 
   require Logger
 
-  alias Ziwoas.{Clock, Config, LiveState}
-  alias Ziwoas.Economics.Overview
+  alias Ziwoas.{Clock, Config, Economics, Energy, Plugs, Shading, Solakon, SunCalendar}
   alias Ziwoas.Plugs.{Measurement, Roster}
-  alias Ziwoas.Shading
-  alias Ziwoas.Solakon.{Control, Reading, Snapshot}
-  alias Ziwoas.SunCalendar
-  alias ZiwoasWeb.SolakonHistoryLive
+  alias ZiwoasWeb.SolakonHistoryComponent
 
   @impl true
   def mount(_params, _session, socket) do
     if connected?(socket) do
-      Phoenix.PubSub.subscribe(Ziwoas.PubSub, "dashboard")
-      Phoenix.PubSub.subscribe(Ziwoas.PubSub, "solakon")
-      SolakonHistoryLive.schedule_refresh()
+      Plugs.subscribe()
+      Solakon.subscribe()
     end
 
     config = Config.get()
     now = Clock.now()
-    zone = config.location.timezone
-    control_enabled = config.solakon && config.solakon.control_enabled
+    location = config.location
+    control_enabled = (config.solakon && config.solakon.control_enabled) == true
     producer_ids = config |> Config.plug_roster() |> Roster.producer_ids()
+    reading = Solakon.latest_reading()
 
     {:ok,
      socket
      |> assign(
        page_title: "PV",
        beat: 0,
-       control_enabled: control_enabled == true,
-       control_active: control_enabled == true and Control.State.active?(Control.State.current()),
+       live: Energy.live_state(config, now),
+       reading: reading,
+       snapshot: Solakon.latest_snapshot(),
+       eps_on: reading != nil and reading.eps_enabled == true,
+       eps_pending: false,
+       eps_error: nil,
+       control_enabled: control_enabled,
+       control_active: control_enabled and Solakon.control_active?(),
+       control_pending: false,
        control_help: nil,
        control_error: nil,
-       eps_enabled: nil,
-       eps_error: nil,
-       attempts: 0,
-       reading: Reading.newest(),
-       snapshot: Snapshot.latest(),
-       sun_calendar:
-         SunCalendar.Builder.build(
-           config.location,
-           producer_ids,
-           SunCalendar.Builder.latest_year(config.location, now)
-         ),
-       shading: Shading.Builder.build(config.location, now),
-       economics: Overview.build(Clock.today(zone))
+       history_range: nil,
+       history_refresh: 0
      )
-     |> assign(:live, LiveState.build(config, now))}
-  end
-
-  @impl true
-  def handle_info({event, _}, socket) when event in [:dashboard_live, :solakon_reading] do
-    {:noreply,
-     assign(socket,
-       live: LiveState.build(Config.get(), Clock.now()),
-       beat: socket.assigns.beat + 1
-     )}
-  end
-
-  def handle_info(:refresh_history, socket) do
-    SolakonHistoryLive.schedule_refresh()
-    {:noreply, SolakonHistoryLive.reload_history(socket, socket.assigns.history.range)}
+     |> assign_async(:sun_calendar, fn ->
+       year = SunCalendar.latest_year(location, now)
+       {:ok, %{sun_calendar: SunCalendar.year(location, producer_ids, year)}}
+     end)
+     |> assign_async(:shading, fn -> {:ok, %{shading: Shading.report(location, now)}} end)
+     |> assign_async(:economics, fn ->
+       {:ok, %{economics: Economics.overview(Clock.today(location.timezone))}}
+     end)}
   end
 
   @impl true
   def handle_params(params, _uri, socket),
-    do: {:noreply, SolakonHistoryLive.reload_history(socket, params["range"])}
+    do: {:noreply, assign(socket, :history_range, params["range"])}
 
   @impl true
+  def handle_info({event, _}, socket) when event in [:live, :reading] do
+    {:noreply,
+     assign(socket,
+       live: Energy.live_state(Config.get(), Clock.now()),
+       beat: socket.assigns.beat + 1
+     )}
+  end
+
+  def handle_info({:snapshot, _}, socket),
+    do: {:noreply, update(socket, :history_refresh, &(&1 + 1))}
+
+  @impl true
+  def handle_event("toggle_eps", _params, %{assigns: %{eps_pending: true}} = socket),
+    do: {:noreply, socket}
+
   def handle_event("toggle_eps", _params, socket) do
-    desired = not eps_on?(socket.assigns)
+    desired = not socket.assigns.eps_on
 
     socket =
-      case eps_switch(desired) do
-        {:ok, enabled} -> assign(socket, eps_enabled: enabled == true, eps_error: nil)
-        {:error, message} -> assign(socket, eps_error: message)
-      end
+      if is_nil(Config.get().solakon),
+        do: assign(socket, eps_error: "Solakon nicht konfiguriert"),
+        else:
+          socket
+          |> assign(eps_pending: true)
+          |> start_async(:eps, fn -> Solakon.set_eps_output(desired) end)
 
-    {:noreply, update(socket, :attempts, &(&1 + 1))}
+    {:noreply, socket}
   end
+
+  def handle_event("toggle_control", _params, %{assigns: %{control_pending: true}} = socket),
+    do: {:noreply, socket}
 
   def handle_event("toggle_control", _params, socket) do
-    socket =
-      case control_switch(not socket.assigns.control_active) do
-        {:ok, state} ->
-          active = Control.State.active?(state)
+    config = Config.get()
+    desired = not socket.assigns.control_active
 
-          assign(socket,
-            control_active: active,
-            control_help: if(active, do: "folgt dem gemessenen Verbrauch", else: "pausiert"),
-            control_error: nil
-          )
-
-        {:error, message} ->
-          assign(socket, control_error: message)
-      end
-
-    {:noreply, update(socket, :attempts, &(&1 + 1))}
+    {:noreply,
+     socket
+     |> assign(control_pending: true)
+     |> start_async(:control, fn -> Solakon.set_control_active(config, desired) end)}
   end
 
-  defp eps_switch(desired) do
-    if is_nil(Config.get().solakon) do
-      {:error, "Solakon nicht konfiguriert"}
-    else
-      with {:error, reason} <- Control.set_eps_output(desired) do
-        Logger.warning("solakon_controls: EPS switch failed: #{inspect(reason)}")
-        {:error, "Schalten fehlgeschlagen"}
-      end
-    end
+  @impl true
+  def handle_async(:eps, {:ok, {:ok, enabled}}, socket),
+    do: {:noreply, assign(socket, eps_on: enabled == true, eps_error: nil, eps_pending: false)}
+
+  def handle_async(:eps, {_, reason}, socket) do
+    Logger.warning("solakon_controls: EPS switch failed: #{inspect(reason)}")
+    {:noreply, assign(socket, eps_error: "Schalten fehlgeschlagen", eps_pending: false)}
   end
 
-  defp control_switch(desired) do
-    case Control.set_active(Config.get(), desired) do
-      {:ok, state} -> {:ok, state}
-      {:error, :not_configured} -> {:error, "Solakon nicht konfiguriert"}
-      {:error, :disabled} -> {:error, "in Konfiguration deaktiviert"}
-    end
+  def handle_async(:control, {:ok, {:ok, active}}, socket) do
+    {:noreply,
+     assign(socket,
+       control_active: active,
+       control_help: if(active, do: "folgt dem gemessenen Verbrauch", else: "pausiert"),
+       control_error: nil,
+       control_pending: false
+     )}
   end
 
-  defp eps_on?(%{eps_enabled: nil, reading: reading}),
-    do: not is_nil(reading) and reading.eps_enabled == true
+  def handle_async(:control, {:ok, {:error, reason}}, socket),
+    do: {:noreply, assign(socket, control_error: control_error(reason), control_pending: false)}
 
-  defp eps_on?(%{eps_enabled: enabled}), do: enabled
+  def handle_async(:control, {:exit, reason}, socket) do
+    Logger.warning("solakon_controls: control switch failed: #{inspect(reason)}")
+    {:noreply, assign(socket, control_error: "Schalten fehlgeschlagen", control_pending: false)}
+  end
+
+  defp control_error(:not_configured), do: "Solakon nicht konfiguriert"
+  defp control_error(:disabled), do: "in Konfiguration deaktiviert"
 
   @impl true
   def render(assigns) do
@@ -156,31 +161,70 @@ defmodule ZiwoasWeb.SolakonLive do
         <.status reading={@reading} snapshot={@snapshot} />
         <.controls
           reading={@reading}
-          eps_enabled={@eps_enabled}
+          eps_on={@eps_on}
+          eps_pending={@eps_pending}
           eps_error={@eps_error}
           control_enabled={@control_enabled}
           control_active={@control_active}
+          control_pending={@control_pending}
           control_help={@control_help}
           control_error={@control_error}
-          attempts={@attempts}
         />
         <.panels snapshot={@snapshot} />
         <.storage reading={@reading} snapshot={@snapshot} />
 
         <.card title="Solakon-Verlauf" subtitle="Leistung in Watt">
-          <.history history={@history} path={~p"/solakon"} />
+          <.live_component
+            module={SolakonHistoryComponent}
+            id="solakon_history"
+            range={@history_range}
+            page={:solakon}
+            refresh={@history_refresh}
+          />
         </.card>
 
-        <.overview_card result={@economics} />
+        <.async_result :let={economics} assign={@economics}>
+          <:loading><.pending title="Wirtschaftlichkeit" /></:loading>
+          <:failed><.failed title="Wirtschaftlichkeit" /></:failed>
+          <.overview_card result={economics} />
+        </.async_result>
 
-        <h2 class="h6 text-uppercase text-body-secondary mt-4 mb-2">
-          Sonnenkalender {@sun_calendar.year}
-        </h2>
-        <.sun_calendar calendar={@sun_calendar} />
+        <.async_result :let={calendar} assign={@sun_calendar}>
+          <:loading><.pending title="Sonnenkalender" /></:loading>
+          <:failed><.failed title="Sonnenkalender" /></:failed>
+          <h2 class="h6 text-uppercase text-body-secondary mt-4 mb-2">
+            Sonnenkalender {calendar.year}
+          </h2>
+          <.sun_calendar calendar={calendar} />
+        </.async_result>
 
-        <.shading report={@shading} />
+        <.async_result :let={report} assign={@shading}>
+          <:loading><.pending title="Ausbeute" /></:loading>
+          <:failed><.failed title="Ausbeute" /></:failed>
+          <.shading report={report} />
+        </.async_result>
       </div>
     </Layouts.app>
+    """
+  end
+
+  attr :title, :string, required: true
+
+  defp pending(assigns) do
+    ~H"""
+    <.card title={@title} data-async="loading">
+      <p class="small text-body-secondary mb-0">Wird berechnet …</p>
+    </.card>
+    """
+  end
+
+  attr :title, :string, required: true
+
+  defp failed(assigns) do
+    ~H"""
+    <.card title={@title} data-async="failed">
+      <p class="small text-danger mb-0">Konnte nicht berechnet werden.</p>
+    </.card>
     """
   end
 end

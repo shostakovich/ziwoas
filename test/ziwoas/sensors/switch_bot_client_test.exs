@@ -65,24 +65,34 @@ defmodule Ziwoas.Sensors.SwitchBotClientTest do
       ~s({"statusCode": 161, "message": "device offline", "body": {}})
     )
 
-    assert SwitchBotClient.device_status(@auth, "X") == {:error, "SwitchBot API: device offline"}
+    assert SwitchBotClient.device_status(@auth, "X") ==
+             {:error, {:api_error, 161, "device offline"}}
   end
 
   test "without a message the status code names it" do
     expect_get("/v1.1/devices/X/status", 200, ~s({"statusCode": 190}))
-    assert SwitchBotClient.device_status(@auth, "X") == {:error, "SwitchBot API: status 190"}
+    assert SwitchBotClient.device_status(@auth, "X") == {:error, {:api_error, 190, nil}}
   end
 
   test "an HTTP error is an error, not retried" do
     expect_get("/v1.1/devices/X/status", 500, "")
-    assert SwitchBotClient.device_status(@auth, "X") == {:error, "HTTP 500"}
+    assert SwitchBotClient.device_status(@auth, "X") == {:error, {:http_status, 500}}
     Req.Test.verify!(SwitchBotClient)
   end
 
   test "a transport error is an error" do
     Req.Test.expect(SwitchBotClient, &Req.Test.transport_error(&1, :timeout))
-    assert {:error, message} = SwitchBotClient.device_status(@auth, "X")
-    assert message =~ "timeout"
+
+    assert {:error, %Req.TransportError{reason: :timeout}} =
+             SwitchBotClient.device_status(@auth, "X")
+  end
+
+  test "an answer that is no JSON object is an error" do
+    expect_get("/v1.1/devices/X/status", 200, "<html>")
+    assert {:error, {:invalid_json, _}} = SwitchBotClient.device_status(@auth, "X")
+
+    expect_get("/v1.1/devices/X/status", 200, "[]")
+    assert SwitchBotClient.device_status(@auth, "X") == {:error, :unexpected_body}
   end
 
   test "lists the meters among the devices" do

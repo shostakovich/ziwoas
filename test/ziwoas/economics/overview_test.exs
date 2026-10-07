@@ -1,8 +1,9 @@
 defmodule Ziwoas.Economics.OverviewTest do
   use Ziwoas.DataCase
 
+  alias Ziwoas.Economics
   alias Ziwoas.Economics.{CostItem, Overview}
-  alias Ziwoas.EnergyReport.DailyEnergySummary
+  alias Ziwoas.Energy.DailySummary
   alias Ziwoas.Repo
 
   @today ~D[2026-10-06]
@@ -17,8 +18,8 @@ defmodule Ziwoas.Economics.OverviewTest do
 
   defp day!(date, self_consumed_wh),
     do:
-      Repo.insert!(%DailyEnergySummary{
-        date: Date.to_iso8601(date),
+      Repo.insert!(%DailySummary{
+        date: date,
         produced_wh: 10_000.0,
         consumed_wh: 8_000.0,
         self_consumed_wh: self_consumed_wh * 1.0
@@ -35,14 +36,14 @@ defmodule Ziwoas.Economics.OverviewTest do
              projection_days: 0,
              priced: false,
              costed: false
-           } = Overview.build(@today)
+           } = Economics.overview(@today)
   end
 
   test "without a price the savings stay unknown, even with days and costs on record" do
     cost!("1000")
     day!(~D[2026-10-01], 2_000)
 
-    overview = Overview.build(@today)
+    overview = Economics.overview(@today)
 
     assert {overview.priced, overview.costed} == {false, true}
     assert {overview.saved_eur, overview.covered_ratio, overview.reached_on} == {nil, nil, nil}
@@ -58,7 +59,7 @@ defmodule Ziwoas.Economics.OverviewTest do
     day!(~D[2026-10-01], 2_000)
     day!(~D[2026-10-02], 2_000)
 
-    overview = Overview.build(@today)
+    overview = Economics.overview(@today)
 
     assert_in_delta overview.saved_eur, 1.0, 1.0e-9
     assert_in_delta overview.covered_ratio, 0.001, 1.0e-12
@@ -72,7 +73,7 @@ defmodule Ziwoas.Economics.OverviewTest do
     insert_price!("2026-01-01", "0.25")
     for offset <- 0..99, do: day!(Date.add(@today, -offset), 4_000)
 
-    overview = Overview.build(@today)
+    overview = Economics.overview(@today)
 
     assert_in_delta overview.saved_eur, 100.0, 1.0e-9
     assert overview.projection_days == 100
@@ -85,7 +86,7 @@ defmodule Ziwoas.Economics.OverviewTest do
     day!(~D[2026-09-01], 2_000)
     day!(~D[2026-09-02], 2_000)
 
-    overview = Overview.build(@today)
+    overview = Economics.overview(@today)
 
     assert Overview.reached?(overview)
     assert overview.reached_on == ~D[2026-09-02]
@@ -98,7 +99,7 @@ defmodule Ziwoas.Economics.OverviewTest do
     insert_price!("2026-01-01", "0.30")
     day!(~D[2026-10-01], 2_000)
 
-    overview = Overview.build(@today)
+    overview = Economics.overview(@today)
 
     refute overview.costed
     assert overview.covered_ratio == nil

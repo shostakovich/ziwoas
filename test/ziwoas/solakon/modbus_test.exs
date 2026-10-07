@@ -100,6 +100,32 @@ defmodule Ziwoas.Solakon.ModbusTest do
     Modbus.close(socket)
   end
 
+  test "a connection threads its transaction id: the next one per request, 65535 wraps to 1" do
+    test = self()
+
+    port =
+      raw_server(fn <<transaction::16, _::binary-size(5), pdu::binary>> ->
+        send(test, {:transaction, transaction})
+
+        case pdu do
+          <<0x03, _::binary>> -> frame(transaction, 1, <<0x03, 2, 0, 7>>)
+          _write -> frame(transaction, 1, pdu)
+        end
+      end)
+
+    {:ok, conn} = Modbus.open("127.0.0.1", port, 1, 1_000)
+
+    assert {:ok, [7], conn} = Modbus.read(conn, 39248, 1)
+    assert conn.transaction == 1
+    assert {:ok, conn} = Modbus.write(conn, {:single, 46001, 1})
+    assert {:ok, conn} = Modbus.write(%{conn | transaction: 0xFFFE}, {:multiple, 46003, [0, 5]})
+    assert {:ok, [7], conn} = Modbus.read(conn, 39248, 1)
+    assert conn.transaction == 1
+
+    for id <- [1, 2, 0xFFFF, 1], do: assert_receive({:transaction, ^id})
+    Modbus.close(conn)
+  end
+
   test "only foreign transaction ids time out within the request's timeout" do
     port = raw_server(fn _ -> frame(4242, 1, <<0x03, 2, 0, 1>>) end)
     {:ok, socket} = Modbus.connect("127.0.0.1", port, 1_000)

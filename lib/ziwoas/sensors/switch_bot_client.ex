@@ -1,7 +1,9 @@
 defmodule Ziwoas.Sensors.SwitchBotClient do
   @moduledoc """
   The SwitchBot cloud API v1.1: signed GETs that read the air sensors. Errors come
-  back as `{:error, message}`: `HTTP 500`, `SwitchBot API: <message>`.
+  back as `{:error, reason}`: `{:http_status, status}`, `{:api_error, status_code,
+  message}` (SwitchBot's own status in a 2xx answer), `{:invalid_json, reason}`,
+  `:unexpected_body` or Req's transport exception.
   """
   alias Ziwoas.Config.Switchbot
   alias Ziwoas.Http
@@ -19,14 +21,21 @@ defmodule Ziwoas.Sensors.SwitchBotClient do
           raw: map
         }
 
-  @spec device_status(Switchbot.t(), String.t()) :: {:ok, status} | {:error, String.t()}
+  @type reason ::
+          {:http_status, pos_integer}
+          | {:api_error, term, String.t() | nil}
+          | {:invalid_json, term}
+          | :unexpected_body
+          | Exception.t()
+
+  @spec device_status(Switchbot.t(), String.t()) :: {:ok, status} | {:error, reason}
   def device_status(%Switchbot{} = auth, device_id) do
     with {:ok, json} <- get_json(auth, "/v1.1/devices/#{device_id}/status") do
       {:ok, normalize_status(Map.get(json, "body", %{}))}
     end
   end
 
-  @spec list_all_devices(Switchbot.t()) :: {:ok, [map]} | {:error, String.t()}
+  @spec list_all_devices(Switchbot.t()) :: {:ok, [map]} | {:error, reason}
   def list_all_devices(%Switchbot{} = auth) do
     with {:ok, json} <- get_json(auth, "/v1.1/devices") do
       devices =
@@ -40,7 +49,7 @@ defmodule Ziwoas.Sensors.SwitchBotClient do
   end
 
   @doc "The devices that are air sensors ZiWoAS reads, with their sensor type."
-  @spec list_sensor_devices(Switchbot.t()) :: {:ok, [map]} | {:error, String.t()}
+  @spec list_sensor_devices(Switchbot.t()) :: {:ok, [map]} | {:error, reason}
   def list_sensor_devices(%Switchbot{} = auth) do
     with {:ok, devices} <- list_all_devices(auth) do
       {:ok,
@@ -65,8 +74,8 @@ defmodule Ziwoas.Sensors.SwitchBotClient do
 
     case Req.get(request) do
       {:ok, %Req.Response{status: status, body: body}} when status in 200..299 -> check(body)
-      {:ok, %Req.Response{status: status}} -> {:error, "HTTP #{status}"}
-      {:error, exception} -> {:error, Exception.message(exception)}
+      {:ok, %Req.Response{status: status}} -> {:error, {:http_status, status}}
+      {:error, exception} -> {:error, exception}
     end
   end
 
@@ -76,13 +85,13 @@ defmodule Ziwoas.Sensors.SwitchBotClient do
         {:ok, json}
 
       {:ok, %{} = json} ->
-        {:error, "SwitchBot API: #{json["message"] || "status #{json["statusCode"]}"}"}
+        {:error, {:api_error, json["statusCode"], json["message"]}}
 
       {:ok, _other} ->
-        {:error, "SwitchBot API: no JSON object"}
+        {:error, :unexpected_body}
 
       {:error, reason} ->
-        {:error, inspect(reason)}
+        {:error, {:invalid_json, reason}}
     end
   end
 

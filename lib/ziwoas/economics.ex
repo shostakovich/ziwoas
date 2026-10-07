@@ -1,12 +1,18 @@
 defmodule Ziwoas.Economics do
   @moduledoc """
-  What the plant cost and what grid electricity costs, read from the database
-  (ADR-0004). The lists keep their `Decimal`s; the figures the savings are
-  reckoned with are floats.
+  What the plant cost, what grid electricity costs (read from the database,
+  ADR-0004) and what the self-consumption saved. The lists keep their
+  `Decimal`s; the figures the savings are reckoned with are floats.
+
+  Savings count only the energy the measured consumers took straight from the
+  array, priced at the electricity price in force that day. Exported energy
+  earns nothing (ADR-0003).
   """
   import Ecto.Query
 
-  alias Ziwoas.Economics.{CostItem, ElectricityPrice, PriceBook}
+  alias Ziwoas.Economics.{CostItem, ElectricityPrice, Overview, Payback, PriceBook}
+  alias Ziwoas.Energy
+  alias Ziwoas.Energy.Amount
   alias Ziwoas.Repo
 
   @doc "Every recorded electricity price as a `PriceBook`."
@@ -15,12 +21,69 @@ defmodule Ziwoas.Economics do
     ElectricityPrice
     |> Repo.all()
     |> Enum.map(fn price ->
-      %PriceBook.Entry{
-        valid_from: Date.from_iso8601!(price.valid_from),
-        eur_per_kwh: to_float(price.eur_per_kwh, 5)
-      }
+      %PriceBook.Entry{valid_from: price.valid_from, eur_per_kwh: to_float(price.eur_per_kwh, 5)}
     end)
     |> PriceBook.new()
+  end
+
+  @doc "No price on record means the savings are unknown, not zero — a kWh is never free."
+  @spec priced?(PriceBook.t()) :: boolean
+  def priced?(%PriceBook{} = book), do: not PriceBook.empty?(book)
+
+  @doc "What a day's self-consumption was worth at its price; nil without a price, 0.0 for none."
+  @spec savings_eur(PriceBook.t(), Amount.t(), Date.t()) :: float | nil
+  def savings_eur(%PriceBook{} = book, %Amount{} = energy, %Date{} = date) do
+    case PriceBook.on(book, date) do
+      nil -> nil
+      price -> if Amount.negative?(energy), do: 0.0, else: Amount.kwh(energy) * price
+    end
+  end
+
+  @doc "Each day at its own price, summed; nil without a price."
+  @spec total_savings_eur(PriceBook.t(), [{Date.t(), Amount.t()}]) :: float | nil
+  def total_savings_eur(%PriceBook{} = book, dated_energies) do
+    if priced?(book) do
+      Enum.reduce(dated_energies, 0.0, fn {date, energy}, total ->
+        total + savings_eur(book, energy, date)
+      end)
+    end
+  end
+
+  @doc """
+  Everything the Wirtschaftlichkeit card shows, as of `today`: the daily
+  self-consumption on record, priced day by day, against what the plant
+  cost. Without a price, the money figures are unknown (nil), not zero.
+  """
+  @spec overview(Date.t()) :: Overview.t()
+  def overview(%Date{} = today) do
+    book = price_book()
+    priced = priced?(book)
+    summaries = Energy.daily_summaries()
+    cost = total_cost_eur()
+    payback = Payback.new(cost, daily_savings(summaries, book, priced), today)
+
+    %Overview{
+      saved_eur: if(priced, do: Payback.saved_eur(payback)),
+      acquisition_cost_eur: cost,
+      covered_ratio: if(priced, do: Payback.covered_ratio(payback)),
+      data_start: first_date(summaries),
+      projected_payback_date: if(priced, do: Payback.projected_date(payback)),
+      reached_on: if(priced, do: Payback.reached_on(payback)),
+      projection_days: Payback.projection_days(payback),
+      priced: priced,
+      costed: Payback.costed?(payback)
+    }
+  end
+
+  defp first_date([first | _]), do: first.date
+  defp first_date([]), do: nil
+
+  defp daily_savings(_summaries, _book, false), do: []
+
+  defp daily_savings(summaries, book, true) do
+    Enum.map(summaries, fn summary ->
+      {summary.date, savings_eur(book, Amount.wh(summary.self_consumed_wh), summary.date)}
+    end)
   end
 
   @doc "The cost items, newest first."

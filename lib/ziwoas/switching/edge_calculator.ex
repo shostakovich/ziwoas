@@ -83,7 +83,7 @@ defmodule Ziwoas.Switching.EdgeCalculator do
       %Edge{
         plug_id: rule.plug_id,
         rule_id: rule.id,
-        action: String.to_existing_atom(rule.action),
+        action: rule.action,
         at: local_time(date, rule.at_minute, zone)
       }
     end

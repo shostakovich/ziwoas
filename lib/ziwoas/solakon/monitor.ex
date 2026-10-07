@@ -9,8 +9,9 @@ defmodule Ziwoas.Solakon.Monitor do
   The connection stays open between requests; a reused connection that fails is
   retried once on a fresh one (the inverter may have dropped it while idle; every
   write sets an absolute value, so repeating one is harmless). With `keep_open:
-  false` it is opened per request and closed again. Transaction ids count from 1
-  on every connection.
+  false` it is opened per request and closed again. The connection
+  (`Ziwoas.Solakon.Modbus`) carries its transaction id, which counts from 1 on
+  every connection.
 
   After a failed connect or request the next attempt waits: 1 s, doubling to 60 s,
   back to 1 s after a success. A request inside that wait answers `{:error,
@@ -68,8 +69,7 @@ defmodule Ziwoas.Solakon.Monitor do
       keep_open: Keyword.get(opts, :keep_open, true),
       io_timeout: Keyword.get(opts, :io_timeout_ms, @io_timeout_ms),
       clock: Keyword.get(opts, :clock, fn -> System.monotonic_time(:millisecond) end),
-      socket: nil,
-      transactions: nil,
+      conn: nil,
       backoff: nil,
       retry_at: nil
     }
@@ -92,7 +92,7 @@ defmodule Ziwoas.Solakon.Monitor do
   end
 
   defp perform(operation, state) do
-    reused = not is_nil(state.socket)
+    reused = not is_nil(state.conn)
 
     case attempt(operation, state) do
       # The inverter answered and refused: no retry, no wait before the next
@@ -114,81 +114,39 @@ defmodule Ziwoas.Solakon.Monitor do
   end
 
   defp attempt(operation, state) do
-    with {:ok, state} <- ensure_socket(state) do
-      case operate(operation, reader(state), writer(state)) do
+    with {:ok, state} <- ensure_conn(state) do
+      case operate(operation, state.conn) do
+        {:ok, value, conn} -> {{:ok, value}, %{state | conn: conn}}
+        {:ok, conn} -> {:ok, %{state | conn: conn}}
         {:error, _} = error -> {error, close(state)}
-        result -> {result, state}
       end
     end
   end
 
-  defp operate(:state, read, _write), do: Client.read_state(read)
-  defp operate(:snapshot, read, _write), do: Client.read_snapshot(read)
+  defp operate(:state, conn), do: Client.read_state(conn)
+  defp operate(:snapshot, conn), do: Client.read_snapshot(conn)
 
-  defp operate({:apply_control, power_w, min_soc}, read, write),
-    do: Client.apply_control(read, write, power_w, min_soc)
+  defp operate({:apply_control, power_w, min_soc}, conn),
+    do: Client.apply_control(conn, power_w, min_soc)
 
-  defp operate(:release_control, _read, write), do: Client.release_control(write)
+  defp operate(:release_control, conn), do: Client.release_control(conn)
+  defp operate({:set_eps_output, enabled}, conn), do: Client.set_eps_output(conn, enabled)
 
-  defp operate({:set_eps_output, enabled}, _read, write),
-    do: Client.set_eps_output(write, enabled)
-
-  defp reader(state) do
-    fn address, count ->
-      Modbus.read_holding_registers(
-        state.socket,
-        next_transaction(state),
-        state.unit,
-        address,
-        count,
-        state.io_timeout
-      )
-    end
-  end
-
-  defp writer(state) do
-    fn
-      {:single, address, value} ->
-        Modbus.write_single_register(
-          state.socket,
-          next_transaction(state),
-          state.unit,
-          address,
-          value,
-          state.io_timeout
-        )
-
-      {:multiple, address, values} ->
-        Modbus.write_multiple_registers(
-          state.socket,
-          next_transaction(state),
-          state.unit,
-          address,
-          values,
-          state.io_timeout
-        )
-    end
-  end
-
-  # 1, 2, … 65535, then 1 again.
-  defp next_transaction(state),
-    do: rem(:atomics.add_get(state.transactions, 1, 1) - 1, 0xFFFF) + 1
-
-  defp ensure_socket(%{socket: nil} = state) do
-    case Modbus.connect(state.host, state.port, state.io_timeout) do
-      {:ok, socket} -> {:ok, %{state | socket: socket, transactions: :atomics.new(1, [])}}
+  defp ensure_conn(%{conn: nil} = state) do
+    case Modbus.open(state.host, state.port, state.unit, state.io_timeout) do
+      {:ok, conn} -> {:ok, %{state | conn: conn}}
       {:error, reason} -> {{:error, {:connect, reason}}, state}
     end
   end
 
-  defp ensure_socket(state), do: {:ok, state}
+  defp ensure_conn(state), do: {:ok, state}
 
   defp release(%{keep_open: true} = state), do: state
   defp release(state), do: close(state)
 
   defp close(state) do
-    Modbus.close(state.socket)
-    %{state | socket: nil, transactions: nil}
+    Modbus.close(state.conn)
+    %{state | conn: nil}
   end
 
   defp back_off(state) do
@@ -197,5 +155,5 @@ defmodule Ziwoas.Solakon.Monitor do
   end
 
   @impl true
-  def terminate(_reason, state), do: Modbus.close(state.socket)
+  def terminate(_reason, state), do: Modbus.close(state.conn)
 end

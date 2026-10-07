@@ -49,7 +49,7 @@ defmodule Ziwoas.EconomicsTest do
       insert_price!("2026-07-01", "0.25")
 
       assert Enum.map(Economics.cost_items(), & &1.id) == [same_day.id, newer.id, older.id]
-      assert Enum.map(Economics.prices(), & &1.valid_from) == ["2026-07-01", "2026-01-01"]
+      assert Enum.map(Economics.prices(), & &1.valid_from) == [~D[2026-07-01], ~D[2026-01-01]]
     end
   end
 
@@ -136,7 +136,7 @@ defmodule Ziwoas.EconomicsTest do
                })
 
       price = Repo.get!(ElectricityPrice, price.id)
-      assert price.valid_from == "2026-07-01"
+      assert price.valid_from == ~D[2026-07-01]
       assert Decimal.equal?(price.eur_per_kwh, Decimal.new("0.12346"))
     end
 

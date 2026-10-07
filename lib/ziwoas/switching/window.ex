@@ -1,7 +1,7 @@
 defmodule Ziwoas.Switching.Window do
   @moduledoc """
   The Zeitfenster form: an on and an off time and one set of weekdays, stored as
-  two rules sharing a `group_id` (`Ziwoas.Switching.Rules.save_window/3`). The
+  two rules sharing a `group_id` (`Ziwoas.Switching.save_window/3`). The
   days are the ones typed; the shift past midnight belongs to the off rule alone.
   """
   use Ecto.Schema

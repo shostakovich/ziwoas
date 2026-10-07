@@ -1,8 +1,9 @@
 defmodule ZiwoasWeb.SensorsLive do
   @moduledoc """
-  The Sensoren page. `{:sensors_updated}` on the `sensors` PubSub topic
-  (`Ziwoas.Sensors.PollJob`) reloads the dashboard and tells the `SensorsChart`
-  hook to reload its series (`"sensors_updated"`).
+  The Sensoren page. On a connected mount and after every poll
+  (`Ziwoas.Sensors.subscribe/0`) it reloads the cards and pushes the last 24 hours
+  to the `SensorsChart` hook (`"sensors_chart:data"`, see
+  `ZiwoasWeb.SensorsComponents.chart_data/2`).
   """
   use ZiwoasWeb, :live_view
 
@@ -10,17 +11,23 @@ defmodule ZiwoasWeb.SensorsLive do
 
   alias Ziwoas.{Clock, Config, Sensors}
 
-  @topic "sensors"
+  @chart_window_s 24 * 3600
 
   @impl true
   def mount(_params, _session, socket) do
-    if connected?(socket), do: Phoenix.PubSub.subscribe(Ziwoas.PubSub, @topic)
-    {:ok, socket |> assign(:page_title, "Sensoren") |> load()}
+    socket = socket |> assign(:page_title, "Sensoren") |> load()
+
+    if connected?(socket) do
+      Sensors.subscribe()
+      {:ok, push_chart(socket)}
+    else
+      {:ok, socket}
+    end
   end
 
   @impl true
-  def handle_info({:sensors_updated}, socket),
-    do: {:noreply, socket |> load() |> push_event("sensors_updated", %{})}
+  def handle_info({:polled, _instant}, socket),
+    do: {:noreply, socket |> load() |> push_chart()}
 
   @impl true
   def render(assigns) do
@@ -37,8 +44,15 @@ defmodule ZiwoasWeb.SensorsLive do
 
     assign(socket,
       sensors: sensors,
-      latest: sensors |> Enum.map(& &1.id) |> Sensors.latest_per_device(),
+      latest: sensors |> device_ids() |> Sensors.latest_per_device(),
       now: Clock.now()
     )
   end
+
+  defp push_chart(%{assigns: %{sensors: sensors, now: now}} = socket) do
+    readings = Sensors.since(device_ids(sensors), DateTime.add(now, -@chart_window_s, :second))
+    push_event(socket, "sensors_chart:data", chart_data(sensors, readings))
+  end
+
+  defp device_ids(sensors), do: Enum.map(sensors, & &1.id)
 end

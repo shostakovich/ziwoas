@@ -2,11 +2,11 @@ defmodule ZiwoasWeb.SensorsComponents do
   @moduledoc """
   The Sensoren page's parts: the dashboard `ZiwoasWeb.SensorsLive` reloads after
   every sensor poll, one card per sensor, the battery warning and the chart cards
-  the `SensorsChart` hook fills from `/sensors/series`.
+  the `SensorsChart` hook draws from the `"sensors_chart:data"` event.
   """
   use ZiwoasWeb, :html
 
-  alias Ziwoas.Sensors.{Reading, ReadingPresenter}
+  alias Ziwoas.Sensors
 
   @doc "Everything below the heading."
   attr :sensors, :list, required: true
@@ -47,7 +47,7 @@ defmodule ZiwoasWeb.SensorsComponents do
     names =
       for sensor <- assigns.sensors,
           reading = assigns.latest[sensor.id],
-          ReadingPresenter.battery_low?(reading),
+          Sensors.battery_low?(reading),
           do: sensor.name
 
     assigns = assign(assigns, :names, Enum.join(names, ", "))
@@ -65,7 +65,7 @@ defmodule ZiwoasWeb.SensorsComponents do
   end
 
   attr :sensor, :map, required: true
-  attr :reading, Reading, default: nil
+  attr :reading, :map, default: nil, doc: "the sensor's newest reading"
   attr :now, DateTime, required: true
 
   def sensor_card(assigns) do
@@ -93,7 +93,7 @@ defmodule ZiwoasWeb.SensorsComponents do
                 </li>
               </ul>
               <div class="small text-body-secondary">
-                {ReadingPresenter.age_label(@reading, @now)}
+                {age_label(@reading, @now)}
               </div>
             <% else %>
               <p class="small text-body-secondary mb-0">Keine Daten</p>
@@ -105,6 +105,17 @@ defmodule ZiwoasWeb.SensorsComponents do
     """
   end
 
+  @doc "\"vor 4 Min\": whole seconds, minutes or hours since the reading, truncated."
+  @spec age_label(map | nil, DateTime.t()) :: String.t()
+  def age_label(reading, now) do
+    case Sensors.age_s(reading, now) do
+      nil -> "—"
+      seconds when seconds < 60 -> "vor #{seconds} s"
+      seconds when seconds < 3600 -> "vor #{div(seconds, 60)} Min"
+      seconds -> "vor #{div(seconds, 3600)} h"
+    end
+  end
+
   attr :sensors, :list, required: true
 
   def charts(assigns) do
@@ -112,7 +123,7 @@ defmodule ZiwoasWeb.SensorsComponents do
       assign(assigns, :co2_sensors, Enum.filter(assigns.sensors, &(&1.type == :meter_pro_co2)))
 
     ~H"""
-    <div id="sensors_chart" phx-hook="SensorsChart" data-url={~p"/sensors/series"}>
+    <div id="sensors_chart" phx-hook="SensorsChart">
       <.card title="CO₂" subtitle={chart_subtitle("ppm", @co2_sensors)}>
         <div class="chart-frame chart-frame-prominent" id="sensors_co2_chart" phx-update="ignore">
           <canvas data-series="co2"></canvas>
@@ -148,6 +159,34 @@ defmodule ZiwoasWeb.SensorsComponents do
     """
   end
 
+  @doc """
+  The `SensorsChart` hook's series from `readings`: per chart one entry per
+  sensor (CO₂ only the CO₂ meters) with its `[unix_ms, value]` points.
+  """
+  @spec chart_data([map], [map]) :: %{temperature: [map], humidity: [map], co2: [map]}
+  def chart_data(sensors, readings) do
+    grouped = Enum.group_by(readings, & &1.device_id)
+    co2_sensors = Enum.filter(sensors, &(&1.type == :meter_pro_co2))
+
+    %{
+      temperature: series(grouped, sensors, :temperature),
+      humidity: series(grouped, sensors, :humidity),
+      co2: series(grouped, co2_sensors, :co2)
+    }
+  end
+
+  defp series(grouped, sensors, field) do
+    for sensor <- sensors do
+      points =
+        for reading <- Map.get(grouped, sensor.id, []),
+            value = Map.fetch!(reading, field),
+            not is_nil(value),
+            do: [DateTime.to_unix(reading.taken_at, :millisecond), value]
+
+      %{device_id: sensor.id, name: sensor.name, points: points}
+    end
+  end
+
   # A chart of one sensor names it; several have a legend.
   defp chart_subtitle(unit, [sensor]), do: "#{unit} · #{sensor.name} · letzte 24 h"
   defp chart_subtitle(unit, _sensors), do: "#{unit} · letzte 24 h"
@@ -168,7 +207,7 @@ defmodule ZiwoasWeb.SensorsComponents do
 
   def co2_gauge(assigns) do
     ppm = assigns.ppm
-    level = ReadingPresenter.co2_level(%Reading{co2: ppm})
+    level = Sensors.co2_level(ppm)
     # Each gauge on a page brings its own defs, so ids must not collide.
     uid = System.unique_integer([:positive])
 
@@ -281,7 +320,7 @@ defmodule ZiwoasWeb.SensorsComponents do
   end
 
   defp zones(current) do
-    bounds = [@min_ppm, ReadingPresenter.co2_warn_ppm(), ReadingPresenter.co2_bad_ppm(), @max_ppm]
+    bounds = [@min_ppm, Sensors.co2_warn_ppm(), Sensors.co2_bad_ppm(), @max_ppm]
 
     for {{level, _label}, [from, to]} <-
           Enum.zip(@level_labels, Enum.chunk_every(bounds, 2, 1, :discard)) do

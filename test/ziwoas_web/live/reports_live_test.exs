@@ -3,7 +3,7 @@ defmodule ZiwoasWeb.ReportsLiveTest do
 
   import Phoenix.LiveViewTest
 
-  alias Ziwoas.EnergyReport.DailyEnergySummary
+  alias Ziwoas.Energy.DailySummary
   alias Ziwoas.Plugs.DailyTotal
   alias Ziwoas.{Repo, TestClock}
   alias Ziwoas.Weather.Record
@@ -14,7 +14,17 @@ defmodule ZiwoasWeb.ReportsLiveTest do
   end
 
   defp total!(plug_id, date, energy_wh),
-    do: Repo.insert!(%DailyTotal{plug_id: plug_id, date: date, energy_wh: energy_wh * 1.0})
+    do:
+      Repo.insert!(%DailyTotal{
+        plug_id: plug_id,
+        date: Date.from_iso8601!(date),
+        energy_wh: energy_wh * 1.0
+      })
+
+  defp pushed(view) do
+    assert_push_event(view, "energy_report:data", payload)
+    payload
+  end
 
   defp page(conn, params \\ []),
     do: conn |> get(~p"/reports?#{params}") |> html_response(200) |> LazyHTML.from_document()
@@ -75,7 +85,7 @@ defmodule ZiwoasWeb.ReportsLiveTest do
     total!("bkw", "2026-04-10", 2000)
 
     Repo.insert!(%Record{
-      kind: "historic",
+      kind: :historic,
       lat: 52.52,
       lon: 13.405,
       timestamp: ~U[2026-04-03 10:00:00.000000Z],
@@ -92,7 +102,15 @@ defmodule ZiwoasWeb.ReportsLiveTest do
              "daily"
            ]
 
-    assert count(doc, "#energy_report script[data-island='weather-assets']") == 1
+    {:ok, view, _html} = live(conn, ~p"/reports?start_date=2026-04-01&end_date=2026-04-07")
+    payload = pushed(view)
+
+    assert [nil, nil, %{asset_name: "weather_clear_day.webp", alt: "clear"} | _] =
+             payload.daily.weather.icons
+
+    assert payload.weather_assets == %{
+             "weather_clear_day.webp" => "/images/weather_clear_day.webp"
+           }
   end
 
   test "a custom range marks Benutzerdefiniert, not a preset, as active", %{conn: conn} do
@@ -172,20 +190,18 @@ defmodule ZiwoasWeb.ReportsLiveTest do
     assert attr(doc, "#energy_report [phx-update=ignore][id] > canvas", "data-chart") ==
              ~w[daily detail ratios]
 
-    assert count(doc, "#energy_report script[data-island='payload']") == 1
+    assert count(doc, "#energy_report script") == 0
   end
 
-  test "the payload island is JSON the script tag cannot end early", %{conn: conn} do
+  test "the charts arrive by push_event once connected", %{conn: conn} do
     total!("bkw", "2026-04-10", 2000)
-    body = conn |> get(~p"/reports") |> html_response(200)
+    {:ok, view, _html} = live(conn, ~p"/reports")
+    payload = pushed(view)
 
-    assert [_, json] = Regex.run(~r{data-island="payload">(.*?)</script>}s, body)
-
-    payload = JSON.decode!(json)
-    assert hd(payload["daily"]["labels"]) == "04.04."
-    assert payload["daily"]["produced_kwh"] == [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-    assert payload["detail"]["chart_type"] == "line"
-    refute json =~ "<"
+    assert hd(payload.daily.labels) == "04.04."
+    assert payload.daily.produced_kwh == [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    assert payload.detail.chart_type == "line"
+    assert payload.weather_assets == %{}
   end
 
   test "the producer stands apart from the numbered consumers, each bar in its dashboard colour",
@@ -268,8 +284,8 @@ defmodule ZiwoasWeb.ReportsLiveTest do
   test "reports page renders Autarkie & Eigenverbrauchsquote section", %{conn: conn} do
     total!("bkw", "2026-04-10", 2000)
 
-    Repo.insert!(%DailyEnergySummary{
-      date: "2026-04-10",
+    Repo.insert!(%DailySummary{
+      date: ~D[2026-04-10],
       produced_wh: 2000.0,
       consumed_wh: 1000.0,
       self_consumed_wh: 500.0
@@ -297,19 +313,14 @@ defmodule ZiwoasWeb.ReportsLiveTest do
       :ok
     end
 
-    defp island(view) do
-      [_, json] = Regex.run(~r{data-island="payload">(.*?)</script>}s, render(view))
-      JSON.decode!(json)
-    end
-
     test "a preset link patches the page to its range", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/reports")
-      assert length(island(view)["daily"]["labels"]) == 7
+      assert length(pushed(view).daily.labels) == 7
 
       view |> element(".btn-group a", "30 Tage") |> render_click()
 
       assert_patched(view, ~p"/reports?preset=last_30")
-      assert length(island(view)["daily"]["labels"]) == 30
+      assert length(pushed(view).daily.labels) == 30
 
       assert attr(LazyHTML.from_fragment(render(view)), ".btn-group a[aria-current=page]", "href") ==
                [
@@ -319,13 +330,14 @@ defmodule ZiwoasWeb.ReportsLiveTest do
 
     test "the range form patches to the chosen dates", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/reports")
+      assert length(pushed(view).daily.labels) == 7
 
       view
       |> form("#range_form", %{start_date: "2026-04-01", end_date: "2026-04-03"})
       |> render_submit()
 
       assert_patched(view, ~p"/reports?#{[end_date: "2026-04-03", start_date: "2026-04-01"]}")
-      assert island(view)["daily"]["labels"] == ["01.04.", "02.04.", "03.04."]
+      assert pushed(view).daily.labels == ["01.04.", "02.04.", "03.04."]
 
       doc = LazyHTML.from_fragment(render(view))
       assert texts(doc, ".btn-group .btn.active") == ["Benutzerdefiniert"]
@@ -335,7 +347,7 @@ defmodule ZiwoasWeb.ReportsLiveTest do
     test "an end date past the newest aggregate stops at it", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/reports?start_date=2026-04-08&end_date=2026-04-30")
 
-      assert island(view)["daily"]["labels"] == ["08.04.", "09.04.", "10.04."]
+      assert pushed(view).daily.labels == ["08.04.", "09.04.", "10.04."]
     end
   end
 end

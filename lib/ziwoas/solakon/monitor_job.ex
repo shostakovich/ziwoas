@@ -3,8 +3,8 @@ defmodule Ziwoas.Solakon.MonitorJob do
   Every 30 seconds: reads the inverter through `Ziwoas.Solakon.Monitor`, stores a
   `solakon_readings` row, runs the control tick on that reading
   (`Ziwoas.Solakon.Control.Tick`) while the configuration enables control, and
-  sends `{:solakon_reading, id}` on `solakon`, the beat the dashboard and the PV
-  page follow (`Ziwoas.Solakon.subscribe/0`).
+  tells `Ziwoas.Solakon`'s subscribers, the beat the dashboard and the PV page
+  follow.
 
   Opts: `:config`, and `:monitor`, the monitor process (`Ziwoas.Solakon.Monitor`).
   A stored reading returns `{:ok, reading, control_outcome_or_nil}`.
@@ -13,9 +13,9 @@ defmodule Ziwoas.Solakon.MonitorJob do
 
   require Logger
 
-  alias Ziwoas.{Clock, Config, Repo, Solakon}
+  alias Ziwoas.{Clock, Config, Solakon}
   alias Ziwoas.Solakon.Control.{Outcome, Tick}
-  alias Ziwoas.Solakon.{Monitor, Reading}
+  alias Ziwoas.Solakon.Monitor
 
   @impl true
   def perform(opts) do
@@ -24,7 +24,7 @@ defmodule Ziwoas.Solakon.MonitorJob do
 
     with {:ok, state} <- read(monitor),
          now = Clock.now(),
-         {:ok, reading} <- store(Reading.from_state(state, now)) do
+         {:ok, reading} <- store(state, now) do
       outcome = if config.solakon.control_enabled, do: control(reading, config, monitor, now)
       Solakon.notify_reading(reading)
       {:ok, reading, outcome}
@@ -38,8 +38,8 @@ defmodule Ziwoas.Solakon.MonitorJob do
     end
   end
 
-  defp store(changeset) do
-    with {:error, changeset} = error <- Repo.insert(changeset) do
+  defp store(state, now) do
+    with {:error, changeset} = error <- Solakon.insert_reading(state, now) do
       Logger.warning("solakon_monitor: invalid reading: #{inspect(changeset.errors)}")
       error
     end

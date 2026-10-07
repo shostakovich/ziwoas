@@ -114,13 +114,31 @@ defmodule Ziwoas.Weather.SyncTest do
 
       assert [
                %Record{
-                 kind: "forecast",
+                 kind: :forecast,
                  temperature: 12.0,
                  cloud_cover: 63,
                  precipitation_probability: 40,
                  source_id: 7003
                }
              ] = records()
+    end
+
+    test "a record that does not validate stores none of the day's hours" do
+      stub_brightsky(%{
+        "2026-05-04" => [
+          hour("2026-05-04T10:00:00+00:00"),
+          hour("2026-05-04T11:00:00+00:00", %{"temperature" => "warm"})
+        ]
+      })
+
+      assert {:error, %Ecto.Changeset{}} = Sync.sync_today(@location, ~D[2026-05-04])
+      assert records() == []
+    end
+
+    test "a Bright Sky error comes back" do
+      Req.Test.stub(BrightskyClient, &Plug.Conn.send_resp(&1, 400, ""))
+
+      assert Sync.sync_today(@location, ~D[2026-05-04]) == {:error, {:http_status, 400}}
     end
 
     test "past the end of the range writes nothing" do
@@ -132,12 +150,12 @@ defmodule Ziwoas.Weather.SyncTest do
 
   describe "sync_current/1" do
     test "replaces the location's current row and leaves other locations alone" do
-      insert!("current", ~U[2026-05-04 07:50:00.000000Z], @elsewhere)
-      insert!("current", ~U[2026-05-04 07:50:00.000000Z])
+      insert!(:current, ~U[2026-05-04 07:50:00.000000Z], @elsewhere)
+      insert!(:current, ~U[2026-05-04 07:50:00.000000Z])
 
       stub_brightsky(%{"current" => hour("2026-05-04T08:00:00+00:00")})
 
-      assert %Record{kind: "current", timestamp: ~U[2026-05-04 08:00:00.000000Z]} =
+      assert {:ok, %Record{kind: :current, timestamp: ~U[2026-05-04 08:00:00.000000Z]}} =
                Sync.sync_current(@location)
 
       assert [
@@ -147,27 +165,27 @@ defmodule Ziwoas.Weather.SyncTest do
     end
 
     test "a failing Bright Sky keeps the old current row" do
-      insert!("current", ~U[2026-05-04 07:50:00.000000Z])
+      insert!(:current, ~U[2026-05-04 07:50:00.000000Z])
       Req.Test.stub(BrightskyClient, &Plug.Conn.send_resp(&1, 400, ""))
 
-      assert_raise BrightskyClient.Error, fn -> Sync.sync_current(@location) end
-      assert [%{kind: "current"}] = records()
+      assert Sync.sync_current(@location) == {:error, {:http_status, 400}}
+      assert [%{kind: :current}] = records()
     end
   end
 
   describe "sync_historic_date/2" do
     test "an observed hour replaces exactly the forecast for that hour" do
-      insert!("forecast", ~U[2026-05-03 09:00:00.000000Z])
-      insert!("forecast", ~U[2026-05-03 10:00:00.000000Z])
-      insert!("forecast", ~U[2026-05-03 10:00:00.000000Z], @elsewhere)
+      insert!(:forecast, ~U[2026-05-03 09:00:00.000000Z])
+      insert!(:forecast, ~U[2026-05-03 10:00:00.000000Z])
+      insert!(:forecast, ~U[2026-05-03 10:00:00.000000Z], @elsewhere)
 
       stub_brightsky(%{"2026-05-03" => [hour("2026-05-03T10:00:00+00:00")]})
       Sync.sync_historic_date(@location, ~D[2026-05-03])
 
       assert Enum.map(records(), &{&1.kind, &1.lat, &1.timestamp}) == [
-               {"forecast", 48.14, ~U[2026-05-03 10:00:00.000000Z]},
-               {"forecast", 52.52, ~U[2026-05-03 09:00:00.000000Z]},
-               {"historic", 52.52, ~U[2026-05-03 10:00:00.000000Z]}
+               {:forecast, 48.14, ~U[2026-05-03 10:00:00.000000Z]},
+               {:forecast, 52.52, ~U[2026-05-03 09:00:00.000000Z]},
+               {:historic, 52.52, ~U[2026-05-03 10:00:00.000000Z]}
              ]
     end
 
@@ -181,7 +199,7 @@ defmodule Ziwoas.Weather.SyncTest do
 
       Sync.sync_historic_date(@location, ~D[2026-05-03])
 
-      assert [%Record{kind: "historic", temperature: 9.0}] = records()
+      assert [%Record{kind: :historic, temperature: 9.0}] = records()
     end
   end
 
@@ -197,7 +215,13 @@ defmodule Ziwoas.Weather.SyncTest do
       assert_received {:asked, "2026-05-05"}
       assert_received {:asked, "2026-05-06"}
       refute_received {:asked, "2026-05-07"}
-      assert [%{kind: "forecast"}] = records()
+      assert [%{kind: :forecast}] = records()
+    end
+
+    test "a failing day stops it with the reason" do
+      Req.Test.stub(BrightskyClient, &Plug.Conn.send_resp(&1, 400, ""))
+
+      assert Sync.sync_forecast(@location, ~D[2026-05-04]) == {:error, {:http_status, 400}}
     end
 
     test "asks for at most max_days" do
@@ -215,11 +239,11 @@ defmodule Ziwoas.Weather.SyncTest do
     # 2026-05-01 in Berlin (CEST) runs from 2026-04-30T22:00Z to 2026-05-01T22:00Z.
     defp historic_hours!(first_utc, count) do
       for i <- 0..(count - 1),
-          do: insert!("historic", DateTime.add(first_utc, i * 3600, :second))
+          do: insert!(:historic, DateTime.add(first_utc, i * 3600, :second))
     end
 
     setup do
-      Repo.insert!(%DailyTotal{plug_id: "bkw", date: "2026-05-01", energy_wh: 1000.0})
+      Repo.insert!(%DailyTotal{plug_id: "bkw", date: ~D[2026-05-01], energy_wh: 1000.0})
       stub_brightsky(%{"2026-05-01" => [hour("2026-05-01T10:00:00+00:00")]})
       :ok
     end
@@ -244,7 +268,7 @@ defmodule Ziwoas.Weather.SyncTest do
       for i <- 0..23,
           do:
             insert!(
-              "historic",
+              :historic,
               DateTime.add(~U[2026-04-30 22:00:00.000000Z], i * 3600, :second),
               @elsewhere
             )

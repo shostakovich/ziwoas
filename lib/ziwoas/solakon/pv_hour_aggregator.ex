@@ -8,27 +8,43 @@ defmodule Ziwoas.Solakon.PvHourAggregator do
   import Ecto.Query
 
   alias Ziwoas.{LocalDay, Repo}
-  alias Ziwoas.Solakon.{PvHour, Reading}
+  alias Ziwoas.Solakon.{PvHour, Reading, Snapshot}
 
   @min_readings 20
   @panels [:pv1_power_w, :pv2_power_w, :pv3_power_w, :pv4_power_w]
   @no_panels Map.new(@panels, &{&1, nil})
+  @seconds_per_hour 3600
 
   def min_readings, do: @min_readings
+
+  # Epoch of the local clock hour an instant falls into, `offset` seconds east of UTC.
+  defmacrop hour_start(taken_at, offset) do
+    quote do
+      fragment(
+        "(CAST(strftime('%s', ?) AS INTEGER) + ?) / ? * ? - ?",
+        unquote(taken_at),
+        unquote(offset),
+        @seconds_per_hour,
+        @seconds_per_hour,
+        unquote(offset)
+      )
+    end
+  end
 
   @doc "Rewrites the PV hours of one local day."
   @spec aggregate_day(String.t(), Date.t()) :: :ok
   def aggregate_day(zone, %Date{} = date) do
     day = LocalDay.midnight(date, zone)
     next_day = date |> Date.add(1) |> LocalDay.midnight(zone)
-    {from, to} = {Repo.dump_time(day), Repo.dump_time(next_day)}
     # The day's offset at midnight shifts the buckets onto local hours, also in
     # zones like Asia/Kolkata whose offset is not a whole hour.
     offset = day.utc_offset + day.std_offset
-    panels = panel_means(from, to, offset)
+    panels = panel_means(day, next_day, offset)
 
     rows =
-      for [epoch, pv_power_w, count] <- reading_means(from, to, offset), count >= @min_readings do
+      for %{hour: epoch, pv_power_w: pv_power_w, count: count} <-
+            reading_means(day, next_day, offset),
+          count >= @min_readings do
         Map.merge(
           %{
             started_at: DateTime.from_unix!(epoch * 1_000_000, :microsecond),
@@ -74,30 +90,44 @@ defmodule Ziwoas.Solakon.PvHourAggregator do
   end
 
   defp reading_means(from, to, offset) do
-    hour = hour_start_sql(offset)
+    hours =
+      from r in Reading,
+        where: r.taken_at >= ^from and r.taken_at < ^to,
+        select: %{hour: hour_start(r.taken_at, ^offset), pv_power_w: r.pv_power_w}
 
-    Repo.query!(
-      "SELECT #{hour}, AVG(pv_power_w), COUNT(*) FROM solakon_readings " <>
-        "WHERE taken_at >= ? AND taken_at < ? GROUP BY #{hour}",
-      [from, to]
-    ).rows
+    Repo.all(
+      from h in subquery(hours),
+        group_by: h.hour,
+        select: %{hour: h.hour, pv_power_w: avg(h.pv_power_w), count: count()}
+    )
   end
 
   defp panel_means(from, to, offset) do
-    hour = hour_start_sql(offset)
-    means = Enum.map_join(@panels, ", ", &"AVG(#{&1})")
+    hours =
+      from s in Snapshot,
+        where: s.taken_at >= ^from and s.taken_at < ^to,
+        select: %{
+          hour: hour_start(s.taken_at, ^offset),
+          pv1_power_w: s.pv1_power_w,
+          pv2_power_w: s.pv2_power_w,
+          pv3_power_w: s.pv3_power_w,
+          pv4_power_w: s.pv4_power_w
+        }
 
-    Repo.query!(
-      "SELECT #{hour}, #{means} FROM solakon_snapshots " <>
-        "WHERE taken_at >= ? AND taken_at < ? GROUP BY #{hour}",
-      [from, to]
-    ).rows
-    |> Map.new(fn [epoch | values] -> {epoch, Map.new(Enum.zip(@panels, values))} end)
+    Repo.all(
+      from h in subquery(hours),
+        group_by: h.hour,
+        select:
+          {h.hour,
+           %{
+             pv1_power_w: avg(h.pv1_power_w),
+             pv2_power_w: avg(h.pv2_power_w),
+             pv3_power_w: avg(h.pv3_power_w),
+             pv4_power_w: avg(h.pv4_power_w)
+           }}
+    )
+    |> Map.new()
   end
-
-  # Epoch of the local clock hour a row falls into; the offset is an integer.
-  defp hour_start_sql(offset) when is_integer(offset),
-    do: "(CAST(strftime('%s', taken_at) AS INTEGER) + #{offset}) / 3600 * 3600 - #{offset}"
 
   defp local_date(time, zone), do: time |> DateTime.shift_zone!(zone) |> DateTime.to_date()
 end

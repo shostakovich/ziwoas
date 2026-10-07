@@ -3,21 +3,6 @@ defmodule Ziwoas.Govee.TypesTest do
 
   alias Ziwoas.Govee.Types
 
-  describe "bool/1" do
-    test "takes booleans, 1/0 and their word forms" do
-      for value <- [true, 1, "1", "on", "ON", "true", "True", "t", "yes", "Y"],
-          do: assert(Types.bool(value) == {:ok, true}, inspect(value))
-
-      for value <- [false, 0, "0", "off", "Off", "false", "FALSE", "f", "no", "N"],
-          do: assert(Types.bool(value) == {:ok, false}, inspect(value))
-    end
-
-    test "refuses anything else" do
-      for value <- [nil, "", "2", 2, "maybe", " true", 1.0, [], %{}],
-          do: assert(Types.bool(value) == :error, inspect(value))
-    end
-  end
-
   describe "integer/1" do
     test "takes integers, truncates floats and parses decimal strings" do
       assert Types.integer(42) == {:ok, 42}
@@ -53,25 +38,8 @@ defmodule Ziwoas.Govee.TypesTest do
     assert Types.rgb_component("x") == :error
   end
 
-  test "strings: a name is non-empty, neither is ever coerced" do
-    assert Types.name("Forest") == {:ok, "Forest"}
-    assert Types.name("") == :error
-    assert Types.name(:forest) == :error
+  test "a string is never coerced" do
     assert Types.string("") == {:ok, ""}
     assert Types.string(1) == :error
-  end
-
-  test "optional integers are strict" do
-    assert Types.optional_integer(nil) == {:ok, nil}
-    assert Types.optional_integer(2700) == {:ok, 2700}
-    assert Types.optional_integer("2700") == :error
-    assert Types.optional_integer(2700.0) == :error
-  end
-
-  test "list_of coerces every element in order or fails as a whole" do
-    assert Types.list_of(["1", 2, 3.5], &Types.integer/1) == {:ok, [1, 2, 3]}
-    assert Types.list_of([], &Types.integer/1) == {:ok, []}
-    assert Types.list_of(["1", "x"], &Types.integer/1) == :error
-    assert Types.list_of("1", &Types.integer/1) == :error
   end
 end

@@ -1,11 +1,9 @@
 const TICK_MS = 10_000
 
-export const RESYNC_EVENT = "live-freshness:resync"
-
 // The one thing only the client can know: how long ago the last live broadcast arrived.
 // Every broadcast moves data-beat; when the beats stop, the page dims (.live-stale) instead
-// of showing watts nobody measured anymore. A beat after a long silence means missed
-// broadcasts, so it fires RESYNC_EVENT on the document, which the chart hooks reload from.
+// of showing watts nobody measured anymore. Missed broadcasts need no catching up here: a
+// rejoined LiveView pushes its charts afresh.
 export default {
   mounted() {
     this.beat = this.el.dataset.beat
@@ -19,9 +17,7 @@ export default {
   updated() {
     if (this.el.dataset.beat !== this.beat) {
       this.beat = this.el.dataset.beat
-      const gap = Date.now() - this.lastBeatAt
       this.lastBeatAt = Date.now()
-      if (gap > this.thresholdMs()) document.dispatchEvent(new CustomEvent(RESYNC_EVENT))
     }
     this.check()
   },

@@ -20,34 +20,24 @@ defmodule Ziwoas.Lights.Light do
     timestamps()
   end
 
-  # Toggle instance key → display label and role; only listed instances are zones.
-  @zone_meta %{
-    "bottomLightToggle" => {"Leselicht", "main"},
-    "rippleLightToggle" => {"Welle", "side"},
-    "sideLightToggle" => {"Seite", "side"},
-    "baseLightToggle" => {"Sockel", "main"},
-    "pillarLightToggle" => {"Säule", "side"},
-    "leftLightToggle" => {"Links", "side"},
-    "rightLightToggle" => {"Rechts", "side"},
-    "mainLightToggle" => {"Hauptlampe", "main"},
-    "backgroundLightToggle" => {"Ring", "side"}
+  # Toggle instance key → role; only listed instances are zones.
+  @zone_roles %{
+    "bottomLightToggle" => :main,
+    "rippleLightToggle" => :side,
+    "sideLightToggle" => :side,
+    "baseLightToggle" => :main,
+    "pillarLightToggle" => :side,
+    "leftLightToggle" => :side,
+    "rightLightToggle" => :side,
+    "mainLightToggle" => :main,
+    "backgroundLightToggle" => :side
   }
 
   @default_kelvin {2700, 6500}
-  @plush_types %{
-    "H60B0" => "uplighter",
-    "H607C" => "floorlamp",
-    "H6038" => "sconce",
-    "H60A6" => "ceiling"
-  }
 
-  @doc "`{label, role}` of a zone key, nil for a control toggle."
-  def zone_meta(key), do: Map.get(@zone_meta, key)
-
-  def plush_type(%__MODULE__{sku: sku}),
-    do: Map.get(@plush_types, String.upcase(sku || ""), "generic")
-
-  def plush_image(light, on), do: "lamp_#{plush_type(light)}_#{if on, do: "on", else: "off"}.webp"
+  @doc "`:main` or `:side` for a zone key, nil for a control toggle."
+  @spec zone_role(String.t()) :: :main | :side | nil
+  def zone_role(key), do: Map.get(@zone_roles, key)
 
   @doc "Always a list, even before discovery has written one."
   def firmware_scenes(%__MODULE__{firmware_scenes: scenes}), do: scenes || []

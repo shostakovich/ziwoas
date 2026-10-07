@@ -1,8 +1,9 @@
 defmodule Ziwoas.Trmnl.Push do
   @moduledoc """
   Pushes a widget's `merge_variables` to its TRMNL webhook: JSON of at most
-  2 kB, one POST without retry. A failed POST is a warning, an oversized
-  payload raises `PayloadTooLargeError`.
+  2 kB, one POST without retry. Every outcome is logged under the widget's name;
+  a failure comes back as `{:error, reason}`: `{:payload_too_large, bytes}`,
+  `{:http_status, status}` or Req's transport exception.
   """
   require Logger
 
@@ -12,35 +13,32 @@ defmodule Ziwoas.Trmnl.Push do
   @max_payload_bytes 2048
   @timeout_ms 10_000
 
-  defmodule PayloadTooLargeError do
-    @moduledoc "The payload exceeds what a TRMNL webhook accepts."
-    defexception [:message]
-  end
-
   @type widget :: :energy | :sensors
+  @type reason :: {:payload_too_large, pos_integer} | {:http_status, pos_integer} | Exception.t()
 
   def max_payload_bytes, do: @max_payload_bytes
 
   @doc """
   Builds the payload with `build` (only when a webhook URL is configured) and
-  POSTs it. Returns `:skipped` without a URL, else `:ok` or `:failed`. The
-  first argument is ignored (it named the scheduler task).
+  POSTs it: `{:ok, :skipped}` without a URL, `{:ok, :sent}` once TRMNL took it.
   """
-  @spec run(widget, String.t() | nil, (-> term)) :: :ok | :failed | :skipped
+  @spec run(widget, String.t() | nil, (-> term)) :: {:ok, :sent | :skipped} | {:error, reason}
   def run(widget, url, build) do
     if url in [nil, ""] do
       Logger.info("#{push(widget)} skipped (no webhook URL configured)")
-      :skipped
+      {:ok, :skipped}
     else
       body = JSON.encode!(build.())
-      bytes = byte_size(body)
 
-      if bytes > @max_payload_bytes do
-        raise PayloadTooLargeError,
-              "#{payload(widget)} is #{bytes} B, exceeds #{@max_payload_bytes} B limit"
+      case byte_size(body) do
+        bytes when bytes > @max_payload_bytes ->
+          Logger.error("#{payload(widget)} is #{bytes} B, exceeds #{@max_payload_bytes} B limit")
+
+          {:error, {:payload_too_large, bytes}}
+
+        _bytes ->
+          post(widget, url, body)
       end
-
-      post(widget, url, body)
     end
   end
 
@@ -58,18 +56,18 @@ defmodule Ziwoas.Trmnl.Push do
     case Req.post(request) do
       {:ok, %Req.Response{status: status}} when status in 200..299 ->
         Logger.info("#{push(widget)}: HTTP #{status}, #{byte_size(body)} B")
-        :ok
+        {:ok, :sent}
 
       {:ok, %Req.Response{status: status}} ->
         Logger.warning("#{push(widget)} failed: HTTP #{status} #{reason_phrase(status)}")
-        :failed
+        {:error, {:http_status, status}}
 
       {:error, exception} ->
         Logger.warning(
           "#{push(widget)} errored: #{inspect(exception.__struct__)}: #{Exception.message(exception)}"
         )
 
-        :failed
+        {:error, exception}
     end
   end
 
@@ -79,6 +77,7 @@ defmodule Ziwoas.Trmnl.Push do
   defp payload(:energy), do: "TRMNL payload"
   defp payload(:sensors), do: "TRMNL sensor payload"
 
+  # Plug knows only the registered codes and raises for the others.
   defp reason_phrase(status) do
     Status.reason_phrase(status)
   rescue
