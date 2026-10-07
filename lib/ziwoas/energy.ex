@@ -39,7 +39,7 @@ defmodule Ziwoas.Energy do
       produced: produced,
       consumed: consumed,
       self_consumed: self_consumed,
-      savings_eur: Economics.savings_eur(Economics.price_book(), self_consumed, today)
+      savings_eur: Economics.savings_eur(Economics.kwh_prices(), self_consumed, today)
     }
   end
 

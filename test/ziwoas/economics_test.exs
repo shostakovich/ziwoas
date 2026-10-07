@@ -2,7 +2,7 @@ defmodule Ziwoas.EconomicsTest do
   use Ziwoas.DataCase
 
   alias Ziwoas.{Economics, Repo}
-  alias Ziwoas.Economics.{CostItem, ElectricityPrice, PriceBook}
+  alias Ziwoas.Economics.{CostItem, ElectricityPrice}
 
   defp errors(changeset), do: Map.new(changeset.errors, fn {field, {msg, _}} -> {field, msg} end)
 
@@ -14,12 +14,7 @@ defmodule Ziwoas.EconomicsTest do
       insert_price!("2026-07-01", "0.25")
       insert_price!("2026-01-01", "0.2902")
 
-      assert %PriceBook{entries: entries} = Economics.price_book()
-
-      assert Enum.map(entries, &{&1.valid_from, &1.eur_per_kwh}) == [
-               {~D[2026-01-01], 0.2902},
-               {~D[2026-07-01], 0.25}
-             ]
+      assert Economics.kwh_prices() == [{~D[2026-01-01], 0.2902}, {~D[2026-07-01], 0.25}]
     end
 
     test "a stored value with binary noise reads at the column's scale" do
@@ -28,7 +23,7 @@ defmodule Ziwoas.EconomicsTest do
         ["2026-01-01", 0.1 + 0.2, "2026-01-01T00:00:00.000000Z", "2026-01-01T00:00:00.000000Z"]
       )
 
-      assert [%{eur_per_kwh: 0.3}] = Economics.price_book().entries
+      assert [{_from, 0.3}] = Economics.kwh_prices()
     end
 
     test "the total cost counts subsidies against the spending, to the cent" do

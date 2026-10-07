@@ -10,41 +10,56 @@ defmodule Ziwoas.Economics do
   """
   import Ecto.Query
 
-  alias Ziwoas.Economics.{CostItem, ElectricityPrice, Overview, Payback, PriceBook}
+  alias Ziwoas.Economics.{CostItem, ElectricityPrice, Overview, Payback}
   alias Ziwoas.Energy
   alias Ziwoas.Energy.Amount
   alias Ziwoas.Repo
 
-  @doc "Every recorded electricity price as a `PriceBook`."
-  @spec price_book() :: PriceBook.t()
-  def price_book do
-    ElectricityPrice
+  @typedoc "The electricity prices per kWh as `{valid_from, eur}`, oldest first."
+  @type kwh_prices :: [{Date.t(), float}]
+
+  @doc "Every recorded electricity price per kWh, oldest first."
+  @spec kwh_prices() :: kwh_prices
+  def kwh_prices do
+    from(p in ElectricityPrice, order_by: p.valid_from)
     |> Repo.all()
-    |> Enum.map(fn price ->
-      %PriceBook.Entry{valid_from: price.valid_from, eur_per_kwh: to_float(price.eur_per_kwh, 5)}
+    |> Enum.map(&{&1.valid_from, to_float(&1.eur_per_kwh, 5)})
+  end
+
+  @doc """
+  The price per kWh in force on `date`: a price applies from its date until the
+  next one begins; the earliest also covers every day before it, because a plant
+  that ran before the first price was recorded still saved money. Nil without
+  prices.
+  """
+  @spec price_on(kwh_prices, Date.t()) :: float | nil
+  def price_on([], _date), do: nil
+
+  def price_on([{_from, earliest} | _] = prices, %Date{} = date) do
+    Enum.reduce_while(prices, earliest, fn {from, eur}, price ->
+      if Date.after?(from, date), do: {:halt, price}, else: {:cont, eur}
     end)
-    |> PriceBook.new()
   end
 
   @doc "No price on record means the savings are unknown, not zero — a kWh is never free."
-  @spec priced?(PriceBook.t()) :: boolean
-  def priced?(%PriceBook{} = book), do: not PriceBook.empty?(book)
+  @spec priced?(kwh_prices) :: boolean
+  def priced?(prices), do: prices != []
 
   @doc "What a day's self-consumption was worth at its price; nil without a price, 0.0 for none."
-  @spec savings_eur(PriceBook.t(), Amount.t(), Date.t()) :: float | nil
-  def savings_eur(%PriceBook{} = book, %Amount{} = energy, %Date{} = date) do
-    case PriceBook.on(book, date) do
+  @spec savings_eur(kwh_prices, Amount.t(), Date.t()) :: float | nil
+  def savings_eur(prices, %Amount{} = energy, %Date{} = date) do
+    case price_on(prices, date) do
       nil -> nil
       price -> if Amount.negative?(energy), do: 0.0, else: Amount.kwh(energy) * price
     end
   end
 
   @doc "Each day at its own price, summed; nil without a price."
-  @spec total_savings_eur(PriceBook.t(), [{Date.t(), Amount.t()}]) :: float | nil
-  def total_savings_eur(%PriceBook{} = book, dated_energies) do
-    if priced?(book) do
+  @spec total_savings_eur(kwh_prices, [{Date.t(), Amount.t()}]) :: float | nil
+  def total_savings_eur(prices, dated_energies) do
+    if priced?(prices) do
       Enum.reduce(dated_energies, 0.0, fn {date, energy}, total ->
-        total + savings_eur(book, energy, date)
+        total + savings_eur(prices, energy, date)
       end)
     end
   end
@@ -56,11 +71,11 @@ defmodule Ziwoas.Economics do
   """
   @spec overview(Date.t()) :: Overview.t()
   def overview(%Date{} = today) do
-    book = price_book()
-    priced = priced?(book)
+    prices = kwh_prices()
+    priced = priced?(prices)
     summaries = Energy.daily_summaries()
     cost = total_cost_eur()
-    payback = Payback.new(cost, daily_savings(summaries, book, priced), today)
+    payback = Payback.new(cost, daily_savings(summaries, prices, priced), today)
 
     %Overview{
       saved_eur: if(priced, do: Payback.saved_eur(payback)),
@@ -78,11 +93,11 @@ defmodule Ziwoas.Economics do
   defp first_date([first | _]), do: first.date
   defp first_date([]), do: nil
 
-  defp daily_savings(_summaries, _book, false), do: []
+  defp daily_savings(_summaries, _prices, false), do: []
 
-  defp daily_savings(summaries, book, true) do
+  defp daily_savings(summaries, prices, true) do
     Enum.map(summaries, fn summary ->
-      {summary.date, savings_eur(book, Amount.wh(summary.self_consumed_wh), summary.date)}
+      {summary.date, savings_eur(prices, Amount.wh(summary.self_consumed_wh), summary.date)}
     end)
   end
 
