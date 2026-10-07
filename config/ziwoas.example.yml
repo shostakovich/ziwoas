@@ -82,6 +82,3 @@ plugs:
 #   - id: "112233445566"
 #     name: "Balkon"
 #     type: outdoor_meter
-
-# A `migration:` section from the Rails → Phoenix handover (ADR-0006) is ignored with a
-# warning; remove it.

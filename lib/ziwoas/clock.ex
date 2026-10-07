@@ -24,7 +24,7 @@ defmodule Ziwoas.Clock do
   @spec unix_now() :: integer
   def unix_now, do: DateTime.to_unix(now())
 
-  @doc "The calendar date in `zone`, like `zone.today` or `Date.current`."
+  @doc "The calendar date in `zone`, now."
   @spec today(String.t()) :: Date.t()
   def today(zone), do: zone |> now() |> DateTime.to_date()
 

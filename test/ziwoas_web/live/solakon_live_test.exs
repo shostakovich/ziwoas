@@ -43,7 +43,7 @@ defmodule ZiwoasWeb.SolakonLiveTest do
   defp count(doc, selector), do: doc |> LazyHTML.query(selector) |> Enum.count()
   defp squish(text), do: text |> String.split() |> Enum.join(" ")
 
-  # Integers given for float columns, as ActiveRecord would cast them.
+  # Integers given for float columns become floats.
   defp floats(schema, attrs),
     do:
       Map.new(attrs, fn {key, value} ->

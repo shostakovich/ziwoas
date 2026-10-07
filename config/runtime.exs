@@ -62,7 +62,7 @@ if config_env() == :prod do
   phx_host = System.get_env("PHX_HOST", "localhost")
 
   # LiveView's websocket accepts PHX_HOST and the hosts in ZIWOAS_ALLOWED_HOSTS
-  # ("ziwoas.example.org,192.168.1.50", as for Rails) as Origin, any scheme and port.
+  # ("ziwoas.example.org,192.168.1.50") as Origin, any scheme and port.
   # The origin check runs before ForwardedSSL, so it cannot compare schemes behind the proxy.
   check_origin =
     System.get_env("ZIWOAS_ALLOWED_HOSTS", "")

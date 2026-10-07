@@ -56,8 +56,6 @@ defmodule Ziwoas.MixProject do
     [
       setup: ["deps.get", "ecto.setup", "assets.setup", "assets.build"],
       "ecto.setup": ["ecto.create", "ecto.migrate"],
-      # A database Rails left behind is adopted before Ecto's migrator sees it.
-      "ecto.migrate": ["ziwoas.adopt", "ecto.migrate"],
       test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"],
       "assets.setup": ["esbuild.install --if-missing"],
       "assets.build": ["compile", "esbuild ziwoas", "esbuild ziwoas_css"],
