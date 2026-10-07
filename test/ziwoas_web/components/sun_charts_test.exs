@@ -1,11 +1,13 @@
-defmodule ZiwoasWeb.SunChartComponentsTest do
+defmodule ZiwoasWeb.SunChartsTest do
+  # The PV page's SVG charts: the sun calendar and the shading report's three charts.
   use ExUnit.Case, async: true
 
   import Phoenix.LiveViewTest, only: [render_component: 2]
 
-  alias Ziwoas.{Plot, Shading, SunCalendar}
+  alias Ziwoas.{Shading, SunCalendar}
   alias Ziwoas.Shading.{Bin, Curve, Dot, Panels, Profile, SkyMap}
-  alias ZiwoasWeb.SunChartComponents
+  alias ZiwoasWeb.Charts.Plot
+  alias ZiwoasWeb.Components
 
   defp html(fun, assigns), do: fun |> render_component(assigns) |> LazyHTML.from_fragment()
   defp query(doc, selector), do: LazyHTML.query(doc, selector)
@@ -32,7 +34,10 @@ defmodule ZiwoasWeb.SunChartComponentsTest do
 
     defp calendar(opts) do
       days = Keyword.get(opts, :days, days())
-      strip = &%SunCalendar.Strip{key: &1, title: &2, unit: &3, ramp: &4, max: &5, values: &6}
+
+      strip = fn key, _title, _unit, _ramp, max, values ->
+        %SunCalendar.Strip{key: key, max: max, values: values}
+      end
 
       %SunCalendar.Year{
         year: 2026,
@@ -58,7 +63,7 @@ defmodule ZiwoasWeb.SunChartComponentsTest do
     end
 
     defp render_calendar(opts \\ []),
-      do: html(&SunChartComponents.sun_calendar/1, calendar: calendar(opts))
+      do: html(&Components.SunCalendar.sun_calendar/1, calendar: calendar(opts))
 
     test "stacks the three strips and the daily bars on one time axis" do
       doc = render_calendar()
@@ -226,14 +231,16 @@ defmodule ZiwoasWeb.SunChartComponentsTest do
 
     defp sun_path(dots \\ []),
       do: %Shading.Path{
-        label: "21.6.",
+        day: :summer_solstice,
         points: [{60.0, 5.0}, {180.0, 60.0}, {300.0, 4.0}],
         dots: dots
       }
 
     defp render_map(bins, paths \\ [sun_path()]),
       do:
-        html(&SunChartComponents.yield_map/1, map: %SkyMap{bins: bins, paths: paths, bin_size: 5})
+        html(&Components.YieldMap.yield_map/1,
+          map: %SkyMap{bins: bins, paths: paths, bin_size: 5}
+        )
 
     test "draws one field per bin, titled where a pointer can ask" do
       doc = render_map([bin(), bin(azimuth: 200, elevation: 30, share: 1.4)])
@@ -282,7 +289,7 @@ defmodule ZiwoasWeb.SunChartComponentsTest do
 
     test "hangs the date under the lowest arc and over the others" do
       low = %Shading.Path{
-        label: "21.12.",
+        day: :winter_solstice,
         points: [{130.0, 2.0}, {180.0, 14.0}, {230.0, 2.0}],
         dots: []
       }
@@ -322,7 +329,7 @@ defmodule ZiwoasWeb.SunChartComponentsTest do
     end
 
     defp render_profiles(profiles),
-      do: html(&SunChartComponents.daily_profiles/1, profiles: profiles)
+      do: html(&Components.DailyProfiles.daily_profiles/1, profiles: profiles)
 
     test "gives every month its own picture, named, counted, the unfinished ones quieter" do
       doc = render_profiles([profile(6, 30), profile(7, 1), profile(2, 28)])
@@ -391,7 +398,7 @@ defmodule ZiwoasWeb.SunChartComponentsTest do
       )
     end
 
-    defp render_panels(panels), do: html(&SunChartComponents.panel_curves/1, panels: panels)
+    defp render_panels(panels), do: html(&Components.PanelCurves.panel_curves/1, panels: panels)
     defp label_ys(doc), do: attrs(doc, "svg.panel-chart-wide .direct-labels text", "y")
 
     test "says since when the days were counted, in the singular for one" do
@@ -461,7 +468,7 @@ defmodule ZiwoasWeb.SunChartComponentsTest do
       panels: %Panels{curves: [], days: 0}
     }
 
-    doc = html(&SunChartComponents.shading/1, report: report)
+    doc = html(&Components.Shading.shading/1, report: report)
 
     assert texts(doc, ".empty-state h2") == ["Noch keine Ausbeute"]
   end

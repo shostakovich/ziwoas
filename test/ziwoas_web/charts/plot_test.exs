@@ -1,8 +1,8 @@
-defmodule Ziwoas.PlotTest do
+defmodule ZiwoasWeb.Charts.PlotTest do
   use ExUnit.Case, async: true
 
-  alias Ziwoas.Plot
-  alias Ziwoas.Plot.{Hit, Label, Rect, Scale, Tick}
+  alias ZiwoasWeb.Charts.Plot
+  alias ZiwoasWeb.Charts.Plot.{Hit, Label, Rect, Scale, Tick}
 
   # A 70 × 70 plot: a tenth of either scale is seven pixels, so results read off by hand.
   defp plot(opts \\ []) do

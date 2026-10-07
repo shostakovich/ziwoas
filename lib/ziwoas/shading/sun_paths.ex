@@ -3,16 +3,17 @@ defmodule Ziwoas.Shading.SunPaths do
   alias Ziwoas.Shading.{Dot, Path}
   alias Ziwoas.Sun
 
-  @dates [{"21.6.", {6, 21}}, {"21.3. / 23.9.", {9, 23}}, {"21.12.", {12, 21}}]
+  # The equinox stands for both: March's path is September's.
+  @dates [summer_solstice: {6, 21}, equinox: {9, 23}, winter_solstice: {12, 21}]
   @dot_hours [6, 9, 12, 15, 18]
 
   @spec build(Ziwoas.Location.t(), integer) :: [Path.t()]
   def build(location, year) do
-    for {label, {month, day}} <- @dates,
+    for {key, {month, day}} <- @dates,
         waypoints = Sun.path(location, Date.new!(year, month, day)),
         waypoints != [] do
       %Path{
-        label: label,
+        day: key,
         points: Enum.map(waypoints, &{&1.azimuth, &1.elevation}),
         dots:
           for(

@@ -1,10 +1,10 @@
-defmodule Ziwoas.SunCalendar.BuilderTest do
+defmodule Ziwoas.SunCalendarTest do
   use Ziwoas.DataCase
 
-  alias Ziwoas.{LocalDay, Location, Repo}
+  alias Ziwoas.{LocalDay, Location, Repo, SunCalendar}
   alias Ziwoas.Plugs.Sample5min
   alias Ziwoas.Solakon.PvHour
-  alias Ziwoas.SunCalendar.{Builder, Year}
+  alias Ziwoas.SunCalendar.Year
   alias Ziwoas.Weather.Record
 
   @lat 52.52
@@ -62,7 +62,7 @@ defmodule Ziwoas.SunCalendar.BuilderTest do
 
   defp build(opts \\ []),
     do:
-      Builder.build(
+      SunCalendar.year(
         location(opts),
         Keyword.get(opts, :producer_ids, []),
         Keyword.get(opts, :year, 2026)
@@ -74,7 +74,7 @@ defmodule Ziwoas.SunCalendar.BuilderTest do
   test "puts the hourly PV mean into the cell of its local clock hour" do
     pv_hour(12, 640.0)
 
-    assert %{values: values, unit: "W", ramp: :amber, title: "PV-Leistung"} = strip(build(), :pv)
+    assert %{values: values} = strip(build(), :pv)
     assert values == %{{@doy, 12} => 640.0}
   end
 
@@ -97,10 +97,7 @@ defmodule Ziwoas.SunCalendar.BuilderTest do
 
     assert_in_delta strip(year, :irradiance).values[{@doy, 12}], 620.0, 1.0e-9
 
-    assert %{values: %{{@doy, 12} => 21}, max: 100.0, unit: "%", ramp: :grey} =
-             strip(year, :cloud)
-
-    assert %{unit: "W/m²", ramp: :blue, title: "Einstrahlung"} = strip(year, :irradiance)
+    assert %{values: %{{@doy, 12} => 21}, max: 100.0} = strip(year, :cloud)
     assert_in_delta day(year, @doy).irradiance_kwh_per_m2, 1.02, 1.0e-9
     assert day(year, @doy).cloud_avg == 20.5
   end
@@ -139,18 +136,18 @@ defmodule Ziwoas.SunCalendar.BuilderTest do
   end
 
   test "widens the hours so the sun lines stay inside the strip, from sunrise or sunset" do
-    madrid = Builder.build(Location.new("Europe/Madrid", lat: 43.4, lon: -8.4), [], 2026)
+    madrid = SunCalendar.year(Location.new("Europe/Madrid", lat: 43.4, lon: -8.4), [], 2026)
     {first, last} = madrid.hours
     assert first <= madrid.lines.rise |> Enum.map(&elem(&1, 1)) |> Enum.min()
     assert last + 1 >= madrid.lines.set |> Enum.map(&elem(&1, 1)) |> Enum.max()
 
-    assert Builder.build(Location.new("Europe/Oslo", lat: 69.6, lon: 18.9), [], 2026).hours ==
+    assert SunCalendar.year(Location.new("Europe/Oslo", lat: 69.6, lon: 18.9), [], 2026).hours ==
              {0, 24}
 
-    assert Builder.build(Location.new("Europe/Oslo", lat: 69.6, lon: 40.0), [], 2026).hours ==
+    assert SunCalendar.year(Location.new("Europe/Oslo", lat: 69.6, lon: 40.0), [], 2026).hours ==
              {0, 24}
 
-    assert Builder.build(Location.new("UTC", lat: 0.0, lon: 0.0), [], 2026).hours == {3, 22}
+    assert SunCalendar.year(Location.new("UTC", lat: 0.0, lon: 0.0), [], 2026).hours == {3, 22}
   end
 
   test "fills the time before the inverter from the producer plug, and marks the seam" do
@@ -236,7 +233,7 @@ defmodule Ziwoas.SunCalendar.BuilderTest do
     pv_hour_at(~U[2027-01-01 09:59:59Z], 333.0)
     pv_hour_at(~U[2027-01-01 10:00:00Z], 444.0)
 
-    assert strip(Builder.build(honolulu, [], 2026), :pv).values == %{
+    assert strip(SunCalendar.year(honolulu, [], 2026), :pv).values == %{
              {Date.day_of_year(@april), 13} => 500.0,
              {1, 0} => 222.0,
              {365, 23} => 333.0
@@ -245,10 +242,10 @@ defmodule Ziwoas.SunCalendar.BuilderTest do
 
   test "names the year of the newest PV hour, else the current one" do
     now = ~U[2026-10-05 10:00:00Z]
-    assert Builder.latest_year(location(), now) == 2026
+    assert SunCalendar.latest_year(location(), now) == 2026
 
     pv_hour_at(~U[2025-12-31 23:30:00Z], 1.0)
-    assert Builder.latest_year(location(), now) == 2026
-    assert Builder.latest_year(location(zone: "UTC"), now) == 2025
+    assert SunCalendar.latest_year(location(), now) == 2026
+    assert SunCalendar.latest_year(location(zone: "UTC"), now) == 2025
   end
 end

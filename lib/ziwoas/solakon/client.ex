@@ -6,12 +6,14 @@ defmodule Ziwoas.Solakon.Client do
   `release_control/1`) — `docs/solakon-modbus-protokoll.md` §2 and §9. Registers
   are read one field at a time.
 
-  `read` is `fn address, count -> {:ok, words} | {:error, reason} end`, `write` is
-  `fn {:single, address, word} | {:multiple, address, [word]} -> :ok | {:error,
-  reason} end`; `Ziwoas.Solakon.Monitor` runs both over its connection. Unscaled
-  values decode as integers, scaled ones as floats.
+  Every function takes the monitor's connection (`Ziwoas.Solakon.Modbus`) and
+  hands it back with its transaction id moved on: `{:ok, value, conn}` for a read,
+  `{:ok, conn}` for a write, `{:error, reason}` otherwise. Unscaled values decode
+  as integers, scaled ones as floats.
   """
   import Bitwise
+
+  alias Ziwoas.Solakon.Modbus
 
   @pv_strings 4
   @eps_on 2
@@ -75,39 +77,40 @@ defmodule Ziwoas.Solakon.Client do
     energy_counters: {39601, 20}
   ]
 
-  @type read :: (non_neg_integer, pos_integer -> {:ok, [non_neg_integer]} | {:error, term})
-  @type write_op ::
-          {:single, non_neg_integer, non_neg_integer}
-          | {:multiple, non_neg_integer, [non_neg_integer]}
-  @type write :: (write_op -> :ok | {:error, term})
+  @type conn :: Modbus.t()
 
   @doc """
   The minimum SoC only when the device holds another value (a
   persisted register, so flash is spared), then remote control on, the watchdog
   re-armed and the active-power setpoint last.
   """
-  @spec apply_control(read, write, integer, integer) :: :ok | {:error, term}
-  def apply_control(read, write, power_w, min_soc) do
-    with {:ok, [current | _]} <- read.(@reg_minimum_soc, 1),
-         :ok <-
-           if(current != min_soc, do: write.({:single, @reg_minimum_soc, min_soc}), else: :ok),
-         :ok <- write.({:single, @reg_remote_control, @remote_control_enable}),
-         :ok <- write.({:single, @reg_remote_timeout, @remote_timeout_s}) do
-      write.({:multiple, @reg_remote_active_power, from_i32(power_w)})
+  @spec apply_control(conn, integer, integer) :: {:ok, conn} | {:error, term}
+  def apply_control(conn, power_w, min_soc) do
+    with {:ok, [current | _], conn} <- Modbus.read(conn, @reg_minimum_soc, 1),
+         {:ok, conn} <- guard_minimum_soc(conn, current, min_soc),
+         {:ok, conn} <- Modbus.write(conn, {:single, @reg_remote_control, @remote_control_enable}),
+         {:ok, conn} <- Modbus.write(conn, {:single, @reg_remote_timeout, @remote_timeout_s}) do
+      Modbus.write(conn, {:multiple, @reg_remote_active_power, from_i32(power_w)})
     else
-      {:ok, []} -> {:error, {:short_read, @reg_minimum_soc, 0}}
+      {:ok, [], _conn} -> {:error, {:short_read, @reg_minimum_soc, 0}}
       {:error, _} = error -> error
     end
   end
 
+  defp guard_minimum_soc(conn, min_soc, min_soc), do: {:ok, conn}
+
+  defp guard_minimum_soc(conn, _current, min_soc),
+    do: Modbus.write(conn, {:single, @reg_minimum_soc, min_soc})
+
   @doc "The outdoor socket (EPS output, 46613): 2 on, 0 off; nil is off."
-  @spec set_eps_output(write, boolean | nil) :: :ok | {:error, term}
-  def set_eps_output(write, enabled),
-    do: write.({:single, @reg_eps_output, if(enabled, do: @eps_on, else: @eps_off)})
+  @spec set_eps_output(conn, boolean | nil) :: {:ok, conn} | {:error, term}
+  def set_eps_output(conn, enabled),
+    do: Modbus.write(conn, {:single, @reg_eps_output, if(enabled, do: @eps_on, else: @eps_off)})
 
   @doc "Hands control back: 46001 = 0, the inverter returns to its own default."
-  @spec release_control(write) :: :ok | {:error, term}
-  def release_control(write), do: write.({:single, @reg_remote_control, @remote_control_disable})
+  @spec release_control(conn) :: {:ok, conn} | {:error, term}
+  def release_control(conn),
+    do: Modbus.write(conn, {:single, @reg_remote_control, @remote_control_disable})
 
   @doc "An i32 as two words, high word first."
   @spec from_i32(integer) :: [non_neg_integer]
@@ -117,25 +120,25 @@ defmodule Ziwoas.Solakon.Client do
   end
 
   @doc "The fields of the monitor's reading."
-  @spec read_state(read) :: {:ok, map} | {:error, term}
-  def read_state(read) do
-    with {:ok, fields} <- read_fields(read, @fast),
-         {:ok, pv} <- group(read, :pv_power) do
+  @spec read_state(conn) :: {:ok, map, conn} | {:error, term}
+  def read_state(conn) do
+    with {:ok, fields, conn} <- read_fields(conn, @fast),
+         {:ok, pv, conn} <- group(conn, :pv_power) do
       {eps_mode, fields} = Map.pop!(fields, :eps_mode)
 
       {:ok,
        Map.merge(fields, %{
          pv_power_w: Enum.sum(for i <- 0..(@pv_strings - 1), do: i32(Enum.slice(pv, i * 2, 2))),
          eps_enabled: eps_mode == @eps_on
-       })}
+       }), conn}
     end
   end
 
   @doc "The fields of a snapshot, panels as `%{index:, voltage_v:, current_a:, power_w:}`."
-  @spec read_snapshot(read) :: {:ok, map} | {:error, term}
-  def read_snapshot(read) do
-    with {:ok, fields} <- read_fields(read, @snapshot),
-         {:ok, groups} <- read_groups(read) do
+  @spec read_snapshot(conn) :: {:ok, map, conn} | {:error, term}
+  def read_snapshot(conn) do
+    with {:ok, fields, conn} <- read_fields(conn, @snapshot),
+         {:ok, groups, conn} <- read_groups(conn) do
       {eps_mode, fields} = Map.pop!(fields, :eps_mode)
       fields = Map.delete(fields, :battery_soc)
 
@@ -146,17 +149,18 @@ defmodule Ziwoas.Solakon.Client do
          panels: panels(groups.pv_voltage_current, groups.pv_power),
          eps_enabled: eps_mode == @eps_on,
          bms_faults: groups.bms_faults
-       })}
+       }), conn}
     end
   end
 
-  defp read_fields(read, specs) do
-    Enum.reduce_while(specs, {:ok, %{}}, fn {key, {address, count, type, scale}}, {:ok, acc} ->
-      case read.(address, count) do
-        {:ok, words} when length(words) == count ->
-          {:cont, {:ok, Map.put(acc, key, value(words, type, scale))}}
+  defp read_fields(conn, specs) do
+    Enum.reduce_while(specs, {:ok, %{}, conn}, fn {key, {address, count, type, scale}},
+                                                  {:ok, acc, conn} ->
+      case Modbus.read(conn, address, count) do
+        {:ok, words, conn} when length(words) == count ->
+          {:cont, {:ok, Map.put(acc, key, value(words, type, scale)), conn}}
 
-        {:ok, words} ->
+        {:ok, words, _conn} ->
           {:halt, {:error, {:short_read, address, length(words)}}}
 
         {:error, _} = error ->
@@ -165,21 +169,21 @@ defmodule Ziwoas.Solakon.Client do
     end)
   end
 
-  defp read_groups(read) do
-    Enum.reduce_while(@groups, {:ok, %{}}, fn {key, _}, {:ok, acc} ->
-      case group(read, key) do
-        {:ok, words} -> {:cont, {:ok, Map.put(acc, key, words)}}
+  defp read_groups(conn) do
+    Enum.reduce_while(@groups, {:ok, %{}, conn}, fn {key, _}, {:ok, acc, conn} ->
+      case group(conn, key) do
+        {:ok, words, conn} -> {:cont, {:ok, Map.put(acc, key, words), conn}}
         error -> {:halt, error}
       end
     end)
   end
 
-  defp group(read, key) do
+  defp group(conn, key) do
     {address, count} = Keyword.fetch!(@groups, key)
 
-    case read.(address, count) do
-      {:ok, words} when length(words) == count -> {:ok, words}
-      {:ok, words} -> {:error, {:short_read, address, length(words)}}
+    case Modbus.read(conn, address, count) do
+      {:ok, words, _conn} = ok when length(words) == count -> ok
+      {:ok, words, _conn} -> {:error, {:short_read, address, length(words)}}
       error -> error
     end
   end

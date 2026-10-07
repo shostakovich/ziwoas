@@ -1,4 +1,4 @@
-defmodule Ziwoas.Ramp do
+defmodule ZiwoasWeb.Charts.Ramp do
   @moduledoc """
   A colour ramp over CSS tokens. Colours between stops are
   `color-mix()`, so the browser resolves them and dark mode follows.

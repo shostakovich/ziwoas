@@ -1,13 +1,9 @@
 defmodule Ziwoas.Solakon.Reading do
   @moduledoc """
-  One polled reading of the Solakon inverter (`solakon_readings`): freshness,
-  the battery character and the decoded status.
+  One polled reading of the Solakon inverter (`solakon_readings`): the control's
+  thresholds and the battery character. `Ziwoas.Solakon` stores and reads them.
   """
   use Ziwoas.Schema
-
-  import Ecto.Query
-
-  alias Ziwoas.Repo
 
   @min_soc_pct 10
   @resume_soc_pct 11
@@ -96,22 +92,11 @@ defmodule Ziwoas.Solakon.Reading do
     )
   end
 
-  @doc "The newest reading, or nil."
-  @spec newest() :: t | nil
-  def newest, do: Repo.one(from r in __MODULE__, order_by: [desc: r.taken_at], limit: 1)
-
-  @doc "The newest reading taken at or after `now - stale_after_s`, or nil."
+  @doc false
+  # Kept for `Ziwoas.LiveState` until it reads `Ziwoas.Solakon.fresh_reading/2`.
   @spec latest_fresh(DateTime.t(), integer) :: t | nil
-  def latest_fresh(now, stale_after_s \\ @stale_after_s) do
-    since = DateTime.add(now, -stale_after_s)
-
-    Repo.one(
-      from r in __MODULE__,
-        where: r.taken_at >= ^since,
-        order_by: [desc: r.taken_at],
-        limit: 1
-    )
-  end
+  def latest_fresh(now, stale_after_s \\ @stale_after_s),
+    do: Ziwoas.Solakon.fresh_reading(now, stale_after_s)
 
   # The control's thresholds.
   def soc_below_minimum?(%__MODULE__{battery_soc_pct: soc}), do: soc <= @min_soc_pct
@@ -153,8 +138,4 @@ defmodule Ziwoas.Solakon.Reading do
   defp flow_state(power) when power > @charge_deadband_w, do: "charging"
   defp flow_state(power) when power < -@charge_deadband_w, do: "discharging"
   defp flow_state(_power), do: "normal"
-
-  @spec status_messages(t) :: [String.t()]
-  def status_messages(%__MODULE__{} = reading),
-    do: Ziwoas.Solakon.status_messages(reading, [])
 end

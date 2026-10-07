@@ -1,4 +1,4 @@
-/* Ramp stops (Ziwoas.Ramp) run away from the card surface; low ends are translucent. */
+/* Ramp stops (ZiwoasWeb.Charts.Ramp) run away from the card surface; low ends are translucent. */
 .sun-charts {
   --ramp-amber-0: color-mix(in oklab, var(--viz-solar) 14%, transparent);
   --ramp-amber-1: var(--viz-solar);
@@ -144,3 +144,11 @@ polyline.noon { stroke-width: 1.3px; stroke-dasharray: 2 4; }
 .solakon-details > summary::after { content: "›"; transition: rotate .15s; }
 .solakon-details[open] > summary::after { rotate: 90deg; }
 .solakon-details > summary:hover { color: var(--felt-body-color); }
+
+/* felt's switch is a checkbox; on a <button role="switch"> aria-checked stands in for :checked. */
+.form-switch button.form-check-input { padding: 0; }
+.form-switch button.form-check-input[aria-checked="true"] {
+  background-color: var(--_check-fill);
+  border-color: var(--_check-fill);
+  background-position: calc(100% - 1px) center;
+}

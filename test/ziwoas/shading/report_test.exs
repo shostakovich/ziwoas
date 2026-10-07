@@ -1,8 +1,8 @@
-defmodule Ziwoas.Shading.BuilderTest do
+defmodule Ziwoas.Shading.ReportTest do
   use Ziwoas.DataCase
 
   alias Ziwoas.{Location, Repo, Shading}
-  alias Ziwoas.Shading.{Builder, SunPaths}
+  alias Ziwoas.Shading.SunPaths
   alias Ziwoas.Solakon.PvHour
   alias Ziwoas.Weather.Record
 
@@ -50,7 +50,7 @@ defmodule Ziwoas.Shading.BuilderTest do
         lon: Keyword.get(opts, :lon, @lon)
       )
 
-    Builder.build(location, Keyword.get(opts, :now, @now))
+    Shading.report(location, Keyword.get(opts, :now, @now))
   end
 
   defp profile(report), do: hd(report.profiles)
@@ -147,7 +147,7 @@ defmodule Ziwoas.Shading.BuilderTest do
   test "draws the sun paths of the current year in the location's zone" do
     pv_hour(12, 400.0, date: ~D[2025-07-01])
 
-    assert Enum.map(build().map.paths, & &1.label) == ["21.6.", "21.3. / 23.9.", "21.12."]
+    assert Enum.map(build().map.paths, & &1.day) == [:summer_solstice, :equinox, :winter_solstice]
 
     # 22:00 UTC on Dec 31st is already Jan 1st in Pacific/Auckland (+13h).
     auckland = Location.new("Pacific/Auckland", lat: @lat, lon: @lon)

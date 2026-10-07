@@ -6,6 +6,10 @@ defmodule Ziwoas.Solakon.Modbus do
 
   A frame is the MBAP header — transaction id, protocol 0, length, unit id — and
   the PDU. Registers are big-endian 16-bit words; the address is the PDU address.
+
+  `open/4` gives a connection (`%Modbus{}`) that carries its transaction id:
+  `read/3` and `write/2` take the next one and hand the connection back. Ids
+  count 1, 2, … 65535, then 1 again.
   """
   @read_holding 0x03
   @write_single 0x06
@@ -13,7 +17,78 @@ defmodule Ziwoas.Solakon.Modbus do
   @max_registers 125
   @max_write_registers 123
 
+  @enforce_keys [:socket, :unit, :timeout]
+  defstruct [:socket, :unit, :timeout, transaction: 0]
+
   @type socket :: :gen_tcp.socket()
+  @type t :: %__MODULE__{
+          socket: socket,
+          unit: non_neg_integer,
+          timeout: timeout,
+          transaction: non_neg_integer
+        }
+  @type write_op ::
+          {:single, non_neg_integer, non_neg_integer}
+          | {:multiple, non_neg_integer, [non_neg_integer]}
+
+  @doc "A connection to `unit` on `host`; `timeout` bounds the connect and every request."
+  @spec open(String.t() | charlist, :inet.port_number(), non_neg_integer, timeout) ::
+          {:ok, t} | {:error, term}
+  def open(host, port, unit, timeout) do
+    with {:ok, socket} <- connect(host, port, timeout),
+         do: {:ok, %__MODULE__{socket: socket, unit: unit, timeout: timeout}}
+  end
+
+  @doc "Reads `count` holding registers under the next transaction id."
+  @spec read(t, non_neg_integer, pos_integer) :: {:ok, [non_neg_integer], t} | {:error, term}
+  def read(%__MODULE__{} = conn, address, count) do
+    conn = next_transaction(conn)
+
+    with {:ok, words} <-
+           read_holding_registers(
+             conn.socket,
+             conn.transaction,
+             conn.unit,
+             address,
+             count,
+             conn.timeout
+           ),
+         do: {:ok, words, conn}
+  end
+
+  @doc "Writes one register (FC06) or consecutive ones (FC16) under the next transaction id."
+  @spec write(t, write_op) :: {:ok, t} | {:error, term}
+  def write(%__MODULE__{} = conn, operation) do
+    conn = next_transaction(conn)
+
+    result =
+      case operation do
+        {:single, address, value} ->
+          write_single_register(
+            conn.socket,
+            conn.transaction,
+            conn.unit,
+            address,
+            value,
+            conn.timeout
+          )
+
+        {:multiple, address, values} ->
+          write_multiple_registers(
+            conn.socket,
+            conn.transaction,
+            conn.unit,
+            address,
+            values,
+            conn.timeout
+          )
+      end
+
+    with :ok <- result, do: {:ok, conn}
+  end
+
+  defp next_transaction(%__MODULE__{transaction: id} = conn),
+    do: %{conn | transaction: rem(id, 0xFFFF) + 1}
 
   @spec connect(String.t() | charlist, :inet.port_number(), timeout) ::
           {:ok, socket} | {:error, term}
@@ -26,8 +101,9 @@ defmodule Ziwoas.Solakon.Modbus do
         timeout
       )
 
-  @spec close(socket | nil) :: :ok
+  @spec close(t | socket | nil) :: :ok
   def close(nil), do: :ok
+  def close(%__MODULE__{socket: socket}), do: :gen_tcp.close(socket)
   def close(socket), do: :gen_tcp.close(socket)
 
   @doc "The request frame for `count` holding registers from `address`."

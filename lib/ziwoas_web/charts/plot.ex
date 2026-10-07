@@ -1,4 +1,4 @@
-defmodule Ziwoas.Plot do
+defmodule ZiwoasWeb.Charts.Plot do
   @moduledoc """
   The geometry of an SVG chart: a frame with margins mapping two domains onto
   pixels. Geometry is rounded to one decimal (`number/1`, integral values as

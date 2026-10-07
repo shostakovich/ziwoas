@@ -50,7 +50,8 @@ time).
   (`{:http_status, 500}`) or Req's exception. In tests every client
   is a `Req.Test` stub under its module name (`config :ziwoas, http_stubs: true`, compile time).
 - **Live updates**: each context owns its PubSub topic. `Ziwoas.Plugs.subscribe/0`
-  (`{:live, deltas}`), `Ziwoas.Solakon.subscribe/0` (`{:reading, reading}`),
+  (`{:live, deltas}`), `Ziwoas.Solakon.subscribe/0` (`{:reading, reading}`,
+  `{:snapshot, snapshot}`),
   `Ziwoas.Lights.subscribe/0,1` (`{:updated, key}`), `Ziwoas.Sensors.subscribe/0`
   (`{:polled, instant}`), `Ziwoas.Weather.subscribe/0` (`{:synced, date}`). Until the pages
   switch over, the same events also go out on the old topics below (`Ziwoas.Live`).
@@ -99,10 +100,11 @@ Ziwoas.Collector
   networking.
 - **Inverter.** `Ziwoas.Solakon.Monitor` holds the one Modbus TCP connection; every read and
   write goes through it, so requests never interleave. `Ziwoas.Solakon.Modbus` speaks FC03, FC06
-  and FC16 on `:gen_tcp`; `Ziwoas.Solakon.Client` knows the registers
-  ([`solakon-modbus-protokoll.md`](solakon-modbus-protokoll.md), skill `solakon-modbus`). After a
-  failure the monitor backs off 1 s → 60 s; a reused connection that fails is retried once on a
-  fresh one.
+  and FC16 on `:gen_tcp`; its connection (`%Modbus{}`) carries the transaction id, which every
+  request moves on and hands back. `Ziwoas.Solakon.Client` knows the registers
+  ([`solakon-modbus-protokoll.md`](solakon-modbus-protokoll.md), skill `solakon-modbus`) and
+  threads that connection through a reading's many reads. After a failure the monitor backs off
+  1 s → 60 s; a reused connection that fails is retried once on a fresh one.
 
 ## Scheduler
 
@@ -117,7 +119,7 @@ skips it, nothing is made up after downtime, and a failure is logged, not retrie
 | Job | Schedule | Module | Runs when | Does |
 | --- | --- | --- | --- | --- |
 | `solakon_monitor` | every 30 s | `Solakon.MonitorJob` | `solakon.monitoring_enabled` | reading → `solakon_readings`, control tick, `Solakon` event |
-| `solakon_snapshot` | every 2 min | `Solakon.SnapshotJob` | `solakon.monitoring_enabled` | full register snapshot → `solakon_snapshots` |
+| `solakon_snapshot` | every 2 min | `Solakon.SnapshotJob` | `solakon.monitoring_enabled` | full register snapshot → `solakon_snapshots`, `Solakon` event |
 | `schedule_tick` | every minute | `Switching.ScheduleTickJob` | a switchable plug | switches due edges (ADR-0001) |
 | `fetch_current_weather` | every 15 min | `Weather.CurrentJob` | coordinates | Bright Sky current conditions |
 | `fetch_today_weather` | every hour | `Weather.TodayJob` | coordinates | today's hours |
@@ -141,7 +143,8 @@ skips it, nothing is made up after downtime, and a failure is logged, not retrie
   `samples_5min`, `daily_totals` and `daily_energy_summary` (in SQL), and purges raw samples older
   than 7 days. `Aggregator.backup!/3` writes `VACUUM INTO` copies to `config :ziwoas, :backup_dir`
   (`backup/` next to the database) and keeps seven. `Ziwoas.Solakon.PvHourAggregator` condenses
-  the day's readings and snapshots into `solakon_pv_hours`.
+  the day's readings and snapshots into `solakon_pv_hours` (Ecto queries, grouped by the local
+  clock hour).
 - **TRMNL.** `Ziwoas.Trmnl.EnergyPayload` and `SensorPayload` build the `merge_variables` (the
   e-ink display's text wire format, read through the contexts); `Ziwoas.Trmnl.Push` posts them
   once, without retry, logs the outcome and answers `{:ok, :sent | :skipped}` or
@@ -161,9 +164,33 @@ ADR-0002. `MonitorJob` runs `Ziwoas.Solakon.Control.Tick` after each reading whi
    in 46003 through the monitor, every tick, which re-arms the inverter's 150 s watchdog.
 4. `Control.State` (`solakon_control_states`, one row) stores pause flag, the last decision that
    reached the inverter and the consecutive write failures; three failures release control.
-   `Control.Outcome` is what the monitor logs.
+   `Ziwoas.Solakon.Control` reads and writes that row. `Control.Outcome` is what the monitor logs.
 
-The PV page's switches (EPS output, pausing the control) go through `Ziwoas.Solakon.Control`.
+The PV page's switches go through the context: `Ziwoas.Solakon.set_eps_output/2` (the outdoor
+socket, through the monitor) and `set_control_active/2` (pausing the control).
+
+## Solakon and PV analysis
+
+`Ziwoas.Solakon` is the inverter's context: readings, snapshots and PV hours, the decoded status
+(`Solakon.Alarms` turns the status and alarm registers into condition atoms; the German lines
+are in `ZiwoasWeb.SolakonComponents`), the control's switches and the Solakon-Verlauf
+(`Solakon.history/3`, a `Solakon.History` of power series in W, the energy balance and the
+outlet's mean power; one query for the snapshots, at most one more for readings standing in for a
+missing active power). The domain returns numbers; labels, units and the chart payload are web.
+
+- **Sun**: `Ziwoas.Sun` answers position, sunrise, sunset, daytime and a day's path for a
+  location; `Sun.Position` is the NOAA computation. Without coordinates there is no sun and it is
+  always day.
+- **Sun calendar**: `Ziwoas.SunCalendar.year/3` builds a year of strips (PV power, irradiance,
+  cloud cover per day × local hour), the daily energy and the sun lines (`SunCalendar.SunLines`);
+  before the first PV hour the producer plugs' five-minute energy stands in.
+- **Shading**: `Ziwoas.Shading.report/2` puts every PV hour against the station's irradiance and
+  the sun's position: the yield map (`Shading.YieldMap`, with `SunPaths`), the monthly profiles
+  (`DailyProfiles`) and the panel comparison (`PanelCurves`).
+- **Charts**: the SVG geometry lives in pure modules under `ZiwoasWeb.Charts` (`Plot`, `Ramp`,
+  `SunCalendar`, `YieldMap`, `DailyProfiles`, `PanelCurves`, `Text`); one component per chart
+  under `ZiwoasWeb.Components` (`SunCalendar`, `Shading` with `YieldMap`, `DailyProfiles`,
+  `PanelCurves`, parts in `ChartParts`) only renders it.
 
 ## Switching and lamps
 
@@ -204,8 +231,8 @@ title is `<.header>`.
 | Route | LiveView | Live updates (PubSub topic) |
 | --- | --- | --- |
 | `/` | `DashboardLive` | `dashboard`, `solakon`; day tiles refreshed by a minute timer |
-| `/solakon` | `SolakonLive` | `dashboard`, `solakon`; EPS and control switches as events |
-| `/solakon/history` | `SolakonHistoryLive` | reloads every minute; `?range=24h|7d|30d` |
+| `/solakon` | `SolakonLive` | `Plugs`, `Solakon`; sun calendar, shading and Wirtschaftlichkeit by `assign_async`; EPS and control switches as events, written by `start_async` |
+| `/solakon/history` | `SolakonHistoryLive` | `Solakon` (a snapshot refreshes it); `?range=24h|7d|30d` |
 | `/solakon/wirtschaftlichkeit` | `EconomicsLive` | cost items and electricity prices, changeset forms |
 | `/weather` | `WeatherLive` | `Weather` (`{:synced, date}`), `Sensors` (`{:polled, instant}`, the outdoor sensor) |
 | `/reports` | `ReportsLive` | none; range in the query |
@@ -224,7 +251,9 @@ plain HTTP straight to port 3000 stays HTTP.
 `HistoryChart`, `LiveFreshness` (dashboard, PV page), `SolakonHistory`, `EnergyReport`,
 `SensorsChart`, `LightDetail` (the colour wheel only), `SettingsSheet`. `SensorsChart` only draws what its LiveView
 pushes (`push_event` on connected mount and on every poll); it fetches nothing and keeps no
-timer. Charts are Chart.js
+timer. The Solakon-Verlauf is `ZiwoasWeb.SolakonHistoryComponent`, shared by both Solakon pages:
+it pushes `"solakon_history:data"` (`%{range, times, datasets}`, times in epoch ms) on connect,
+on a range tab and on every stored snapshot, and `SolakonHistory` only draws it. Charts are Chart.js
 (`assets/vendor/chart.umd.js`), painted through `assets/js/lib/chart_theme.js` and updated in
 place; canvas containers carry `phx-update="ignore"`.
 
@@ -257,8 +286,8 @@ Ecto migrations in `priv/repo/migrations/` own the schema. Schemas `use Ziwoas.S
 
 - **Timestamps** are `:utc_datetime_usec` (`inserted_at`, `updated_at`, stamped through
   `Ziwoas.Clock`) and stored as ISO 8601 with microseconds and `Z`. Compare times through typed
-  fields or `type(^t, :utc_datetime_usec)`; raw SQL takes `Ziwoas.Repo.dump_time/1`, because the
-  text compares like the instant only at that one width.
+  fields or `type(^t, :utc_datetime_usec)`: the text compares like the instant only at that one
+  width.
 - **SQLite pragmas** (`config/config.exs`): WAL, `synchronous=NORMAL`, 15 s busy timeout, foreign
   keys, transactions `IMMEDIATE`, so a read-then-write transaction waits for the write lock.
 - **Adoption.** `Ziwoas.Release.adopt_rails_database!/0` takes over a database the former Rails

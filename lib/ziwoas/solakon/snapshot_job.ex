@@ -2,7 +2,7 @@ defmodule Ziwoas.Solakon.SnapshotJob do
   @moduledoc """
   Every two minutes: the full register snapshot — panels, battery, energy
   counters, status — read through `Ziwoas.Solakon.Monitor` into a
-  `solakon_snapshots` row. Nothing is broadcast.
+  `solakon_snapshots` row, then `Ziwoas.Solakon`'s subscribers hear of it.
 
   Opts: `:monitor`, the monitor process (`Ziwoas.Solakon.Monitor`).
   """
@@ -10,14 +10,17 @@ defmodule Ziwoas.Solakon.SnapshotJob do
 
   require Logger
 
-  alias Ziwoas.{Clock, Repo}
-  alias Ziwoas.Solakon.{Monitor, Snapshot}
+  alias Ziwoas.{Clock, Solakon}
+  alias Ziwoas.Solakon.Monitor
 
   @impl true
   def perform(opts) do
     case Monitor.read_snapshot(Keyword.get(opts, :monitor, Monitor)) do
       {:ok, data} ->
-        Repo.insert(Snapshot.from_data(data, Clock.now()))
+        with {:ok, snapshot} = ok <- Solakon.insert_snapshot(data, Clock.now()) do
+          Solakon.notify_snapshot(snapshot)
+          ok
+        end
 
       {:error, reason} = error ->
         Logger.warning("solakon_snapshot: Modbus failure: #{inspect(reason)}")

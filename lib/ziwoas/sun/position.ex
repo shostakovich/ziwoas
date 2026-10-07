@@ -1,6 +1,7 @@
-defmodule Ziwoas.SunCalc do
+defmodule Ziwoas.Sun.Position do
   @moduledoc """
-  Sunrise/sunset and sun position for a given location, computed locally with
+  Where the sun stands — azimuth clockwise from north, elevation above the
+  horizon, both in degrees — and when it rises and sets, computed locally with
   the NOAA general solar position algorithm
   (https://gml.noaa.gov/grad/solcalc/solareqns.PDF). Sunrise and sunset are a
   single pass at solar noon, accurate to a few minutes at mid latitudes —
@@ -11,13 +12,10 @@ defmodule Ziwoas.SunCalc do
   @zenith_deg 90.833
   @deg :math.pi() / 180.0
 
-  defmodule Position do
-    @moduledoc "Azimuth clockwise from north, elevation above the horizon, both in degrees."
-    @enforce_keys [:azimuth, :elevation]
-    defstruct @enforce_keys
+  @enforce_keys [:azimuth, :elevation]
+  defstruct @enforce_keys
 
-    @type t :: %__MODULE__{azimuth: float, elevation: float}
-  end
+  @type t :: %__MODULE__{azimuth: float, elevation: float}
 
   @type event :: :sunrise | :sunset
 
@@ -52,8 +50,8 @@ defmodule Ziwoas.SunCalc do
   @doc """
   Sun position at an instant, in whole seconds: a sub-second part is ignored.
   """
-  @spec position(DateTime.t(), number, number) :: Position.t()
-  def position(%DateTime{} = time, lat, lon) do
+  @spec at(DateTime.t(), number, number) :: t
+  def at(%DateTime{} = time, lat, lon) do
     utc = DateTime.shift_zone!(time, "Etc/UTC")
     minutes = utc.hour * 60 + utc.minute + utc.second / 60.0
     {eqtime, decl} = solar_terms(DateTime.to_date(utc), minutes / 60.0)
@@ -73,7 +71,7 @@ defmodule Ziwoas.SunCalc do
         :math.cos(hour_angle) * :math.sin(lat_rad) - :math.tan(decl) * :math.cos(lat_rad)
       )
 
-    %Position{
+    %__MODULE__{
       azimuth: floored_mod(from_north / @deg + 180.0, 360.0),
       elevation: :math.asin(clamp(sin_elevation)) / @deg
     }

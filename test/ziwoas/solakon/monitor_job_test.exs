@@ -3,8 +3,8 @@ defmodule Ziwoas.Solakon.MonitorJobTest do
   use Ziwoas.DataCase
 
   alias Ziwoas.{Config, FakeModbusServer, Repo, TestClock}
+  alias Ziwoas.Solakon.{Control, Monitor, MonitorJob, Reading, Snapshot, SnapshotJob}
   alias Ziwoas.Solakon.Control.{Decision, Outcome, State}
-  alias Ziwoas.Solakon.{Monitor, MonitorJob, Reading, Snapshot, SnapshotJob}
 
   @moduletag :capture_log
 
@@ -144,8 +144,10 @@ defmodule Ziwoas.Solakon.MonitorJobTest do
     assert Repo.aggregate(Reading, :count) == 0
   end
 
-  test "a snapshot is stored with its panels and counters" do
+  test "a snapshot is stored with its panels and counters, and its subscribers hear of it" do
+    Ziwoas.Solakon.subscribe()
     assert {:ok, %Snapshot{id: id}} = SnapshotJob.perform(context(monitor: monitor!()))
+    assert_received {:snapshot, %Snapshot{id: ^id}}
 
     row = Repo.get!(Snapshot, id)
     assert row.taken_at == ~U[2026-06-18 10:00:00.000000Z]
@@ -177,7 +179,7 @@ defmodule Ziwoas.Solakon.MonitorJobTest do
       # No consumer plugs configured: no load, no floor.
       assert decision == %Decision{state: :normal, target_w: 0, trim: false}
       assert List.last(writes(server)) == "0000000b0110b3b300020400000000"
-      assert {^decision, _at} = State.stored(State.current())
+      assert {^decision, _at} = State.stored(Control.state())
       assert_receive {:solakon_reading, ^id}
     end
 
@@ -189,7 +191,7 @@ defmodule Ziwoas.Solakon.MonitorJobTest do
 
       assert Repo.aggregate(Reading, :count) == 1
       assert_receive {:solakon_reading, ^id}
-      assert State.current().consecutive_failures == 1
+      assert Control.state().consecutive_failures == 1
     end
 
     test "the third refused write in a row hands control back" do
@@ -202,7 +204,7 @@ defmodule Ziwoas.Solakon.MonitorJobTest do
                [failed: 1, failed: 2, released: 3]
 
       assert List.last(writes(server)) == "000000060106b3b10000"
-      assert State.current().consecutive_failures == 0
+      assert Control.state().consecutive_failures == 0
       assert Repo.aggregate(Reading, :count) == 3
     end
 

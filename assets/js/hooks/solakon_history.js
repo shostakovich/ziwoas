@@ -8,37 +8,21 @@ const FLOW_WORDS = {
   "Außensteckdose": { positive: "liefert", negative: "zieht" },
 }
 
-// The Solakon-Verlauf: the LiveView re-renders the payload island on a range tab and on
-// its minute refresh; the chart follows in place whenever the payload or range changed.
+// The Solakon-Verlauf: ZiwoasWeb.SolakonHistoryComponent pushes "solakon_history:data"
+// ({range, times, datasets}) once connected, on a range tab and on every stored snapshot;
+// the chart is redrawn in place.
 export default {
   mounted() {
-    this.render()
-  },
-
-  updated() {
-    this.render()
+    this.handleEvent("solakon_history:data", (payload) => this.draw(payload))
   },
 
   destroyed() {
     this.chart?.destroy()
   },
 
-  render() {
-    const payload = this.el.querySelector("script[data-chart-payload]")?.textContent ?? ""
-    const range = this.el.dataset.range
-    if (this.chart && payload === this.payload && range === this.range) return
-    this.payload = payload
-    this.range = range
-    this.chart = renderChart(this.chart, this.el.querySelector("canvas"), config(parse(payload), range))
+  draw(payload) {
+    this.chart = renderChart(this.chart, this.el.querySelector("canvas"), config(payload, payload.range))
   },
-}
-
-function parse(text) {
-  try {
-    return JSON.parse(text)
-  } catch {
-    return { times: [], datasets: [] }
-  }
 }
 
 function config(chart, range) {

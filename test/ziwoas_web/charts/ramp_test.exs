@@ -1,7 +1,7 @@
-defmodule Ziwoas.RampTest do
+defmodule ZiwoasWeb.Charts.RampTest do
   use ExUnit.Case, async: true
 
-  alias Ziwoas.Ramp
+  alias ZiwoasWeb.Charts.Ramp
 
   test "snaps a fraction to the nearest of 64 levels" do
     assert Ramp.level(0.5) === 0.5
