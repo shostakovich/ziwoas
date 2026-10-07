@@ -92,12 +92,6 @@ defmodule Ziwoas.Solakon.Reading do
     )
   end
 
-  @doc false
-  # Kept for `Ziwoas.LiveState` until it reads `Ziwoas.Solakon.fresh_reading/2`.
-  @spec latest_fresh(DateTime.t(), integer) :: t | nil
-  def latest_fresh(now, stale_after_s \\ @stale_after_s),
-    do: Ziwoas.Solakon.fresh_reading(now, stale_after_s)
-
   # The control's thresholds.
   def soc_below_minimum?(%__MODULE__{battery_soc_pct: soc}), do: soc <= @min_soc_pct
   def soc_at_resume?(%__MODULE__{battery_soc_pct: soc}), do: soc >= @resume_soc_pct

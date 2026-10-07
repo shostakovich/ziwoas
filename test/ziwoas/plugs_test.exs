@@ -92,6 +92,29 @@ defmodule Ziwoas.PlugsTest do
     end
   end
 
+  test "five_minute_energy reads the listed plugs' five-minute energy in [from, to)" do
+    for {plug_id, ts, wh} <- [
+          {"bkw", 600, 1.0},
+          {"bkw", 900, 2.0},
+          {"bkw", 1200, 4.0},
+          {"tv", 600, 8.0}
+        ],
+        do:
+          Repo.insert!(%Ziwoas.Plugs.Sample5min{
+            plug_id: plug_id,
+            bucket_ts: ts,
+            avg_power_w: 0.0,
+            energy_delta_wh: wh,
+            sample_count: 1
+          })
+
+    from = DateTime.from_unix!(600)
+    to = DateTime.from_unix!(1200)
+
+    assert Enum.sort(Plugs.five_minute_energy(["bkw"], from, to)) == [{600, 1.0}, {900, 2.0}]
+    assert Plugs.five_minute_energy([], from, to) == []
+  end
+
   describe "daily totals" do
     defp total!(plug_id, date, wh),
       do: Repo.insert!(%DailyTotal{plug_id: plug_id, date: date, energy_wh: wh})

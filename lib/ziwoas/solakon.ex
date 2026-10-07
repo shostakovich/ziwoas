@@ -10,7 +10,7 @@ defmodule Ziwoas.Solakon do
   """
   import Ecto.Query
 
-  alias Ziwoas.{Config, Live, Repo}
+  alias Ziwoas.{Config, Repo}
   alias Ziwoas.Solakon.{Alarms, Control, History, Monitor, PvHour, Reading, Snapshot}
 
   @topic inspect(__MODULE__)
@@ -22,8 +22,6 @@ defmodule Ziwoas.Solakon do
   @spec notify_reading(Reading.t()) :: :ok
   def notify_reading(%Reading{} = reading) do
     broadcast(:reading, reading)
-    # The dashboard's beat until it subscribes here.
-    Live.broadcast("solakon", {:solakon_reading, reading.id})
     :ok
   end
 

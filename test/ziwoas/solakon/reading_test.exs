@@ -41,14 +41,13 @@ defmodule Ziwoas.Solakon.ReadingTest do
     assert Reading.battery_display_power_w(reading(battery_power_w: -50.0)) === -50.0
   end
 
-  test "latest_fresh returns the newest reading inside the stale threshold" do
+  test "fresh_reading returns the newest reading inside the stale threshold" do
     for {seconds_ago, soc} <- [{300, 80}, {10, 81}] do
       Repo.insert!(%{reading(battery_soc_pct: soc) | taken_at: DateTime.add(@now, -seconds_ago)})
     end
 
     assert %Reading{battery_soc_pct: 81} = Solakon.fresh_reading(@now, 120)
     assert Solakon.fresh_reading(DateTime.add(@now, 180), 120) == nil
-    assert %Reading{battery_soc_pct: 81} = Reading.latest_fresh(@now, 120)
     assert %Reading{battery_soc_pct: 81} = Solakon.latest_reading()
   end
 

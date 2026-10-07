@@ -12,7 +12,6 @@ defmodule Ziwoas.Plugs do
   """
   import Ecto.Query
 
-  alias Ziwoas.Live
   alias Ziwoas.Plugs.{Aggregator, DailyTotal, EnergyDeltas, Measurement, Sample, Sample5min}
   alias Ziwoas.Plugs.State
   alias Ziwoas.Repo
@@ -26,8 +25,6 @@ defmodule Ziwoas.Plugs do
   @spec notify_live([map]) :: :ok
   def notify_live(deltas) do
     broadcast(:live, deltas)
-    # The pages outside the energy slice still listen on the old topic.
-    Live.broadcast("dashboard", {:dashboard_live, deltas})
     :ok
   end
 
@@ -185,6 +182,23 @@ defmodule Ziwoas.Plugs do
       from s in Sample5min,
         where: s.bucket_ts >= ^start_ts and s.bucket_ts < ^end_ts,
         order_by: s.bucket_ts
+    )
+  end
+
+  @doc """
+  `{bucket_ts, energy_delta_wh}` of each five-minute mean of these plugs in
+  `[from, to)`, in no particular order; no query without plugs.
+  """
+  @spec five_minute_energy([String.t()], DateTime.t(), DateTime.t()) :: [{integer, float}]
+  def five_minute_energy([], _from, _to), do: []
+
+  def five_minute_energy(plug_ids, %DateTime{} = from, %DateTime{} = to) do
+    {from_ts, to_ts} = {DateTime.to_unix(from), DateTime.to_unix(to)}
+
+    Repo.all(
+      from s in Sample5min,
+        where: s.plug_id in ^plug_ids and s.bucket_ts >= ^from_ts and s.bucket_ts < ^to_ts,
+        select: {s.bucket_ts, s.energy_delta_wh}
     )
   end
 

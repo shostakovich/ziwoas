@@ -53,8 +53,8 @@ time).
   (`{:live, deltas}`, `{:aggregated, date}`), `Ziwoas.Solakon.subscribe/0` (`{:reading, reading}`,
   `{:snapshot, snapshot}`),
   `Ziwoas.Lights.subscribe/0,1` (`{:updated, key}`), `Ziwoas.Sensors.subscribe/0`
-  (`{:polled, instant}`), `Ziwoas.Weather.subscribe/0` (`{:synced, date}`). Until the pages
-  switch over, the same events also go out on the old topics below (`Ziwoas.Live`).
+  (`{:polled, instant}`), `Ziwoas.Weather.subscribe/0` (`{:synced, date}`). The topic
+  strings exist only inside the contexts.
 
 ## Collector
 
@@ -82,8 +82,7 @@ Ziwoas.Collector
   `samples_5min/2`, `daily_totals/2,3`, …); the counters' plausibility-capped steps are one
   Ecto query (`Plugs.EnergyDeltas`, window functions). Every reading goes through
   `Ziwoas.Plugs.Ingest`: a `samples` row (and `plug_states` when it carries an `output`), and a
-  live delta per plug, sent at most every 5 s through `Plugs.notify_live/1` (also
-  `{:dashboard_live, deltas}` on `dashboard` for the pages not yet on `Plugs.subscribe/0`).
+  live delta per plug, sent at most every 5 s through `Plugs.notify_live/1`.
   Shelly plugs report `<prefix>/<plug>/status/switch:0` to `ShellyStatusHandler`; Fritz!DECT
   plugs are polled by `Ziwoas.Fritz.Bridge` through `Ziwoas.Fritz.DectClient` (AHA HTTP, MD5 or
   PBKDF2 challenge, `:xmerl`, `:crypto`; `{:error, reason, client}` with an atom, a tuple or

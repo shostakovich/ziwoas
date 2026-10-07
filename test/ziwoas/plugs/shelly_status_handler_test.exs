@@ -33,15 +33,13 @@ defmodule Ziwoas.Plugs.ShellyStatusHandlerTest do
     refute ShellyStatusHandler.matches?(handler(), "shellies-other/bkw/status/switch:0")
   end
 
-  test "by default the deltas go to Plugs' subscribers and the dashboard topic" do
+  test "by default the deltas go to Plugs' subscribers" do
     Ziwoas.Plugs.subscribe()
-    Phoenix.PubSub.subscribe(Ziwoas.PubSub, "dashboard")
     handler = ShellyStatusHandler.new(TestConfigs.plugs(), clock: fn -> @now end)
 
     ShellyStatusHandler.handle(handler, "shellies/bkw/status/switch:0", payload(-300.0, 1234.5))
 
     assert_receive {:live, [delta]}
-    assert_receive {:dashboard_live, [^delta]}
 
     assert delta == %{
              id: "bkw",

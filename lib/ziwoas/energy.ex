@@ -7,7 +7,7 @@ defmodule Ziwoas.Energy do
   """
   import Ecto.Query
 
-  alias Ziwoas.{Clock, Config, Economics, LocalDay, Plugs, Repo}
+  alias Ziwoas.{Clock, Config, Economics, LocalDay, Plugs, Repo, Solakon}
   alias Ziwoas.Energy.{Amount, Balance, DailySummary, Flow, LiveState, PowerSeries, Report}
   alias Ziwoas.Plugs.{Measurement, Plug, Roster}
   alias Ziwoas.Solakon.Reading
@@ -71,7 +71,7 @@ defmodule Ziwoas.Energy do
 
     reading =
       if config.solakon && config.solakon.monitoring_enabled,
-        do: Reading.latest_fresh(now, stale_after_s)
+        do: Solakon.fresh_reading(now, stale_after_s)
 
     %LiveState{
       plugs: Enum.map(roster.all, &live_row(&1, measurements[&1.id])),

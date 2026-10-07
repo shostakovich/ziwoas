@@ -65,7 +65,6 @@ defmodule Ziwoas.Solakon.MonitorJobTest do
   setup do
     TestClock.freeze(@now)
     Ziwoas.Solakon.subscribe()
-    Phoenix.PubSub.subscribe(Ziwoas.PubSub, "solakon")
     :ok
   end
 
@@ -126,7 +125,6 @@ defmodule Ziwoas.Solakon.MonitorJobTest do
              {true, 230.1, 125.0}
 
     assert_receive {:reading, %Reading{id: ^id}}
-    assert_receive {:solakon_reading, ^id}
   end
 
   test "a Modbus failure stores nothing" do
@@ -135,7 +133,7 @@ defmodule Ziwoas.Solakon.MonitorJobTest do
     MonitorJob.perform(context(monitor: monitor))
 
     assert Repo.aggregate(Reading, :count) == 0
-    refute_receive {:solakon_reading, _}
+    refute_receive {:reading, _}
   end
 
   test "a state of charge outside 0..100 is an invalid reading, not a row" do
@@ -162,7 +160,7 @@ defmodule Ziwoas.Solakon.MonitorJobTest do
 
     assert_in_delta row.pv_total_kwh, 123.45, 0.001
     assert row.battery_soc_pct == nil
-    refute_receive {:solakon_reading, _}
+    refute_receive {:reading, _}
   end
 
   describe "with control enabled" do
@@ -180,7 +178,7 @@ defmodule Ziwoas.Solakon.MonitorJobTest do
       assert decision == %Decision{state: :normal, target_w: 0, trim: false}
       assert List.last(writes(server)) == "0000000b0110b3b300020400000000"
       assert {^decision, _at} = State.stored(Control.state())
-      assert_receive {:solakon_reading, ^id}
+      assert_receive {:reading, %Reading{id: ^id}}
     end
 
     test "a refused write keeps the reading and its announcement, and counts the failure" do
@@ -190,7 +188,7 @@ defmodule Ziwoas.Solakon.MonitorJobTest do
                MonitorJob.perform(Keyword.put(controlled(), :monitor, monitor))
 
       assert Repo.aggregate(Reading, :count) == 1
-      assert_receive {:solakon_reading, ^id}
+      assert_receive {:reading, %Reading{id: ^id}}
       assert Control.state().consecutive_failures == 1
     end
 

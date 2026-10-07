@@ -5,10 +5,8 @@ defmodule Ziwoas.SunCalendar do
   sunset and solar noon. Before the inverter's PV hours begin (the seam), the
   producer plugs' five-minute energy stands in for the PV power.
   """
-  import Ecto.Query
 
-  alias Ziwoas.{LocalDay, Location, Repo, Solakon, Weather}
-  alias Ziwoas.Plugs.Sample5min
+  alias Ziwoas.{LocalDay, Location, Plugs, Solakon, Weather}
   alias Ziwoas.SunCalendar.SunLines
 
   @base_hours {3, 22}
@@ -109,14 +107,7 @@ defmodule Ziwoas.SunCalendar do
 
   defp plug_points({from, to}, seam, producer_ids, zone) do
     # Unordered: the running sums follow SQLite's row order.
-    rows =
-      Repo.all(
-        from s in Sample5min,
-          where:
-            s.plug_id in ^producer_ids and s.bucket_ts >= ^DateTime.to_unix(from) and
-              s.bucket_ts < ^DateTime.to_unix(to),
-          select: {s.bucket_ts, s.energy_delta_wh}
-      )
+    rows = Plugs.five_minute_energy(producer_ids, from, to)
 
     {order, totals} =
       Enum.reduce(rows, {[], %{}}, fn {bucket_ts, energy_wh}, acc ->
