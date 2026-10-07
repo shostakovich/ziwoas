@@ -193,6 +193,19 @@ defmodule ZiwoasWeb.LightLiveEventsTest do
       assert render(view) =~ "Lampe aktualisiert."
     end
 
+    test "a refused save clears the flash of the one saved before", %{conn: conn} do
+      view = open_page(conn)
+      open_settings(view)
+      view |> form("#light_form", %{"light" => %{"name" => "Stehlampe"}}) |> render_submit()
+      assert render(view) =~ "Lampe aktualisiert."
+
+      open_settings(view)
+      view |> form("#light_form", %{"light" => %{"name" => ""}}) |> render_submit()
+
+      assert render(view) =~ "muss ausgefüllt werden"
+      refute has_element?(view, "#flash-info", "Lampe aktualisiert.")
+    end
+
     test "touches nothing the bridge manages, and no plug is nil", %{conn: conn} do
       Repo.update_all(Light, set: [shelly_plug_id: "fridge"])
       view = open_page(conn)

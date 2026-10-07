@@ -188,7 +188,7 @@ defmodule ZiwoasWeb.SwitchesLive do
   end
 
   defp saved({:error, changeset}, socket, plug_id, editor),
-    do: put_editor(socket, plug_id, %{editor | form: to_form(changeset)})
+    do: socket |> clear_flash() |> put_editor(plug_id, %{editor | form: to_form(changeset)})
 
   defp noun(kind) when kind in [:window, "window"], do: "Zeitfenster"
   defp noun(_kind), do: "Schaltzeit"

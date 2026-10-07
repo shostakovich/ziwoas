@@ -203,6 +203,26 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
       assert checked_days(view, "#sw_editor_fridge") == ["1"]
     end
 
+    test "a refused save clears the flash of the one saved before", %{conn: conn} do
+      view = open_page(conn)
+      new_entry(view, "+ Zeitfenster")
+
+      view
+      |> form("#sw_editor_fridge form", window_params("18:00", "23:00", ["", "1"]))
+      |> render_submit()
+
+      assert render(view) =~ "Zeitfenster gespeichert."
+
+      new_entry(view, "+ Zeitfenster")
+
+      view
+      |> form("#sw_editor_fridge form", window_params("18:00", "19:00", [""]))
+      |> render_submit()
+
+      assert render(view) =~ "mindestens ein Wochentag muss gewählt sein"
+      refute has_element?(view, "#flash-info", "Zeitfenster gespeichert.")
+    end
+
     test "Abbrechen closes the editor", %{conn: conn} do
       view = open_page(conn)
       new_entry(view, "+ Zeitfenster")

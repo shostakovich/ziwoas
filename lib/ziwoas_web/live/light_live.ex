@@ -89,7 +89,7 @@ defmodule ZiwoasWeb.LightLive do
          |> put_flash(:info, "Lampe aktualisiert.")}
 
       {:error, changeset} ->
-        {:noreply, assign(socket, :settings, to_form(changeset))}
+        {:noreply, socket |> clear_flash() |> assign(:settings, to_form(changeset))}
     end
   end
 

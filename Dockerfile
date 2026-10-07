@@ -41,6 +41,9 @@ RUN mix assets.setup && mix assets.deploy
 
 FROM ${BUILDER_IMAGE} AS build
 
+# The JIT's dual-mapped code pages crash the BEAM under emulation (cross-arch builds).
+ENV ERL_FLAGS="+JMsingle true"
+
 RUN apt-get update -qq && \
     apt-get install --no-install-recommends -y build-essential git && \
     rm -rf /var/lib/apt/lists/*
@@ -72,7 +75,7 @@ RUN mix release
 FROM ${RUNNER_IMAGE} AS final
 
 RUN apt-get update -qq && \
-    apt-get install --no-install-recommends -y libstdc++6 openssl libncurses6 ca-certificates tzdata curl && \
+    apt-get install --no-install-recommends -y libstdc++6 openssl libncurses6 ca-certificates tzdata curl sqlite3 && \
     rm -rf /var/lib/apt/lists/*
 
 ENV LANG=C.UTF-8 \

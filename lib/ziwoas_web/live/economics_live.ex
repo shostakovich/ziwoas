@@ -38,7 +38,7 @@ defmodule ZiwoasWeb.EconomicsLive do
          |> reset_cost_form()}
 
       {:error, changeset} ->
-        {:noreply, assign(socket, cost_form: to_form(changeset))}
+        {:noreply, socket |> clear_flash() |> assign(cost_form: to_form(changeset))}
     end
   end
 
@@ -67,7 +67,7 @@ defmodule ZiwoasWeb.EconomicsLive do
          |> reset_price_form()}
 
       {:error, changeset} ->
-        {:noreply, assign(socket, price_form: to_form(changeset))}
+        {:noreply, socket |> clear_flash() |> assign(price_form: to_form(changeset))}
     end
   end
 

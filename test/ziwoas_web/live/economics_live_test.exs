@@ -135,6 +135,15 @@ defmodule ZiwoasWeb.EconomicsLiveTest do
       assert cost_items() == 0
     end
 
+    test "a refused one clears the flash of the one saved before", %{conn: conn} do
+      {:ok, view, _html} = live(conn, @path)
+      submit_cost(view, %{label: "Wechselrichter", amount_eur: "899,90", spent_on: "2026-03-01"})
+
+      submit_cost(view, %{label: "", amount_eur: "viel", spent_on: ""})
+
+      refute has_element?(view, "#flash-info", "Wechselrichter erfasst")
+    end
+
     test "is checked while typing, only on the fields touched", %{conn: conn} do
       {:ok, view, _html} = live(conn, @path)
 
@@ -210,6 +219,19 @@ defmodule ZiwoasWeb.EconomicsLiveTest do
              ]
 
       assert prices() == 1
+    end
+
+    test "a refused one clears the flash of the one saved before", %{conn: conn} do
+      {:ok, view, _html} = live(conn, @path)
+      submit_price(view, %{eur_per_kwh: "0,30", valid_from: "2026-10-07"})
+
+      html = submit_price(view, %{eur_per_kwh: "0,25", valid_from: "2026-10-07"})
+
+      assert texts(html, "#price_form .invalid-feedback") == [
+               "Für dieses Datum gibt es bereits einen Preis"
+             ]
+
+      refute has_element?(view, "#flash-info", "Preis ab 07.10.2026 erfasst")
     end
 
     test "is deleted after a confirmation", %{conn: conn} do

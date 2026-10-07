@@ -18,7 +18,7 @@ defmodule ZiwoasWeb.SolakonHistoryLive do
   def mount(_params, _session, socket) do
     if connected?(socket), do: schedule_refresh()
 
-    {:ok, socket}
+    {:ok, assign(socket, :page_title, "Solakon-Verlauf")}
   end
 
   @impl true

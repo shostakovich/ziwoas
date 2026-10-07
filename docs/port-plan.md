@@ -2,7 +2,7 @@
 
 > Arbeitsplan der Migration, nicht dauerhafte Doku: entfällt in Phase 3 bzw. geht in ADR-0007 auf.
 
-## Stand (2026-10-06)
+## Stand (2026-10-07)
 
 | Phase | Stand |
 |---|---|
@@ -10,12 +10,24 @@
 | 1 Datenschicht | P1a Migrations/Übernahme `f0d7162`, A1 esbuild `af0d0e9`, P1b Sandbox/Rückbau `714aa93`, P1c Zeitstempel `5ab6ba1`, A2 Stimulus → Hooks `88f2aea` – fertig |
 | 2 Scheiben S1–S4 | Vorarbeit `7471286`, S4 `2c57be1`, S1 `be378b9`, S3 `e2e40af`, S2 `f6389b6`, Verlauf-Reiter `cd53497` – fertig |
 | 3 Aufräumen, Credo, Doku | Rückbau `c330250`, Doku `d2fa512`, Credo-Gate `78bb16f` – fertig |
-| 4 Deployment, Generalprobe | Image, Compose, Workflow `3d7af8f`, Runbook `docs/cutover.md` `f3fc2df`; in der Cloud gebaut und ohne Geräte geprobt (alle Seiten 200, healthy, Übernahme einer Rails-förmigen DB). Offen: Generalprobe auf Prod-Dump, Browser-Abnahme, MQTT-Probe – lokal mit Robert |
-| 5 Umstieg | Robert |
+| 4 Deployment, Generalprobe | Image, Compose, Workflow `3d7af8f`, Runbook `docs/cutover.md` `f3fc2df`; in der Cloud gebaut und ohne Geräte geprobt (alle Seiten 200, healthy, Übernahme einer Rails-förmigen DB). Generalprobe auf Prod-Dump und Browser-Abnahme 2026-10-07 (siehe unten), Befunde `6da2601`; MQTT-Probe lesend ok |
+| 5 Umstieg | auf dem Heimserver 2026-10-07 (`docs/cutover.md` B), Govee und Batterie live abgenommen; offen: Rückbau nach stabilen Tagen |
 
 Arbeitsweise: Claude koordiniert, Opus-Subagenten in großen, disjunkten Paketen (parallele Pakete in eigenen Worktrees, weil `_build` und die Test-DB geteilt sind), Claude committet je Paket nach eigener Gate-Prüfung (Exit-Codes, nicht `| tail`). Push auf `claude/awesome-heisenberg-61irby` ist freigegeben. Validierung im Browser macht Robert am Ende gemeinsam mit Claude.
 
 **Geteilte Learnings mit dem FeatherPage-Port** (feather-page/cms#378) in Outline: „Allgemein › Rails → Phoenix: gemeinsame Learnings (ZiWoAS + FeatherPage)“, https://outline.rocu.de/doc/rails-phoenix-gemeinsame-learnings-ziwoas-featherpage-R2X16Cz128 – zu Beginn jeder Session und nach jeder Phase lesen; übertragbare Learnings dort unter „Gemeinsam“ oder „ZiWoAS“ eintragen.
+
+**Generalprobe 2026-10-07** (Prod-Dump 142 MB, lokal, ohne Geräte, Image arm64 und amd64):
+
+- Übernahme bis Endpoint: 5,3 s (arm64), 6,9 s (amd64 unter Rosetta); zweiter Start migriert nichts.
+- Daten: `integrity_check` ok, Zeilenzahlen gleich, 0 Zeitwerte im Rails-Format, `spent_on` überall `YYYY-MM-DD`, eine Lampe mit `shelly_plug_id = ''`.
+- Alle Seiten und `/api/*`, `/up`, `/up.json`: 200 über localhost, LAN-IP und Proxy. LiveView-Join über Caddy (Origin `https://ziwoas.rocu.de`) und direkt ok, fremder Origin 403; HSTS und Secure-Cookie nur hinter dem Proxy.
+- Browser: Dashboard, PV, Verlauf (Reiter, Neuladen), Berichte (Presets, über Monate, vor den Daten, ungültig), Wirtschaftlichkeit, Wetter, Sensoren, Schalten (Zeitfenster und Einzelschaltung anlegen, bearbeiten, löschen), Lampen-Sheet – ohne Konsolenfehler.
+- Behoben (`6da2601`): Seitentitel Solakon-Verlauf; alter Erfolgs-Flash neben einem gescheiterten Speichern; Cross-Arch-Build (`+JMsingle true`, ohne stürzt der BEAM unter QEMU/Rosetta beim ersten `mix` ab – betrifft auch arm64 in `docker.yml`).
+- MQTT-Probe (15,7 min, echter Broker, `switch_rules` geleert, ohne Fritz-Plug): Phoenix hat jede Statussekunde der 14 Shellys erfasst, Werte gleich wie bei Rails (Rails-Mehrzeilen nur durch Paare über eine Sekundengrenze, Uhr des Servers); 0 Status ohne `aenergy.total`; 0 Befehle auf dem Broker; `plug_states` und `light_states` inhaltlich gleich.
+- Runtime-Image hat jetzt `sqlite3` (Dumps per `docker exec … sqlite3 'file:…?mode=ro' ".backup …"` wie bisher).
+- Für Teil B: in `ziwoas.yml` `electricity_price_eur_per_kwh` (Warnung) und das nie gelesene `trmnl_webhook_url` entfernen.
+- Aus Rails übernommen, offen: Einzelschaltung zeigt immer „Bleibt aus, …“, auch bei „an“; Shelly-Plug-Auswahl der Lampe listet auch Erzeuger und Fritz-Plugs; Datumsfelder der Berichte zeigen nach „ungültig, zurückgesetzt“ die ungültigen Werte; Flash bleibt beim Tippen, bis gespeichert wird.
 
 **Für Phase 4 und die Abnahme (aus den Scheiben):**
 
@@ -111,7 +123,7 @@ Jede Scheibe in ihren Pfaden: `Repo.write` auflösen, Ownership/Owned-Zweige str
 
 ### Phase 4: Deployment und Generalprobe
 
-- Dockerfile nach `phx.gen.release`, mehrstufig, Asset-Stufe auf `$BUILDPLATFORM`, Debian-Runtime mit `ca-certificates`, tzdata, `LANG=C.UTF-8`; amd64 + arm64. Compose: ein Dienst, `network_mode: host`, `PORT=3000`, Storage-Volume, `ziwoas.yml` read-only, `SECRET_KEY_BASE`, `PHX_HOST`, `check_origin`-Liste; Kommando `bin/migrate && exec bin/server`; Healthcheck `/up`. `docker.yml` publiziert mit explizitem Tag, nicht `latest` beim Merge.
+- Dockerfile nach `phx.gen.release`, mehrstufig, Asset-Stufe auf `$BUILDPLATFORM`, Debian-Runtime mit `ca-certificates`, tzdata, `LANG=C.UTF-8`; nur amd64 (Heimserver). Compose: ein Dienst, `network_mode: host`, `PORT=3000`, Storage-Volume, `ziwoas.yml` read-only, `SECRET_KEY_BASE`, `PHX_HOST`, `check_origin`-Liste; Kommando `bin/migrate && exec bin/server`; Healthcheck `/up`. `docker.yml` publiziert mit explizitem Tag, nicht `latest` beim Merge.
 - **Generalprobe** auf frischem Prod-Dump (Robert erlaubt Spiegeln): Übernahme + Migration mit Zeitmessung, Boot, alle Seiten, LiveView über den echten Hostnamen ohne Origin-Fehler; `docker buildx` für beide Architekturen.
 - **MQTT-Probe (nur lesend, von Robert erlaubt):** lokale Config nur mit `mqtt` (echter Broker) und `plugs`, ohne Fritz/Govee/Solakon/SwitchBot/TRMNL; in der DB-Kopie `switch_rules` geleert, keine Klicks auf Schalter/Lampen. Phoenix nimmt Shelly-Status auf; Vergleich der neuen `samples` mit dem, was Rails gleichzeitig in Prod schreibt (über einen weiteren Dump). Kontrolle, dass Phoenix' Client-IDs nichts publizieren. Broker-Host/Zugang liefert Robert.
 - Runbook als Markdown im Repo (`docs/cutover.md`) und Checkliste im Issue #158.
