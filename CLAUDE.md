@@ -22,8 +22,9 @@ Phoenix 1.8 · LiveView · Ecto + SQLite · Bandit. Erlang/OTP and Elixir are pi
 (see [`config/runtime.exs`](config/runtime.exs)).
 
 Cloud sessions (Claude Code on the web) are set up by the SessionStart hook
-[`.claude/hooks/session-start.sh`](.claude/hooks/session-start.sh). It still prepares the
-removed Rails app and is being switched over. It is a no-op outside a remote container.
+[`.claude/hooks/session-start.sh`](.claude/hooks/session-start.sh): Erlang/OTP and Elixir
+from `.tool-versions`, Hex deps, the esbuild binary, `config/ziwoas.yml` seeded from the test
+fixture. It is a no-op outside a remote container.
 
 Real data only exists on the home server (Docker). Local SQLite is not a copy of production:
 "empty locally" doesn't mean empty.

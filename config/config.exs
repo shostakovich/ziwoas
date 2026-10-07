@@ -92,6 +92,19 @@ config :logger, :default_formatter,
 # Local day windows (Europe/Berlin and friends) need the IANA database.
 config :elixir, :time_zone_database, Tz.TimeZoneDatabase
 
+# The standalone esbuild binary bundles assets/ into priv/static/assets (no Node).
+config :esbuild,
+  version: "0.25.4",
+  ziwoas: [
+    args: ~w(js/app.js --bundle --target=es2022 --outdir=../priv/static/assets/js),
+    cd: Path.expand("../assets", __DIR__),
+    env: %{"NODE_PATH" => [Path.expand("../deps", __DIR__), Mix.Project.build_path()]}
+  ],
+  ziwoas_css: [
+    args: ~w(css/app.css --bundle --outdir=../priv/static/assets/css),
+    cd: Path.expand("../assets", __DIR__)
+  ]
+
 # Elixir's built-in JSON instead of Jason.
 config :phoenix, :json_library, JSON
 config :ecto_sqlite3, json_library: JSON

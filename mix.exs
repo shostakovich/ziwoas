@@ -26,8 +26,8 @@ defmodule Ziwoas.MixProject do
   defp elixirc_paths(:test), do: ["lib", "test/support"]
   defp elixirc_paths(_), do: ["lib"]
 
-  # Kept deliberately small (issue #158): no asset bundler, no telemetry
-  # dashboard, no mailer. JSON comes from Elixir's built-in JSON module. tz is the
+  # Kept deliberately small: no telemetry dashboard, no mailer. esbuild runs as a
+  # standalone binary (no Node). JSON comes from Elixir's built-in JSON module. tz is the
   # IANA database for local day windows; Elixir itself only knows UTC. yamerl reads
   # config/ziwoas.yml (pure Erlang, no further deps). req is the outbound HTTP (Bright
   # Sky, SwitchBot, TRMNL, Fritz!Box, Govee Platform API) with Req.Test stubs.
@@ -44,16 +44,24 @@ defmodule Ziwoas.MixProject do
       # MQTT 3.1.1 client for the collector (Phase 4): pure Elixir, reconnects with backoff.
       {:tortoise311, "~> 0.12.3"},
       {:req, "~> 0.7.4"},
+      {:esbuild, "~> 0.10", runtime: Mix.env() == :dev},
+      {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       # Phoenix.LiveViewTest's HTML parser; tests only.
       {:lazy_html, ">= 0.1.0", only: :test}
     ]
   end
 
-  # Rails owns the schema until cutover: no ecto.create/migrate aliases.
   defp aliases do
     [
+      setup: ["deps.get", "ecto.setup", "assets.setup", "assets.build"],
+      "ecto.setup": ["ecto.create", "ecto.migrate"],
+      # A database Rails left behind is adopted before Ecto's migrator sees it.
+      "ecto.migrate": ["ziwoas.adopt", "ecto.migrate"],
       # The read-only Repo needs its database before the app starts.
-      test: ["run --no-start -e Ziwoas.RailsFixture.build!()", "test"]
+      test: ["run --no-start -e Ziwoas.RailsFixture.build!()", "test"],
+      "assets.setup": ["esbuild.install --if-missing"],
+      "assets.build": ["compile", "esbuild ziwoas", "esbuild ziwoas_css"],
+      "assets.deploy": ["esbuild ziwoas --minify", "esbuild ziwoas_css --minify", "phx.digest"]
     ]
   end
 end
