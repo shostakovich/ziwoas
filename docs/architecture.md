@@ -50,8 +50,8 @@ time).
   (`{:http_status, 500}`) or Req's exception. In tests every client
   is a `Req.Test` stub under its module name (`config :ziwoas, http_stubs: true`, compile time).
 - **Live updates**: each context owns its PubSub topic. `Ziwoas.Plugs.subscribe/0`
-  (`{:live, deltas}`, `{:aggregated, date}`), `Ziwoas.Solakon.subscribe/0` (`{:reading, reading}`,
-  `{:snapshot, snapshot}`),
+  (`{:live, deltas}`) and `Ziwoas.Plugs.subscribe(:aggregated)` (`{:aggregated, date}`),
+  `Ziwoas.Solakon.subscribe/0` (`{:reading, reading}`, `{:snapshot, snapshot}`),
   `Ziwoas.Lights.subscribe/0,1` (`{:updated, key}`), `Ziwoas.Sensors.subscribe/0`
   (`{:polled, instant}`), `Ziwoas.Weather.subscribe/0` (`{:synced, date}`). The topic
   strings exist only inside the contexts.
@@ -149,7 +149,7 @@ skips it, nothing is made up after downtime, and a failure is logged, not retrie
 - **Aggregation.** `Ziwoas.Plugs.aggregate/3` (`Plugs.Aggregator`, plain functions) folds each
   finished local day of `samples` into `samples_5min` and `daily_totals` (Ecto queries over
   `EnergyDeltas`, inserted in SQLite) and `daily_energy_summary` (`Energy.summarize_day/3`, in the
-  same transaction), purges raw samples older than 7 days and tells `Plugs`' subscribers
+  same transaction), purges raw samples older than 7 days and tells `Plugs.subscribe(:aggregated)`'s subscribers
   `{:aggregated, today}`. `Plugs.backup!/3` writes `VACUUM INTO` copies to `config :ziwoas, :backup_dir`
   (`backup/` next to the database) and keeps seven. `Ziwoas.Solakon.PvHourAggregator` condenses
   the day's readings and snapshots into `solakon_pv_hours` (Ecto queries, grouped by the local
@@ -239,7 +239,7 @@ title is `<.header>`.
 
 | Route | LiveView | Live updates (PubSub topic) |
 | --- | --- | --- |
-| `/` | `DashboardLive` | `Plugs` (`{:live, deltas}`, `{:aggregated, date}`), `Solakon` (`{:reading, _}`); day tiles recomputed on plug events at most once a minute and at local midnight; charts as `"today_chart:data"` (also hourly, the 24 h window sliding), `"today_chart:deltas"`, `"history_chart:data"` |
+| `/` | `DashboardLive` | `Plugs` (`{:live, deltas}`; `subscribe(:aggregated)`: `{:aggregated, date}`), `Solakon` (`{:reading, _}`); day tiles recomputed on plug events at most once a minute and at local midnight; charts as `"today_chart:data"` (also hourly, the 24 h window sliding), `"today_chart:deltas"`, `"history_chart:data"` |
 | `/solakon` | `SolakonLive` | `Plugs`, `Solakon`; sun calendar, shading and Wirtschaftlichkeit by `assign_async`; EPS and control switches as events, written by `start_async` |
 | `/solakon/history` | `SolakonHistoryLive` | `Solakon` (a snapshot refreshes it); `?range=24h|7d|30d` |
 | `/solakon/wirtschaftlichkeit` | `EconomicsLive` | cost items and electricity prices, changeset forms |

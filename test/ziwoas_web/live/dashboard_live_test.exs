@@ -234,7 +234,7 @@ defmodule ZiwoasWeb.DashboardLiveTest do
       assert_push_event(view, "history_chart:data", %{points: []})
 
       Repo.insert!(%DailyTotal{plug_id: "bkw", date: ~D[2026-10-04], energy_wh: 700.0})
-      send(view.pid, {:aggregated, ~D[2026-10-05]})
+      Plugs.aggregate("Europe/Berlin", [], today: ~D[2026-10-05])
 
       assert_push_event(view, "history_chart:data", %{points: [%{date: "2026-10-04"}]})
     end

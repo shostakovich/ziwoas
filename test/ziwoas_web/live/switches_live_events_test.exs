@@ -75,6 +75,15 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
       |> LazyHTML.query("#{form} input[type=checkbox][checked]")
       |> LazyHTML.attribute("value")
 
+  test "the nightly aggregation leaves the page running", %{conn: conn} do
+    view = open_page(conn)
+
+    Ziwoas.Plugs.aggregate("Europe/Berlin", [], today: ~D[2026-06-15])
+
+    assert render(view) =~ "Schalten"
+    assert Process.alive?(view.pid)
+  end
+
   describe "the plug button" do
     test "switches by hand, logs a manual command and redraws the head", %{conn: conn} do
       view = open_page(conn)
