@@ -14,7 +14,7 @@ defmodule Ziwoas.SunCalendarTest do
   @may ~D[2026-05-10]
   @may_doy Date.day_of_year(@may)
 
-  # Time.zone.local: an ambiguous hour is the earlier (summer-time) instant.
+  # An ambiguous hour is the earlier (summer-time) instant.
   defp utc(date, hour, minute \\ 0),
     do:
       date

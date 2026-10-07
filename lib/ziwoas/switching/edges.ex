@@ -89,8 +89,8 @@ defmodule Ziwoas.Switching.Edges do
     end
   end
 
-  # ActiveSupport's `zone.local`: an ambiguous time takes the earlier (summer)
-  # offset, a time inside a spring-forward gap is read with the offset before it.
+  # An ambiguous time takes the earlier (summer) offset, a time inside a
+  # spring-forward gap is read with the offset before it.
   defp local_time(date, minutes, zone) do
     naive = NaiveDateTime.new!(date, Time.new!(div(minutes, 60), rem(minutes, 60), 0))
 

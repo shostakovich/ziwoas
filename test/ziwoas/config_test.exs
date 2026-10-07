@@ -1,8 +1,6 @@
 defmodule Ziwoas.ConfigTest do
   use ExUnit.Case, async: true
 
-  import ExUnit.CaptureLog
-
   alias Ziwoas.Config
   alias Ziwoas.Config.Error
 
@@ -137,13 +135,6 @@ defmodule Ziwoas.ConfigTest do
 
     assert error(String.replace(@valid, "timezone: Europe/Berlin", "timezone: \"\"")) =~
              "location.timezone"
-  end
-
-  test "rejects the retired top-level timezone and weather blocks" do
-    message = error("timezone: Europe/Berlin\n" <> @valid)
-    assert message =~ "location.timezone"
-    assert message =~ "'timezone'"
-    assert error(@valid <> "weather:\n  lat: 52.52\n  lon: 13.405\n") =~ "location.lat"
   end
 
   test "rejects a fritz_dect plug without ain" do
@@ -292,7 +283,6 @@ defmodule Ziwoas.ConfigTest do
 
   test "one message lists every error, each with its path" do
     yaml = """
-    timezone: Europe/Berlin
     location:
       timezone: Mars/Olympus
     mqtt:
@@ -310,7 +300,6 @@ defmodule Ziwoas.ConfigTest do
     message = error(yaml)
 
     for part <- [
-          "'timezone' has moved to location.timezone",
           "location.timezone 'Mars/Olympus' is not a valid IANA timezone",
           "mqtt.port must be a number",
           "mqtt.topic_prefix is required",
@@ -322,7 +311,7 @@ defmodule Ziwoas.ConfigTest do
       assert message =~ part
     end
 
-    assert length(String.split(message, "; ")) == 8
+    assert length(String.split(message, "; ")) == 7
   end
 
   @solakon "solakon:\n  host: 192.168.1.50\n"
@@ -344,16 +333,11 @@ defmodule Ziwoas.ConfigTest do
              load(@valid <> full).solakon
   end
 
-  test "solakon's legacy enabled is the monitoring fallback, the new flags win" do
+  test "solakon's retired enabled key is ignored like any unknown key" do
     assert %{monitoring_enabled: true, control_enabled: false} =
-             load(@valid <> @solakon <> "  enabled: true\n").solakon
+             load(@valid <> @solakon <> "  enabled: false\n").solakon
 
-    assert %{monitoring_enabled: false} = load(@valid <> @solakon <> "  enabled: false\n").solakon
-
-    both = "  enabled: true\n  monitoring_enabled: false\n  control_enabled: false\n"
-
-    assert %{monitoring_enabled: false, control_enabled: false} =
-             load(@valid <> @solakon <> both).solakon
+    refute Map.has_key?(load(@valid <> @solakon <> "  enabled: false\n").solakon, :enabled)
   end
 
   test "solakon flags must be booleans" do
@@ -362,9 +346,6 @@ defmodule Ziwoas.ConfigTest do
 
     assert error(@valid <> @solakon <> "  control_enabled: maybe\n") =~
              "solakon.control_enabled must be true or false"
-
-    assert error(@valid <> @solakon <> "  enabled: \"false\"\n") =~
-             "solakon.enabled must be true or false"
   end
 
   test "solakon applies defaults and requires a host" do
@@ -374,29 +355,18 @@ defmodule Ziwoas.ConfigTest do
     assert_raise Error, fn -> load(@valid <> "solakon:\n  port: 502\n") end
   end
 
-  test "the obsolete electricity price key is ignored with a warning" do
-    log =
-      capture_log(fn ->
-        assert load("electricity_price_eur_per_kwh: 0.3\n" <> @valid).plugs != []
-      end)
-
-    assert log =~ "electricity_price_eur_per_kwh"
-    assert log =~ "Wirtschaftlichkeit"
-  end
-
-  test "an old migration block is ignored with a warning, even one that would not parse" do
-    for block <- [
-          "migration:\n  owners:\n    weather: shadow\n    switching: dry_run\n",
-          "migration:\n  owners:\n    weather: dry_run\n",
+  test "retired top-level keys are ignored like any unknown key" do
+    for key <- [
+          "timezone: Europe/Berlin\n",
+          "weather:\n  lat: 52.5\n  lon: 13.4\n",
+          "electricity_price_eur_per_kwh: 0.3\n",
+          "migration:\n  owners:\n    weather: shadow\n",
           "migration: nonsense\n"
         ] do
-      log = capture_log(fn -> assert %Config{} = load(@valid <> block) end)
-
-      assert log =~ "the 'migration' block is no longer read"
+      assert %Config{} = load(key <> @valid)
     end
 
-    refute Map.has_key?(load(@valid), :owners)
-    refute capture_log(fn -> load(@valid) end) =~ "config:"
+    assert %{lat: nil, lon: nil} = load("weather:\n  lat: 52.5\n  lon: 13.4\n" <> @valid).location
   end
 
   test "numbers may be quoted, but must be numbers" do

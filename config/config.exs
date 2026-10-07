@@ -1,7 +1,7 @@
 import Config
 
-# Ecto's migrations own the schema; `mix ecto.migrate` and Ziwoas.Release.migrate/0
-# first adopt a database from the former Rails app (Ziwoas.Release).
+# Ecto's migrations own the schema: `mix ecto.migrate`, in a release
+# Ziwoas.Release.migrate/0.
 config :ziwoas, ecto_repos: [Ziwoas.Repo]
 
 # SQLite for one writer app: WAL, synchronous NORMAL, foreign keys, 64 MiB journal

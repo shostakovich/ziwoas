@@ -3,7 +3,7 @@ defmodule Ziwoas.Config do
   The device configuration: `config/ziwoas.yml`. Raw YAML is cast into embedded
   schemas at this boundary, one per section; nothing downstream sees a map from
   the file. A config that does not validate is one error message listing every
-  problem.
+  problem. Keys no schema knows are ignored (only `trmnl` refuses them).
 
   `Ziwoas.Application` loads the file once at boot (`load/1` on `path/0`, set
   from `ZIWOAS_CONFIG` in `config/runtime.exs`) and keeps the result with
@@ -13,8 +13,6 @@ defmodule Ziwoas.Config do
   use Ecto.Schema
 
   import Ecto.Changeset
-
-  require Logger
 
   alias Ziwoas.Config.Types
   alias Ziwoas.Location
@@ -184,27 +182,14 @@ defmodule Ziwoas.Config do
       field :unit_id, Types.Count, default: 1
       field :monitoring_enabled, Types.Flag, default: true
       field :control_enabled, Types.Flag, default: false
-      # The legacy spelling of `monitoring_enabled`.
-      field :enabled, Types.Flag, virtual: true
     end
 
     def changeset(solakon, params) do
       solakon
-      |> cast(params, [:host, :port, :unit_id, :monitoring_enabled, :control_enabled, :enabled])
+      |> cast(params, [:host, :port, :unit_id, :monitoring_enabled, :control_enabled])
       |> validate_required([:host], message: "is required")
       |> validate_number(:port, greater_than: 0, message: "must be > 0")
       |> validate_number(:unit_id, greater_than_or_equal_to: 0, message: "must be >= 0")
-      |> legacy_enabled(params)
-    end
-
-    defp legacy_enabled(changeset, params) do
-      case fetch_change(changeset, :enabled) do
-        {:ok, enabled} when not is_map_key(params, "monitoring_enabled") ->
-          put_change(changeset, :monitoring_enabled, enabled)
-
-        _ ->
-          changeset
-      end
     end
   end
 
@@ -288,12 +273,6 @@ defmodule Ziwoas.Config do
           govee: %Govee{} | nil
         }
 
-  @retired %{"timezone" => "location.timezone", "weather" => "location.lat / location.lon"}
-  @obsolete %{
-    "electricity_price_eur_per_kwh" => "the Strompreis list under PV > Wirtschaftlichkeit",
-    "migration" => nil
-  }
-
   # --- The loaded configuration --------------------------------------------------
 
   @doc "The configuration loaded at boot: `{:ok, config}` or `{:error, message}`."
@@ -376,8 +355,6 @@ defmodule Ziwoas.Config do
   defp normalize(value), do: value
 
   defp build(raw) when is_map(raw) do
-    warn_obsolete_keys(raw)
-
     case apply_action(changeset(raw), :load) do
       {:ok, config} -> {:ok, config}
       {:error, changeset} -> {:error, error_message(changeset)}
@@ -385,17 +362,6 @@ defmodule Ziwoas.Config do
   end
 
   defp build(_raw), do: {:error, "config root must be a mapping"}
-
-  defp warn_obsolete_keys(raw) do
-    for {key, moved_to} <- @obsolete, Map.has_key?(raw, key) do
-      Logger.warning(
-        if moved_to,
-          do: "config: '#{key}' is no longer read — it moved to #{moved_to}. Remove the key.",
-          else:
-            "config: the '#{key}' block is no longer read — Phoenix runs every task. Remove it."
-      )
-    end
-  end
 
   # --- Validation ------------------------------------------------------------------
 
@@ -426,7 +392,6 @@ defmodule Ziwoas.Config do
     |> cast_embed(:solakon, invalid_message: "must be a mapping")
     |> cast_embed(:govee, invalid_message: "must be a mapping")
     |> validate_plugs_given(raw)
-    |> validate_retired_keys(raw)
     |> validate_unique(:plugs, "plug")
     |> validate_unique(:sensors, "sensor")
     |> validate_producer()
@@ -444,12 +409,6 @@ defmodule Ziwoas.Config do
     if Map.has_key?(raw, "plugs"),
       do: changeset,
       else: add_error(changeset, :plugs, "must be a list")
-  end
-
-  defp validate_retired_keys(changeset, raw) do
-    for {key, moved_to} <- @retired, Map.has_key?(raw, key), reduce: changeset do
-      changeset -> add_error(changeset, :base, "'#{key}' has moved to #{moved_to}")
-    end
   end
 
   defp validate_unique(changeset, field, noun) do
