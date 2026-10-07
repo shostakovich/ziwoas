@@ -85,7 +85,7 @@ defmodule Ziwoas.Weather.JobsTest do
       icon: "cloudy"
     })
 
-    Repo.insert!(%DailyTotal{plug_id: "bkw", date: "2026-05-01", energy_wh: 1000.0})
+    Repo.insert!(%DailyTotal{plug_id: "bkw", date: ~D[2026-05-01], energy_wh: 1000.0})
 
     stub_brightsky(%{
       "2026-05-03" => [hour("2026-05-03T10:00:00+00:00")],
@@ -115,7 +115,7 @@ defmodule Ziwoas.Weather.JobsTest do
   end
 
   test "HistoricJob stops at a failing yesterday" do
-    Repo.insert!(%DailyTotal{plug_id: "bkw", date: "2026-05-01", energy_wh: 1000.0})
+    Repo.insert!(%DailyTotal{plug_id: "bkw", date: ~D[2026-05-01], energy_wh: 1000.0})
     Req.Test.stub(BrightskyClient, &Plug.Conn.send_resp(&1, 400, ""))
 
     capture_log(fn -> assert {:error, _} = HistoricJob.perform(context()) end)

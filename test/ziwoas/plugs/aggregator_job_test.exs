@@ -1,7 +1,7 @@
 defmodule Ziwoas.Plugs.AggregatorJobTest do
   use Ziwoas.DataCase
 
-  alias Ziwoas.EnergyReport.DailyEnergySummary
+  alias Ziwoas.Energy.DailySummary
   alias Ziwoas.Plugs.{AggregatorJob, DailyTotal}
   alias Ziwoas.{Repo, TestConfigs}
   alias Ziwoas.Solakon.{PvHour, Reading}
@@ -21,15 +21,18 @@ defmodule Ziwoas.Plugs.AggregatorJobTest do
     insert_sample!("bkw", start + 3600, 10, 150)
   end
 
-  test "aggregates the finished days" do
+  test "aggregates the finished days and tells Plugs' subscribers" do
     seed_day()
+    Ziwoas.Plugs.subscribe()
 
     perform()
 
-    assert %DailyTotal{energy_wh: 50.0} =
-             Repo.get_by!(DailyTotal, plug_id: "bkw", date: "2026-04-10")
+    assert_received {:aggregated, ~D[2026-04-11]}
 
-    assert Repo.get_by(DailyEnergySummary, date: "2026-04-10")
+    assert %DailyTotal{energy_wh: 50.0} =
+             Repo.get_by!(DailyTotal, plug_id: "bkw", date: ~D[2026-04-10])
+
+    assert Repo.get_by(DailySummary, date: ~D[2026-04-10])
   end
 
   test "condenses the inverter readings of finished days into PV hours" do

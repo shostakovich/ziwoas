@@ -1,7 +1,8 @@
-defmodule Ziwoas.EnergyReport.DailyEnergySummaryBuilderTest do
+defmodule Ziwoas.Energy.SummarizeDayTest do
   use Ziwoas.DataCase
 
-  alias Ziwoas.EnergyReport.DailyEnergySummaryBuilder
+  alias Ziwoas.Energy
+  alias Ziwoas.Energy.DailySummary
   alias Ziwoas.Plugs.{Plug, Roster, Sample5min}
   alias Ziwoas.Repo
 
@@ -24,8 +25,24 @@ defmodule Ziwoas.EnergyReport.DailyEnergySummaryBuilderTest do
 
   defp midnight(date), do: berlin_midnight(date)
 
+  defp build(plugs, zone, date) do
+    plugs
+    |> Energy.summarize_day(zone, date)
+    |> Map.take([:produced_wh, :consumed_wh, :self_consumed_wh])
+  end
+
+  test "writes the day's summary, replacing an earlier one" do
+    bucket!("fridge", midnight(~D[2026-06-01]) + 3600, 100, 8)
+    Energy.summarize_day(@plugs, @zone, ~D[2026-06-01])
+    bucket!("fridge", midnight(~D[2026-06-01]) + 7200, 100, 2)
+    Energy.summarize_day(@plugs, @zone, ~D[2026-06-01])
+
+    assert [%DailySummary{date: ~D[2026-06-01], consumed_wh: 10.0}] = Repo.all(DailySummary)
+    assert [%DailySummary{date: ~D[2026-06-01]}] = Energy.daily_summaries()
+  end
+
   test "a day without buckets is zero throughout" do
-    assert DailyEnergySummaryBuilder.build(@plugs, @zone, ~D[2026-06-01]) == %{
+    assert build(@plugs, @zone, ~D[2026-06-01]) == %{
              produced_wh: 0.0,
              consumed_wh: 0.0,
              self_consumed_wh: 0.0
@@ -41,7 +58,7 @@ defmodule Ziwoas.EnergyReport.DailyEnergySummaryBuilderTest do
     # Evening: no sun.
     bucket!("fridge", m + 20 * 3600, 200, 17)
 
-    summary = DailyEnergySummaryBuilder.build(@plugs, @zone, ~D[2026-06-01])
+    summary = build(@plugs, @zone, ~D[2026-06-01])
 
     assert summary.produced_wh == 100.0
     assert summary.consumed_wh == 42.0
@@ -54,7 +71,7 @@ defmodule Ziwoas.EnergyReport.DailyEnergySummaryBuilderTest do
     bucket!("bkw", m + 3600, -3000, 1)
     bucket!("fridge", m + 3600, 3000, 200)
 
-    summary = DailyEnergySummaryBuilder.build(@plugs, @zone, ~D[2026-06-01])
+    summary = build(@plugs, @zone, ~D[2026-06-01])
 
     assert summary.self_consumed_wh == 1.0
   end
@@ -64,7 +81,7 @@ defmodule Ziwoas.EnergyReport.DailyEnergySummaryBuilderTest do
     bucket!("old_heater", m + 3600, 2000, 500)
     bucket!("fridge", m + 3600, 100, 8)
 
-    summary = DailyEnergySummaryBuilder.build(Roster.new(@plugs), @zone, ~D[2026-06-01])
+    summary = build(Roster.new(@plugs), @zone, ~D[2026-06-01])
 
     assert {summary.produced_wh, summary.consumed_wh} == {0.0, 8.0}
   end
@@ -76,7 +93,7 @@ defmodule Ziwoas.EnergyReport.DailyEnergySummaryBuilderTest do
     bucket!("fridge", m + 86_400 - 300, 100, 4)
     bucket!("fridge", m + 86_400, 100, 8)
 
-    assert DailyEnergySummaryBuilder.build(@plugs, @zone, ~D[2026-06-01]).consumed_wh == 6.0
+    assert build(@plugs, @zone, ~D[2026-06-01]).consumed_wh == 6.0
   end
 
   test "a daylight-saving day has 23 or 25 hours of buckets" do
@@ -85,7 +102,7 @@ defmodule Ziwoas.EnergyReport.DailyEnergySummaryBuilderTest do
       for hour <- 0..(hours - 1), do: bucket!("fridge", m + hour * 3600, 60, 1)
       bucket!("fridge", m + hours * 3600, 60, 1000)
 
-      assert DailyEnergySummaryBuilder.build(@plugs, @zone, date).consumed_wh == hours * 1.0
+      assert build(@plugs, @zone, date).consumed_wh == hours * 1.0
     end
   end
 end

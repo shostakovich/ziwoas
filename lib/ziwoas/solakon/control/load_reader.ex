@@ -8,7 +8,8 @@ defmodule Ziwoas.Solakon.Control.LoadReader do
   for an hour in the calling process. The monitor job runs in its scheduler
   runner, which lives as long as the app; a restart recomputes it.
   """
-  alias Ziwoas.{Plugs, PowerSeries}
+  alias Ziwoas.{Energy, Plugs}
+  alias Ziwoas.Energy.PowerSeries
   alias Ziwoas.Plugs.{Measurement, Roster}
   alias Ziwoas.Solakon.Control.Load
 
@@ -36,7 +37,7 @@ defmodule Ziwoas.Solakon.Control.LoadReader do
 
     roster
     |> Roster.consumers()
-    |> PowerSeries.from_samples(
+    |> Energy.power_series(
       now_i - @floor_window_s,
       now_i + 1,
       PowerSeries.sample_5min_bucket_seconds()

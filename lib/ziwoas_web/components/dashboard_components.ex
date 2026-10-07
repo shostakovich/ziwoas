@@ -4,7 +4,8 @@ defmodule ZiwoasWeb.DashboardComponents do
   """
   use ZiwoasWeb, :html
 
-  alias Ziwoas.{Energy, EnergySummary, LiveState}
+  alias Ziwoas.Energy
+  alias Ziwoas.Energy.{Amount, Balance, LiveState}
   alias ZiwoasWeb.Components.EnergyFlow
 
   # --- Hero ------------------------------------------------------------------
@@ -62,12 +63,12 @@ defmodule ZiwoasWeb.DashboardComponents do
 
   # --- Tiles -----------------------------------------------------------------
 
-  @doc "The day's tiles, recomputed once a minute."
-  @spec summary_tiles(EnergySummary.t()) :: [map]
+  @doc "The day's tiles, recomputed on plug events and at midnight."
+  @spec summary_tiles(Balance.t()) :: [map]
   def summary_tiles(summary) do
     [
-      energy("tile_produced", "Erzeugt heute", Energy.kwh(summary.produced)),
-      energy("tile_consumed", "Verbraucht heute", Energy.kwh(summary.consumed)),
+      energy("tile_produced", "Erzeugt heute", Amount.kwh(summary.produced)),
+      energy("tile_consumed", "Verbraucht heute", Amount.kwh(summary.consumed)),
       measure_tile("tile_savings", "Gespart heute", summary.savings_eur, "€", 2),
       energy(
         "tile_net_today",
@@ -75,11 +76,11 @@ defmodule ZiwoasWeb.DashboardComponents do
         (summary.produced.wh - summary.consumed.wh) / 1000.0,
         true
       ),
-      share("tile_autarky", "Autarkie heute", EnergySummary.autarky_ratio(summary)),
+      share("tile_autarky", "Autarkie heute", Energy.autarky_ratio(summary)),
       share(
         "tile_self_consumption",
         "Eigen­verbrauchs­quote",
-        EnergySummary.self_consumption_ratio(summary)
+        Energy.self_consumption_ratio(summary)
       )
     ]
   end

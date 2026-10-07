@@ -13,8 +13,7 @@ defmodule Ziwoas.Economics.ElectricityPrice do
 
   schema "electricity_prices" do
     field :eur_per_kwh, :decimal
-    # An ISO date ("YYYY-MM-DD") as text.
-    field :valid_from, :string
+    field :valid_from, :date
     timestamps()
   end
 
@@ -28,7 +27,7 @@ defmodule Ziwoas.Economics.ElectricityPrice do
     |> cast(DecimalInput.normalize(attrs, "eur_per_kwh"), [:eur_per_kwh, :valid_from],
       message: fn
         :eur_per_kwh, _meta -> @price_message
-        _field, _meta -> nil
+        :valid_from, _meta -> @date_message
       end
     )
     |> validate_required(:eur_per_kwh, message: @price_message)
@@ -37,14 +36,6 @@ defmodule Ziwoas.Economics.ElectricityPrice do
     |> validate_number(:eur_per_kwh, greater_than: 0, message: @price_message)
     # DECIMAL(8, 5): three digits before the point.
     |> validate_number(:eur_per_kwh, less_than: 1000, message: "Preis ist zu hoch")
-    |> validate_change(:valid_from, &iso_date/2)
     |> unique_constraint(:valid_from, message: "Für dieses Datum gibt es bereits einen Preis")
-  end
-
-  defp iso_date(field, value) do
-    case Date.from_iso8601(value) do
-      {:ok, _date} -> []
-      {:error, _} -> [{field, @date_message}]
-    end
   end
 end

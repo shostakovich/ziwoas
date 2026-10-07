@@ -1,9 +1,10 @@
-defmodule Ziwoas.EnergyFlowTest do
+defmodule Ziwoas.Energy.FlowTest do
   use ExUnit.Case, async: true
 
-  alias Ziwoas.EnergyFlow
-  alias Ziwoas.EnergyFlow.Flows
+  alias Ziwoas.Energy.Flow, as: EnergyFlow
+  alias Ziwoas.Energy.Flow.Flows
   alias Ziwoas.Solakon.Reading
+  alias ZiwoasWeb.Components.EnergyFlow, as: Component
 
   @unknown %Flows{}
 
@@ -144,7 +145,7 @@ defmodule Ziwoas.EnergyFlowTest do
 
     assert flow.flows.battery_to_home_w === 0.0
 
-    assert JSON.decode!(EnergyFlow.to_json(flow)) == %{
+    assert JSON.decode!(Component.state_json(flow)) == %{
              "solakon_online" => true,
              "home_w" => 1.3,
              "solakon_ac_w" => 642.4,
@@ -165,7 +166,7 @@ defmodule Ziwoas.EnergyFlowTest do
   end
 
   test "an unknown flow serialises its unknowns as null" do
-    json = JSON.decode!(EnergyFlow.to_json(EnergyFlow.build(nil, nil)))
+    json = JSON.decode!(Component.state_json(EnergyFlow.build(nil, nil)))
 
     assert json["solakon_online"] == false
     assert json["home_w"] == nil

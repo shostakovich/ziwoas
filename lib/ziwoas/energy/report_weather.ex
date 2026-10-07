@@ -1,22 +1,23 @@
-defmodule Ziwoas.EnergyReport.WeatherLoader do
+defmodule Ziwoas.Energy.ReportWeather do
   @moduledoc """
   The weather behind the energy report's chart overlays: `historic` records
   of the configured location between the local midnights of a date range. A
-  location without coordinates has none.
+  location without coordinates has none. Icons are Bright Sky's codes with
+  their daytime; the web picks the pictures.
   """
   alias Ziwoas.{LocalDay, Location, Weather}
   alias Ziwoas.Weather.{Record, Segment}
 
-  @type day :: %{solar_kwh_per_m2: float | nil, asset_name: String.t(), alt: String.t()}
+  @type day :: %{solar_kwh_per_m2: float | nil, icon: String.t(), daytime: String.t()}
   @type hour :: %{
           ts: integer,
           solar_w_per_m2: float | nil,
-          asset_name: String.t(),
-          alt: String.t()
+          icon: String.t() | nil,
+          daytime: String.t() | nil
         }
 
-  @doc "Per local date (ISO string) with records: summed solar kWh/m², icon and its alt text."
-  @spec daily(Location.t(), Date.t(), Date.t()) :: %{String.t() => day}
+  @doc "Per local date with records: summed solar kWh/m² and the day's dominant icon."
+  @spec daily(Location.t(), Date.t(), Date.t()) :: %{Date.t() => day}
   def daily(location, start_date, end_date) do
     location
     |> historic_records(start_date, end_date)
@@ -24,11 +25,11 @@ defmodule Ziwoas.EnergyReport.WeatherLoader do
     |> Map.new(fn {date, records} ->
       segment = day_segment(records)
 
-      {Date.to_iso8601(date),
+      {date,
        %{
          solar_kwh_per_m2: day_solar_kwh(records),
-         asset_name: ZiwoasWeb.WeatherIcon.asset_name(segment),
-         alt: Segment.dominant_icon(segment)
+         icon: Segment.dominant_icon(segment),
+         daytime: Segment.dominant_daytime(segment)
        }}
     end)
   end
@@ -40,8 +41,8 @@ defmodule Ziwoas.EnergyReport.WeatherLoader do
       %{
         ts: DateTime.to_unix(record.timestamp),
         solar_w_per_m2: Weather.solar_w_per_m2(record),
-        asset_name: ZiwoasWeb.WeatherIcon.asset_name(record),
-        alt: record.icon || ""
+        icon: record.icon,
+        daytime: record.daytime
       }
     end
   end
@@ -67,6 +68,6 @@ defmodule Ziwoas.EnergyReport.WeatherLoader do
         daytime -> daytime
       end
 
-    %Segment{label: "day", hours: 0..23, records: pool}
+    %Segment{label: :day, hours: 0..23, records: pool}
   end
 end

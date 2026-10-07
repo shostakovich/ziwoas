@@ -20,8 +20,7 @@ defmodule ZiwoasWeb.SolakonLive do
 
   require Logger
 
-  alias Ziwoas.{Clock, Config, LiveState, Plugs, Shading, Solakon, SunCalendar}
-  alias Ziwoas.Economics.Overview
+  alias Ziwoas.{Clock, Config, Economics, Energy, Plugs, Shading, Solakon, SunCalendar}
   alias Ziwoas.Plugs.{Measurement, Roster}
   alias ZiwoasWeb.SolakonHistoryComponent
 
@@ -44,7 +43,7 @@ defmodule ZiwoasWeb.SolakonLive do
      |> assign(
        page_title: "PV",
        beat: 0,
-       live: LiveState.build(config, now),
+       live: Energy.live_state(config, now),
        reading: reading,
        snapshot: Solakon.latest_snapshot(),
        eps_on: reading != nil and reading.eps_enabled == true,
@@ -64,7 +63,7 @@ defmodule ZiwoasWeb.SolakonLive do
      end)
      |> assign_async(:shading, fn -> {:ok, %{shading: Shading.report(location, now)}} end)
      |> assign_async(:economics, fn ->
-       {:ok, %{economics: Overview.build(Clock.today(location.timezone))}}
+       {:ok, %{economics: Economics.overview(Clock.today(location.timezone))}}
      end)}
   end
 
@@ -76,7 +75,7 @@ defmodule ZiwoasWeb.SolakonLive do
   def handle_info({event, _}, socket) when event in [:live, :reading] do
     {:noreply,
      assign(socket,
-       live: LiveState.build(Config.get(), Clock.now()),
+       live: Energy.live_state(Config.get(), Clock.now()),
        beat: socket.assigns.beat + 1
      )}
   end

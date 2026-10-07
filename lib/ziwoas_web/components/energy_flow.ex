@@ -7,7 +7,7 @@ defmodule ZiwoasWeb.Components.EnergyFlow do
   """
   use ZiwoasWeb, :html
 
-  alias Ziwoas.{EnergyFlow, LiveState}
+  alias Ziwoas.Energy.{Flow, LiveState}
 
   @battery_assets [
     {"normal", "solakon_battery_normal.webp"},
@@ -52,6 +52,15 @@ defmodule ZiwoasWeb.Components.EnergyFlow do
     end
   end
 
+  @doc "The flow's state as JSON, for the `EnergyFlow` hook's `data-state`."
+  @spec state_json(Flow.t()) :: String.t()
+  def state_json(%Flow{} = flow) do
+    flow
+    |> Map.from_struct()
+    |> Map.update!(:flows, &Map.from_struct/1)
+    |> JSON.encode!()
+  end
+
   attr :live, LiveState, required: true
   attr :pv_asset, :string, required: true
   attr :pv_alt, :string, required: true
@@ -60,7 +69,7 @@ defmodule ZiwoasWeb.Components.EnergyFlow do
   def energy_flow(assigns) do
     assigns =
       assign(assigns,
-        state: EnergyFlow.to_json(assigns.live.energy_flow),
+        state: state_json(assigns.live.energy_flow),
         channels: @channels,
         rings: @rings,
         width: @width,

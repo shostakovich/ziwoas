@@ -12,10 +12,6 @@ defmodule ZiwoasWeb.Router do
     plug ZiwoasWeb.Plugs.RequireConfig
   end
 
-  pipeline :api do
-    plug :accepts, ["json"]
-  end
-
   scope "/", ZiwoasWeb do
     pipe_through :browser
 
@@ -37,13 +33,5 @@ defmodule ZiwoasWeb.Router do
 
   scope "/", ZiwoasWeb do
     get "/up", HealthController, :show
-  end
-
-  scope "/api", ZiwoasWeb do
-    pipe_through :api
-
-    get "/today", ApiController, :today
-    get "/today/summary", ApiController, :today_summary
-    get "/history", ApiController, :history
   end
 end

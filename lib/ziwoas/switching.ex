@@ -29,7 +29,7 @@ defmodule Ziwoas.Switching do
       |> Enum.group_by(& &1.plug_id)
 
     states =
-      Map.new(Repo.all(from s in Plugs.State, where: s.plug_id in ^ids), &{&1.plug_id, &1})
+      Plugs.states(ids)
 
     commands = latest_commands(ids)
     measurements = Plugs.latest_measurements(ids, now)

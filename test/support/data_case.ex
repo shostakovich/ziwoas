@@ -57,9 +57,10 @@ defmodule Ziwoas.DataCase do
     })
   end
 
+  @doc "A price from `valid_from`, an ISO date."
   def insert_price!(valid_from, eur_per_kwh) do
     Repo.insert!(%Ziwoas.Economics.ElectricityPrice{
-      valid_from: valid_from,
+      valid_from: Date.from_iso8601!(valid_from),
       eur_per_kwh: Decimal.new(eur_per_kwh)
     })
   end

@@ -7,7 +7,7 @@ defmodule ZiwoasWeb.SolakonLiveTest do
 
   alias Ziwoas.{Clock, Repo, TestClock}
   alias Ziwoas.Economics.CostItem
-  alias Ziwoas.EnergyReport.DailyEnergySummary
+  alias Ziwoas.Energy.DailySummary
   alias Ziwoas.Plugs.Sample5min
   alias Ziwoas.Solakon.{PvHour, Reading, Snapshot}
   alias Ziwoas.Weather.Record
@@ -239,8 +239,8 @@ defmodule ZiwoasWeb.SolakonLiveTest do
 
     insert_price!("2026-01-01", "0.30")
 
-    Repo.insert!(%DailyEnergySummary{
-      date: "2026-01-01",
+    Repo.insert!(%DailySummary{
+      date: ~D[2026-01-01],
       produced_wh: 5_000.0,
       consumed_wh: 3_000.0,
       self_consumed_wh: 2_000.0

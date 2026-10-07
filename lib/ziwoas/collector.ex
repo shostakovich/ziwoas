@@ -7,8 +7,7 @@ defmodule Ziwoas.Collector do
       │                             ShellyStatusHandler
       ├── Ziwoas.Solakon.Monitor    Modbus TCP (the scheduler's solakon_monitor and
       │                             solakon_snapshot jobs read through it)
-      ├── ziwoas-phoenix-fritz      MQTT publisher for the Fritz bridges
-      ├── Ziwoas.Fritz.Bridge ×n    one per Fritz!DECT plug
+      ├── Ziwoas.Fritz.Bridge ×n    one per Fritz!DECT plug, recording in-process
       ├── Ziwoas.Govee.Tasks        Task.Supervisor: the bridge's Platform API calls
       ├── Ziwoas.Govee.Bridge       LAN + Platform API, reports to Ziwoas.Lights
       └── ziwoas-phoenix-command    MQTT publisher: plug switches
@@ -100,21 +99,8 @@ defmodule Ziwoas.Collector do
             timeout_s: config.fritz_poll.timeout_seconds
           )
 
-        publisher =
-          Mqtt.connection_spec(
-            Ziwoas.Fritz.Bridge.client_id(),
-            config.mqtt,
-            {Tortoise311.Handler.Logger, []}
-          )
-
-        [publisher] ++
-          for plug <- plugs do
-            {Ziwoas.Fritz.Bridge,
-             plug: plug,
-             client: client,
-             poll: config.fritz_poll,
-             topic_prefix: config.mqtt.topic_prefix}
-          end
+        for plug <- plugs,
+            do: {Ziwoas.Fritz.Bridge, plug: plug, client: client, poll: config.fritz_poll}
     end
   end
 

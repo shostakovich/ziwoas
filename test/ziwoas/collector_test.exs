@@ -55,7 +55,6 @@ defmodule Ziwoas.CollectorTest do
     assert ids(Collector.children(@config)) == [
              {Ziwoas.Mqtt, "ziwoas-phoenix-ingest"},
              {Ziwoas.Solakon.Monitor, nil},
-             {Ziwoas.Mqtt, "ziwoas-phoenix-fritz"},
              {Ziwoas.Fritz.Bridge, "washer"},
              {Task.Supervisor, nil},
              {Ziwoas.Govee.Bridge, nil},
@@ -103,7 +102,6 @@ defmodule Ziwoas.CollectorTest do
              Enum.find(Collector.children(@config), &match?({Ziwoas.Fritz.Bridge, _}, &1))
 
     assert opts[:plug].id == "washer"
-    assert opts[:topic_prefix] == "shellies"
     assert %Ziwoas.Fritz.DectClient{host: "fritz.box", user: "u", timeout_s: 2} = opts[:client]
   end
 

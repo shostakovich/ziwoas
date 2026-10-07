@@ -243,7 +243,7 @@ defmodule Ziwoas.Weather.SyncTest do
     end
 
     setup do
-      Repo.insert!(%DailyTotal{plug_id: "bkw", date: "2026-05-01", energy_wh: 1000.0})
+      Repo.insert!(%DailyTotal{plug_id: "bkw", date: ~D[2026-05-01], energy_wh: 1000.0})
       stub_brightsky(%{"2026-05-01" => [hour("2026-05-01T10:00:00+00:00")]})
       :ok
     end

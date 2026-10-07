@@ -1,13 +1,13 @@
-defmodule Ziwoas.PowerSeries do
+defmodule Ziwoas.Energy.PowerSeries do
   @moduledoc """
   The average power of a set of plugs over a run of equal time buckets.
   Producers report with the opposite sign; the roster applies that convention
   once, so every reader sees production as a positive magnitude.
 
-  A reading without a watt value counts as 0.0 W.
+  A reading without a watt value counts as 0.0 W. `Ziwoas.Energy.power_series/4`
+  builds one from raw samples.
   """
   alias Ziwoas.Plugs.Roster
-  alias Ziwoas.Repo
 
   defmodule Bucket do
     @moduledoc "Role totals of one bucket, in watts."
@@ -44,45 +44,12 @@ defmodule Ziwoas.PowerSeries do
     }
   end
 
-  @doc "From `samples_5min` rows (anything with plug_id, bucket_ts and avg_power_w)."
+  @doc "From five-minute means (anything with plug_id, bucket_ts and avg_power_w)."
   @spec from_5min([map], Roster.t() | list) :: t
   def from_5min(rows, plugs) do
     rows
     |> Enum.map(&{&1.plug_id, &1.bucket_ts, &1.avg_power_w})
     |> new(plugs, @sample_5min_bucket_seconds)
-  end
-
-  @doc "Averages raw `samples` per bucket in SQLite; no query at all without plugs."
-  @spec from_samples(Roster.t() | list, integer, integer, integer) :: t
-  def from_samples(plugs, start_ts, end_ts, bucket_seconds) do
-    roster = Roster.new(plugs)
-
-    new(
-      sample_readings(Roster.ids(roster), start_ts, end_ts, bucket_seconds),
-      roster,
-      bucket_seconds
-    )
-  end
-
-  @doc "SQL that floors `ts` to the bucket width (SQLite integer division truncates toward zero)."
-  @spec bucket_ts_sql(pos_integer) :: String.t()
-  def bucket_ts_sql(bucket_seconds) when is_integer(bucket_seconds),
-    do: "(ts / #{bucket_seconds}) * #{bucket_seconds}"
-
-  defp sample_readings([], _start_ts, _end_ts, _bucket_seconds), do: []
-
-  defp sample_readings(plug_ids, start_ts, end_ts, bucket_seconds) do
-    sql = """
-    SELECT plug_id,
-           #{bucket_ts_sql(bucket_seconds)} AS bucket_ts,
-           AVG(apower_w) AS avg_power_w
-      FROM samples
-     WHERE plug_id IN (#{Enum.map_join(plug_ids, ", ", fn _ -> "?" end)}) AND ts >= ? AND ts < ?
-     GROUP BY plug_id, bucket_ts
-    """
-
-    %{rows: rows} = Repo.query!(sql, plug_ids ++ [start_ts, end_ts])
-    Enum.map(rows, fn [plug_id, bucket_ts, avg_power_w] -> {plug_id, bucket_ts, avg_power_w} end)
   end
 
   @spec buckets(t) :: [Bucket.t()]

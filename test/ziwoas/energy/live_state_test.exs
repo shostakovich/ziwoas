@@ -1,7 +1,7 @@
-defmodule Ziwoas.LiveStateTest do
+defmodule Ziwoas.Energy.LiveStateTest do
   use Ziwoas.DataCase
 
-  alias Ziwoas.{Config, LiveState, Location, Repo}
+  alias Ziwoas.{Config, Energy, Location, Repo}
   alias Ziwoas.Plugs.{Measurement, Plug}
   alias Ziwoas.Solakon.Reading
 
@@ -33,7 +33,7 @@ defmodule Ziwoas.LiveStateTest do
     }
   end
 
-  defp live(opts \\ []), do: LiveState.build(config(), @now, opts)
+  defp live(opts \\ []), do: Energy.live_state(config(), @now, opts)
 
   defp row(state, id), do: Enum.find(state.plugs, &(&1.id == id))
 
@@ -130,7 +130,7 @@ defmodule Ziwoas.LiveStateTest do
     reading(2)
 
     for solakon <- [solakon(false), nil] do
-      flow = LiveState.build(config(solakon: solakon), @now).energy_flow
+      flow = Energy.live_state(config(solakon: solakon), @now).energy_flow
 
       assert flow.solakon_online == false
       assert flow.home_w == 120.0
@@ -140,7 +140,7 @@ defmodule Ziwoas.LiveStateTest do
   end
 
   test "an empty plug roster yields no plug lines and an unknown home figure" do
-    state = LiveState.build(config(plugs: []), @now)
+    state = Energy.live_state(config(plugs: []), @now)
 
     assert state.plugs == []
     assert state.energy_flow.home_w == nil
@@ -160,7 +160,7 @@ defmodule Ziwoas.LiveStateTest do
   test "a fractional now is truncated to the whole second both Fristen are measured from" do
     sample("desk", Measurement.offline_after_s(), 120.0)
 
-    state = LiveState.build(config(), DateTime.add(@now, 900_000, :microsecond))
+    state = Energy.live_state(config(), DateTime.add(@now, 900_000, :microsecond))
 
     assert %{online: true, last_seen_ts: 999_880} = row(state, "desk")
   end

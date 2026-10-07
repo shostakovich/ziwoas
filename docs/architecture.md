@@ -50,7 +50,7 @@ time).
   (`{:http_status, 500}`) or Req's exception. In tests every client
   is a `Req.Test` stub under its module name (`config :ziwoas, http_stubs: true`, compile time).
 - **Live updates**: each context owns its PubSub topic. `Ziwoas.Plugs.subscribe/0`
-  (`{:live, deltas}`), `Ziwoas.Solakon.subscribe/0` (`{:reading, reading}`,
+  (`{:live, deltas}`, `{:aggregated, date}`), `Ziwoas.Solakon.subscribe/0` (`{:reading, reading}`,
   `{:snapshot, snapshot}`),
   `Ziwoas.Lights.subscribe/0,1` (`{:updated, key}`), `Ziwoas.Sensors.subscribe/0`
   (`{:polled, instant}`), `Ziwoas.Weather.subscribe/0` (`{:synced, date}`). Until the pages
@@ -66,8 +66,7 @@ Ziwoas.Collector
 ├── ziwoas-phoenix-ingest    MQTT: Ziwoas.Collector.MqttRouter
 │                            └── Ziwoas.Plugs.ShellyStatusHandler
 ├── Ziwoas.Solakon.Monitor   the Modbus TCP connection to the inverter
-├── ziwoas-phoenix-fritz     MQTT publisher for the Fritz bridges
-├── Ziwoas.Fritz.Bridge ×n   one per fritz_dect plug
+├── Ziwoas.Fritz.Bridge ×n   one per fritz_dect plug, recording in-process
 ├── Ziwoas.Govee.Tasks       Task.Supervisor for the bridge's Platform API calls
 ├── Ziwoas.Govee.Bridge      LAN (UDP 4002) + Platform API, in-process with Ziwoas.Lights
 └── ziwoas-phoenix-command   MQTT publisher: plug switches
@@ -78,14 +77,23 @@ Ziwoas.Collector
   time (`config :ziwoas, :mqtt_publisher`: `Mqtt.Broker`, in tests `Ziwoas.TestMqtt`). Tortoise
   reconnects with backoff (1 s to 60 s). Client ids are fixed, so two instances must not share
   a broker.
-- **Plugs.** Shelly plugs report `<prefix>/<plug>/status/switch:0`. `ShellyStatusHandler` writes
-  a `samples` row per status (and `plug_states` when the status carries `output`), collects live
-  deltas per plug and sends them at most every 5 s through `Plugs.notify_live/1` (also
-  `{:dashboard_live, deltas}` on `dashboard`). `Plugs.latest_measurements/2,3` is the one query
-  for each plug's newest sample and whether it is offline.
-  Fritz!DECT plugs are polled by `Ziwoas.Fritz.Bridge` through `Ziwoas.Fritz.DectClient` (AHA
-  HTTP, MD5 or PBKDF2 challenge, `:xmerl`, `:crypto`) and published as Shelly-shaped status, so
-  they take the same path.
+- **Plugs.** `Ziwoas.Plugs` owns samples, relay states, five-minute means and daily totals and
+  answers every query on them (`latest_measurements/2,3`, `energy_wh/3`, `mean_power/4`,
+  `samples_5min/2`, `daily_totals/2,3`, …); the counters' plausibility-capped steps are one
+  Ecto query (`Plugs.EnergyDeltas`, window functions). Every reading goes through
+  `Ziwoas.Plugs.Ingest`: a `samples` row (and `plug_states` when it carries an `output`), and a
+  live delta per plug, sent at most every 5 s through `Plugs.notify_live/1` (also
+  `{:dashboard_live, deltas}` on `dashboard` for the pages not yet on `Plugs.subscribe/0`).
+  Shelly plugs report `<prefix>/<plug>/status/switch:0` to `ShellyStatusHandler`; Fritz!DECT
+  plugs are polled by `Ziwoas.Fritz.Bridge` through `Ziwoas.Fritz.DectClient` (AHA HTTP, MD5 or
+  PBKDF2 challenge, `:xmerl`, `:crypto`; `{:error, reason, client}` with an atom, a tuple or
+  Req's exception), which hands each reading to its own `Ingest` in-process, no MQTT.
+- **Energy.** `Ziwoas.Energy` turns plug data into energy figures: today's balance
+  (`today/2`, `%Energy.Balance{}`), the live picture with its energy flow (`live_state/3`),
+  power series (`power_series/4`, `power_by_plug/4`), the daily summaries (`summarize_day/3`,
+  `daily_summaries/0,2`, table `daily_energy_summary`) and the report over a range
+  (`report/2`). Amounts are `Energy.Amount` (Wh). `Ziwoas.Economics` prices them
+  (`savings_eur/3`, `total_savings_eur/2`, `overview/1`).
 - **Lamps.** `Ziwoas.Govee.Bridge` talks to `Ziwoas.Lights` in-process, no MQTT: it loads the
   lamps from the Platform API (`PlatformApi`, `DeviceRegistry`) and hands each to
   `Lights.put_lamp/1`, discovers and polls them on the LAN (`Lan`, multicast
@@ -139,9 +147,11 @@ skips it, nothing is made up after downtime, and a failure is logged, not retrie
 - **Sensors.** `Ziwoas.Sensors` owns `sensor_readings` (`create_reading/3`, the queries) and
   what a reading means: `co2_level/1`, `battery_low?/1`, `offline?/2`, `age_s/2`. `PollJob`
   stores through it, then tells `Sensors`' subscribers (the Sensoren and Wetter pages).
-- **Aggregation.** `Ziwoas.Plugs.Aggregator` folds each finished local day of `samples` into
-  `samples_5min`, `daily_totals` and `daily_energy_summary` (in SQL), and purges raw samples older
-  than 7 days. `Aggregator.backup!/3` writes `VACUUM INTO` copies to `config :ziwoas, :backup_dir`
+- **Aggregation.** `Ziwoas.Plugs.aggregate/3` (`Plugs.Aggregator`, plain functions) folds each
+  finished local day of `samples` into `samples_5min` and `daily_totals` (Ecto queries over
+  `EnergyDeltas`, inserted in SQLite) and `daily_energy_summary` (`Energy.summarize_day/3`, in the
+  same transaction), purges raw samples older than 7 days and tells `Plugs`' subscribers
+  `{:aggregated, today}`. `Plugs.backup!/3` writes `VACUUM INTO` copies to `config :ziwoas, :backup_dir`
   (`backup/` next to the database) and keeps seven. `Ziwoas.Solakon.PvHourAggregator` condenses
   the day's readings and snapshots into `solakon_pv_hours` (Ecto queries, grouped by the local
   clock hour).
@@ -230,18 +240,17 @@ title is `<.header>`.
 
 | Route | LiveView | Live updates (PubSub topic) |
 | --- | --- | --- |
-| `/` | `DashboardLive` | `dashboard`, `solakon`; day tiles refreshed by a minute timer |
+| `/` | `DashboardLive` | `Plugs` (`{:live, deltas}`, `{:aggregated, date}`), `Solakon` (`{:reading, _}`); day tiles recomputed on plug events at most once a minute and at local midnight; charts as `"today_chart:data"` (also hourly, the 24 h window sliding), `"today_chart:deltas"`, `"history_chart:data"` |
 | `/solakon` | `SolakonLive` | `Plugs`, `Solakon`; sun calendar, shading and Wirtschaftlichkeit by `assign_async`; EPS and control switches as events, written by `start_async` |
 | `/solakon/history` | `SolakonHistoryLive` | `Solakon` (a snapshot refreshes it); `?range=24h|7d|30d` |
 | `/solakon/wirtschaftlichkeit` | `EconomicsLive` | cost items and electricity prices, changeset forms |
 | `/weather` | `WeatherLive` | `Weather` (`{:synced, date}`), `Sensors` (`{:polled, instant}`, the outdoor sensor) |
-| `/reports` | `ReportsLive` | none; range in the query |
+| `/reports` | `ReportsLive` | none; range in the query (`ZiwoasWeb.ReportRange`, an embedded schema); charts as `"energy_report:data"` (`ZiwoasWeb.Charts.EnergyReport`) |
 | `/sensors` | `SensorsLive` | `Sensors` (`{:polled, instant}`); chart data as `"sensors_chart:data"` |
 | `/switches` | `SwitchesLive` | `Plugs` (plug rows), `Lights` (lamp tiles); plug button (`start_async`), schedule editor and lamp tiles as events |
 | `/lights/:key` | `LightLive` | `Lights` for its key; commands (`ZiwoasWeb.LightEvents`), sliders as debounced forms, tabs as an assign, settings sheet |
 
-Plain controllers: `GET /api/today`, `/api/today/summary`, `/api/history` (`ApiController`,
-JSON, internal consumers only), `GET /up` (`HealthController`:
+The one plain controller: `GET /up` (`HealthController`:
 `{"status":"up"}`, or 503 with the config error). Without a loaded device config every page
 is a 503 naming the error (`ZiwoasWeb.Plugs.RequireConfig` in `:browser`). In production `ZiwoasWeb.ForwardedSSL` treats a request the
 reverse proxy forwarded as HTTPS (`X-Forwarded-Proto`) as HTTPS, with HSTS and Secure cookies;
@@ -249,9 +258,12 @@ plain HTTP straight to port 3000 stays HTTP.
 
 **Hooks** (`assets/js/hooks/`, registered in `assets/js/app.js`): `EnergyFlow`, `TodayChart`,
 `HistoryChart`, `LiveFreshness` (dashboard, PV page), `SolakonHistory`, `EnergyReport`,
-`SensorsChart`, `LightDetail` (the colour wheel only), `SettingsSheet`. `SensorsChart` only draws what its LiveView
-pushes (`push_event` on connected mount and on every poll); it fetches nothing and keeps no
-timer. The Solakon-Verlauf is `ZiwoasWeb.SolakonHistoryComponent`, shared by both Solakon pages:
+`SensorsChart`, `LightDetail` (the colour wheel only), `SettingsSheet`. `TodayChart`, `HistoryChart`,
+`EnergyReport` and `SensorsChart` only draw what their LiveView pushes (`push_event` on
+connected mount and on PubSub events); they fetch nothing and keep no timer. The dashboard's and
+the report's payloads are built in the web (`ZiwoasWeb.Charts.Dashboard`,
+`ZiwoasWeb.Charts.EnergyReport`). `LiveFreshness` only dims the page once the beats stop; a
+rejoined LiveView pushes its charts afresh. The Solakon-Verlauf is `ZiwoasWeb.SolakonHistoryComponent`, shared by both Solakon pages:
 it pushes `"solakon_history:data"` (`%{range, times, datasets}`, times in epoch ms) on connect,
 on a range tab and on every stored snapshot, and `SolakonHistory` only draws it. Charts are Chart.js
 (`assets/vendor/chart.umd.js`), painted through `assets/js/lib/chart_theme.js` and updated in
@@ -270,7 +282,8 @@ Ecto migrations in `priv/repo/migrations/` own the schema. Schemas `use Ziwoas.S
 | `samples` | `Plugs.Sample` | raw measurements; key `(plug_id, ts)`, `ts` in Unix seconds |
 | `samples_5min` | `Plugs.Sample5min` | five-minute means; `bucket_ts` in Unix seconds |
 | `daily_totals` | `Plugs.DailyTotal` | energy per plug and local day |
-| `daily_energy_summary` | `EnergyReport.DailyEnergySummary` | produced, consumed, self-consumed Wh per day |
+| `daily_energy_summary` | `Energy.DailySummary` | produced, consumed, self-consumed Wh per day; `date` a `:date` (ISO text, as in `daily_totals` and `electricity_prices`) |
+
 | `plug_states` | `Plugs.State` | last relay output per plug |
 | `switch_rules` | `Switching.Rule` | switch times |
 | `switch_commands` | `Switching.Command` | every switch sent, manual or scheduled |

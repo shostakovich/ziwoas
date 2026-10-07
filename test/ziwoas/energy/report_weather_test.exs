@@ -1,7 +1,7 @@
-defmodule Ziwoas.EnergyReport.WeatherLoaderTest do
+defmodule Ziwoas.Energy.ReportWeatherTest do
   use Ziwoas.DataCase
 
-  alias Ziwoas.EnergyReport.WeatherLoader
+  alias Ziwoas.Energy.ReportWeather, as: WeatherLoader
   alias Ziwoas.{Location, Repo}
   alias Ziwoas.Weather.Record
 
@@ -22,18 +22,18 @@ defmodule Ziwoas.EnergyReport.WeatherLoaderTest do
 
     daily = WeatherLoader.daily(location(), ~D[2026-05-01], ~D[2026-05-01])
 
-    assert Map.keys(daily) == ["2026-05-01"]
-    assert_in_delta daily["2026-05-01"].solar_kwh_per_m2, 0.65, 0.001
+    assert Map.keys(daily) == [~D[2026-05-01]]
+    assert_in_delta daily[~D[2026-05-01]].solar_kwh_per_m2, 0.65, 0.001
     # rain dominates day-only severity vs clear / partly-cloudy
-    assert daily["2026-05-01"].asset_name == "weather_rain_day.webp"
-    assert daily["2026-05-01"].alt == "rain"
+    assert daily[~D[2026-05-01]].daytime == "day"
+    assert daily[~D[2026-05-01]].icon == "rain"
   end
 
   test "daily skips days without records" do
     historic!(~U[2026-05-01 12:00:00Z], solar: 0.4, icon: "clear-day", daytime: "day")
 
     assert Map.keys(WeatherLoader.daily(location(), ~D[2026-04-30], ~D[2026-05-02])) == [
-             "2026-05-01"
+             ~D[2026-05-01]
            ]
   end
 
@@ -46,7 +46,7 @@ defmodule Ziwoas.EnergyReport.WeatherLoaderTest do
     assert length(hourly) == 2
     assert hd(hourly).ts == unix(~U[2026-05-01 10:00:00Z])
     assert_in_delta hd(hourly).solar_w_per_m2, 400.0, 1.0e-9
-    assert hd(hourly).asset_name == "weather_clear_day.webp"
+    assert {hd(hourly).icon, hd(hourly).daytime} == {"clear-day", "day"}
   end
 
   test "a location without coordinates has no weather to report" do
@@ -69,7 +69,7 @@ defmodule Ziwoas.EnergyReport.WeatherLoaderTest do
     assert Map.keys(
              WeatherLoader.daily(location("America/New_York"), ~D[2026-04-30], ~D[2026-05-01])
            ) ==
-             ["2026-04-30"]
+             [~D[2026-04-30]]
   end
 
   test "historic range boundaries use the configured timezone" do
@@ -83,16 +83,16 @@ defmodule Ziwoas.EnergyReport.WeatherLoaderTest do
     historic!(~U[2026-05-01 12:00:00Z], solar: 0.3, icon: "clear-day", daytime: "day")
     historic!(~U[2026-05-01 19:00:00Z], solar: 0.0, icon: "thunderstorm", daytime: "night")
 
-    day = WeatherLoader.daily(location(), ~D[2026-05-01], ~D[2026-05-01])["2026-05-01"]
+    day = WeatherLoader.daily(location(), ~D[2026-05-01], ~D[2026-05-01])[~D[2026-05-01]]
 
-    assert day.alt == "clear"
-    assert day.asset_name == "weather_clear_day.webp"
+    assert day.icon == "clear"
+    assert day.daytime == "day"
   end
 
   test "the day's icon falls back to all records when none are marked daytime" do
     historic!(~U[2026-05-01 19:00:00Z], solar: 0.0, icon: "clear-night", daytime: "night")
 
-    assert WeatherLoader.daily(location(), ~D[2026-05-01], ~D[2026-05-01])["2026-05-01"].alt ==
+    assert WeatherLoader.daily(location(), ~D[2026-05-01], ~D[2026-05-01])[~D[2026-05-01]].icon ==
              "clear"
   end
 
@@ -123,7 +123,7 @@ defmodule Ziwoas.EnergyReport.WeatherLoaderTest do
   test "solar is nil rather than zero when every record's reading is missing" do
     historic!(~U[2026-05-01 10:00:00Z], solar: nil, icon: "clear-day", daytime: "day")
 
-    assert WeatherLoader.daily(location(), ~D[2026-05-01], ~D[2026-05-01])["2026-05-01"].solar_kwh_per_m2 ==
+    assert WeatherLoader.daily(location(), ~D[2026-05-01], ~D[2026-05-01])[~D[2026-05-01]].solar_kwh_per_m2 ==
              nil
   end
 
@@ -133,15 +133,15 @@ defmodule Ziwoas.EnergyReport.WeatherLoaderTest do
 
     daily = WeatherLoader.daily(location(), ~D[2026-05-01], ~D[2026-05-02])
 
-    assert daily["2026-05-01"].solar_kwh_per_m2 == 0.123
-    assert daily["2026-05-02"].solar_kwh_per_m2 == 0.001
+    assert daily[~D[2026-05-01]].solar_kwh_per_m2 == 0.123
+    assert daily[~D[2026-05-02]].solar_kwh_per_m2 == 0.001
   end
 
-  test "the hourly alt is the raw icon, an empty string for none" do
+  test "the hourly icon is the raw one, nil for none" do
     historic!(~U[2026-05-01 10:00:00Z], solar: 0.3, icon: "clear-day", daytime: "day")
     historic!(~U[2026-05-01 11:00:00Z], solar: 0.3, icon: nil, daytime: "day")
 
-    assert Enum.map(WeatherLoader.hourly(location(), ~D[2026-05-01], ~D[2026-05-01]), & &1.alt) ==
-             ["clear-day", ""]
+    assert Enum.map(WeatherLoader.hourly(location(), ~D[2026-05-01], ~D[2026-05-01]), & &1.icon) ==
+             ["clear-day", nil]
   end
 end

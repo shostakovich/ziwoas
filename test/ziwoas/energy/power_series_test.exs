@@ -1,8 +1,9 @@
-defmodule Ziwoas.PowerSeriesTest do
+defmodule Ziwoas.Energy.PowerSeriesTest do
   use ExUnit.Case, async: true
 
+  alias Ziwoas.Energy
+  alias Ziwoas.Energy.PowerSeries
   alias Ziwoas.Plugs.Plug
-  alias Ziwoas.PowerSeries
 
   @plugs [
     %Plug{id: "bkw", name: "BKW", role: :producer},
@@ -10,9 +11,9 @@ defmodule Ziwoas.PowerSeriesTest do
     %Plug{id: "tv", name: "TV", role: :consumer}
   ]
 
-  test "from_samples skips the query when no plugs are given" do
+  test "power_series skips the query when no plugs are given" do
     Ziwoas.Repo.put_dynamic_repo(:no_such_repo)
-    series = PowerSeries.from_samples([], 0, 86_400, 300)
+    series = Energy.power_series([], 0, 86_400, 300)
 
     assert PowerSeries.buckets(series) == []
     assert PowerSeries.self_consumed_wh(series, 5.0, 5.0) === 0.0
@@ -52,9 +53,5 @@ defmodule Ziwoas.PowerSeriesTest do
     assert_in_delta PowerSeries.self_consumed_wh(series, 1000.0, 1000.0), 60.0, 1.0e-9
     assert PowerSeries.self_consumed_wh(series, 1000.0, 30) === 30.0
     assert PowerSeries.self_consumed_wh(series, 20, 1000.0) === 20.0
-  end
-
-  test "bucket_ts_sql floors to the bucket width" do
-    assert PowerSeries.bucket_ts_sql(300) == "(ts / 300) * 300"
   end
 end

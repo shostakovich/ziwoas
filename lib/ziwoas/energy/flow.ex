@@ -1,4 +1,4 @@
-defmodule Ziwoas.EnergyFlow do
+defmodule Ziwoas.Energy.Flow do
   @moduledoc """
   Where the power goes right now: the house's draw from
   the consumer plugs, the inverter's fresh reading, and the six flows between
@@ -101,15 +101,6 @@ defmodule Ziwoas.EnergyFlow do
       grid_w: float(grid_w),
       flows: Flows.split(home_w, solar_w, battery_w, grid_w)
     }
-  end
-
-  @doc "The state as JSON, for the `EnergyFlow` hook's `data-state`."
-  @spec to_json(t) :: String.t()
-  def to_json(%__MODULE__{} = flow) do
-    flow
-    |> Map.from_struct()
-    |> Map.update!(:flows, &Map.from_struct/1)
-    |> JSON.encode!()
   end
 
   defp float(nil), do: nil

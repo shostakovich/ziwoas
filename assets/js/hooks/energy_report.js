@@ -3,9 +3,9 @@ import { renderChart, vizToken, tonesByOrder, timeCategoryScale, localMidnight, 
 const DAILY_ICONS_PADDING = 44
 const DETAIL_ICONS_PADDING = 38
 
-// The Berichte page's three charts from the payload island, with the weather icons from
-// the asset island. The "Wetter einblenden" switches (data-weather-toggle) show the weather
-// series in place; a new payload redraws every chart.
+// The Berichte page's three charts, pushed as "energy_report:data" for every range, with
+// the weather icons' asset paths. The "Wetter einblenden" switches (data-weather-toggle)
+// show the weather series in place; a new payload redraws every chart.
 export default {
   mounted() {
     this.charts = {}
@@ -15,11 +15,7 @@ export default {
       if (toggle) this.toggleWeather(toggle.dataset.weatherToggle, toggle.checked)
     }
     this.el.addEventListener("change", this.onChange)
-    this.load()
-  },
-
-  updated() {
-    if (this.island("payload") !== this.payloadText) this.load()
+    this.handleEvent("energy_report:data", (payload) => this.load(payload))
   },
 
   destroyed() {
@@ -27,21 +23,6 @@ export default {
     this.el.removeEventListener("change", this.onChange)
     Object.values(this.charts).forEach((chart) => chart.destroy())
     this.charts = {}
-  },
-
-  island(name) {
-    return this.el.querySelector(`script[data-island="${name}"]`)?.textContent
-  },
-
-  readIsland(name, fallback) {
-    const text = this.island(name)
-    if (text === undefined) return fallback
-    try {
-      return JSON.parse(text)
-    } catch (error) {
-      console.error(`energy report ${name} parse failed:`, error)
-      return fallback
-    }
   },
 
   canvas(name) {
@@ -53,12 +34,12 @@ export default {
     return !toggle || toggle.checked
   },
 
-  async load() {
-    this.payloadText = this.island("payload")
-    this.payload = this.readIsland("payload", { daily: {}, detail: {} })
-    this.consumerTones = tonesByOrder((this.payload.daily?.consumer_series || []).map((series) => series.plug_id))
-    await this.preloadIcons(this.readIsland("weather-assets", {}))
-    if (this.gone) return
+  async load(payload) {
+    this.payload = payload
+    this.consumerTones = tonesByOrder((payload.daily?.consumer_series || []).map((series) => series.plug_id))
+    await this.preloadIcons(payload.weather_assets || {})
+    if (this.gone || this.payload !== payload) return
+
     this.draw("daily", this.dailyConfig())
     this.draw("ratios", this.ratiosConfig())
     this.draw("detail", this.detailConfig())
