@@ -7,6 +7,9 @@ end
 config :ziwoas, ZiwoasWeb.Endpoint,
   http: [port: String.to_integer(System.get_env("PORT", "4000"))]
 
+# The Shelly plugs' outbound websockets connect here (Ziwoas.Shelly.Listener).
+config :ziwoas, shelly_port: String.to_integer(System.get_env("SHELLY_PORT", "4001"))
+
 # A release (prod) names every path; development and tests default to this checkout.
 path_env = fn name, example, default ->
   cond do

@@ -1,21 +1,22 @@
 defmodule Ziwoas.Switching.Commander do
   @moduledoc """
-  The single choke point for switching plugs: publishes the command over the
-  command connection (`Ziwoas.Mqtt.publish/4`) and logs it to `switch_commands`
-  only after the publish went out.
+  The single choke point for switching plugs: sends `Switch.Set` to the plug's
+  Shelly (`Ziwoas.Shelly.call/4`) and, once the plug confirmed it, stores its relay
+  state and logs the command to `switch_commands`.
   """
-  alias Ziwoas.{Mqtt, Repo}
+  alias Ziwoas.{Plugs, Repo, Shelly}
   alias Ziwoas.Plugs.Plug
   alias Ziwoas.Switching.Command
 
-  @type error :: :not_switchable | {:no_driver, atom} | {:publish, term}
+  @type error :: :not_switchable | {:no_driver, atom} | {:unreachable, Shelly.error()}
 
-  @spec switch(Plug.t(), Command.action(), Command.source(), Ziwoas.Config.Mqtt.t()) ::
+  @spec switch(Plug.t(), Command.action(), Command.source()) ::
           {:ok, Command.t()} | {:error, error}
-  def switch(plug, action, source, mqtt)
+  def switch(plug, action, source)
       when action in [:on, :off] and source in [:manual, :schedule] do
     with :ok <- switchable(plug),
-         :ok <- publish(plug, action, mqtt) do
+         :ok <- send_switch(plug, action) do
+      Plugs.record_output(plug.id, action == :on)
       {:ok, Repo.insert!(%Command{plug_id: plug.id, action: action, source: source})}
     end
   end
@@ -23,14 +24,12 @@ defmodule Ziwoas.Switching.Commander do
   defp switchable(%Plug{switchable: true}), do: :ok
   defp switchable(_plug), do: {:error, :not_switchable}
 
-  defp publish(%Plug{driver: :shelly} = plug, action, mqtt) do
-    topic = "#{mqtt.topic_prefix}/#{plug.id}/command/switch:0"
-
-    case Mqtt.publish(Mqtt.command_client_id(), topic, Atom.to_string(action)) do
-      :ok -> :ok
-      {:error, reason} -> {:error, {:publish, reason}}
+  defp send_switch(%Plug{driver: :shelly} = plug, action) do
+    case Shelly.call(plug.id, "Switch.Set", %{id: 0, on: action == :on}) do
+      {:ok, _result} -> :ok
+      {:error, reason} -> {:error, {:unreachable, reason}}
     end
   end
 
-  defp publish(plug, _action, _mqtt), do: {:error, {:no_driver, plug.driver}}
+  defp send_switch(plug, _action), do: {:error, {:no_driver, plug.driver}}
 end

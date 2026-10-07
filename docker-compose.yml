@@ -5,11 +5,13 @@ services:
     container_name: ziwoas
     restart: unless-stopped
     # The Govee LAN protocol answers via multicast on UDP 4002, which never crosses a
-    # Docker bridge network; Modbus, MQTT and the Fritz!Box are on the LAN too.
+    # Docker bridge network; Modbus and the Fritz!Box are on the LAN too, and the
+    # Shelly plugs connect to SHELLY_PORT.
     network_mode: host
     environment:
       TZ: Europe/Berlin
       PORT: 3000
+      SHELLY_PORT: 3001
       SECRET_KEY_BASE: ${SECRET_KEY_BASE:?generate one with: openssl rand -hex 64}
       PHX_HOST: ${PHX_HOST:-localhost}
       # Hosts the browser reaches ZiWoAS under, for LiveView's origin check.

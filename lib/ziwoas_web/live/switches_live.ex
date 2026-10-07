@@ -17,9 +17,9 @@ defmodule ZiwoasWeb.SwitchesLive do
   alias Ziwoas.{Clock, Config, Lights, Plugs, Switching}
   alias ZiwoasWeb.LightEvents
 
-  @failed "Schalten fehlgeschlagen — MQTT-Broker nicht erreichbar"
+  @failed "Schalten fehlgeschlagen — Steckdose nicht erreichbar"
 
-  @doc "The flash for a switch the broker did not take."
+  @doc "The flash for a switch the plug did not confirm."
   def failed_message, do: @failed
 
   @impl true
@@ -50,11 +50,9 @@ defmodule ZiwoasWeb.SwitchesLive do
         {:noreply, socket}
 
       plug ->
-        mqtt = mqtt()
-
         {:noreply,
          start_async(socket, {:switch, plug.id}, fn ->
-           Switching.switch(plug, action, :manual, mqtt)
+           Switching.switch(plug, action, :manual)
          end)}
     end
   end
@@ -221,8 +219,6 @@ defmodule ZiwoasWeb.SwitchesLive do
 
   defp plug(socket, plug_id),
     do: Enum.find_value(socket.assigns.rows, &(&1.plug.id == plug_id && &1.plug))
-
-  defp mqtt, do: Config.get().mqtt
 
   @impl true
   def render(assigns) do

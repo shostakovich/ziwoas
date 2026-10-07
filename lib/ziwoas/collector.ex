@@ -3,31 +3,25 @@ defmodule Ziwoas.Collector do
   The device connections as a supervision tree, one child per connection or device:
 
       Ziwoas.Collector (one_for_one)
-      ├── ziwoas-phoenix-ingest     MQTT: Ziwoas.Collector.MqttRouter with
-      │                             ShellyStatusHandler
+      ├── Ziwoas.Shelly.Listener    Bandit on `:shelly_port`: the Shelly plugs'
+      │                             outbound websockets (Ziwoas.Shelly.Connection)
       ├── Ziwoas.Solakon.Monitor    Modbus TCP (the scheduler's solakon_monitor and
       │                             solakon_snapshot jobs read through it)
       ├── Ziwoas.Fritz.Bridge ×n    one per Fritz!DECT plug, recording in-process
       ├── Ziwoas.Govee.Tasks        Task.Supervisor: the bridge's Platform API calls
-      ├── Ziwoas.Govee.Bridge       LAN + Platform API, reports to Ziwoas.Lights
-      └── ziwoas-phoenix-command    MQTT publisher: plug switches
+      └── Ziwoas.Govee.Bridge       LAN + Platform API, reports to Ziwoas.Lights
 
   Each child restarts on its own; devices reconnect with backoff inside their
-  process. Tortoise311 stops a connection on some network errors (an unreachable
-  broker host) and comes back a second after its restart, so the restart intensity
-  is high enough that a crash-looping connection never takes the tree — and with it
-  the web endpoint's supervisor — down.
+  process, the Shellys by themselves. The restart intensity is high enough that a
+  crash-looping device never takes the tree — and with it the web endpoint's
+  supervisor — down. A Shelly port already in use stops the start.
   """
   use Supervisor
 
   require Logger
 
-  alias Ziwoas.Collector.MqttRouter
-  alias Ziwoas.{Config, Mqtt}
+  alias Ziwoas.{Config, Shelly}
   alias Ziwoas.Fritz.DectClient
-  alias Ziwoas.Plugs.ShellyStatusHandler
-
-  @ingest_client_id "ziwoas-phoenix-ingest"
 
   def start_link(opts),
     do: Supervisor.start_link(__MODULE__, opts, name: Keyword.get(opts, :name, __MODULE__))
@@ -44,30 +38,15 @@ defmodule Ziwoas.Collector do
   @doc "The children for a configuration: only what it configures."
   @spec children(Config.t()) :: [Supervisor.child_spec()]
   def children(%Config{} = config),
-    do:
-      mqtt_ingest(config) ++ solakon(config) ++ fritz(config) ++ govee(config) ++ commands(config)
+    do: shelly(config) ++ solakon(config) ++ fritz(config) ++ govee(config)
 
-  defp mqtt_ingest(config) do
-    handlers = [{ShellyStatusHandler, ShellyStatusHandler.new(config)}]
-
-    [
-      Mqtt.connection_spec(
-        @ingest_client_id,
-        config.mqtt,
-        {MqttRouter, handlers},
-        MqttRouter.subscriptions(handlers)
-      )
-    ]
+  defp shelly(config) do
+    if Enum.any?(config.plugs, &(&1.driver == :shelly)),
+      do: [Shelly.listener_spec(config, shelly_port())],
+      else: []
   end
 
-  defp commands(config),
-    do: [
-      Mqtt.connection_spec(
-        Mqtt.command_client_id(),
-        config.mqtt,
-        {Tortoise311.Handler.Logger, []}
-      )
-    ]
+  defp shelly_port, do: Application.fetch_env!(:ziwoas, :shelly_port)
 
   defp solakon(%Config{solakon: nil}), do: []
 

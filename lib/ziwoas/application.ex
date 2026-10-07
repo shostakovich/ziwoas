@@ -29,7 +29,11 @@ defmodule Ziwoas.Application do
   # Without a valid config Phoenix serves pages, but connects to no device and
   # schedules nothing. The endpoint starts last, once everything it serves is up.
   def children(loaded, opts) do
-    [Ziwoas.Repo, {Phoenix.PubSub, name: Ziwoas.PubSub}] ++
+    [
+      Ziwoas.Repo,
+      {Phoenix.PubSub, name: Ziwoas.PubSub},
+      {Registry, keys: :duplicate, name: Ziwoas.Shelly.registry()}
+    ] ++
       devices(loaded, opts) ++ [ZiwoasWeb.Endpoint]
   end
 

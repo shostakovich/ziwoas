@@ -22,29 +22,6 @@ defmodule Ziwoas.Config do
     defexception [:message]
   end
 
-  defmodule Mqtt do
-    @moduledoc false
-    use Ecto.Schema
-    import Ecto.Changeset
-    alias Ziwoas.Config.Types
-
-    @primary_key false
-    embedded_schema do
-      field :host, Types.Text
-      field :port, Types.Count
-      field :topic_prefix, Types.Text
-    end
-
-    @type t :: %__MODULE__{host: String.t(), port: :inet.port_number(), topic_prefix: String.t()}
-
-    def changeset(mqtt, params) do
-      mqtt
-      |> cast(params, [:host, :port, :topic_prefix])
-      |> validate_required([:host, :port, :topic_prefix], message: "is required")
-      |> validate_number(:port, greater_than: 0, message: "must be > 0")
-    end
-  end
-
   defmodule FritzPoll do
     @moduledoc false
     use Ecto.Schema
@@ -249,7 +226,6 @@ defmodule Ziwoas.Config do
   @primary_key false
   embedded_schema do
     embeds_one :location, Location
-    embeds_one :mqtt, Mqtt
     embeds_one :fritz_poll, FritzPoll
     embeds_one :fritz_box, FritzBox
     embeds_many :plugs, Plug
@@ -262,7 +238,6 @@ defmodule Ziwoas.Config do
 
   @type t :: %__MODULE__{
           location: Location.t(),
-          mqtt: Mqtt.t(),
           fritz_poll: %FritzPoll{} | nil,
           plugs: [Plug.t()],
           fritz_box: %FritzBox{} | nil,
@@ -371,11 +346,6 @@ defmodule Ziwoas.Config do
     %__MODULE__{}
     |> cast(params, [])
     |> cast_embed(:location,
-      required: true,
-      required_message: "is required",
-      invalid_message: "must be a mapping"
-    )
-    |> cast_embed(:mqtt,
       required: true,
       required_message: "is required",
       invalid_message: "must be a mapping"

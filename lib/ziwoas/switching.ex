@@ -81,10 +81,10 @@ defmodule Ziwoas.Switching do
 
   # --- Commands -----------------------------------------------------------------------
 
-  @doc "Switches the plug and logs the command once it went out (`Commander.switch/4`)."
-  @spec switch(Plug.t(), Command.action(), Command.source(), Ziwoas.Config.Mqtt.t()) ::
+  @doc "Switches the plug and logs the command once the plug confirmed it (`Commander.switch/3`)."
+  @spec switch(Plug.t(), Command.action(), Command.source()) ::
           {:ok, Command.t()} | {:error, Commander.error()}
-  defdelegate switch(plug, action, source, mqtt), to: Commander
+  defdelegate switch(plug, action, source), to: Commander
 
   @doc "Whether a manual command for the plug came after `time`."
   @spec manual_after?(String.t(), DateTime.t()) :: boolean

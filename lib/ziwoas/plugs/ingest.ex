@@ -1,13 +1,14 @@
 defmodule Ziwoas.Plugs.Ingest do
   @moduledoc """
-  A process's intake of plug readings, the one path for a Shelly status from
-  MQTT (`ShellyStatusHandler`) and a Fritz!DECT poll (`Ziwoas.Fritz.Bridge`):
+  A process's intake of plug readings, the one path for a Shelly status
+  (`Ziwoas.Shelly.Connection`) and a Fritz!DECT poll (`Ziwoas.Fritz.Bridge`):
   each reading becomes a `samples` row (and a `plug_states` row when it
   carries a relay output), and a live delta.
 
   Live deltas (a plug's newest watts and the signed mean of its current
   minute) collect per plug and go out at most every 5 s through `:broadcast`,
-  by default `Ziwoas.Plugs.notify_live/1`.
+  by default `Ziwoas.Plugs.notify_live/1`. A process whose readings may pause
+  calls `flush/1` once `pending?/1` says deltas wait.
   """
   require Logger
 
@@ -47,17 +48,20 @@ defmodule Ziwoas.Plugs.Ingest do
 
   defp unix_now_f, do: DateTime.to_unix(Clock.now(), :microsecond) / 1_000_000
 
-  @doc "Records the reading at the clock's whole second; a second reading in that second changes nothing."
+  @doc """
+  Records the reading at the clock's whole second; a second reading in that second
+  only updates the relay output.
+  """
   @spec record(t, Plug.t(), reading) :: t
   def record(%__MODULE__{} = ingest, %Plug{} = plug, reading) do
     ts = trunc(ingest.clock.())
+    if is_boolean(reading.output), do: Plugs.record_output(plug.id, reading.output)
 
     case Plugs.record_sample(plug.id, ts, reading.apower_w, reading.aenergy_wh) do
       :duplicate ->
         ingest
 
       :ok ->
-        if is_boolean(reading.output), do: Plugs.record_output(plug.id, reading.output)
         Logger.debug("Plugs.Ingest: #{plug.id} #{reading.apower_w} W")
         accumulate(ingest, plug, ts, reading)
     end
@@ -105,15 +109,30 @@ defmodule Ziwoas.Plugs.Ingest do
     %{ingest | pending: pending}
   end
 
+  @doc "Whether deltas wait for the next broadcast."
+  @spec pending?(t) :: boolean
+  def pending?(%__MODULE__{pending: pending}), do: pending != []
+
+  @doc "Sends the waiting deltas now."
+  @spec flush(t) :: t
+  def flush(%__MODULE__{pending: []} = ingest), do: ingest
+  def flush(%__MODULE__{} = ingest), do: broadcast(ingest, ingest.clock.())
+
+  @doc "The broadcast interval in seconds."
+  @spec broadcast_interval_s() :: pos_integer
+  def broadcast_interval_s, do: @broadcast_interval_s
+
   defp maybe_broadcast(ingest) do
     now = ingest.clock.()
 
-    if now - ingest.last_broadcast_at >= @broadcast_interval_s do
-      deltas = Enum.map(ingest.pending, &elem(&1, 1))
-      ingest.broadcast.(deltas)
-      %{ingest | pending: [], last_broadcast_at: now}
-    else
-      ingest
-    end
+    if now - ingest.last_broadcast_at >= @broadcast_interval_s,
+      do: broadcast(ingest, now),
+      else: ingest
+  end
+
+  defp broadcast(ingest, now) do
+    deltas = Enum.map(ingest.pending, &elem(&1, 1))
+    ingest.broadcast.(deltas)
+    %{ingest | pending: [], last_broadcast_at: now}
   end
 end

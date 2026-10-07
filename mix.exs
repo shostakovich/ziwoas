@@ -42,8 +42,8 @@ defmodule Ziwoas.MixProject do
       {:bandit, "~> 1.5"},
       {:tz, "~> 0.28"},
       {:yamerl, "~> 0.10.0"},
-      # MQTT 3.1.1 client for the collector (Phase 4): pure Elixir, reconnects with backoff.
-      {:tortoise311, "~> 0.12.3"},
+      # The Shelly plugs' outbound websockets (Ziwoas.Shelly.Listener); Phoenix brings it.
+      {:websock_adapter, "~> 0.6"},
       {:req, "~> 0.7.4"},
       {:esbuild, "~> 0.10", runtime: Mix.env() == :dev},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},

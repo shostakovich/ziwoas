@@ -2,8 +2,8 @@ defmodule Ziwoas.TestProcess do
   @moduledoc """
   State a test keeps in its process dictionary for the processes it starts as well:
   a LiveView under `Phoenix.LiveViewTest` or a `Task` (`$callers`), a
-  `start_supervised` child (`$ancestors`). `Ziwoas.TestClock` and `Ziwoas.TestMqtt`
-  keep theirs here.
+  `start_supervised` child (`$ancestors`). `Ziwoas.TestClock` keeps its
+  instant here.
   """
 
   @doc "The processes that started this one, nearest first: `$callers`, then `$ancestors`."
@@ -61,32 +61,4 @@ defmodule Ziwoas.TestClock do
 
   @impl true
   def utc_now, do: TestProcess.get(:now) || DateTime.utc_now()
-end
-
-defmodule Ziwoas.TestMqtt do
-  @moduledoc """
-  `Ziwoas.Mqtt`'s publisher in tests (`config :ziwoas, mqtt_publisher:
-  Ziwoas.TestMqtt` in config/test.exs): a test that called `record/1` and the
-  processes it starts hand their publishes to its function, any other publish
-  goes to the broker (`Ziwoas.Mqtt.Broker`, e.g. `Ziwoas.FakeMqttBroker`).
-  """
-  @behaviour Ziwoas.Mqtt
-
-  alias Ziwoas.Mqtt.Broker
-  alias Ziwoas.TestProcess
-
-  @doc """
-  `Ziwoas.Mqtt.publish/4` hands `(client_id, topic, payload)` to `fun` and returns
-  what `fun` returns (`:ok` or `{:error, reason}`).
-  """
-  @spec record((String.t(), String.t(), binary -> :ok | {:error, term})) :: :ok
-  def record(fun) when is_function(fun, 3), do: TestProcess.put(:mqtt_recorder, fun)
-
-  @impl true
-  def publish(client_id, topic, payload, opts) do
-    case TestProcess.get(:mqtt_recorder) do
-      nil -> Broker.publish(client_id, topic, payload, opts)
-      record -> record.(client_id, topic, payload)
-    end
-  end
 end
