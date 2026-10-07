@@ -15,6 +15,7 @@ defmodule ZiwoasWeb.DashboardLive do
   """
   use ZiwoasWeb, :live_view
 
+  import ZiwoasWeb.Components.EnergyFlow
   import ZiwoasWeb.DashboardComponents
 
   alias Ziwoas.{Clock, Config, EnergySummary, LiveState, Weather}
@@ -66,7 +67,7 @@ defmodule ZiwoasWeb.DashboardLive do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} look={@look} current_path={@current_path}>
-      <h1 class="h2 mb-3">Dashboard</h1>
+      <.header>Dashboard</.header>
 
       <div
         id="live_freshness"
@@ -86,17 +87,12 @@ defmodule ZiwoasWeb.DashboardLive do
           <.tile {tile(@summary_tiles, "tile_self_consumption")} />
         </div>
 
-        <.card
-          title="Energiefluss"
-          class="energy-flow-card live-dim"
-          {energy_flow_hook(@live)}
-        >
-          <.energy_flow
-            pv_asset={@weather_asset}
-            pv_alt={@weather_alt}
-            battery_asset={DashboardComponents.default_battery_asset()}
-          />
-        </.card>
+        <.energy_flow
+          live={@live}
+          pv_asset={@weather_asset}
+          pv_alt={@weather_alt}
+          class="live-dim"
+        />
 
         <h2 class="h6 text-uppercase text-body-secondary mt-4 mb-2">Steckdosen</h2>
         <.plug_bar live={@live} />

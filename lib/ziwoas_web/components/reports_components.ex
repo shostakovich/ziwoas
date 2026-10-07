@@ -5,10 +5,6 @@ defmodule ZiwoasWeb.ReportsComponents do
   """
   use ZiwoasWeb, :html
 
-  import ZiwoasWeb.DashboardComponents, only: [tile: 1]
-
-  alias ZiwoasWeb.DashboardComponents
-
   alias Ziwoas.EnergyReport
 
   @presets [{"last_7", "7 Tage"}, {"last_30", "30 Tage"}]
@@ -84,12 +80,12 @@ defmodule ZiwoasWeb.ReportsComponents do
 
   # The dashboard's energy, money and share tiles, without an id.
   defp energy_tile(label, kwh, signed \\ false),
-    do: DashboardComponents.measure(nil, label, kwh, "kWh", 2, signed)
+    do: measure_tile(nil, label, kwh, "kWh", 2, signed)
 
-  defp money_tile(label, eur), do: DashboardComponents.measure(nil, label, eur, "€", 2)
+  defp money_tile(label, eur), do: measure_tile(nil, label, eur, "€", 2)
 
   defp share_tile(label, ratio),
-    do: DashboardComponents.measure(nil, label, (ratio || 0) * 100, "%", 1)
+    do: measure_tile(nil, label, (ratio || 0) * 100, "%", 1)
 
   @doc "The eight summary tiles."
   attr :summary, :map, required: true
@@ -172,7 +168,7 @@ defmodule ZiwoasWeb.ReportsComponents do
           </span>
         </span>
         <span class="col-auto col-sm-3 col-md-2 text-end tabular-nums text-nowrap">
-          {de_number(@row.kwh, precision: 2)} kWh
+          {number(@row.kwh, precision: 2)} kWh
         </span>
       </div>
     </li>
@@ -206,7 +202,7 @@ defmodule ZiwoasWeb.ReportsComponents do
   @doc "The Leistung card's subtitle: resolution and range, the year only when it is not this one."
   def power_subtitle(%EnergyReport{detail_start_date: from, detail_end_date: to}, today) do
     resolution = if Date.diff(to, from) > 6, do: "Tagesmittel", else: "5-Min-Werte"
-    day = &Calendar.strftime(&1, if(&1.year == today.year, do: "%d.%m.", else: "%d.%m.%Y"))
+    day = &if(&1.year == today.year, do: day_month(&1), else: date(&1))
     range = if from == to, do: day.(from), else: "#{day.(from)}–#{day.(to)}"
     "Watt · #{resolution} · #{range}"
   end

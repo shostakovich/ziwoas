@@ -25,6 +25,10 @@ defmodule Ziwoas.Lights do
   @spec get_by_key(String.t()) :: Light.t() | nil
   def get_by_key(key), do: Repo.get_by(Light, key: key)
 
+  @doc "The light with `key`; raises `Ecto.NoResultsError` (a 404) when there is none."
+  @spec get_by_key!(String.t()) :: Light.t()
+  def get_by_key!(key), do: Repo.get_by!(Light, key: key)
+
   @doc "Every light by name with its state."
   @spec snapshots() :: [Snapshot.t()]
   def snapshots do

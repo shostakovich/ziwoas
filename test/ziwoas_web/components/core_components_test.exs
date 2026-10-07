@@ -139,6 +139,41 @@ defmodule ZiwoasWeb.CoreComponentsTest do
     end
   end
 
+  describe "header/1" do
+    test "an h1 set as h2, with optional controls before and after it" do
+      assigns = %{}
+
+      doc =
+        rendered_to_string(~H"""
+        <CoreComponents.header title_class="ld-title">
+          <:leading><a href="/back">←</a></:leading>
+          Stehlampe
+          <:actions><button type="button">Einstellungen</button></:actions>
+        </CoreComponents.header>
+        """)
+        |> LazyHTML.from_fragment()
+
+      assert doc |> LazyHTML.query("header.mb-3 > :first-child") |> LazyHTML.attribute("href") ==
+               ["/back"]
+
+      assert doc |> LazyHTML.query("header > h1.h2.mb-0.me-auto.ld-title") |> LazyHTML.text() =~
+               "Stehlampe"
+
+      assert doc |> LazyHTML.query("header > :last-child") |> LazyHTML.text() == "Einstellungen"
+    end
+  end
+
+  describe "measure_tile/6" do
+    test "a dash without unit when unknown, a plus on a signed non-negative value" do
+      assert CoreComponents.measure_tile("t", "Bilanz", nil, "kWh", 2, true) ==
+               %{id: "t", label: "Bilanz", number: "—", unit: nil}
+
+      assert CoreComponents.measure_tile(nil, "Bilanz", 0.0, "kWh", 2, true).number == "+0,00"
+      assert CoreComponents.measure_tile(nil, "Bilanz", -1.5, "kWh", 2, true).number == "−1,50"
+      assert CoreComponents.measure_tile(nil, "Gespart", 1234.5, "€", 2).number == "1.234,50"
+    end
+  end
+
   describe "flash_group/1" do
     test "shows info and error messages as alerts" do
       assigns = %{flash: %{"info" => "Gespeichert.", "error" => "Fehlgeschlagen."}}

@@ -85,7 +85,7 @@ defmodule ZiwoasWeb.SwitchesComponents do
           />
         </button>
         <span :if={@lit} class="badge border tabular-nums">
-          <span class="text-warning me-1" aria-hidden="true">⚡</span>{de_number(@row.watt || 0)} W
+          <span class="text-warning me-1" aria-hidden="true">⚡</span>{number(@row.watt || 0)} W
         </span>
       </div>
     </div>
@@ -504,6 +504,4 @@ defmodule ZiwoasWeb.SwitchesComponents do
   defp schedule_part(%Row{next_edge: edge}, zone),
     do:
       "nächste Schaltung: #{clock(edge.at, zone)} → #{if edge.action == :on, do: "an", else: "aus"}"
-
-  defp clock(time, zone), do: time |> DateTime.shift_zone!(zone) |> Calendar.strftime("%H:%M")
 end

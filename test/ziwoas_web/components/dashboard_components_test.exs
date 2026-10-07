@@ -6,7 +6,7 @@ defmodule ZiwoasWeb.DashboardComponentsTest do
 
   alias Ziwoas.{Energy, EnergyFlow, EnergySummary, LiveState}
   alias Ziwoas.EnergyFlow.Flows
-  alias ZiwoasWeb.DashboardComponents
+  alias ZiwoasWeb.{Components, CoreComponents, DashboardComponents}
 
   defp live(plugs \\ [], flow \\ []) do
     %LiveState{
@@ -202,7 +202,7 @@ defmodule ZiwoasWeb.DashboardComponentsTest do
   end
 
   describe "tiles" do
-    defp tile(assigns), do: html(&DashboardComponents.tile/1, assigns)
+    defp tile(assigns), do: html(&CoreComponents.tile/1, assigns)
 
     defp summary(produced_wh, consumed_wh, self_consumed_wh \\ 0.0, savings_eur \\ 0.0) do
       %EnergySummary{
@@ -303,35 +303,34 @@ defmodule ZiwoasWeb.DashboardComponentsTest do
     end
   end
 
-  describe "energy flow hook" do
-    test "makes its element the EnergyFlow hook with the flow as JSON in data-state" do
-      flows = Flows.split(130.0, 420.0, 0.0, -290.0)
-
-      attrs =
-        DashboardComponents.energy_flow_hook(
-          live([], solakon_online: true, solar_w: 420.0, home_w: 130.0, flows: flows)
+  describe "energy flow" do
+    defp energy_flow(live),
+      do:
+        html(&Components.EnergyFlow.energy_flow/1,
+          live: live,
+          pv_asset: "icon_sonne.webp",
+          pv_alt: "PV"
         )
 
-      assert attrs[:id] == "energy_flow"
-      assert attrs[:"phx-hook"] == "EnergyFlow"
-      state = JSON.decode!(attrs[:"data-state"])
+    test "the card is the EnergyFlow hook with the flow as JSON in data-state" do
+      flows = Flows.split(130.0, 420.0, 0.0, -290.0)
+
+      doc =
+        energy_flow(live([], solakon_online: true, solar_w: 420.0, home_w: 130.0, flows: flows))
+
+      assert count(doc, "section.card.energy-flow-card#energy_flow[phx-hook=EnergyFlow]") == 1
+      assert texts(doc, "#energy_flow h2.card-title") == ["Energiefluss"]
+      state = doc |> attrs("#energy_flow", "data-state") |> hd() |> JSON.decode!()
 
       assert {state["solakon_online"], state["solar_w"], state["flows"]["solar_to_home_w"]} ==
                {true, 420.0, 130.0}
 
-      stale = DashboardComponents.energy_flow_hook(live())[:"data-state"]
+      stale = live() |> energy_flow() |> attrs("#energy_flow", "data-state") |> hd()
       assert %{"solakon_online" => false, "solar_w" => nil} = JSON.decode!(stale)
     end
-  end
 
-  describe "energy flow" do
     test "four rings with a box each, placed over the ring, six channels in theme tokens" do
-      doc =
-        html(&DashboardComponents.energy_flow/1,
-          pv_asset: "icon_sonne.webp",
-          pv_alt: "PV",
-          battery_asset: "solakon_battery_normal.webp"
-        )
+      doc = energy_flow(live())
 
       assert attrs(doc, ".energy-flow svg circle[data-ring]", "data-ring") ==
                ~w[pv grid consumer battery]
@@ -362,6 +361,11 @@ defmodule ZiwoasWeb.DashboardComponentsTest do
       assert attrs(doc, battery, "data-battery-state-fault") == [
                "/images/solakon_battery_fault.webp"
              ]
+    end
+
+    test "the battery picture follows the state, the normal one when unknown" do
+      assert Components.EnergyFlow.battery_asset("charging") == "solakon_battery_charging.webp"
+      assert Components.EnergyFlow.battery_asset(nil) == "solakon_battery_normal.webp"
     end
   end
 end

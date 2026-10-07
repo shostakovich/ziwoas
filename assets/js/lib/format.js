@@ -1,4 +1,4 @@
-// The twin of Ziwoas.GermanNumber: decimal comma, dot between thousands, true minus (U+2212).
+// The twin of ZiwoasWeb.Format: decimal comma, dot between thousands, true minus (U+2212).
 
 const MINUS = "−"
 const DASH = "—"

@@ -18,8 +18,6 @@ defmodule ZiwoasWeb.Router do
   scope "/", ZiwoasWeb do
     pipe_through :browser
 
-    patch "/look", LookController, :update
-
     live_session :default,
       on_mount: ZiwoasWeb.Nav,
       session: {ZiwoasWeb.Look, :session, []} do

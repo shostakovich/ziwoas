@@ -221,7 +221,7 @@ defmodule ZiwoasWeb.SwitchesLive do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} look={@look} current_path={@current_path}>
-      <h1 class="h2 mb-3">Schalten</h1>
+      <.header>Schalten</.header>
 
       <div>
         <section :if={@rows == []} class="card card-body mb-3">

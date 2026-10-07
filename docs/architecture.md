@@ -146,10 +146,23 @@ The PV page's switches (EPS output, pausing the control) go through `Ziwoas.Sola
 ## Web
 
 Router: `lib/ziwoas_web/router.ex`. Every page is a LiveView in `live_session :default`
-(`on_mount: ZiwoasWeb.Nav` assigns `@look` and `@current_path`; `ZiwoasWeb.Look` carries the
-`look` cookie, `PATCH /look` sets it). A page's markup lives in one
-`ZiwoasWeb.<Page>Components` module; shared pieces (`card`, `input`, `button`, `flash`, …) are in
-`ZiwoasWeb.CoreComponents` on felt-css classes (ADR-0005).
+(`on_mount: ZiwoasWeb.Nav` assigns `@look` and `@current_path`); navigation, brand and lamp tiles
+are `<.link navigate={~p"…"}>`, so moving between pages never reloads. A page's markup lives in
+one `ZiwoasWeb.<Page>Components` module; shared pieces (`card`, `header`, `tile`, `input`,
+`button`, `flash`, …) are in `ZiwoasWeb.CoreComponents` on felt-css classes (ADR-0005), the
+Energiefluss card of dashboard and PV page in `ZiwoasWeb.Components.EnergyFlow`. Every page
+title is `<.header>`.
+
+- **Text formatting**: `ZiwoasWeb.Format` (`number/2`, `flow/2`, `eur/1`, `date/1`,
+  `day_month/1`, `clock/2`) is imported into every component and LiveView; its JavaScript twin
+  is `assets/js/lib/format.js`.
+- **Look**: the header's toggle dispatches `ziwoas:set-look` (`assets/js/lib/look.js` sets
+  `data-look` on `<html>`, the `look` cookie and the browser chrome's colour from
+  `--felt-body-bg`) and pushes `"set_look"`, which `ZiwoasWeb.Nav` answers on every page. The
+  server only reads the cookie (`ZiwoasWeb.Look`), and the socket's connect params carry the
+  current look to every LiveView that joins later.
+- **Not found**: a record the URL names raises `Ecto.NoResultsError` (`Lights.get_by_key!/1`),
+  which `phoenix_ecto` turns into a 404.
 
 | Route | LiveView | Live updates (PubSub topic) |
 | --- | --- | --- |

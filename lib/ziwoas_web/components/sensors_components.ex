@@ -6,7 +6,6 @@ defmodule ZiwoasWeb.SensorsComponents do
   """
   use ZiwoasWeb, :html
 
-  alias Ziwoas.GermanNumber
   alias Ziwoas.Sensors.{Reading, ReadingPresenter}
 
   @doc "Everything below the heading."
@@ -83,14 +82,14 @@ defmodule ZiwoasWeb.SensorsComponents do
             <%= if @reading do %>
               <ul class="list-unstyled mb-1">
                 <li :if={@reading.temperature}>
-                  <strong class="fs-5 tabular-nums">{de_number(@reading.temperature, precision: 1)}</strong>
+                  <strong class="fs-5 tabular-nums">{number(@reading.temperature, precision: 1)}</strong>
                   °C
                 </li>
                 <li :if={@reading.humidity}>
                   <strong class="fs-5 tabular-nums">{@reading.humidity}</strong> % rH
                 </li>
                 <li :if={@co2? && @reading.co2}>
-                  <strong class="fs-5 tabular-nums">{de_number(@reading.co2)}</strong> ppm
+                  <strong class="fs-5 tabular-nums">{number(@reading.co2)}</strong> ppm
                 </li>
               </ul>
               <div class="small text-body-secondary">
@@ -113,7 +112,7 @@ defmodule ZiwoasWeb.SensorsComponents do
       assign(assigns, :co2_sensors, Enum.filter(assigns.sensors, &(&1.type == :meter_pro_co2)))
 
     ~H"""
-    <div id="sensors_chart" phx-hook="SensorsChart" data-url="/sensors/series">
+    <div id="sensors_chart" phx-hook="SensorsChart" data-url={~p"/sensors/series"}>
       <.card title="CO₂" subtitle={chart_subtitle("ppm", @co2_sensors)}>
         <div class="chart-frame chart-frame-prominent" id="sensors_co2_chart" phx-update="ignore">
           <canvas data-series="co2"></canvas>
@@ -176,7 +175,7 @@ defmodule ZiwoasWeb.SensorsComponents do
     assigns =
       assign(assigns,
         id: &"co2-gauge-#{&1}-#{uid}",
-        label: "CO₂ #{GermanNumber.format(ppm, unit: "ppm")}, #{@level_labels[level]}",
+        label: "CO₂ #{number(ppm, unit: "ppm")}, #{@level_labels[level]}",
         zones: zones(level),
         stitches: stitches(),
         needle_angle: fixed(share(ppm) * 180),

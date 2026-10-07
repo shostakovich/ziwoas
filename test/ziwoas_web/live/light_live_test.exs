@@ -25,7 +25,9 @@ defmodule ZiwoasWeb.LightLiveTest do
     state!("ABCDEF01", %{on: true, brightness: 60, color_temp_k: 2700})
     doc = page(conn, "ABCDEF01")
 
-    assert LazyHTML.text(LazyHTML.query(doc, "h1")) == "Wohnzimmer Stehlampe"
+    assert doc |> LazyHTML.query("h1.ld-title") |> LazyHTML.text() |> String.trim() ==
+             "Wohnzimmer Stehlampe"
+
     assert count(doc, "#light_detail[phx-hook=LightDetail][data-key=ABCDEF01]") == 1
     assert count(doc, "#light_power button[aria-pressed]") == 2
     assert count(doc, "input#light_brightness[type=range][data-light=brightness]") == 1
@@ -48,6 +50,7 @@ defmodule ZiwoasWeb.LightLiveTest do
 
   test "show 404s for an unknown key", %{conn: conn} do
     assert_error_sent 404, fn -> get(conn, ~p"/lights/NOPE") end
+    assert_raise Ecto.NoResultsError, fn -> live(conn, ~p"/lights/NOPE") end
   end
 
   test "white slider and presets follow the lamp's Kelvin range", %{conn: conn} do

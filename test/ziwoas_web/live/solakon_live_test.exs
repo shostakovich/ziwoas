@@ -295,7 +295,7 @@ defmodule ZiwoasWeb.SolakonLiveTest do
       doc = page(conn, ~p"/solakon/history?range=7d")
 
       assert texts(doc, "title") == ["Solakon-Verlauf"]
-      assert count(doc, "h1") == 0
+      assert texts(doc, "header.visually-hidden h1") == ["Solakon-Verlauf"]
       assert texts(doc, "#solakon_history a.btn.active") == ["Letzte 7 Tage"]
 
       assert attrs(doc, "#solakon_history a.btn", "href") ==

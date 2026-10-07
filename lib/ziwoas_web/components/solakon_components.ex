@@ -9,9 +9,6 @@ defmodule ZiwoasWeb.SolakonComponents do
   """
   use ZiwoasWeb, :html
 
-  import ZiwoasWeb.DashboardComponents, only: [tile: 1]
-
-  alias Ziwoas.GermanNumber
   alias Ziwoas.Solakon.{History, Reading, Snapshot}
 
   # --- Solakon-Verlauf -----------------------------------------------------------
@@ -140,10 +137,10 @@ defmodule ZiwoasWeb.SolakonComponents do
         <summary>Details</summary>
         <div class="mt-2">
           <p class="mb-1">
-            Speichertemperatur (Status/Regelung) {GermanNumber.format(@battery_temp_c, precision: 1)}&nbsp;°C
+            Speichertemperatur (Status/Regelung) {number(@battery_temp_c, precision: 1)}&nbsp;°C
           </p>
           <p class="mb-1">
-            Wechselrichtertemperatur {GermanNumber.format(@inverter_temp_c, precision: 1)}&nbsp;°C
+            Wechselrichtertemperatur {number(@inverter_temp_c, precision: 1)}&nbsp;°C
           </p>
           <p class="mb-0">Außensteckdose {if @eps_enabled, do: "bereit", else: "aus"}</p>
         </div>
@@ -229,9 +226,8 @@ defmodule ZiwoasWeb.SolakonComponents do
       assign(assigns,
         eps_on:
           if(is_nil(assigns.eps_enabled), do: eps_enabled?(reading), else: assigns.eps_enabled),
-        eps_power: GermanNumber.format(reading && reading.eps_power_w, unit: "W"),
-        eps_voltage:
-          GermanNumber.format(reading && reading.eps_voltage_v, precision: 1, unit: "V")
+        eps_power: number(reading && reading.eps_power_w, unit: "W"),
+        eps_voltage: number(reading && reading.eps_voltage_v, precision: 1, unit: "V")
       )
 
     ~H"""
@@ -339,8 +335,8 @@ defmodule ZiwoasWeb.SolakonComponents do
       <.tile
         :for={panel <- @panels}
         label={panel.label}
-        number={GermanNumber.format(panel.power_w, unit: "W")}
-        caption={"#{GermanNumber.format(panel.voltage_v, precision: 1, unit: "V")} · #{GermanNumber.format(panel.current_a, precision: 2, unit: "A")}"}
+        number={number(panel.power_w, unit: "W")}
+        caption={"#{number(panel.voltage_v, precision: 1, unit: "V")} · #{number(panel.current_a, precision: 2, unit: "A")}"}
       />
     </section>
     """
@@ -360,17 +356,15 @@ defmodule ZiwoasWeb.SolakonComponents do
     assigns =
       assign(assigns,
         tiles: [
-          {"Ladestand", GermanNumber.format(reading && reading.battery_soc_pct), "%"},
-          {"Batterie­gesundheit", GermanNumber.format(latest && latest.battery_health_pct), "%"},
+          {"Ladestand", number(reading && reading.battery_soc_pct), "%"},
+          {"Batterie­gesundheit", number(latest && latest.battery_health_pct), "%"},
           {"Aktuelle Batterie­leistung",
-           GermanNumber.format(reading && Reading.battery_display_power_w(reading)), "W"},
-          {"Batterie­spannung", GermanNumber.format(either.(:battery_voltage_v), precision: 1),
-           "V"},
-          {"Batteriestrom", GermanNumber.format(either.(:battery_current_a), precision: 2), "A"},
-          {"Speicher­temperatur",
-           GermanNumber.format(either.(:battery_temperature_c), precision: 1), "°C"},
-          {"Volle Kapazität",
-           GermanNumber.format(latest && latest.full_charge_capacity_ah, precision: 1), "Ah"}
+           number(reading && Reading.battery_display_power_w(reading)), "W"},
+          {"Batterie­spannung", number(either.(:battery_voltage_v), precision: 1), "V"},
+          {"Batteriestrom", number(either.(:battery_current_a), precision: 2), "A"},
+          {"Speicher­temperatur", number(either.(:battery_temperature_c), precision: 1), "°C"},
+          {"Volle Kapazität", number(latest && latest.full_charge_capacity_ah, precision: 1),
+           "Ah"}
         ]
       )
 

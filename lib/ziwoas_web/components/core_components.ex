@@ -8,6 +8,7 @@ defmodule ZiwoasWeb.CoreComponents do
 
   alias Phoenix.HTML.Form
   alias Phoenix.LiveView.JS
+  alias ZiwoasWeb.Format
 
   @doc "A felt-css card: optional title and subtitle above the content."
   attr :title, :string, default: nil
@@ -282,21 +283,72 @@ defmodule ZiwoasWeb.CoreComponents do
     """
   end
 
-  @doc "A page header: title, optional subtitle and actions on the right."
+  @doc """
+  The page title: an `h1` set as `h2`, with an optional control before it
+  (`:leading`, a back link) and after it (`:actions`).
+
+      <.header>Wetter</.header>
+      <.header title_class="ld-title">
+        <:leading><.link navigate={~p"/switches"}>←</.link></:leading>
+        {@light.name}
+        <:actions><button>…</button></:actions>
+      </.header>
+  """
+  attr :class, :any, default: nil
+  attr :title_class, :any, default: nil
   slot :inner_block, required: true
-  slot :subtitle
+  slot :leading
   slot :actions
 
   def header(assigns) do
     ~H"""
-    <header class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-3">
-      <div>
-        <h1 class="mb-1">{render_slot(@inner_block)}</h1>
-        <p :if={@subtitle != []} class="text-body-secondary mb-0">{render_slot(@subtitle)}</p>
-      </div>
-      <div :if={@actions != []} class="d-flex gap-2">{render_slot(@actions)}</div>
+    <header class={["d-flex align-items-center gap-2 mb-3", @class]}>
+      {render_slot(@leading)}
+      <h1 class={["h2 mb-0 me-auto", @title_class]}>{render_slot(@inner_block)}</h1>
+      {render_slot(@actions)}
     </header>
     """
+  end
+
+  @doc "A stat tile in a `row-cols-*` grid; values sit at the foot, so a row lines them up."
+  attr :id, :string, default: nil
+  attr :label, :string, required: true
+  attr :number, :string, required: true
+  attr :unit, :string, default: nil
+  attr :caption, :string, default: nil
+
+  def tile(assigns) do
+    ~H"""
+    <div class="col" id={@id}>
+      <div class="card h-100">
+        <div class="card-body p-3 h-100 d-flex flex-column">
+          <div class="stat flex-grow-1">
+            <span class="stat-label">{@label}</span>
+            <span class="stat-value fs-2 mt-auto">{@number}
+            <%= if @unit do %>
+              <span class="fs-5 fw-semibold">{@unit}</span>
+            <% end %></span>
+            <span :if={@caption} class="small text-body-secondary">{@caption}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    """
+  end
+
+  @doc """
+  The assigns of a `tile/1` for one value: a dash without unit when unknown, a
+  plus on a signed non-negative value.
+  """
+  def measure_tile(id, label, value, unit, precision, signed \\ false)
+
+  def measure_tile(id, label, nil, _unit, _precision, _signed),
+    do: %{id: id, label: label, number: "—", unit: nil}
+
+  def measure_tile(id, label, value, unit, precision, signed) do
+    number = Format.number(value, precision: precision)
+    number = if signed and not (value < 0), do: "+" <> number, else: number
+    %{id: id, label: label, number: number, unit: unit}
   end
 
   @doc """
@@ -312,11 +364,6 @@ defmodule ZiwoasWeb.CoreComponents do
     (Keyword.get(opts, :validation) || Keyword.get(opts, :constraint))
     |> german(msg, opts)
     |> interpolate(opts)
-  end
-
-  @doc "Translates the errors for a field from a keyword list of errors."
-  def translate_errors(errors, field) when is_list(errors) do
-    for {^field, {msg, opts}} <- errors, do: translate_error({msg, opts})
   end
 
   defp german(:required, "can't be blank", _opts), do: "muss ausgefüllt werden"
@@ -372,9 +419,6 @@ defmodule ZiwoasWeb.CoreComponents do
   def hide(js \\ %JS{}, selector) do
     JS.hide(js, to: selector, time: 200, transition: {"fade", "opacity-100", "opacity-0"})
   end
-
-  @doc "A number as German UI text, see `Ziwoas.GermanNumber.format/2`."
-  def de_number(value, opts \\ []), do: Ziwoas.GermanNumber.format(value, opts)
 
   defp present?(value), do: is_binary(value) and String.trim(value) != ""
 end

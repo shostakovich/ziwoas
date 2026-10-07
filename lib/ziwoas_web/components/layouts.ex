@@ -1,25 +1,14 @@
 defmodule ZiwoasWeb.Layouts do
   @moduledoc """
-  The application shell, ported from `app/views/layouts/application.html.erb`:
-  `root` (the document and its head) and `app/1` (header, navigation, main,
-  tab bar). LiveViews wrap their markup in `<Layouts.app>`; controllers
-  rendering HTML do the same in their templates.
+  The application shell: `root` (the document and its head) and `app/1`
+  (header, navigation, main, tab bar). LiveViews wrap their markup in
+  `<Layouts.app>`.
   """
   use ZiwoasWeb, :html
 
-  alias Ziwoas.{Config, Look}
+  alias Ziwoas.Config
 
   embed_templates "layouts/*"
-
-  # A lamp's page lives under /lights but is reached from the Schalten tab.
-  @navigation [
-    {"/", "Home", "nav_dashboard_plush.webp", []},
-    {"/solakon", "PV", "nav_pv_plush.webp", []},
-    {"/switches", "Schalten", "nav_switches_plush.webp", ["/lights"]},
-    {"/reports", "Berichte", "nav_reports_plush.webp", []},
-    {"/weather", "Wetter", "nav_weather_plush.webp", []},
-    {"/sensors", "Sensoren", "nav_sensors_plush.webp", []}
-  ]
 
   attr :look, :string, required: true
   attr :current_path, :string, required: true
@@ -35,10 +24,10 @@ defmodule ZiwoasWeb.Layouts do
 
     <div class="container pt-3">
       <header class="navbar navbar-expand px-3 app-header mb-3">
-        <a
+        <.link
           class="navbar-brand app-brand d-flex align-items-center py-0"
           aria-label="Zipfelmaus — Startseite"
-          href="/"
+          navigate={~p"/"}
         >
           <img
             alt=""
@@ -51,18 +40,18 @@ defmodule ZiwoasWeb.Layouts do
             <span class="app-brand-name">Zipfelmaus</span>
             <span class="app-brand-tagline">Wohnungs&shy;automatisierung</span>
           </span>
-        </a>
+        </.link>
         <nav class="d-none d-lg-block me-auto" aria-label="Hauptnavigation">
           <ul class="navbar-nav nav-pills flex-nowrap">
             <li :for={item <- @navigation} class="nav-item">
-              <a
+              <.link
                 class={["nav-link d-flex align-items-center gap-2 px-2", item.current && "active"]}
                 aria-current={item.current && "page"}
-                href={item.path}
+                navigate={item.path}
               >
                 <img alt="" class="app-nav-icon" aria-hidden="true" src={~p"/images/#{item.icon}"} />
                 {item.label}
-              </a>
+              </.link>
             </li>
           </ul>
         </nav>
@@ -80,14 +69,14 @@ defmodule ZiwoasWeb.Layouts do
     <nav class="navbar fixed-bottom pb-safe d-lg-none" aria-label="Tab-Leiste">
       <ul class="nav nav-pills nav-justified flex-nowrap w-100">
         <li :for={item <- @navigation} class="nav-item">
-          <a
+          <.link
             class={["nav-link d-flex flex-column align-items-center", item.current && "active"]}
             aria-current={item.current && "page"}
-            href={item.path}
+            navigate={item.path}
           >
             <img alt="" class="app-nav-icon" aria-hidden="true" src={~p"/images/#{item.icon}"} />
             <small>{item.label}</small>
-          </a>
+          </.link>
         </li>
       </ul>
     </nav>
@@ -96,29 +85,40 @@ defmodule ZiwoasWeb.Layouts do
 
   attr :look, :string, required: true
 
-  # A full page load: the look lives on <html>.
+  # The browser switches the look in place (assets/js/lib/look.js); the push keeps @look in step.
   defp look_toggle(assigns) do
+    assigns = assign(assigns, :next, if(assigns.look == "felt", do: "clean", else: "felt"))
+
     ~H"""
-    <.form for={%{}} action={~p"/look"} method="patch">
-      <button
-        class={["btn btn-sm btn-outline-secondary app-look-toggle", @look == "felt" && "active"]}
-        aria-pressed={to_string(@look == "felt")}
-        type="submit"
-      >
-        Filz-Look
-      </button>
-      <input type="hidden" name="look" value={if @look == "felt", do: "clean", else: "felt"} />
-    </.form>
+    <button
+      class={["btn btn-sm btn-outline-secondary app-look-toggle", @look == "felt" && "active"]}
+      aria-pressed={to_string(@look == "felt")}
+      type="button"
+      phx-click={
+        JS.dispatch("ziwoas:set-look", detail: %{look: @next})
+        |> JS.push("set_look", value: %{look: @next})
+      }
+    >
+      Filz-Look
+    </button>
     """
   end
 
   @doc "The configured time zone, exposed to the page as `ziwoas-time-zone`."
   def time_zone, do: Config.app_config().location.timezone
 
-  def theme_colors(look), do: Look.theme_colors(look)
-
+  # A lamp's page lives under /lights but is reached from the Schalten tab.
   defp navigation(current_path) do
-    for {path, label, icon, sections} <- @navigation do
+    items = [
+      {~p"/", "Home", "nav_dashboard_plush.webp", []},
+      {~p"/solakon", "PV", "nav_pv_plush.webp", []},
+      {~p"/switches", "Schalten", "nav_switches_plush.webp", ["/lights"]},
+      {~p"/reports", "Berichte", "nav_reports_plush.webp", []},
+      {~p"/weather", "Wetter", "nav_weather_plush.webp", []},
+      {~p"/sensors", "Sensoren", "nav_sensors_plush.webp", []}
+    ]
+
+    for {path, label, icon, sections} <- items do
       %{
         path: path,
         label: label,

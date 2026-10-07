@@ -10,7 +10,7 @@ defmodule ZiwoasWeb.SolakonLive do
   """
   use ZiwoasWeb, :live_view
 
-  import ZiwoasWeb.DashboardComponents
+  import ZiwoasWeb.Components.EnergyFlow
   import ZiwoasWeb.EconomicsComponents
   import ZiwoasWeb.SolakonComponents
   import ZiwoasWeb.SunChartComponents
@@ -23,7 +23,7 @@ defmodule ZiwoasWeb.SolakonLive do
   alias Ziwoas.Shading
   alias Ziwoas.Solakon.{Control, Reading, Snapshot}
   alias Ziwoas.SunCalendar
-  alias ZiwoasWeb.{DashboardComponents, SolakonHistoryLive}
+  alias ZiwoasWeb.SolakonHistoryLive
 
   @impl true
   def mount(_params, _session, socket) do
@@ -143,7 +143,7 @@ defmodule ZiwoasWeb.SolakonLive do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} look={@look} current_path={@current_path} main_class="app-main-wide">
-      <h1 class="h2 mb-3">PV</h1>
+      <.header>PV</.header>
 
       <div
         id="live_freshness"
@@ -151,13 +151,7 @@ defmodule ZiwoasWeb.SolakonLive do
         data-threshold-s={Measurement.offline_after_s()}
         data-beat={@beat}
       >
-        <.card title="Energiefluss" class="energy-flow-card" {energy_flow_hook(@live)}>
-          <.energy_flow
-            pv_asset="icon_sonne.webp"
-            pv_alt="PV"
-            battery_asset={DashboardComponents.default_battery_asset()}
-          />
-        </.card>
+        <.energy_flow live={@live} pv_asset="icon_sonne.webp" pv_alt="PV" />
 
         <.status reading={@reading} snapshot={@snapshot} />
         <.controls
