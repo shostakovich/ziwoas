@@ -5,7 +5,7 @@ defmodule ZiwoasWeb.SwitchesComponentsTest do
 
   alias Ziwoas.Plugs.{Plug, State}
   alias Ziwoas.Switching.{Command, Row, Rule}
-  alias Ziwoas.Switching.EdgeCalculator.Edge
+  alias Ziwoas.Switching.Edges.Edge
   alias Ziwoas.Switching.Schedule.{Single, Window}
   alias ZiwoasWeb.SwitchesComponents
 

@@ -97,7 +97,7 @@ Ziwoas.Collector
   lamps from the Platform API (`PlatformApi`, `DeviceRegistry`) and hands each to
   `Lights.put_lamp/1`, discovers and polls them on the LAN (`Lan`, multicast
   239.255.255.250:4001, replies on UDP 4002, commands to 4003), keeps each lamp's state
-  (`StateStore`) and hands a changed one to `Lights.put_state/2`, which writes
+  (`States`) and hands a changed one to `Lights.put_state/2`, which writes
   `lights`/`light_states` and tells `Lights`' subscribers. A command is
   `Bridge.command(key, verb)`, a call from `Lights`: `CommandRouter` (pure) sends it over the LAN
   at once or through the cloud; every Platform API call (bootstrap, polls, clarifications,
@@ -207,7 +207,7 @@ missing active power). The domain returns numbers; labels, units and the chart p
   and their forms, the page's `rows/3`, commands, the tick's watermarks), `Schedule` groups the
   rules into time windows and single switches for the page. `Rule.action`,
   `Command.action` and `Command.source` are `Ecto.Enum`s over the stored text. `ScheduleTickJob` asks
-  `EdgeCalculator` for the latest edge per switchable plug between its watermark
+  `Edges` for the latest edge per switchable plug between its watermark
   (`scheduler_states`) and now, skips it when a manual command came later, and makes up a missed
   edge only within the grace (`ScheduleTickJob.grace_s/0`, 10 min).
 - **Commands.** `Switching.switch/4` (`Commander`, guarded to `:on`/`:off` and

@@ -1,4 +1,4 @@
-defmodule Ziwoas.Switching.EdgeCalculator do
+defmodule Ziwoas.Switching.Edges do
   @moduledoc """
   Pure edge computation: no I/O, no clock. One
   rule, one edge — a rule carries its weekdays absolutely, so nothing here

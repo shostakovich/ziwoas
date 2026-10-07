@@ -32,6 +32,8 @@ re-checked). Each finding below names its package.
   mount and on PubSub events; hooks only `handleEvent` and draw. No `fetch`, no `setInterval`,
   no JSON islands in the DOM, no resync event. Timers only where wall-clock time itself is the
   trigger (midnight, sliding 24 h window).
+  Accepted exception: the energy-flow card's `data-state`, live state diffed into an attribute
+  the `EnergyFlow` hook reads in `updated()`.
 - **Ecto types:** dates are `:date`, closed string sets are `Ecto.Enum` (stored text unchanged,
   so no migration). Queries are `Ecto.Query`; raw SQL only where Ecto cannot express it
   (`VACUUM INTO`).

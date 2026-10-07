@@ -9,7 +9,7 @@ defmodule Ziwoas.Switching do
   alias Ecto.Changeset
   alias Ziwoas.{Clock, Plugs, Repo}
   alias Ziwoas.Plugs.Plug
-  alias Ziwoas.Switching.{Command, Commander, EdgeCalculator, Row, Rule, SchedulerState}
+  alias Ziwoas.Switching.{Command, Commander, Edges, Row, Rule, SchedulerState}
   alias Ziwoas.Switching.{Schedule, Window}
 
   @lookahead_s 7 * 24 * 3600
@@ -46,7 +46,7 @@ defmodule Ziwoas.Switching do
         next_edge:
           plug_rules
           |> Enum.filter(& &1.enabled)
-          |> EdgeCalculator.next_edge_per_plug(now, until, zone)
+          |> Edges.next_edge_per_plug(now, until, zone)
           |> List.first(),
         watt: measurement.watt,
         last_seen_ts: measurement.last_seen_ts,
