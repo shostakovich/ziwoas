@@ -1,81 +1,100 @@
 # syntax=docker/dockerfile:1
 # check=error=true
 
-# This Dockerfile is designed for production, not development. Build and run by hand:
-# docker build -t ziwoas .
-# docker run -d -p 80:80 -e RAILS_MASTER_KEY=<value from config/master.key> --name ziwoas ziwoas
+# The production image: a Mix release on Debian (mix phx.gen.release, adapted).
+#
+#   docker build -t ziwoas .
+#   docker compose up -d
+#
+# Erlang/OTP and Elixir match .tool-versions. Images:
+# https://hub.docker.com/r/hexpm/elixir/tags
+ARG ELIXIR_VERSION=1.20.4
+ARG OTP_VERSION=28.5.0.7
+ARG DEBIAN_VERSION=trixie-20261005-slim
 
-# For a containerized dev environment, see Dev Containers: https://guides.rubyonrails.org/getting_started_with_devcontainer.html
+ARG BUILDER_IMAGE="hexpm/elixir:${ELIXIR_VERSION}-erlang-${OTP_VERSION}-debian-${DEBIAN_VERSION}"
+ARG RUNNER_IMAGE="debian:${DEBIAN_VERSION}"
 
-# Make sure RUBY_VERSION matches the Ruby version in .ruby-version
-ARG RUBY_VERSION=4.0.7
-FROM docker.io/library/ruby:$RUBY_VERSION-slim AS base
+# The build runs on the build host's architecture; only the release is per platform.
+FROM --platform=$BUILDPLATFORM ${BUILDER_IMAGE} AS assets
 
-# Rails app lives here
-WORKDIR /rails
-
-# Install base packages
 RUN apt-get update -qq && \
-    apt-get install --no-install-recommends -y curl libjemalloc2 sqlite3 && \
-    ln -s /usr/lib/$(uname -m)-linux-gnu/libjemalloc.so.2 /usr/local/lib/libjemalloc.so && \
-    rm -rf /var/lib/apt/lists /var/cache/apt/archives
+    apt-get install --no-install-recommends -y build-essential git && \
+    rm -rf /var/lib/apt/lists/*
 
-# Set production environment variables and enable jemalloc for reduced memory usage and latency.
-ENV RAILS_ENV="production" \
-    BUNDLE_DEPLOYMENT="1" \
-    BUNDLE_PATH="/usr/local/bundle" \
-    BUNDLE_WITHOUT="development" \
-    LD_PRELOAD="/usr/local/lib/libjemalloc.so"
+WORKDIR /app
 
-# Throw-away build stage to reduce size of final image
-FROM base AS build
+RUN mix local.hex --force && mix local.rebar --force
 
-# Install packages needed to build gems
+ENV MIX_ENV="prod"
+
+COPY mix.exs mix.lock ./
+RUN mix deps.get --only $MIX_ENV
+
+COPY config/config.exs config/${MIX_ENV}.exs config/
+COPY assets assets
+COPY priv priv
+COPY lib lib
+
+# esbuild is a standalone binary for the build host; the bundles are platform-free.
+RUN mix assets.setup && mix assets.deploy
+
+FROM ${BUILDER_IMAGE} AS build
+
 RUN apt-get update -qq && \
-    apt-get install --no-install-recommends -y build-essential git libyaml-dev pkg-config && \
-    rm -rf /var/lib/apt/lists /var/cache/apt/archives
+    apt-get install --no-install-recommends -y build-essential git && \
+    rm -rf /var/lib/apt/lists/*
 
-# Install application gems
-COPY vendor/* ./vendor/
-COPY Gemfile Gemfile.lock ./
+WORKDIR /app
 
-RUN bundle install && \
-    rm -rf ~/.bundle/ "${BUNDLE_PATH}"/ruby/*/cache "${BUNDLE_PATH}"/ruby/*/bundler/gems/*/.git && \
-    # -j 1 disable parallel compilation to avoid a QEMU bug: https://github.com/rails/bootsnap/issues/495
-    bundle exec bootsnap precompile -j 1 --gemfile
+RUN mix local.hex --force && mix local.rebar --force
 
-# Copy application code
-COPY . .
+ENV MIX_ENV="prod"
 
-# Precompile bootsnap code for faster boot times.
-# -j 1 disable parallel compilation to avoid a QEMU bug: https://github.com/rails/bootsnap/issues/495
-RUN bundle exec bootsnap precompile -j 1 app/ lib/
+COPY mix.exs mix.lock ./
+RUN mix deps.get --only $MIX_ENV
+RUN mkdir config
 
-# Precompiling assets for production without requiring secret RAILS_MASTER_KEY.
-# A temporary SQLite DB is created so AR can resolve column metadata during eager loading.
-RUN SECRET_KEY_BASE_DUMMY=1 \
-    DATABASE_URL="sqlite3:///tmp/build.db" \
-    ./bin/rails db:schema:load assets:precompile && \
-    rm -f /tmp/build.db
+# Compile-time config first, so a change to runtime.exs does not recompile the deps.
+COPY config/config.exs config/${MIX_ENV}.exs config/
+RUN mix deps.compile
 
+COPY priv priv
+COPY lib lib
+COPY --from=assets /app/priv/static priv/static
 
+RUN mix compile
 
+COPY config/runtime.exs config/
+COPY rel rel
+RUN mix release
 
-# Final stage for app image
-FROM base
+FROM ${RUNNER_IMAGE} AS final
 
-# Run and own only the runtime files as a non-root user for security
-RUN groupadd --system --gid 1000 rails && \
-    useradd rails --uid 1000 --gid 1000 --create-home --shell /bin/bash
-USER 1000:1000
+RUN apt-get update -qq && \
+    apt-get install --no-install-recommends -y libstdc++6 openssl libncurses6 ca-certificates tzdata curl && \
+    rm -rf /var/lib/apt/lists/*
 
-# Copy built artifacts: gems, application
-COPY --chown=rails:rails --from=build "${BUNDLE_PATH}" "${BUNDLE_PATH}"
-COPY --chown=rails:rails --from=build /rails /rails
+ENV LANG=C.UTF-8 \
+    MIX_ENV="prod" \
+    PORT=3000 \
+    ZIWOAS_CONFIG=/app/config/ziwoas.yml \
+    ZIWOAS_DB=/app/storage/production.sqlite3
 
-# Entrypoint prepares the database.
-ENTRYPOINT ["/rails/bin/docker-entrypoint"]
+WORKDIR /app
 
-# Start server via Thruster by default, this can be overwritten at runtime
-EXPOSE 80
-CMD ["./bin/thrust", "./bin/rails", "server"]
+RUN groupadd --system --gid 1000 ziwoas && \
+    useradd ziwoas --uid 1000 --gid 1000 --create-home --shell /bin/bash && \
+    mkdir -p /app/storage /app/config && chown ziwoas:ziwoas /app/storage
+
+COPY --from=build --chown=ziwoas:ziwoas /app/_build/prod/rel/ziwoas ./
+
+USER ziwoas
+
+EXPOSE 3000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s \
+  CMD curl -fsS -o /dev/null "http://localhost:${PORT}/up" || exit 1
+
+# Adopt or migrate the database, then serve.
+CMD ["/bin/sh", "-c", "/app/bin/migrate && exec /app/bin/server"]

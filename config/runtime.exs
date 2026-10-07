@@ -22,7 +22,7 @@ config :ziwoas,
   config_path:
     path_env.(
       "ZIWOAS_CONFIG",
-      "/rails/config/ziwoas.yml",
+      "/app/config/ziwoas.yml",
       Path.expand(
         if(config_env() == :test,
           do: "../test/fixtures/ziwoas.test.yml",
@@ -39,7 +39,7 @@ if config_env() != :test do
   database =
     path_env.(
       "ZIWOAS_DB",
-      "/rails/storage/production.sqlite3",
+      "/app/storage/production.sqlite3",
       Path.expand("../storage/development.sqlite3", __DIR__)
     )
 
@@ -59,8 +59,17 @@ if config_env() == :prod do
       You can generate one by calling: mix phx.gen.secret
       """
 
+  # LiveView's websocket accepts these hosts as Origin (ZIWOAS_ALLOWED_HOSTS="ziwoas.example.org,
+  # 192.168.1.50", any scheme and port); unset, the host a page was served from.
+  check_origin =
+    case System.get_env("ZIWOAS_ALLOWED_HOSTS", "") |> String.split(",", trim: true) do
+      [] -> :conn
+      hosts -> Enum.map(hosts, &("//" <> String.trim(&1)))
+    end
+
   config :ziwoas, ZiwoasWeb.Endpoint,
     url: [host: System.get_env("PHX_HOST", "localhost"), port: 443, scheme: "https"],
-    http: [ip: {0, 0, 0, 0, 0, 0, 0, 0}],
+    http: [ip: {0, 0, 0, 0}],
+    check_origin: check_origin,
     secret_key_base: secret_key_base
 end

@@ -1,9 +1,15 @@
 name: Build and publish container
 
-# Manual only: the Dockerfile still builds the removed Rails app and does not work until
-# Phase 4 brings a new one; a merge to main must not overwrite `latest` meanwhile.
+# Publishes only under an explicit tag: a git tag, or one given by hand. Nothing moves
+# `latest`, so the home server runs exactly the tag its compose file names.
 on:
+  push:
+    tags: ["v*", "phoenix-*"]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "Image tag, e.g. phoenix-2026-10-07"
+        required: true
 
 env:
   REGISTRY: ghcr.io
@@ -40,6 +46,9 @@ jobs:
       - name: Compile
         run: mix compile --warnings-as-errors
 
+      - name: Credo
+        run: mix credo --strict
+
       - name: Run tests
         run: mix test
 
@@ -71,12 +80,11 @@ jobs:
         uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          flavor: latest=false
           tags: |
-            type=ref,event=branch
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
+            type=ref,event=tag
+            type=raw,value=${{ inputs.tag }},enable=${{ github.event_name == 'workflow_dispatch' }}
             type=sha,prefix=sha-
-            type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build and push
         uses: docker/build-push-action@v7

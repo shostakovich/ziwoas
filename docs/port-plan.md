@@ -9,8 +9,8 @@
 | 0 Ruby raus, Phoenix nach oben | fertig (`cb73179`, `fcf5d1a`) |
 | 1 Datenschicht | P1a Migrations/Übernahme `f0d7162`, A1 esbuild `af0d0e9`, P1b Sandbox/Rückbau `714aa93`, P1c Zeitstempel `5ab6ba1`, A2 Stimulus → Hooks `88f2aea` – fertig |
 | 2 Scheiben S1–S4 | Vorarbeit `7471286`, S4 `2c57be1`, S1 `be378b9`, S3 `e2e40af`, S2 `f6389b6`, Verlauf-Reiter `cd53497` – fertig |
-| 3 Aufräumen, Credo, Doku | Rückbau `c330250`; Credo und Doku laufen |
-| 4 Deployment, Generalprobe | offen – lokal mit Robert (Prod-Dump, MQTT nur lesend) |
+| 3 Aufräumen, Credo, Doku | Rückbau `c330250`, Doku `d2fa512`, Credo-Gate `78bb16f` – fertig |
+| 4 Deployment, Generalprobe | Image, Compose, Workflow `3d7af8f`, Runbook `docs/cutover.md` `f3fc2df`; in der Cloud gebaut und ohne Geräte geprobt (alle Seiten 200, healthy, Übernahme einer Rails-förmigen DB). Offen: Generalprobe auf Prod-Dump, Browser-Abnahme, MQTT-Probe – lokal mit Robert |
 | 5 Umstieg | Robert |
 
 Arbeitsweise: Claude koordiniert, Opus-Subagenten in großen, disjunkten Paketen (parallele Pakete in eigenen Worktrees, weil `_build` und die Test-DB geteilt sind), Claude committet je Paket nach eigener Gate-Prüfung (Exit-Codes, nicht `| tail`). Push auf `claude/awesome-heisenberg-61irby` ist freigegeben. Validierung im Browser macht Robert am Ende gemeinsam mit Claude.

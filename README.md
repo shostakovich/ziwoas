@@ -73,7 +73,15 @@ bringt zwei Skripte mit:
 - `bin/server` – startet die App mit `PHX_SERVER=true`.
 
 Im Release sind `ZIWOAS_DB`, `ZIWOAS_CONFIG` und `SECRET_KEY_BASE` Pflicht, dazu `PHX_HOST`;
-optional `PORT` (Standard 4000) und `POOL_SIZE` (5).
+optional `PORT` (Standard 4000), `POOL_SIZE` (5) und `ZIWOAS_ALLOWED_HOSTS` (Hosts, unter
+denen der Browser ZiWoAS erreicht, kommagetrennt; ohne: der Host, der die Seite ausgeliefert hat).
+
+**Container.** Das `Dockerfile` baut das Release (Debian, uid 1000, Port 3000, Healthcheck auf
+`/up`) und startet `bin/migrate`, dann `bin/server`; `ZIWOAS_DB` und `ZIWOAS_CONFIG` zeigen
+nach `/app/storage` und `/app/config`. `docker-compose.yml` ist ein Dienst im Host-Netz (Govee
+antwortet per Multicast auf UDP 4002) und erwartet `ZIWOAS_TAG` und `SECRET_KEY_BASE`. Images
+veröffentlicht `.github/workflows/docker.yml` nur unter einem expliziten Tag, nie `latest`.
+Generalprobe und Umstieg: [`docs/cutover.md`](docs/cutover.md).
 
 **Übernahme einer alten Datenbank.** Eine SQLite-Datei aus der früheren Rails-App wird beim
 ersten `bin/migrate` (bzw. `mix ecto.migrate` in der Entwicklung) einmalig übernommen:
