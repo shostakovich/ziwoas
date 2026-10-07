@@ -4,7 +4,7 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
   import Ecto.Query
   import Phoenix.LiveViewTest
 
-  alias Ziwoas.{Clock, Repo, TestClock, TestMqtt}
+  alias Ziwoas.{Clock, FakeShelly, Repo, TestClock}
   alias Ziwoas.Lights.Light
   alias Ziwoas.Switching
   alias Ziwoas.Switching.{Command, Rule}
@@ -19,17 +19,7 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
       aenergy_wh: 1.0
     })
 
-    record(:ok)
     :ok
-  end
-
-  defp record(answer) do
-    test = self()
-
-    TestMqtt.record(fn _client, topic, payload ->
-      send(test, {:published, topic, payload})
-      answer
-    end)
   end
 
   defp rules, do: Repo.all(from r in Rule, order_by: [r.at_minute, r.id])
@@ -84,11 +74,12 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
 
   describe "the plug button" do
     test "switches by hand, logs a manual command and redraws the head", %{conn: conn} do
+      FakeShelly.serve("fridge")
       view = open_page(conn)
       view |> element("#sw_head_fridge button[phx-click=switch_plug]") |> render_click()
       render_async(view)
 
-      assert_received {:published, "shellies/fridge/command/switch:0", "on"}
+      assert_received {:shelly_rpc, "fridge", "Switch.Set", %{on: true}}
       assert [%Command{action: :on, source: :manual}] = Repo.all(Command)
       assert has_element?(view, "#sw_head_fridge .small", "An seit 17:00 (manuell)")
 
@@ -98,8 +89,7 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
              )
     end
 
-    test "a broker failure is a flash and logs nothing", %{conn: conn} do
-      record({:error, :timeout})
+    test "an unreachable plug is a flash and logs nothing", %{conn: conn} do
       view = open_page(conn)
       view |> element("#sw_head_fridge button[phx-click=switch_plug]") |> render_click()
 
@@ -108,7 +98,7 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
       assert has_element?(
                view,
                "#flash-error",
-               "Kühlschrank: Schalten fehlgeschlagen — MQTT-Broker nicht erreichbar"
+               "Kühlschrank: Schalten fehlgeschlagen — Steckdose nicht erreichbar"
              )
 
       assert Repo.all(Command) == []
@@ -127,7 +117,7 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
           ],
           do: render_hook(view, "switch_plug", params)
 
-      refute_received {:published, _, _}
+      refute_received {:shelly_rpc, _, _, _}
       assert Repo.all(Command) == []
     end
   end

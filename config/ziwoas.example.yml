@@ -6,11 +6,6 @@ location:
   lat: 52.52
   lon: 13.405
 
-mqtt:
-  host: 192.168.1.103
-  port: 1883
-  topic_prefix: shellies
-
 # Solakon One – Regelung über Modbus TCP (ADR-0002).
 # Ohne diesen Block ist die Regelung aus.
 # solakon:
@@ -50,6 +45,8 @@ mqtt:
 #       name: Uplighter
 #       room: Wohnzimmer
 
+# A Shelly plug (the default driver) connects by itself: set its outbound websocket
+# (Settings → Outbound Websocket) to ws://<ziwoas host>:<SHELLY_PORT>/shelly/<id>.
 plugs:
   - id: bkw
     name: Balkonkraftwerk

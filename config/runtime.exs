@@ -7,6 +7,8 @@ end
 config :ziwoas, ZiwoasWeb.Endpoint,
   http: [port: String.to_integer(System.get_env("PORT", "4000"))]
 
+config :ziwoas, shelly_port: String.to_integer(System.get_env("SHELLY_PORT", "4001"))
+
 path_env = fn name, example, default ->
   cond do
     path = System.get_env(name) -> path
@@ -29,6 +31,7 @@ config :ziwoas,
       )
     )
 
+# Tests set their database in config/test.exs.
 if config_env() != :test do
   database =
     path_env.(
@@ -54,7 +57,7 @@ if config_env() == :prod do
 
   phx_host = System.get_env("PHX_HOST", "localhost")
 
-  # The origin check runs before ForwardedSSL, so it cannot compare schemes behind the proxy.
+  # Scheme-less: the origin check runs before ForwardedSSL, so it cannot compare schemes.
   check_origin =
     System.get_env("ZIWOAS_ALLOWED_HOSTS", "")
     |> String.split(",", trim: true)

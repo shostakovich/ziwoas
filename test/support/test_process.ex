@@ -1,6 +1,5 @@
 defmodule Ziwoas.TestProcess do
   @moduledoc false
-
   @spec lineage() :: [pid]
   def lineage,
     do: Enum.filter(Process.get(:"$callers", []) ++ Process.get(:"$ancestors", []), &is_pid/1)
@@ -40,7 +39,6 @@ defmodule Ziwoas.TestClock do
   @behaviour Ziwoas.Clock
 
   alias Ziwoas.TestProcess
-
   @spec freeze(DateTime.t() | String.t()) :: :ok
   def freeze(instant), do: TestProcess.put(:now, Ziwoas.Clock.parse!(instant))
 
@@ -49,23 +47,4 @@ defmodule Ziwoas.TestClock do
 
   @impl true
   def utc_now, do: TestProcess.get(:now) || DateTime.utc_now()
-end
-
-defmodule Ziwoas.TestMqtt do
-  @moduledoc false
-  @behaviour Ziwoas.Mqtt
-
-  alias Ziwoas.Mqtt.Broker
-  alias Ziwoas.TestProcess
-
-  @spec record((String.t(), String.t(), binary -> :ok | {:error, term})) :: :ok
-  def record(fun) when is_function(fun, 3), do: TestProcess.put(:mqtt_recorder, fun)
-
-  @impl true
-  def publish(client_id, topic, payload, opts) do
-    case TestProcess.get(:mqtt_recorder) do
-      nil -> Broker.publish(client_id, topic, payload, opts)
-      record -> record.(client_id, topic, payload)
-    end
-  end
 end

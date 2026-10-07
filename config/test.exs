@@ -1,5 +1,6 @@
 import Config
 
+# SQLite has one writer at a time: database tests run synchronously and need few connections.
 config :ziwoas, Ziwoas.Repo,
   database: Path.expand("../tmp/test#{System.get_env("MIX_TEST_PARTITION")}.sqlite3", __DIR__),
   pool: Ecto.Adapters.SQL.Sandbox,
@@ -22,6 +23,6 @@ config :ziwoas, scheduler: false, collector: false
 
 config :ziwoas, http_stubs: true, brightsky_retry_base_ms: 0
 
-config :ziwoas, clock: Ziwoas.TestClock, mqtt_publisher: Ziwoas.TestMqtt
+config :ziwoas, clock: Ziwoas.TestClock
 
 config :ziwoas, govee_command_timeout_ms: 200

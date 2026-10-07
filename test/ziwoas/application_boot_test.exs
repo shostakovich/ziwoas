@@ -16,6 +16,7 @@ defmodule Ziwoas.ApplicationBootTest do
     assert Ziwoas.Application.children({:ok, config}, @devices) == [
              Ziwoas.Repo,
              {Phoenix.PubSub, name: Ziwoas.PubSub},
+             {Registry, keys: :duplicate, name: Ziwoas.Shelly.Registry},
              {Ziwoas.Collector, config: config},
              {Ziwoas.Scheduler, config: config},
              ZiwoasWeb.Endpoint
@@ -23,9 +24,10 @@ defmodule Ziwoas.ApplicationBootTest do
   end
 
   test "a config that fails to load still serves pages, but starts no device and no job" do
-    assert Ziwoas.Application.children({:error, "mqtt is required"}, @devices) == [
+    assert Ziwoas.Application.children({:error, "location is required"}, @devices) == [
              Ziwoas.Repo,
              {Phoenix.PubSub, name: Ziwoas.PubSub},
+             {Registry, keys: :duplicate, name: Ziwoas.Shelly.Registry},
              ZiwoasWeb.Endpoint
            ]
   end
@@ -37,14 +39,14 @@ defmodule Ziwoas.ApplicationBootTest do
         scheduler: false
       )
 
-    assert length(children) == 3
+    assert length(children) == 4
   end
 
   test "fetch answers the load error, get raises it" do
-    TestConfigs.put({:error, "mqtt is required"})
+    TestConfigs.put({:error, "location is required"})
 
-    assert Config.fetch() == {:error, "mqtt is required"}
-    assert_raise Config.Error, "mqtt is required", &Config.get/0
+    assert Config.fetch() == {:error, "location is required"}
+    assert_raise Config.Error, "location is required", &Config.get/0
   end
 
   test "a config put for a test is the one get answers" do

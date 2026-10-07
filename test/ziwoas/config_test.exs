@@ -7,10 +7,6 @@ defmodule Ziwoas.ConfigTest do
   @valid """
   location:
     timezone: Europe/Berlin
-  mqtt:
-    host: 192.168.1.103
-    port: 1883
-    topic_prefix: shellies
   plugs:
     - id: bkw
       name: Balkonkraftwerk
@@ -60,10 +56,6 @@ defmodule Ziwoas.ConfigTest do
     refute Map.has_key?(cfg, :aggregator)
   end
 
-  test "loads mqtt" do
-    assert %{host: "192.168.1.103", port: 1883, topic_prefix: "shellies"} = load(@valid).mqtt
-  end
-
   test "loads fritz_poll" do
     assert %{
              active_interval_seconds: 5,
@@ -96,11 +88,6 @@ defmodule Ziwoas.ConfigTest do
       )
 
     assert error(yaml) =~ ~r/fritz_poll/i
-  end
-
-  test "mqtt is required" do
-    yaml = String.replace(@valid, ~r/mqtt:.*topic_prefix: shellies\n/s, "")
-    assert error(yaml) =~ ~r/mqtt/i
   end
 
   test "rejects duplicate plug ids" do
@@ -285,8 +272,7 @@ defmodule Ziwoas.ConfigTest do
     yaml = """
     location:
       timezone: Mars/Olympus
-    mqtt:
-      host: h
+    solakon:
       port: zero
     plugs:
       - id: Bad-Id
@@ -301,8 +287,8 @@ defmodule Ziwoas.ConfigTest do
 
     for part <- [
           "location.timezone 'Mars/Olympus' is not a valid IANA timezone",
-          "mqtt.port must be a number",
-          "mqtt.topic_prefix is required",
+          "solakon.port must be a number",
+          "solakon.host is required",
           "plugs[0].id must contain only a-z, 0-9 and _",
           "plugs[0].name is required",
           "plugs[1].role must be one of producer, consumer",
@@ -361,7 +347,8 @@ defmodule Ziwoas.ConfigTest do
           "weather:\n  lat: 52.5\n  lon: 13.4\n",
           "electricity_price_eur_per_kwh: 0.3\n",
           "migration:\n  owners:\n    weather: shadow\n",
-          "migration: nonsense\n"
+          "migration: nonsense\n",
+          "mqtt:\n  host: 192.168.1.103\n  port: 1883\n  topic_prefix: shellies\n"
         ] do
       assert %Config{} = load(key <> @valid)
     end
@@ -370,15 +357,9 @@ defmodule Ziwoas.ConfigTest do
   end
 
   test "numbers may be quoted, but must be numbers" do
-    quoted = String.replace(@valid, "port: 1883", ~s(port: "1883"))
-    assert load(quoted).mqtt.port == 1883
-
-    assert error(String.replace(@valid, "port: 1883", "port: abc")) =~
-             "mqtt.port must be a number"
-
-    assert error(String.replace(@valid, "port: 1883", "port: 0")) =~ "mqtt.port must be > 0"
-
+    assert load(@valid <> @solakon <> ~s(  port: "1502"\n)).solakon.port == 1502
     assert error(@valid <> @solakon <> "  port: x\n") =~ "solakon.port must be a number"
+    assert error(@valid <> @solakon <> "  port: 0\n") =~ "solakon.port must be > 0"
 
     assert error(@valid <> "govee:\n  lan_poll_seconds: soon\n") =~
              "govee.lan_poll_seconds must be a number"
@@ -386,7 +367,7 @@ defmodule Ziwoas.ConfigTest do
 
   test "integers read as leniently as ever: 8.0 is 8, a trailing unit is dropped" do
     assert load(@valid <> "govee:\n  lan_poll_seconds: 8.0\n").govee.lan_poll_seconds == 8
-    assert load(String.replace(@valid, "port: 1883", ~s(port: "1883 "))).mqtt.port == 1883
+    assert load(@valid <> @solakon <> ~s(  port: "1502 "\n)).solakon.port == 1502
     assert load(@valid <> @solakon <> "  unit_id: 0\n").solakon.unit_id == 0
   end
 
@@ -405,7 +386,7 @@ defmodule Ziwoas.ConfigTest do
              "fritz_poll.idle_threshold_w must be >= 0"
   end
 
-  @minimal "location: { timezone: Europe/Berlin }\nmqtt: { host: h, port: 1883, topic_prefix: shellies }\nplugs: []\n"
+  @minimal "location: { timezone: Europe/Berlin }\nplugs: []\n"
 
   test "govee parses intervals, the device map and the api key" do
     govee = """

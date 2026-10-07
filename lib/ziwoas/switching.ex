@@ -9,7 +9,6 @@ defmodule Ziwoas.Switching do
   alias Ziwoas.Switching.{Schedule, Window}
 
   @lookahead_s 7 * 24 * 3600
-
   @spec rows([Plug.t()], DateTime.t(), String.t()) :: [Row.t()]
   def rows(plugs, now, zone) do
     ids = Enum.map(plugs, & &1.id)
@@ -49,6 +48,7 @@ defmodule Ziwoas.Switching do
   @spec row(Plug.t(), DateTime.t(), String.t()) :: Row.t()
   def row(plug, now, zone), do: hd(rows([plug], now, zone))
 
+  # Ties on inserted_at go to the highest id: Map.new keeps the last.
   defp latest_commands([]), do: %{}
 
   defp latest_commands(ids) do
@@ -67,10 +67,10 @@ defmodule Ziwoas.Switching do
     |> Map.new(&{&1.plug_id, &1})
   end
 
-  @spec switch(Plug.t(), Command.action(), Command.source(), Ziwoas.Config.Mqtt.t()) ::
+  # --- Commands -----------------------------------------------------------------------
+  @spec switch(Plug.t(), Command.action(), Command.source()) ::
           {:ok, Command.t()} | {:error, Commander.error()}
-  defdelegate switch(plug, action, source, mqtt), to: Commander
-
+  defdelegate switch(plug, action, source), to: Commander
   @spec manual_after?(String.t(), DateTime.t()) :: boolean
   def manual_after?(plug_id, time) do
     Repo.exists?(
@@ -79,6 +79,7 @@ defmodule Ziwoas.Switching do
     )
   end
 
+  # --- Schedule tick ------------------------------------------------------------------
   @spec enabled_rules([String.t()]) :: %{String.t() => [Rule.t()]}
   def enabled_rules(plug_ids) do
     Repo.all(from r in Rule, where: r.enabled == true and r.plug_id in ^plug_ids)
@@ -96,10 +97,12 @@ defmodule Ziwoas.Switching do
     |> Repo.insert_or_update!()
   end
 
+  # --- Schedule -----------------------------------------------------------------------
   @spec group(String.t(), String.t()) :: [Rule.t()]
   def group(plug_id, group_id),
     do: Repo.all(from r in Rule, where: r.plug_id == ^plug_id and r.group_id == ^group_id)
 
+  # A group that lost a half is shown and edited as an Einzelschaltung.
   defp halves(rules) do
     on = Enum.find(rules, &(&1.action == :on))
     off = Enum.find(rules, &(&1.action == :off))
@@ -112,7 +115,6 @@ defmodule Ziwoas.Switching do
          do: Window.from_rules(group_id, on, off)
   end
 
-  @doc "Nil for a rule that is one half of an intact Zeitfenster."
   @spec single(String.t(), term) :: Rule.t() | nil
   def single(plug_id, id) do
     with {id, ""} <- Integer.parse(to_string(id)),

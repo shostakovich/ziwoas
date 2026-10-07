@@ -14,6 +14,7 @@ defmodule Ziwoas.Plugs.Ingest do
 
   @type reading :: %{apower_w: float, aenergy_wh: float, output: boolean | nil}
 
+  @typedoc "Read by the dashboard's `TodayChart` hook."
   @type delta :: %{
           id: String.t(),
           name: String.t() | nil,
@@ -24,7 +25,6 @@ defmodule Ziwoas.Plugs.Ingest do
           avg_power_w: float,
           output: boolean | nil
         }
-
   @spec new(keyword) :: t
   def new(opts \\ []) do
     %__MODULE__{
@@ -35,17 +35,16 @@ defmodule Ziwoas.Plugs.Ingest do
 
   defp unix_now_f, do: DateTime.to_unix(Clock.now(), :microsecond) / 1_000_000
 
-  @doc "Records the reading at the clock's whole second; a second reading in that second changes nothing."
   @spec record(t, Plug.t(), reading) :: t
   def record(%__MODULE__{} = ingest, %Plug{} = plug, reading) do
     ts = trunc(ingest.clock.())
+    if is_boolean(reading.output), do: Plugs.record_output(plug.id, reading.output)
 
     case Plugs.record_sample(plug.id, ts, reading.apower_w, reading.aenergy_wh) do
       :duplicate ->
         ingest
 
       :ok ->
-        if is_boolean(reading.output), do: Plugs.record_output(plug.id, reading.output)
         Logger.debug("Plugs.Ingest: #{plug.id} #{reading.apower_w} W")
         accumulate(ingest, plug, ts, reading)
     end
@@ -79,6 +78,7 @@ defmodule Ziwoas.Plugs.Ingest do
     |> maybe_broadcast()
   end
 
+  # Producers report with the opposite sign; the live mean is a positive magnitude.
   defp signed_watts(%Plug{role: :producer}, watts), do: abs(watts)
   defp signed_watts(%Plug{}, watts), do: watts
 
@@ -91,15 +91,26 @@ defmodule Ziwoas.Plugs.Ingest do
     %{ingest | pending: pending}
   end
 
+  # A process whose readings may pause must flush/1 while pending?/1, or the last deltas wait.
+  @spec pending?(t) :: boolean
+  def pending?(%__MODULE__{pending: pending}), do: pending != []
+  @spec flush(t) :: t
+  def flush(%__MODULE__{pending: []} = ingest), do: ingest
+  def flush(%__MODULE__{} = ingest), do: broadcast(ingest, ingest.clock.())
+  @spec broadcast_interval_s() :: pos_integer
+  def broadcast_interval_s, do: @broadcast_interval_s
+
   defp maybe_broadcast(ingest) do
     now = ingest.clock.()
 
-    if now - ingest.last_broadcast_at >= @broadcast_interval_s do
-      deltas = Enum.map(ingest.pending, &elem(&1, 1))
-      ingest.broadcast.(deltas)
-      %{ingest | pending: [], last_broadcast_at: now}
-    else
-      ingest
-    end
+    if now - ingest.last_broadcast_at >= @broadcast_interval_s,
+      do: broadcast(ingest, now),
+      else: ingest
+  end
+
+  defp broadcast(ingest, now) do
+    deltas = Enum.map(ingest.pending, &elem(&1, 1))
+    ingest.broadcast.(deltas)
+    %{ingest | pending: [], last_broadcast_at: now}
   end
 end

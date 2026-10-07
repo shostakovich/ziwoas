@@ -7,10 +7,6 @@ defmodule Ziwoas.TestConfigs do
   @base """
   location:
     timezone: Europe/Berlin
-  mqtt:
-    host: localhost
-    port: 1883
-    topic_prefix: shellies
   """
 
   def file(:test), do: Path.join(@fixtures, "ziwoas.test.yml")
