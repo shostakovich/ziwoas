@@ -219,5 +219,5 @@ re-checked). Each finding below names its package.
 | S2 | done (d15be2b, f4bef12; `Ziwoas.Live` removed) |
 | S3 | done (366cdb9, 3727908) |
 | S4 | done (ad1aaac) |
-| R / X | open |
+| R / X | done (review: 1 blocker, 4 should-fix, 18 nits; fixed in X with a red-first test each, nits 4/8/9 accepted; browser walk before and after X) |
 | L | waiting for Robert's go |
