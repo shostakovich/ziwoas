@@ -4,6 +4,31 @@ ZiWoAS is one Phoenix 1.8 application on one SQLite file. Device connections, re
 and the web endpoint run in the same VM under `Ziwoas.Application`. Domain vocabulary is in
 [`CONTEXT.md`](../CONTEXT.md), decisions are in [`adr/`](adr/).
 
+## Conventions
+
+- **Contexts own the Repo.** Only a context's top module (or its private submodules) calls
+  `Repo`; schemas hold fields, changesets and pure predicates; web code aliases contexts, never
+  schemas or `Ecto.Query`. Jobs write through context functions.
+- **No presentation in `lib/ziwoas`.** The domain returns numbers, atoms, dates and structs.
+  Labels, units, CSS names, colours, chart payloads and German text live in `ZiwoasWeb`.
+- **PubSub per context:** `Context.subscribe/0` (or `/1` for a key) and a private `broadcast`;
+  topic strings exist only inside the context; messages are `{event, payload}` with
+  context-specific event atoms.
+- **Chart data only via LiveView:** `push_event(socket, "<hook>:data", payload)` on connected
+  mount and on PubSub events; hooks only `handleEvent` and draw. No `fetch`, no `setInterval`,
+  no JSON islands in the DOM, no resync event. Timers only where wall-clock time itself is the
+  trigger (midnight, sliding 24 h window). Accepted exception: the energy-flow card's
+  `data-state`, live state diffed into an attribute the `EnergyFlow` hook reads in `updated()`.
+- **Ecto types:** dates are `:date`, closed string sets are `Ecto.Enum`. Queries are
+  `Ecto.Query`; raw SQL only where Ecto cannot express it (`VACUUM INTO`).
+- **Plain functions over service objects:** no `new/1` structs wrapping one field, no
+  `*Builder`/`*Presenter`/`*Calculator`/`*Loader`/`Store` names; functions on the context.
+- **Errors:** clients return `{:ok, _} | {:error, reason}` with atoms, tuples or exceptions as
+  reasons, not strings; no `rescue` for control flow; bang variants only at the job boundary.
+- **Slow work off the LiveView process:** `assign_async` for heavy mount data, `start_async`
+  for device writes.
+- **Navigation:** `<.link navigate={~p"…"}>` everywhere inside the `live_session`.
+
 ## Supervision tree
 
 ```
@@ -32,9 +57,8 @@ time).
   error with its path (`plugs[1].role must be one of producer, consumer; …`). The loaded
   result lives in `:persistent_term`: `Config.fetch/0` gives `{:ok, config}` or
   `{:error, message}`, `Config.get/0` the config or raises `Config.Error`.
-  `Config.plug_roster/1` gives the **plug roster**. Retired keys are refused with a pointer to
-  their new place, and the old `electricity_price_eur_per_kwh` key and a `migration:` block are
-  ignored with a warning.
+  `Config.plug_roster/1` gives the **plug roster**. Keys no schema knows are ignored, keys
+  retired since the cutover among them; only `trmnl:` refuses unknown keys.
 - **Cost items and electricity prices** live in the database (ADR-0004), maintained on
   `/solakon/wirtschaftlichkeit`.
 - **Paths**: `ZIWOAS_CONFIG` and `ZIWOAS_DB` (`config/runtime.exs`). Development defaults to
@@ -301,14 +325,14 @@ Ecto migrations in `priv/repo/migrations/` own the schema. Schemas `use Ziwoas.S
   width.
 - **SQLite pragmas** (`config/config.exs`): WAL, `synchronous=NORMAL`, 15 s busy timeout, foreign
   keys, transactions `IMMEDIATE`, so a read-then-write transaction waits for the write lock.
-- **Adoption.** `Ziwoas.Release.adopt_rails_database!/0` takes over a database the former Rails
-  app left behind: it checks the tables and drops Rails' `schema_migrations` and
-  `ar_internal_metadata`, so the baseline migration finds every table in place. `mix ecto.migrate`
-  runs it first (`mix ziwoas.adopt`), a release through `bin/migrate` (`Release.migrate/0`).
+- **Migrations** start from a baseline that reproduces the schema the former Rails app left
+  behind (`create_if_not_exists`), then normalise it. They are recorded in production's
+  `schema_migrations`: never edit or delete one, add a new one. A release migrates through
+  `bin/migrate` (`Ziwoas.Release.migrate/0`).
 
 ## Release
 
-`mix release` (`rel/`): `bin/migrate` adopts and migrates, `bin/server` starts with
+`mix release` (`rel/`): `bin/migrate` migrates, `bin/server` starts with
 `PHX_SERVER=true`. Environment: `ZIWOAS_DB`, `ZIWOAS_CONFIG`, `SECRET_KEY_BASE` (required),
 `PHX_HOST`, `PORT` (default 4000), `POOL_SIZE` (5). VM flags in `rel/vm.args.eex` turn
 busy-waiting off. The image needs `ca-certificates` (Req verifies TLS against the system store)
@@ -330,7 +354,6 @@ and host networking for the Govee LAN multicast.
   socket), `Ziwoas.TestMqtt.record/1` (records publishes), `Ziwoas.TestClock.freeze/1`, `Req.Test`
   stubs for HTTP. Jobs are called with their opts (`config:`, the monitor jobs `monitor:`); the
   aggregator backs up only with a `backup_dir:`.
-- **Adoption** is tested against `test/fixtures/rails_schema.sql`, the frozen last Rails schema
-  (`Ziwoas.RailsDatabase`, `Ziwoas.ReleaseTest`).
+- **Migrations** run on an empty file in `Ziwoas.MigrationsTest` (`Ziwoas.TestMigrations`).
 - LiveViews are tested with `Phoenix.LiveViewTest` (`lazy_html`): broadcast on the topic, then
   `render/1`.

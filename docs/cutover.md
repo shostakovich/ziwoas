@@ -1,5 +1,9 @@
 # Cutover Rails → Phoenix: rehearsal and runbook
 
+> Historical record. After the cutover the adoption (`adopt_rails_database!`, `mix ziwoas.adopt`,
+> the Rails schema fixture and its tests) and `docs/port-plan.md` were removed; `bin/migrate` now
+> only migrates. Part A can no longer be replayed against a Rails dump with the current code.
+
 Belongs to [ADR-0007](adr/0007-idiomatic-phoenix-big-bang-cutover.md) and issue #158. Part A
 runs locally on a copy, part B on the home server. Part A comes before part B, without
 exception.

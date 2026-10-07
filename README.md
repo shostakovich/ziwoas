@@ -68,7 +68,7 @@ mix assets.deploy   # minified and digested, for a release
 Ecto migrations in `priv/repo/migrations/` own the schema. A release (`mix release`) ships two
 scripts:
 
-- `bin/migrate` – adopts an old database if needed and runs all pending migrations.
+- `bin/migrate` – runs all pending migrations.
 - `bin/server` – starts the app with `PHX_SERVER=true`.
 
 In a release, `ZIWOAS_DB`, `ZIWOAS_CONFIG`, `SECRET_KEY_BASE` and `PHX_HOST` are required;
@@ -80,18 +80,10 @@ reaches ZiWoAS under, comma-separated; without it: the host that served the page
 `ZIWOAS_CONFIG` point to `/app/storage` and `/app/config`. `docker-compose.yml` is one service on
 the host network (Govee answers by multicast on UDP 4002) and expects `ZIWOAS_TAG` and
 `SECRET_KEY_BASE`. `.github/workflows/docker.yml` publishes images for `linux/amd64` only under an
-explicit tag, never `latest`. Rehearsal and cutover: [`docs/cutover.md`](docs/cutover.md).
+explicit tag, never `latest`. The Rails → Phoenix cutover is recorded in
+[`docs/cutover.md`](docs/cutover.md).
 
-**Adopting an old database.** A SQLite file from the former Rails app is adopted once, on the
-first `bin/migrate` (or `mix ecto.migrate` in development): `Ziwoas.Release.adopt_rails_database!/0`
-checks the tables and removes Rails' migration bookkeeping, then the Ecto migrations take over. A
-second run changes nothing. By hand:
-
-```bash
-ZIWOAS_DB=storage/production.sqlite3 mix ziwoas.adopt
-```
-
-Always take a backup first (`sqlite3 … ".backup …"`). The app itself backs up the database every
+Take a backup before a new image migrates (`sqlite3 … ".backup …"`). The app itself backs up the database every
 night into `backup/` next to the database file.
 
 ## Further reading
