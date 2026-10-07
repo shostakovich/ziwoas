@@ -231,6 +231,7 @@ defmodule ZiwoasWeb.LightsComponents do
   # --- The panels -----------------------------------------------------------------
 
   attr :brightness, :integer, required: true
+  attr :revert, :integer, default: nil, doc: "set anew to put a focused thumb back"
 
   @doc "The brightness slider: a form, so the server hears it debounced."
   def brightness_panel(assigns) do
@@ -255,6 +256,7 @@ defmodule ZiwoasWeb.LightsComponents do
           max="100"
           value={@brightness}
           style={"--felt-form-range-fill: #{@fill}%"}
+          phx-patch-focused={@revert}
           phx-debounce="250"
         />
       </div>
@@ -288,6 +290,7 @@ defmodule ZiwoasWeb.LightsComponents do
 
   attr :light, :map, required: true
   attr :kelvin, :integer, default: nil, doc: "the colour temperature last set, nil for none"
+  attr :revert, :integer, default: nil, doc: "set anew to put a focused thumb back"
   attr :hidden, :boolean, default: false
 
   def white_panel(assigns) do
@@ -328,6 +331,7 @@ defmodule ZiwoasWeb.LightsComponents do
           max={@max_k}
           step="100"
           value={@slider}
+          phx-patch-focused={@revert}
           phx-debounce="250"
         />
         <div class="ld-ticks" aria-hidden="true">

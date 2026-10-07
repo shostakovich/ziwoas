@@ -71,6 +71,40 @@ defmodule ZiwoasWeb.LightLiveEventsTest do
     refute Repo.get_by(State, light_key: "UP1").on
   end
 
+  test "after a refused slider command both sliders go back to the lamp's values", %{
+    conn: conn
+  } do
+    Repo.update_all(State, set: [brightness: 62, color_temp_k: 2000])
+    bridge!({:error, :unknown_lamp})
+    view = open_page(conn)
+
+    view |> form("#light_brightness_form", %{"value" => "30"}) |> render_change()
+    render_async(view)
+
+    assert has_element?(view, "#flash-error", "Lampe nicht erreichbar")
+    assert has_element?(view, "#light_brightness[value='62'][phx-patch-focused]")
+    assert has_element?(view, "#light_brightness_form output", "62 %")
+
+    view |> form("#light_panel_white", %{"temp_k" => "6500"}) |> render_change()
+    render_async(view)
+
+    assert has_element?(view, "#light_temp[value='2000'][phx-patch-focused]")
+    first = view |> element("#light_temp") |> render()
+
+    view |> form("#light_panel_white", %{"temp_k" => "6500"}) |> render_change()
+    render_async(view)
+
+    refute view |> element("#light_temp") |> render() == first
+  end
+
+  test "after a command the bridge took the sliders leave a focused thumb be", %{conn: conn} do
+    view = open_page(conn)
+    view |> form("#light_brightness_form", %{"value" => "42"}) |> render_change()
+    render_async(view)
+
+    refute has_element?(view, "#light_brightness[phx-patch-focused]")
+  end
+
   test "a zone over the limit evicts, toasts, and the undo restores", %{conn: conn} do
     Commands.record_zone_state("UP1", "bottomLightToggle", true)
     Commands.record_zone_state("UP1", "sideLightToggle", true)

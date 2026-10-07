@@ -8,7 +8,8 @@ defmodule ZiwoasWeb.LightLive do
   LiveView process by `start_async`): the
   brightness and white sliders as forms debounced by `phx-debounce`, the buttons
   and swatches by `phx-click`, the colour wheel through the `LightDetail` hook.
-  What a command set is kept in assigns (`brightness`, `kelvin`, `color`); the
+  What a command set is kept in assigns (`brightness`, `kelvin`, `color`), and
+  a refused command puts the sliders back there (`revert`); the
   tabs are an assign too. The gear opens the settings sheet in place.
   """
   use ZiwoasWeb, :live_view
@@ -38,6 +39,7 @@ defmodule ZiwoasWeb.LightLive do
        brightness: max(Lights.brightness(snapshot), 1),
        kelvin: Lights.color_temp_k(snapshot),
        color: if(Lights.white?(snapshot), do: nil, else: color_hex(snapshot)),
+       revert: nil,
        toast: %{message: nil, undo: nil},
        toast_timer: nil,
        settings: nil
@@ -108,10 +110,10 @@ defmodule ZiwoasWeb.LightLive do
         {:noreply, refresh_power(socket)}
 
       {:ok, _light, {:sent, verb}} ->
-        {:noreply, keep(socket, verb)}
+        {:noreply, socket |> assign(:revert, nil) |> keep(verb)}
 
       {:error, :unreachable} ->
-        {:noreply, put_flash(socket, :error, LightEvents.failed_message())}
+        {:noreply, failed(socket)}
 
       {:error, _reason} ->
         {:noreply, socket}
@@ -119,7 +121,15 @@ defmodule ZiwoasWeb.LightLive do
   end
 
   def handle_async({:light_command, _command}, {:exit, _reason}, socket),
-    do: {:noreply, put_flash(socket, :error, LightEvents.failed_message())}
+    do: {:noreply, failed(socket)}
+
+  # The sliders' thumbs moved on the client; a new `revert` sends them back to
+  # the values kept here, focused or not.
+  defp failed(socket) do
+    socket
+    |> put_flash(:error, LightEvents.failed_message())
+    |> update(:revert, &((&1 || 0) + 1))
+  end
 
   # What the hand set stays on the controls; the lamp's report only redraws the hero.
   defp keep(socket, {:brightness, value}), do: assign(socket, :brightness, value)
@@ -170,10 +180,10 @@ defmodule ZiwoasWeb.LightLive do
         </.header>
 
         <.power snapshot={@power_snapshot} />
-        <.brightness_panel brightness={@brightness} />
+        <.brightness_panel brightness={@brightness} revert={@revert} />
         <.tabs tabs={@tabs} active={@tab} />
 
-        <.white_panel light={@light} kelvin={@kelvin} hidden={@tab != "white"} />
+        <.white_panel light={@light} kelvin={@kelvin} revert={@revert} hidden={@tab != "white"} />
         <.color_panel
           :if={@light.supports_color}
           color={@color}
