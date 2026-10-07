@@ -1,6 +1,4 @@
 defmodule Ziwoas.Govee.BridgeTest do
-  # The bridge as a process: bootstrap from the Platform API, LAN replies on the
-  # listener, commands, API polls. What it reports to Lights comes to the test.
   use ExUnit.Case, async: true
 
   alias Ziwoas.Config.Govee
@@ -37,7 +35,6 @@ defmodule Ziwoas.Govee.BridgeTest do
              ]
            })
 
-  # The Platform API as a plug: devices, no scenes, a state; control calls are reported.
   defp api(test) do
     fn conn ->
       {:ok, body, conn} = Plug.Conn.read_body(conn)

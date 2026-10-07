@@ -1,5 +1,5 @@
 defmodule Ziwoas.Trmnl.EnergyPushJob do
-  @moduledoc "Pushes the TRMNL energy widget (`push_trmnl_widget`, every 15 minutes)."
+  @moduledoc false
   @behaviour Ziwoas.Scheduler.Job
 
   alias Ziwoas.Clock

@@ -1,8 +1,5 @@
 defmodule Ziwoas.Economics.Overview do
-  @moduledoc """
-  The figures of the Wirtschaftlichkeit card (`Ziwoas.Economics.overview/1`).
-  Without a price, the money figures are nil.
-  """
+  @moduledoc false
   defstruct [
     :saved_eur,
     :acquisition_cost_eur,

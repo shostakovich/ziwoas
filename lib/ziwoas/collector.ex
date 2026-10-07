@@ -1,23 +1,5 @@
 defmodule Ziwoas.Collector do
-  @moduledoc """
-  The device connections as a supervision tree, one child per connection or device:
-
-      Ziwoas.Collector (one_for_one)
-      ├── ziwoas-phoenix-ingest     MQTT: Ziwoas.Collector.MqttRouter with
-      │                             ShellyStatusHandler
-      ├── Ziwoas.Solakon.Monitor    Modbus TCP (the scheduler's solakon_monitor and
-      │                             solakon_snapshot jobs read through it)
-      ├── Ziwoas.Fritz.Bridge ×n    one per Fritz!DECT plug, recording in-process
-      ├── Ziwoas.Govee.Tasks        Task.Supervisor: the bridge's Platform API calls
-      ├── Ziwoas.Govee.Bridge       LAN + Platform API, reports to Ziwoas.Lights
-      └── ziwoas-phoenix-command    MQTT publisher: plug switches
-
-  Each child restarts on its own; devices reconnect with backoff inside their
-  process. Tortoise311 stops a connection on some network errors (an unreachable
-  broker host) and comes back a second after its restart, so the restart intensity
-  is high enough that a crash-looping connection never takes the tree — and with it
-  the web endpoint's supervisor — down.
-  """
+  @moduledoc false
   use Supervisor
 
   require Logger
@@ -37,11 +19,11 @@ defmodule Ziwoas.Collector do
     do:
       Supervisor.init(children(Keyword.fetch!(opts, :config)),
         strategy: :one_for_one,
+        # Tortoise311 crash-loops on an unreachable broker; that must never take the endpoint down.
         max_restarts: 120,
         max_seconds: 60
       )
 
-  @doc "The children for a configuration: only what it configures."
   @spec children(Config.t()) :: [Supervisor.child_spec()]
   def children(%Config{} = config),
     do:

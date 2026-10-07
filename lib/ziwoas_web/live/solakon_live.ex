@@ -1,15 +1,5 @@
 defmodule ZiwoasWeb.SolakonLive do
-  @moduledoc """
-  The PV page. Plug deltas (`Ziwoas.Plugs.subscribe/0`) and stored readings
-  (`Ziwoas.Solakon.subscribe/0`) replace the energy-flow state and move the
-  freshness beat; a stored snapshot refreshes the Solakon-Verlauf
-  (`ZiwoasWeb.SolakonHistoryComponent`), whose range tabs patch `?range=`.
-  The sun calendar, the shading report and the Wirtschaftlichkeit load after
-  the page is connected.
-
-  The EPS and Auto-Regelung switches are the events `"toggle_eps"` and
-  `"toggle_control"`; their writes run off the LiveView process.
-  """
+  @moduledoc false
   use ZiwoasWeb, :live_view
 
   import ZiwoasWeb.Components.EnergyFlow

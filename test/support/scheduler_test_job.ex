@@ -1,5 +1,5 @@
 defmodule Ziwoas.Scheduler.TestJob do
-  @moduledoc "A recurring job for tests: tells the test that started its runner about each run."
+  @moduledoc false
   @behaviour Ziwoas.Scheduler.Job
 
   @impl true
@@ -10,7 +10,7 @@ defmodule Ziwoas.Scheduler.TestJob do
 end
 
 defmodule Ziwoas.Scheduler.FailingTestJob do
-  @moduledoc "A recurring job for tests that reports, then raises."
+  @moduledoc false
   @behaviour Ziwoas.Scheduler.Job
 
   alias Ziwoas.Scheduler.TestJob

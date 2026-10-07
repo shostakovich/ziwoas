@@ -1,11 +1,5 @@
 defmodule ZiwoasWeb.Components.SunCalendar do
-  @moduledoc """
-  The sun calendar of the PV page: PV power, irradiance and cloud cover as
-  strips of day × hour over a year, and the daily PV energy as bars. Every
-  chart is drawn twice, wide and narrow for the phone; the narrow strips reuse
-  the wide cells through `<use>`, so `id` prefixes the shared element ids.
-  Geometry: `ZiwoasWeb.Charts.SunCalendar`.
-  """
+  @moduledoc "The narrow strips reuse the wide cells through `<use>`, so `id` prefixes the shared element ids."
   use ZiwoasWeb, :html
 
   import ZiwoasWeb.Components.ChartParts

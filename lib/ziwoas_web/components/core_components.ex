@@ -1,16 +1,11 @@
 defmodule ZiwoasWeb.CoreComponents do
-  @moduledoc """
-  Shared function components in the style of Phoenix 1.8's generator, on
-  felt-css (Bootstrap class names) instead of Tailwind. Error messages are
-  German without Gettext, see `translate_error/1`.
-  """
+  @moduledoc false
   use Phoenix.Component
 
   alias Phoenix.HTML.Form
   alias Phoenix.LiveView.JS
   alias ZiwoasWeb.Format
 
-  @doc "A felt-css card: optional title and subtitle above the content."
   attr :title, :string, default: nil
   attr :subtitle, :string, default: nil
   attr :class, :any, default: nil
@@ -33,11 +28,6 @@ defmodule ZiwoasWeb.CoreComponents do
     """
   end
 
-  @doc """
-  A flash message as a dismissible felt-css alert.
-
-      <.flash kind={:info} flash={@flash} />
-  """
   attr :id, :string, doc: "the optional id of the flash container"
   attr :flash, :map, default: %{}, doc: "the map of flash messages to display"
   attr :title, :string, default: nil
@@ -70,7 +60,6 @@ defmodule ZiwoasWeb.CoreComponents do
     """
   end
 
-  @doc "The flash messages of a page, plus the notices for a lost connection."
   attr :flash, :map, required: true, doc: "the map of flash messages"
   attr :id, :string, default: "flash-group", doc: "the optional id of flash container"
 
@@ -103,13 +92,6 @@ defmodule ZiwoasWeb.CoreComponents do
     """
   end
 
-  @doc """
-  A button, or a link styled as one when `href`, `navigate` or `patch` is given.
-
-      <.button>Speichern</.button>
-      <.button variant="outline-danger" phx-click="delete" data-confirm="Wirklich löschen?">Löschen</.button>
-      <.button navigate={~p"/"}>Zurück</.button>
-  """
   attr :variant, :string, default: "primary", doc: "the felt-css button variant (btn-<variant>)"
   attr :size, :string, default: nil, values: [nil, "sm", "lg"]
   attr :class, :any, default: nil
@@ -139,17 +121,6 @@ defmodule ZiwoasWeb.CoreComponents do
     end
   end
 
-  @doc """
-  A form input with label and German error messages, on a `Phoenix.HTML.FormField`
-  or with `name`/`value` given directly.
-
-      <.input field={@form[:label]} label="Bezeichnung" />
-      <.input field={@form[:plug_id]} type="select" options={@plugs} prompt="Bitte wählen" />
-      <.input field={@form[:enabled]} type="checkbox" label="Aktiv" />
-
-  `type="checkbox"` takes `switch` for a felt-css form switch. Other types
-  (`number`, `time`, `date`, `color`, `range`, …) render a plain `<input>`.
-  """
   attr :id, :any, default: nil
   attr :name, :any
   attr :label, :string, default: nil
@@ -274,7 +245,6 @@ defmodule ZiwoasWeb.CoreComponents do
     """
   end
 
-  @doc "A form error message below its control."
   slot :inner_block, required: true
 
   def error(assigns) do
@@ -283,17 +253,6 @@ defmodule ZiwoasWeb.CoreComponents do
     """
   end
 
-  @doc """
-  The page title: an `h1` set as `h2`, with an optional control before it
-  (`:leading`, a back link) and after it (`:actions`).
-
-      <.header>Wetter</.header>
-      <.header title_class="ld-title">
-        <:leading><.link navigate={~p"/switches"}>←</.link></:leading>
-        {@light.name}
-        <:actions><button>…</button></:actions>
-      </.header>
-  """
   attr :class, :any, default: nil
   attr :title_class, :any, default: nil
   slot :inner_block, required: true
@@ -310,7 +269,6 @@ defmodule ZiwoasWeb.CoreComponents do
     """
   end
 
-  @doc "A stat tile in a `row-cols-*` grid; values sit at the foot, so a row lines them up."
   attr :id, :string, default: nil
   attr :label, :string, required: true
   attr :number, :string, required: true
@@ -336,10 +294,6 @@ defmodule ZiwoasWeb.CoreComponents do
     """
   end
 
-  @doc """
-  The assigns of a `tile/1` for one value: a dash without unit when unknown, a
-  plus on a signed non-negative value.
-  """
   def measure_tile(id, label, value, unit, precision, signed \\ false)
 
   def measure_tile(id, label, nil, _unit, _precision, _signed),
@@ -351,13 +305,7 @@ defmodule ZiwoasWeb.CoreComponents do
     %{id: id, label: label, number: number, unit: unit}
   end
 
-  @doc """
-  Translates an error tuple from a changeset into German.
-
-  Messages written in German at the validation (`message: "…"`) pass through
-  with their bindings filled in; Ecto's standard English messages are looked
-  up by their validation.
-  """
+  @doc "German messages from the validation pass through; Ecto's English ones are looked up."
   @spec translate_error({String.t(), keyword}) :: String.t()
   def translate_error({msg, opts}) do
     # unique_constraint/3 marks its error with `constraint: :unique`, not a validation.
@@ -410,12 +358,10 @@ defmodule ZiwoasWeb.CoreComponents do
     end
   end
 
-  @doc "Shows an element with a fade (`phx-*` bindings)."
   def show(js \\ %JS{}, selector) do
     JS.show(js, to: selector, time: 200, transition: {"fade", "opacity-0", "opacity-100"})
   end
 
-  @doc "Hides an element with a fade (`phx-*` bindings)."
   def hide(js \\ %JS{}, selector) do
     JS.hide(js, to: selector, time: 200, transition: {"fade", "opacity-100", "opacity-0"})
   end

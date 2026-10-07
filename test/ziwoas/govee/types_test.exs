@@ -13,7 +13,6 @@ defmodule Ziwoas.Govee.TypesTest do
       assert Types.integer("+5") == {:ok, 5}
       assert Types.integer("-3") == {:ok, -3}
       assert Types.integer("1_000") == {:ok, 1000}
-      # A leading zero is decimal, not octal.
       assert Types.integer("010") == {:ok, 10}
     end
 

@@ -1,9 +1,5 @@
 defmodule Ziwoas.Plugs.Measurement do
-  @moduledoc """
-  A plug's latest measurement and whether it still describes the plug now
-  (`Ziwoas.Plugs.latest_measurements/3`). A plug is offline once no sample
-  arrived for `offline_after_s`; an offline plug reports no watts, not zero.
-  """
+  @moduledoc false
   @offline_after_s 120
 
   @enforce_keys [:plug_id, :watt, :last_seen_ts, :offline]

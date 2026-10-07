@@ -1,8 +1,4 @@
 defmodule Ziwoas.TimeWindowsTest do
-  # Time windows compare timestamp columns as text, which only orders like the instants
-  # when the bound is written exactly as the stored values: through a typed field, as
-  # `:utc_datetime_usec`. The bounds here carry no microseconds on purpose: a DateTime
-  # written as it is would lose the `.000000Z` and miss or catch the rows on the bound.
   use Ziwoas.DataCase
 
   import Ecto.Query
@@ -39,7 +35,6 @@ defmodule Ziwoas.TimeWindowsTest do
 
   describe "Weather.today_hourly: from the start of this local hour to the end of tomorrow" do
     test "both bounds are in, a microsecond beyond either is out" do
-      # 12:34 in Berlin: the window is 2026-05-04 12:00 to 2026-05-05 23:59:59.999999 local.
       from = ~U[2026-05-04 10:00:00Z]
       to = ~U[2026-05-05 21:59:59.999999Z]
 
@@ -95,7 +90,6 @@ defmodule Ziwoas.TimeWindowsTest do
   end
 
   describe "PvHourAggregator.aggregate_day: readings of [local midnight, next midnight)" do
-    # 2026-04-10 in Berlin runs from 2026-04-09 22:00 to 2026-04-10 22:00 UTC.
     @day ~D[2026-04-10]
     @midnight ~U[2026-04-09 22:00:00Z]
     @next_midnight ~U[2026-04-10 22:00:00Z]

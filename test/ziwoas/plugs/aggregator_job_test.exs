@@ -11,8 +11,6 @@ defmodule Ziwoas.Plugs.AggregatorJobTest do
     :ok
   end
 
-  # Without a backup directory: the real backup (VACUUM INTO) cannot run inside the
-  # sandbox's transaction (Ziwoas.Plugs.AggregatorBackupTest).
   defp perform, do: AggregatorJob.perform(config: TestConfigs.plugs(), backup_dir: nil)
 
   defp seed_day do

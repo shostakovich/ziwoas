@@ -1,5 +1,5 @@
 defmodule Ziwoas.Economics.DecimalInput do
-  @moduledoc "Amounts as typed on a German keyboard: `12,50` reads as `12.50`."
+  @moduledoc false
 
   @spec normalize(map, String.t()) :: map
   def normalize(%{} = attrs, key) do

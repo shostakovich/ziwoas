@@ -12,7 +12,6 @@ defmodule Ziwoas.Scheduler.ScheduleTest do
 
   defp iso(instant), do: DateTime.to_iso8601(instant)
 
-  # The next `n` due instants after `from`, as UTC ISO strings.
   defp series(schedule, from, n) do
     from
     |> utc()
@@ -61,7 +60,6 @@ defmodule Ziwoas.Scheduler.ScheduleTest do
   end
 
   test "hourly keeps running hourly through both DST changes" do
-    # Autumn: 02:00–03:00 local happens twice (00:00Z and 01:00Z), both run.
     assert series({:every, 1, :hour}, "2026-10-24T23:30:00Z", 4) ==
              [
                "2026-10-25T00:00:00Z",
@@ -70,7 +68,6 @@ defmodule Ziwoas.Scheduler.ScheduleTest do
                "2026-10-25T03:00:00Z"
              ]
 
-    # Spring: 02:00 local does not exist; one real hour still passes per run.
     assert series({:every, 1, :hour}, "2026-03-29T00:30:00Z", 2) == [
              "2026-03-29T01:00:00Z",
              "2026-03-29T02:00:00Z"
@@ -83,7 +80,6 @@ defmodule Ziwoas.Scheduler.ScheduleTest do
   end
 
   test "every N hours follows the local clock" do
-    # 0, 3, 6 local: on the spring day 00:00 CET is 23:00Z, 03:00 CEST is 01:00Z.
     assert series({:every, 3, :hour}, "2026-03-28T22:30:00Z", 3) ==
              ["2026-03-28T23:00:00Z", "2026-03-29T01:00:00Z", "2026-03-29T04:00:00Z"]
   end

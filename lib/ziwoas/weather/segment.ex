@@ -1,8 +1,5 @@
 defmodule Ziwoas.Weather.Segment do
-  @moduledoc """
-  A quarter of a forecast day (`:night`, `:morning`, `:afternoon`, `:evening`)
-  and its hourly records.
-  """
+  @moduledoc false
   alias Ziwoas.Weather
   alias Ziwoas.Weather.Record
 
@@ -11,7 +8,6 @@ defmodule Ziwoas.Weather.Segment do
 
   @type t :: %__MODULE__{label: atom, hours: Range.t(), records: [Record.t()]}
 
-  # Most severe first; the dominant icon is the most severe one present.
   @icon_severity ~w[thunderstorm hail snow sleet rain wind fog cloudy partly-cloudy clear unknown]
 
   @spec complete?(t) :: boolean

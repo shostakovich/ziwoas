@@ -1,11 +1,5 @@
 defmodule Ziwoas.Shading.PanelCurves do
-  @moduledoc """
-  The four panels beside each other over the day. A panel that is not yet
-  wired reports zero all day long rather than going absent, so only days on
-  which every panel delivered at least once are counted — otherwise the two
-  younger panels would drag their own curve down through months they never
-  saw.
-  """
+  @moduledoc "Counts only days on which every panel delivered: an unwired panel reports zero rather than going absent."
   alias Ziwoas.Shading
   alias Ziwoas.Shading.{Curve, Hour, Panels}
 

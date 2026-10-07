@@ -1,9 +1,5 @@
 defmodule ZiwoasWeb.Charts.DailyProfiles do
-  @moduledoc """
-  The geometry of the daily profiles (`ZiwoasWeb.Components.DailyProfiles`):
-  one small picture per month on a shared scale, measured PV against what the
-  irradiance and a cloudless sky would have delivered.
-  """
+  @moduledoc false
   alias Ziwoas.Shading
   alias ZiwoasWeb.Charts.{Plot, Text}
 
@@ -20,11 +16,9 @@ defmodule ZiwoasWeb.Charts.DailyProfiles do
     theory: "Wolkenloser Himmel"
   ]
 
-  @doc "The curves' keys and names, in legend order."
   @spec keys() :: [{atom, String.t()}]
   def keys, do: @keys
 
-  @doc "The shared plot, its grid and labels, and one multiple per month; nil without a month."
   @spec view([Shading.Profile.t()]) :: map | nil
   def view([]), do: nil
 
@@ -75,7 +69,6 @@ defmodule ZiwoasWeb.Charts.DailyProfiles do
       label: Text.month_name(profile.month),
       days: profile.days,
       partial: profile.days < Date.days_in_month(Date.new!(2001, profile.month, 1)),
-      # The measured line last, over the two it is read against.
       series:
         for(
           {key, _} <- Enum.reverse(@keys),

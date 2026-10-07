@@ -1,10 +1,5 @@
 defmodule ZiwoasWeb.ReportRange do
-  @moduledoc """
-  The Berichte page's range as the query asks for it: a preset (`last_7`,
-  `last_30`) or a custom range of ISO dates. A custom range needs both dates,
-  the first not after the last; anything else falls back to the preset (or
-  the last 7 days) and is reported as invalid.
-  """
+  @moduledoc false
   use Ecto.Schema
 
   import Ecto.Changeset
@@ -33,7 +28,6 @@ defmodule ZiwoasWeb.ReportRange do
       else: changeset
   end
 
-  @doc "What the report covers, the preset to mark, and whether the asked range was invalid."
   @spec resolve(map) :: resolved
   def resolve(params) do
     changeset = changeset(params)
@@ -48,7 +42,6 @@ defmodule ZiwoasWeb.ReportRange do
     end
   end
 
-  # A date asked for, even one that did not cast, makes the range custom.
   defp custom?(changeset) do
     Enum.any?([:start_date, :end_date], fn field ->
       Map.has_key?(changeset.changes, field) or Keyword.has_key?(changeset.errors, field)

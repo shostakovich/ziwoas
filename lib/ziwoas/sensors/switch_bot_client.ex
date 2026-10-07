@@ -1,10 +1,5 @@
 defmodule Ziwoas.Sensors.SwitchBotClient do
-  @moduledoc """
-  The SwitchBot cloud API v1.1: signed GETs that read the air sensors. Errors come
-  back as `{:error, reason}`: `{:http_status, status}`, `{:api_error, status_code,
-  message}` (SwitchBot's own status in a 2xx answer), `{:invalid_json, reason}`,
-  `:unexpected_body` or Req's transport exception.
-  """
+  @moduledoc false
   alias Ziwoas.Config.Switchbot
   alias Ziwoas.Http
 

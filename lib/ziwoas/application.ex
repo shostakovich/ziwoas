@@ -7,7 +7,6 @@ defmodule Ziwoas.Application do
 
   alias Ziwoas.Config
 
-  # Tests start neither (config/test.exs).
   @collector Application.compile_env(:ziwoas, :collector, true)
   @scheduler Application.compile_env(:ziwoas, :scheduler, true)
 
@@ -26,8 +25,6 @@ defmodule Ziwoas.Application do
   end
 
   @doc false
-  # Without a valid config Phoenix serves pages, but connects to no device and
-  # schedules nothing. The endpoint starts last, once everything it serves is up.
   def children(loaded, opts) do
     [Ziwoas.Repo, {Phoenix.PubSub, name: Ziwoas.PubSub}] ++
       devices(loaded, opts) ++ [ZiwoasWeb.Endpoint]

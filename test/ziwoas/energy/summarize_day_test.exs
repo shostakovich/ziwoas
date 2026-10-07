@@ -51,18 +51,15 @@ defmodule Ziwoas.Energy.SummarizeDayTest do
 
   test "metered energy per role; self-consumption from the power overlap" do
     m = midnight(~D[2026-06-01])
-    # Noon: the panel makes 1200 W while fridge and tv draw 300 W together.
     bucket!("bkw", m + 12 * 3600, -1200, 100)
     bucket!("fridge", m + 12 * 3600, 200, 20)
     bucket!("tv", m + 12 * 3600, 100, 5)
-    # Evening: no sun.
     bucket!("fridge", m + 20 * 3600, 200, 17)
 
     summary = build(@plugs, @zone, ~D[2026-06-01])
 
     assert summary.produced_wh == 100.0
     assert summary.consumed_wh == 42.0
-    # 300 W for a twelfth of an hour.
     assert_in_delta summary.self_consumed_wh, 25.0, 1.0e-9
   end
 

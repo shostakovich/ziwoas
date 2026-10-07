@@ -1,14 +1,10 @@
 defmodule ZiwoasWeb.DashboardComponents do
-  @moduledoc """
-  The dashboard's parts: hero, the day's and the live tiles, plug bar.
-  """
+  @moduledoc false
   use ZiwoasWeb, :html
 
   alias Ziwoas.Energy
   alias Ziwoas.Energy.{Amount, Balance, LiveState}
   alias ZiwoasWeb.Components.EnergyFlow
-
-  # --- Hero ------------------------------------------------------------------
 
   attr :live, LiveState, required: true
   attr :weather_asset, :string, required: true
@@ -61,9 +57,6 @@ defmodule ZiwoasWeb.DashboardComponents do
     end
   end
 
-  # --- Tiles -----------------------------------------------------------------
-
-  @doc "The day's tiles, recomputed on plug events and at midnight."
   @spec summary_tiles(Balance.t()) :: [map]
   def summary_tiles(summary) do
     [
@@ -85,7 +78,6 @@ defmodule ZiwoasWeb.DashboardComponents do
     ]
   end
 
-  @doc "The live tiles, replaced with every live beat."
   @spec live_tiles(LiveState.t()) :: [map]
   def live_tiles(%LiveState{energy_flow: flow, plugs: plugs}) do
     any_online = flow.solakon_online or Enum.any?(plugs, & &1.online)
@@ -113,8 +105,6 @@ defmodule ZiwoasWeb.DashboardComponents do
     do: measure_tile(id, label, kwh, "kWh", 2, signed)
 
   defp share(id, label, ratio), do: measure_tile(id, label, (ratio || 0) * 100, "%", 1)
-
-  # --- Plug bar --------------------------------------------------------------
 
   # Colours are keyed by config position, so a plug keeps its colour across renders and charts.
   attr :live, LiveState, required: true
@@ -195,7 +185,6 @@ defmodule ZiwoasWeb.DashboardComponents do
     """
   end
 
-  # Three decimals are finer than a pixel; an integral value drops its ".0".
   defp css_number(value) do
     rounded = Float.round(value * 1.0, 3)
 

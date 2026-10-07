@@ -4,7 +4,6 @@ defmodule ZiwoasWeb.Charts.PlotTest do
   alias ZiwoasWeb.Charts.Plot
   alias ZiwoasWeb.Charts.Plot.{Hit, Label, Rect, Scale, Tick}
 
-  # A 70 × 70 plot: a tenth of either scale is seven pixels, so results read off by hand.
   defp plot(opts \\ []) do
     Plot.new(
       width: Keyword.get(opts, :width, 100),
@@ -204,7 +203,6 @@ defmodule ZiwoasWeb.Charts.PlotTest do
     assert Plot.rect(odd_plot(x: {22, 2}, y: {0, 100}), {2, 7}, {10, 90}) ==
              %Rect{x: 217.3, y: 23.1, width: 60.6, height: 95.1}
 
-    # 80 - 79.3 is 0.7000000000000028 in floating point.
     assert Plot.rect(plot(), {0, 1}, {0, 1}) == %Rect{x: 20, y: 79.3, width: 7, height: 0.7}
   end
 

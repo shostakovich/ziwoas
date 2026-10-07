@@ -1,5 +1,5 @@
 defmodule Ziwoas.Energy.DailySummary do
-  @moduledoc "Produced, consumed and self-consumed energy of one local day (`daily_energy_summary`), dated as ISO text."
+  @moduledoc false
   use Ziwoas.Schema
 
   @primary_key {:date, :date, autogenerate: false}

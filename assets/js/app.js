@@ -1,6 +1,3 @@
-// Bundled by esbuild (config :esbuild in config/config.exs): phoenix and phoenix_live_view
-// resolve through NODE_PATH to the Hex packages in deps/, everything else is relative.
-// data-confirm on links, buttons and forms
 import "phoenix_html"
 import { Socket } from "phoenix"
 import { LiveSocket } from "phoenix_live_view"

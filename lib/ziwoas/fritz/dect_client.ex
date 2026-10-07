@@ -1,23 +1,11 @@
 defmodule Ziwoas.Fritz.DectClient do
-  @moduledoc """
-  Power (mW) and energy (Wh) of a Fritz!DECT plug via the Fritz!Box's AHA HTTP
-  interface, with the challenge-response login of `login_sid.lua`. A session id is
-  reused until a 403 asks for a new login (once).
-
-  The login asks without `version`, so the box offers an MD5 challenge
-  (`<challenge>-<md5 of UTF-16LE "challenge-password">`); a PBKDF2 challenge
-  (`2$iter1$salt1$iter2$salt2`, Fritz!OS 7.24+) is answered too, so a box that stops
-  offering MD5 still logs in.
-
-  The client is a struct; `fetch/2` returns it with the session it ended on.
-  """
+  @moduledoc false
   @enforce_keys [:host, :user, :password]
   defstruct [:host, :user, :password, :sid, timeout_s: 2, req: []]
 
   @type t :: %__MODULE__{}
   @type reading :: %{apower_w: float, aenergy_wh: float}
 
-  @typedoc "Why a fetch failed; a network failure is Req's exception."
   @type reason ::
           {:http_status, pos_integer}
           | :forbidden_after_reauth
@@ -30,11 +18,9 @@ defmodule Ziwoas.Fritz.DectClient do
 
   @no_session "0000000000000000"
 
-  @doc "`req` are extra Req options (`Ziwoas.Http`); tests pass `plug:`."
   @spec new(keyword) :: t
   def new(opts), do: struct!(__MODULE__, opts)
 
-  @doc "The plug's reading (`ain`), or `{:error, reason, client}`."
   @spec fetch(t, String.t()) :: {:ok, reading, t} | {:error, reason, t}
   def fetch(%__MODULE__{} = client, ain) do
     with {:ok, client} <- ensure_session(client),

@@ -1,9 +1,5 @@
 defmodule ZiwoasWeb.Charts.PanelCurves do
-  @moduledoc """
-  The geometry of the panel comparison (`ZiwoasWeb.Components.PanelCurves`):
-  the four panels' hourly means over the day, wide with the names at the line
-  ends, narrow for the phone with a legend instead.
-  """
+  @moduledoc false
   import ZiwoasWeb.Format, only: [date: 1]
 
   alias Ziwoas.Shading
@@ -30,28 +26,23 @@ defmodule ZiwoasWeb.Charts.PanelCurves do
   ]
   @nice_steps_w [25, 50, 100, 200, 250, 500]
   @max_steps 5
-  # The names' line height at their largest, so two never overlap.
   @label_gap 20
   @label_offset 12
   @leader_gap 3
-  # Half that line height: centred names stay clear of the hours.
   @label_margin 10
   @value_label_gap 5
   @unit_gap 3
   @hour_label_gap 5
 
-  @doc "The legend: each curve's key and the panel's name."
   @spec legend(Shading.Panels.t()) :: [{atom, String.t()}]
   def legend(panels), do: for(curve <- panels.curves, do: {curve.key, Text.panel_name(curve.key)})
 
-  @doc "Since when, and over how many days, the panels were counted; nil before the first."
   @spec period(Shading.Panels.t()) :: String.t() | nil
   def period(%Shading.Panels{since: nil}), do: nil
 
   def period(%Shading.Panels{since: since, days: days}),
     do: "seit #{date(since)} · #{days} #{Text.days(days)}"
 
-  @doc "One drawing per frame, wide and narrow."
   @spec charts(Shading.Panels.t()) :: [map]
   def charts(panels) do
     curves = panels.curves

@@ -1,14 +1,5 @@
 defmodule ZiwoasWeb.SolakonHistoryComponent do
-  @moduledoc """
-  The Solakon-Verlauf, shared by the PV page and `/solakon/history`: range
-  tabs, the chart, the energy balance and the outlet's mean power.
-
-  The parent passes `range` (from `?range=`), `page` (`:solakon` or
-  `:history`, where the tabs patch to) and `refresh`, which it moves on every
-  stored snapshot. Each update loads the history afresh and, once connected,
-  pushes the chart's data to the `SolakonHistory` hook as
-  `"solakon_history:data"` (`ZiwoasWeb.SolakonComponents.history_chart/1`).
-  """
+  @moduledoc false
   use ZiwoasWeb, :live_component
 
   import ZiwoasWeb.SolakonComponents

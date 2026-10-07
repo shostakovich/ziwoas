@@ -1,5 +1,5 @@
 defmodule Ziwoas.Lights.State do
-  @moduledoc "Last known state of one light (`light_states`). `zone_states` is a JSON object in a text column."
+  @moduledoc false
   use Ziwoas.Schema
 
   schema "light_states" do

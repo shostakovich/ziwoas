@@ -5,7 +5,6 @@ config :ziwoas, Ziwoas.Repo,
   show_sensitive_data_on_connection_error: true
 
 config :ziwoas, ZiwoasWeb.Endpoint,
-  # Binding to loopback ipv4 address prevents access from other machines.
   http: [ip: {127, 0, 0, 1}],
   check_origin: false,
   code_reloader: true,

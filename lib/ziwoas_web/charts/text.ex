@@ -1,5 +1,5 @@
 defmodule ZiwoasWeb.Charts.Text do
-  @moduledoc "The words and numbers the PV page's SVG charts write: months, hours, watts."
+  @moduledoc false
   import ZiwoasWeb.Format, only: [number: 2]
 
   @months ~w[Jan Feb Mär Apr Mai Jun Jul Aug Sep Okt Nov Dez]
@@ -11,12 +11,10 @@ defmodule ZiwoasWeb.Charts.Text do
   @spec weekday(Date.t()) :: String.t()
   def weekday(date), do: Enum.at(@weekdays, rem(Date.day_of_week(date), 7))
 
-  @doc "`:hour` as `07`, `:clock` as `07:00`."
   @spec hour(integer, :hour | :clock) :: String.t()
   def hour(hour, :hour), do: String.pad_leading(Integer.to_string(hour), 2, "0")
   def hour(hour, :clock), do: hour(hour, :hour) <> ":00"
 
-  @doc "A mean power in a tooltip, or that there is none."
   @spec mean_watts(number | nil) :: String.t()
   def mean_watts(nil), do: "keine Daten"
   def mean_watts(value), do: "Ø #{number(value, unit: "W")}"

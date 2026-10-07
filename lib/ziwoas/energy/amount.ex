@@ -1,9 +1,5 @@
 defmodule Ziwoas.Energy.Amount do
-  @moduledoc """
-  An amount of energy. Watt-hours are canonical: everything is summed,
-  subtracted and compared in Wh, and kilowatt-hours are a display conversion
-  the caller rounds itself.
-  """
+  @moduledoc false
   @enforce_keys [:wh]
   defstruct [:wh]
 
@@ -15,7 +11,6 @@ defmodule Ziwoas.Energy.Amount do
   @spec zero() :: t
   def zero, do: wh(0.0)
 
-  @doc "The empty sum is 0.0 Wh."
   @spec sum([t]) :: t
   def sum(energies), do: energies |> Enum.map(& &1.wh) |> Enum.sum() |> wh()
 
@@ -34,7 +29,6 @@ defmodule Ziwoas.Energy.Amount do
   @spec zero?(t) :: boolean
   def zero?(%__MODULE__{wh: wh}), do: wh == 0.0
 
-  @doc "-0.0 Wh is not negative."
   @spec negative?(t) :: boolean
   def negative?(%__MODULE__{wh: wh}), do: wh < 0.0
 

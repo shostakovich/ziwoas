@@ -1,9 +1,5 @@
 defmodule Ziwoas.Solakon.Alarms do
-  @moduledoc """
-  The status and alarm registers (39063–39069, `docs/solakon-modbus-protocol.md`
-  §7) and the battery management's faults, decoded into conditions: atoms in
-  register and bit order, `:battery_warning` last. No condition means all is quiet.
-  """
+  @moduledoc false
   import Bitwise
 
   @status [
@@ -43,7 +39,6 @@ defmodule Ziwoas.Solakon.Alarms do
 
   @type condition :: atom
 
-  @doc "Every condition the decoder can answer, in its order."
   @spec all() :: [condition]
   def all,
     do:
@@ -51,10 +46,6 @@ defmodule Ziwoas.Solakon.Alarms do
         for({_, bits} <- @alarm_bits, {_, condition} <- bits, do: condition) ++
         [:battery_warning]
 
-  @doc """
-  The conditions of a reading's or snapshot's registers (`status1`, `status3`,
-  `alarm1`..`alarm3`, nil read as 0) and the battery management's faults.
-  """
   @spec conditions(map, [integer | nil]) :: [condition]
   def conditions(registers, bms_faults \\ []) do
     status =

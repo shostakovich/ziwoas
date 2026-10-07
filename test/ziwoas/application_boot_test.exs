@@ -1,5 +1,4 @@
 defmodule Ziwoas.ApplicationBootTest do
-  # Puts the VM-wide config.
   use ExUnit.Case, async: false
 
   alias Ziwoas.{Config, TestConfigs}

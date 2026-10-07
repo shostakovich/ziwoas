@@ -16,8 +16,6 @@ defmodule ZiwoasWeb.Endpoint do
     websocket: [connect_info: [session: @session_options]],
     longpoll: [connect_info: [session: @session_options]]
 
-  # esbuild's bundles under assets/, the images and icons; gzip serves the compressed
-  # copies `mix assets.deploy` (phx.digest) writes.
   plug Plug.Static,
     at: "/",
     from: :ziwoas,

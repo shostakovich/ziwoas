@@ -1,6 +1,4 @@
 defmodule Ziwoas.SwitchingGuardTest do
-  # On a real socket: plug switches and the schedule tick reach the broker over the
-  # command connection. The client id is a global name, so this module runs alone.
   use Ziwoas.DataCase
 
   alias Ziwoas.{Clock, Config, FakeMqttBroker, Mqtt, Switching, TestClock}
@@ -28,7 +26,6 @@ defmodule Ziwoas.SwitchingGuardTest do
              &(FakeMqttBroker.clients(&1) == ["ziwoas-phoenix-command"])
            )
 
-    # Monday 18:05 in Berlin, five minutes after a Zeitfenster's on edge.
     TestClock.freeze("2026-06-15T18:05:00+02:00")
     Switching.save_window("fridge", %{on_at_time: "18:00", off_at_time: "23:00", days: [1]})
 

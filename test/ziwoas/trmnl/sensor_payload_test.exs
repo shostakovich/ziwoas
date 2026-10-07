@@ -5,7 +5,6 @@ defmodule Ziwoas.Trmnl.SensorPayloadTest do
   alias Ziwoas.Sensors.Reading
   alias Ziwoas.Trmnl.{Push, SensorPayload}
 
-  # 16:56 Europe/Berlin
   @now ~U[2026-05-12 14:56:00.000000Z]
 
   setup do

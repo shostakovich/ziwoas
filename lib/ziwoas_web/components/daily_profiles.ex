@@ -1,9 +1,5 @@
 defmodule ZiwoasWeb.Components.DailyProfiles do
-  @moduledoc """
-  The mean day of every month, small multiples on one scale: measured PV
-  against the irradiance's and a cloudless sky's expectation. Geometry:
-  `ZiwoasWeb.Charts.DailyProfiles`.
-  """
+  @moduledoc false
   use ZiwoasWeb, :html
 
   import ZiwoasWeb.Components.ChartParts

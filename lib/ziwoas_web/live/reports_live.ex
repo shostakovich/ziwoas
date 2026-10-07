@@ -1,11 +1,5 @@
 defmodule ZiwoasWeb.ReportsLive do
-  @moduledoc """
-  The Berichte page: the energy report over a preset or custom range. The
-  range lives in the query (`preset`, `start_date`, `end_date`, read through
-  `ZiwoasWeb.ReportRange`); presets patch to it, the range form pushes a
-  patch. Once connected, every range sends its charts to the `EnergyReport`
-  hook as `"energy_report:data"` (`ZiwoasWeb.Charts.EnergyReport`).
-  """
+  @moduledoc false
   use ZiwoasWeb, :live_view
 
   import ZiwoasWeb.ReportsComponents

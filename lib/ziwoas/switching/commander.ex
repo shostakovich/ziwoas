@@ -1,9 +1,5 @@
 defmodule Ziwoas.Switching.Commander do
-  @moduledoc """
-  The single choke point for switching plugs: publishes the command over the
-  command connection (`Ziwoas.Mqtt.publish/4`) and logs it to `switch_commands`
-  only after the publish went out.
-  """
+  @moduledoc false
   alias Ziwoas.{Mqtt, Repo}
   alias Ziwoas.Plugs.Plug
   alias Ziwoas.Switching.Command

@@ -1,21 +1,5 @@
 defmodule ZiwoasWeb.DashboardLive do
-  @moduledoc """
-  The dashboard. What keeps it current:
-
-    * `{:live, deltas}` from `Ziwoas.Plugs` and `{:reading, _}` from
-      `Ziwoas.Solakon` re-render the hero, the live tiles, the plug bar and the
-      energy-flow state; plug deltas also go to the 24 h chart
-      (`"today_chart:deltas"`), and the day's tiles are recomputed at most once
-      a minute;
-    * `{:aggregated, _}` from `Ziwoas.Plugs.subscribe(:aggregated)` redraws the 14-day chart;
-    * timers only where the clock itself is the trigger: local midnight starts
-      the day's tiles afresh, and every hour the 24 h window slides on.
-
-  The charts get their data by `push_event` once connected: `"today_chart:data"`
-  and `"history_chart:data"` (`ZiwoasWeb.Charts.Dashboard`). Every live update
-  moves `beat`, the `LiveFreshness` hook's heartbeat, and the energy flow's
-  `data-state`.
-  """
+  @moduledoc false
   use ZiwoasWeb, :live_view
 
   import ZiwoasWeb.Components.EnergyFlow

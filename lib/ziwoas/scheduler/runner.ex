@@ -1,13 +1,5 @@
 defmodule Ziwoas.Scheduler.Runner do
-  @moduledoc """
-  One recurring job: sleeps until its schedule falls due (`Process.send_after/3`),
-  runs the job in this process, sleeps again. A run that overlaps the next due
-  instant skips it; nothing is made up after downtime.
-
-  Options: `:id`, `:schedule` (a `Schedule`), `:job` (`{module, opts}`, the
-  module a `Ziwoas.Scheduler.Job`), `:zone`; for tests `:clock` (0-arity, a UTC
-  `DateTime`) and `:timer` (`Process.send_after/3`'s shape).
-  """
+  @moduledoc false
   use GenServer
 
   require Logger

@@ -1,5 +1,5 @@
 defmodule Ziwoas.Plugs.Sample5min do
-  @moduledoc "Five-minute aggregate of a plug's samples (`samples_5min`). `bucket_ts` is Unix seconds."
+  @moduledoc false
   use Ziwoas.Schema
 
   @primary_key false

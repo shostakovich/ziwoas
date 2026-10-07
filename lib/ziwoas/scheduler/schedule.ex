@@ -1,28 +1,13 @@
 defmodule Ziwoas.Scheduler.Schedule do
-  @moduledoc """
-  When a job falls due, on the wall clock of a zone:
-
-    * `{:every, n, :second | :minute}` — instants aligned to the local clock
-      (`*/n`, so `n` divides 60); DST shifts by whole hours keep the spacing,
-      so the repeated autumn hour runs twice and the skipped spring hour not
-      at all;
-    * `{:every, 1, :hour}` — every full hour, likewise;
-    * `{:every, n, :hour}` — local hours 0, n, 2n, … (`n` divides 24);
-    * `{:daily, ~T[03:15:00]}` — once per local day.
-
-  A daily time in the spring gap runs an hour later, an ambiguous one at its
-  first occurrence.
-  """
+  @moduledoc "Aligned to the local clock: the repeated autumn hour runs twice, the skipped spring hour not at all."
   alias Ziwoas.LocalDay
 
   @type unit :: :second | :minute | :hour
   @type t :: {:every, pos_integer, unit} | {:daily, Time.t()}
 
-  @doc "Whether `next_after/3` takes `schedule`."
   @spec valid?(term) :: boolean
   def valid?(schedule), do: rule(schedule) != :error
 
-  @doc "The first instant strictly after `instant` at which `schedule` falls due."
   @spec next_after(t, DateTime.t(), String.t()) :: DateTime.t()
   def next_after(schedule, instant, zone) do
     case rule(schedule) do

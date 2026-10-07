@@ -11,8 +11,6 @@ defmodule Ziwoas.Fritz.DectClientTest do
       ~s(<?xml version="1.0" encoding="utf-8"?><SessionInfo><SID>#{sid}</SID>) <>
         ~s(<Challenge>#{challenge}</Challenge><BlockTime>0</BlockTime></SessionInfo>)
 
-  # A Fritz!Box: `routes` maps a request to `{status, body}`; every request goes to
-  # the test as `{:request, path, query_params}`.
   defp client(routes) do
     test = self()
 
@@ -181,7 +179,6 @@ defmodule Ziwoas.Fritz.DectClientTest do
                "deadbeef-" <> Base.encode16(md5, case: :lower)
     end
 
-    # AVM's worked example ("Session-IDs im FRITZ!Box Webinterface").
     test "a PBKDF2 challenge is answered with salt2 and the twice-derived hash" do
       assert DectClient.response("2$10000$5A1711$2000$5A1722", "1example!") ==
                "5A1722$1798a1672bca7c6463d6b245f82b53703b0f50813401b03e4045a5861e689adb"

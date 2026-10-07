@@ -1,13 +1,6 @@
 # syntax=docker/dockerfile:1
 # check=error=true
 
-# The production image: a Mix release on Debian (mix phx.gen.release, adapted).
-#
-#   docker build -t ziwoas .
-#   docker compose up -d
-#
-# Erlang/OTP and Elixir match .tool-versions. Images:
-# https://hub.docker.com/r/hexpm/elixir/tags
 ARG ELIXIR_VERSION=1.20.4
 ARG OTP_VERSION=28.5.0.7
 ARG DEBIAN_VERSION=trixie-20261005-slim
@@ -36,7 +29,6 @@ COPY assets assets
 COPY priv priv
 COPY lib lib
 
-# esbuild is a standalone binary for the build host; the bundles are platform-free.
 RUN mix assets.setup && mix assets.deploy
 
 FROM ${BUILDER_IMAGE} AS build
@@ -100,5 +92,4 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5m \
   CMD curl -fsS -o /dev/null "http://localhost:${PORT}/up" || exit 1
 
-# Migrate the database, then serve.
 CMD ["/bin/sh", "-c", "/app/bin/migrate && exec /app/bin/server"]

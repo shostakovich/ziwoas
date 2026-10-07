@@ -1,14 +1,5 @@
 defmodule Ziwoas.Collector.MqttRouter do
-  @moduledoc """
-  One MQTT connection subscribed to the union of its handlers'
-  topic filters, each message going to the first handler whose `matches?/2` says
-  yes. Here the Tortoise311 handler of the `ziwoas-phoenix-ingest` connection; its
-  state is the handlers' states, so they live in the connection's process.
-
-  A handler implements this module's behaviour and is pure apart from its database
-  writes: it returns its next state. A handler that raises is logged and keeps its
-  previous state — one bad payload never drops the connection.
-  """
+  @moduledoc false
   use Tortoise311.Handler
 
   require Logger
@@ -19,7 +10,6 @@ defmodule Ziwoas.Collector.MqttRouter do
 
   @type t :: %{handlers: [{module, term}]}
 
-  @doc "The topic filters of every handler, without duplicates."
   @spec subscriptions([{module, term}]) :: [String.t()]
   def subscriptions(handlers),
     do:
@@ -48,7 +38,6 @@ defmodule Ziwoas.Collector.MqttRouter do
   def handle_message(levels, payload, state),
     do: {:ok, dispatch(state, Enum.join(levels, "/"), payload)}
 
-  @doc "Hands `payload` to the handler for `topic` and keeps its next state."
   @spec dispatch(t, String.t(), binary) :: t
   def dispatch(%{handlers: handlers} = state, topic, payload) do
     case Enum.find_index(handlers, fn {module, handler} -> module.matches?(handler, topic) end) do

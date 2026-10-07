@@ -1,5 +1,4 @@
 defmodule ZiwoasWeb.WeatherLiveTest do
-  # The disconnected render.
   use ZiwoasWeb.ConnCase
 
   alias Ziwoas.{Clock, Repo, TestClock}

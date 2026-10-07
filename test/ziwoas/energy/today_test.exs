@@ -23,7 +23,6 @@ defmodule Ziwoas.Energy.TodayTest do
 
     assert summary.produced.wh == 1000.0
     assert summary.consumed.wh == 100.0
-    # Counters without simultaneous power: nothing was demonstrably self-consumed.
     assert summary.savings_eur == 0.0
     assert summary.date == ~D[2026-10-05]
   end
@@ -68,7 +67,6 @@ defmodule Ziwoas.Energy.TodayTest do
     assert_in_delta summary.self_consumed.wh, 100.0, 2.0
     assert_in_delta Energy.autarky_ratio(summary), 1.0, 0.05
     assert_in_delta Energy.self_consumption_ratio(summary), 0.5, 0.05
-    # 100 Wh self-consumed at 0.32 €/kWh.
     assert_in_delta summary.savings_eur, 0.032, 0.001
   end
 
@@ -85,7 +83,6 @@ defmodule Ziwoas.Energy.TodayTest do
     assert Energy.today(config, @now).produced.wh == 100.0
   end
 
-  # Europe/Berlin 2026-10-25 is 25 hours long.
   test "covers all 25 hours of a long DST day", %{config: config} do
     midnight = 1_792_879_200
     insert_sample!("bkw", midnight + 24 * 3600, 0, 1000.0)

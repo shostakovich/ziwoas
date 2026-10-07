@@ -1,13 +1,9 @@
 defmodule Ziwoas.Energy.LiveState do
-  @moduledoc """
-  The live picture of the house (`Ziwoas.Energy.live_state/3`): every
-  configured plug with its latest measurement, and the energy flow built from
-  the consumers' draw and the inverter's fresh reading.
-  """
+  @moduledoc false
   alias Ziwoas.Energy.Flow
 
   defmodule Row do
-    @moduledoc "One plug as it is now; `apower_w` is nil while it is offline."
+    @moduledoc false
     @enforce_keys [:id, :name, :role, :online, :apower_w, :last_seen_ts]
     defstruct @enforce_keys
 

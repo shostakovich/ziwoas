@@ -1,22 +1,5 @@
 defmodule Ziwoas.Solakon.Control.Policy do
-  @moduledoc """
-  The control's state machine (ADR-0002): from a reading, the household load and
-  the previous decision to the next target.
-
-    * **Load following**: the measured load (else the guaranteed floor), rising by at
-      most 200 W per tick, falling at once.
-    * **Surplus control** from 99 % SoC while the battery charges: the target follows
-      the battery's reaction (+200 W / −300 W per tick, ±15 W deadband), never below
-      the load-following target; two discharging ticks there end it.
-    * **Probe**: at 100 % with PV under 50 W, one 50 W step; a discharging answer
-      blocks further probes until SoC falls below 99 % or charging shows again.
-    * **Protection** wins over everything: at or below 10 % SoC the target trims
-      towards slight charging within PV and load; from 45 °C a linear thermal
-      ceiling falls to zero at 49 °C.
-
-  Pure. A missing power reads as 0 W, a negative load as none; the target rounds
-  half away from zero.
-  """
+  @moduledoc false
   alias Ziwoas.Solakon.Control.{Decision, Load}
   alias Ziwoas.Solakon.Reading
 
@@ -29,8 +12,7 @@ defmodule Ziwoas.Solakon.Control.Policy do
   @full_soc_pct 100
   @surplus_deadband_w 15
   @probe_step_w 50
-  # Below resume SoC the trim aims for slight charging, not neutral, so conversion
-  # losses can never bleed the SoC under 10 %.
+  # Aim for slight charging, so conversion losses never bleed the SoC under 10 %.
   @charge_bias_w 15
   @trim_gain 0.5
   @entry_derate 0.85

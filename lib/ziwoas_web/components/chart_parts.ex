@@ -1,18 +1,12 @@
 defmodule ZiwoasWeb.Components.ChartParts do
-  @moduledoc """
-  Pieces the PV page's SVG charts share: legends, hit areas carrying a
-  tooltip, value labels on an axis, and the classes that show the wide or the
-  narrow frame of a chart.
-  """
+  @moduledoc false
   use ZiwoasWeb, :html
 
   @frame_classes %{wide: "d-none d-sm-block", narrow: "d-sm-none"}
 
-  @doc "Shows the wide frame from the small breakpoint up, the narrow one below it."
   @spec frame_classes(:wide | :narrow) :: String.t()
   def frame_classes(frame), do: Map.fetch!(@frame_classes, frame)
 
-  @doc "A phone shows no SVG tooltips."
   @spec tooltips?(:wide | :narrow) :: boolean
   def tooltips?(frame), do: frame == :wide
 

@@ -1,10 +1,5 @@
 defmodule ZiwoasWeb.Charts.YieldMap do
-  @moduledoc """
-  The geometry of the yield map (`ZiwoasWeb.Components.YieldMap`): the sky as
-  azimuth over elevation, its fields coloured by their yield ratio, and the sun
-  paths with their hours. `skies/1` gives one drawing per frame, wide and
-  narrow.
-  """
+  @moduledoc false
   import ZiwoasWeb.Format, only: [number: 2]
 
   alias Ziwoas.Shading
@@ -30,7 +25,6 @@ defmodule ZiwoasWeb.Charts.YieldMap do
     }
   ]
   @width 720
-  # Room for the phone's larger axis labels.
   @left 52
   @right 10
   @top 16
@@ -40,12 +34,9 @@ defmodule ZiwoasWeb.Charts.YieldMap do
   @elevation_label_step 10
   @sparse_elevation_label_step 20
   @cell_gap 0.6
-  # Outside the highest arc lies empty sky, clear of every field.
   @dot_label_offset 10
-  # Clears the phone's dot ring (radius 7, stroke 3) and the arc falling away beneath.
   @corner_label_offset 10
   @sideways 0.4
-  # Less room beside its dot and a sideways label would run into the axis labels.
   @label_room 90
   @path_label_offset 9
   @elevation_label_gap 5
@@ -167,7 +158,6 @@ defmodule ZiwoasWeb.Charts.YieldMap do
     end)
   end
 
-  # The sun never stands under the lowest arc, so its date hangs there, clear of every field.
   defp path(path, plot, frame, hours, beneath) do
     {peak_az, peak_el} = Enum.max_by(path.points, &elem(&1, 1))
     offset = if beneath, do: @path_label_offset, else: -@path_label_offset

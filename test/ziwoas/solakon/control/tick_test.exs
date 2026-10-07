@@ -123,7 +123,6 @@ defmodule Ziwoas.Solakon.Control.TickTest do
       :ok
     end
 
-    # The inverter holds the minimum SoC already, so a tick writes 46001, 46002 and 46003.
     defp inverter!(opts \\ []) do
       server = start_supervised!({FakeModbusServer, {%{"46609:1" => [10]}, opts}})
 

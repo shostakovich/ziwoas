@@ -1,14 +1,5 @@
 defmodule Ziwoas.Solakon.Control.Tick do
-  @moduledoc """
-  One pass of the control loop: read the household, decide a target, write it to
-  the inverter through `Ziwoas.Solakon.Monitor`. `Ziwoas.Solakon.MonitorJob` runs
-  it after each reading.
-
-  What the loop remembers is the decision that reached the inverter: only a written
-  target is stored, and a stored decision older than the inverter's 150 s watchdog is
-  not continued. The target is written every tick, which re-arms that watchdog. Three
-  write failures in a row hand control back (`release_control`) and forget it.
-  """
+  @moduledoc false
   alias Ziwoas.Solakon.{Client, Control, Monitor, Reading}
   alias Ziwoas.Solakon.Control.{LoadReader, Outcome, Policy, State}
 
@@ -45,15 +36,13 @@ defmodule Ziwoas.Solakon.Control.Tick do
     end
   end
 
-  # A monitor that is down or stuck counts as a failed write, so control is still
-  # handed back after the third one.
+  # A down or stuck monitor counts as a failed write, so control is still handed back.
   defp apply_control(monitor, target_w) do
     Monitor.apply_control(monitor, target_w, Reading.min_soc_pct())
   catch
     :exit, reason -> {:error, {:monitor_down, reason}}
   end
 
-  # Write failures only: a failed read never reaches the tick.
   defp after_write_failure(control, monitor, reason) do
     control = Control.count_failure!(control)
     failures = control.consecutive_failures

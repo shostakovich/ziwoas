@@ -1,10 +1,5 @@
 defmodule Ziwoas.Sensors.PollJob do
-  @moduledoc """
-  The `poll_sensors` job: one reading per configured SwitchBot sensor, all stamped
-  with the same instant; a sensor that fails is logged and skipped. Then
-  `Ziwoas.Sensors`' subscribers hear of it, then the TRMNL sensor widget is
-  pushed; `Ziwoas.Trmnl.Push` logs its failure.
-  """
+  @moduledoc false
   @behaviour Ziwoas.Scheduler.Job
 
   require Logger

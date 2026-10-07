@@ -1,9 +1,5 @@
 defmodule Ziwoas.Govee.CommandRouter do
-  @moduledoc """
-  Where a lamp verb goes and what it changes, pure. Power, brightness, colour
-  and colour temperature prefer the LAN when the lamp's IP is known (and it is
-  not a power-only lamp); zones and scenes are API-only.
-  """
+  @moduledoc false
   alias Ziwoas.Govee.Device
 
   @on_off "devices.capabilities.on_off"
@@ -14,11 +10,6 @@ defmodule Ziwoas.Govee.CommandRouter do
 
   @type route :: {:lan, [tuple]} | {:api, keyword}
 
-  @doc """
-  The effects of `verb` for `device`: `{:lan, commands}` (`Ziwoas.Govee.Lan`
-  command tuples) or `{:api, control}` (`Ziwoas.Govee.PlatformApi.control/2`'s
-  options).
-  """
   @spec route(Device.t(), Ziwoas.Govee.Bridge.verb()) :: {:ok, route} | {:error, :unknown_scene}
   def route(device, {:power, on}) do
     if lan?(device),
@@ -63,10 +54,6 @@ defmodule Ziwoas.Govee.CommandRouter do
     end
   end
 
-  @doc """
-  The optimistic changes of `verb` to the lamp's `published` state (nil before
-  the first): store fields, a nil clears one.
-  """
   @spec changes(Ziwoas.Govee.Bridge.verb(), map | nil) :: map
   def changes({:power, on}, _published), do: %{on: on}
   def changes({:brightness, value}, _published), do: %{on: true, brightness: value}
@@ -80,13 +67,11 @@ defmodule Ziwoas.Govee.CommandRouter do
   def changes({:zone, name, on}, published) do
     bits = (published || %{})[:zone_states] || %{}
     changes = %{zone_states: Map.put(bits, name, on)}
-    # powerSwitch is the power capability: keep the canonical `on` in step.
     if name == "powerSwitch", do: Map.put(changes, :on, on), else: changes
   end
 
   defp lan?(%Device{ip: ip, power_only: power_only}), do: not is_nil(ip) and not power_only
 
-  # Every LAN command asks for the status after it.
   defp lan(device, command), do: {:ok, {:lan, [command, {:request_status, device.ip}]}}
 
   defp api(device, type, instance, value),

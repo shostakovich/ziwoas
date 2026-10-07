@@ -1,6 +1,4 @@
-// The lamp settings sheet: a modal while it is rendered. Every way out (Escape, the
-// backdrop, the close button, "Abbrechen" via data-dismiss) closes the dialog, and the
-// close tells the LiveView to forget it, or its next patch would bring it back.
+// Closing tells the LiveView to forget the sheet, or its next patch would bring it back.
 export default {
   mounted() {
     if (!this.el.open) this.el.showModal()

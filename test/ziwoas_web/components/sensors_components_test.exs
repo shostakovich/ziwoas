@@ -34,7 +34,6 @@ defmodule ZiwoasWeb.SensorsComponentsTest do
 
     assert attrs(svg, "path.co2-gauge-zone", "data-level") == ~w[good warn bad]
 
-    # 400–2000 ppm over 180°: 1000 ppm sits at 67.5°, 1400 ppm at 112.5°.
     assert attrs(svg, "path.co2-gauge-zone", "d") == [
              "M 14.0 60.0 A 46 46 0 0 1 42.4 17.5",
              "M 42.4 17.5 A 46 46 0 0 1 77.6 17.5",

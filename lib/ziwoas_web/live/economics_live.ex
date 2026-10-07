@@ -1,10 +1,5 @@
 defmodule ZiwoasWeb.EconomicsLive do
-  @moduledoc """
-  The Wirtschaftlichkeit page: the overview card, the Kostenposten and the
-  Strompreise with their forms. Editing is deliberately absent: with a handful
-  of rows, deleting and re-entering is shorter than a form that has to
-  remember its row.
-  """
+  @moduledoc false
   use ZiwoasWeb, :live_view
 
   import ZiwoasWeb.EconomicsComponents

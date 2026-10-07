@@ -1,9 +1,5 @@
 defmodule ZiwoasWeb.SolakonHistoryLive do
-  @moduledoc """
-  The Solakon-Verlauf on its own (`ZiwoasWeb.SolakonHistoryComponent`): one of
-  the ranges 24h, 7d or 30d, anything else reads as 24h. A stored snapshot
-  (`Ziwoas.Solakon.subscribe/0`) refreshes it; a range tab patches `?range=`.
-  """
+  @moduledoc false
   use ZiwoasWeb, :live_view
 
   alias Ziwoas.Solakon

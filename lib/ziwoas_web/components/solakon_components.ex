@@ -1,29 +1,13 @@
 defmodule ZiwoasWeb.SolakonComponents do
-  @moduledoc """
-  The PV page's parts: status, controls, panels, storage and the
-  Solakon-Verlauf (its live part is `ZiwoasWeb.SolakonHistoryComponent`). The
-  sun calendar and the shading report are in `ZiwoasWeb.Components.SunCalendar`
-  and `ZiwoasWeb.Components.Shading`.
-
-  The controls' switches send `"toggle_eps"` and `"toggle_control"` to the
-  LiveView.
-  """
+  @moduledoc false
   use ZiwoasWeb, :html
 
   alias Ziwoas.Solakon
   alias Ziwoas.Solakon.{Reading, Snapshot}
 
-  # --- Solakon-Verlauf -----------------------------------------------------------
-
   @ranges [{"24h", "24 h"}, {"7d", "7 Tage"}, {"30d", "30 Tage"}]
   @flow_words [positive: "liefert", negative: "zieht"]
 
-  @doc """
-  The history's content inside the `SolakonHistory` hook's root: the range tabs,
-  which patch `?range=` on `page` (`:solakon` or `:history`) so the range
-  survives a reload, the canvas in a `phx-update="ignore"` frame, the balance
-  and the outlet's mean power.
-  """
   attr :id, :string, required: true
   attr :history, Solakon.History, required: true
   attr :page, :atom, values: [:solakon, :history], required: true
@@ -92,11 +76,6 @@ defmodule ZiwoasWeb.SolakonComponents do
   defp range_path(:solakon, range), do: ~p"/solakon?#{[range: range]}"
   defp range_path(:history, range), do: ~p"/solakon/history?#{[range: range]}"
 
-  @doc """
-  What the `SolakonHistory` hook draws: the range, each snapshot's instant in
-  epoch milliseconds (the client labels them on the household's clock) and the
-  series in W to one decimal, with a dashed zero line.
-  """
   @spec history_chart(Solakon.History.t()) :: map
   def history_chart(%Solakon.History{} = history) do
     %{
@@ -113,7 +92,6 @@ defmodule ZiwoasWeb.SolakonComponents do
 
   defp dataset(label, watts), do: %{label: label, data: Enum.map(watts, &Float.round(&1, 1))}
 
-  @doc "The energy balance as bars on one scale, the largest flow full width; none without snapshots."
   @spec balance_rows(Solakon.History.t()) :: [map]
   def balance_rows(%Solakon.History{balance: nil}), do: []
 
@@ -138,12 +116,9 @@ defmodule ZiwoasWeb.SolakonComponents do
     end
   end
 
-  @doc "The outlet's mean power with its direction in words, nil without snapshots."
   @spec outlet_average(Solakon.History.t()) :: String.t() | nil
   def outlet_average(%Solakon.History{outlet_average_w: nil}), do: nil
   def outlet_average(%Solakon.History{outlet_average_w: watts}), do: flow(watts, @flow_words)
-
-  # --- Status -------------------------------------------------------------------
 
   @condition_labels %{
     inverter_ready: "Wechselrichter bereit",
@@ -172,7 +147,6 @@ defmodule ZiwoasWeb.SolakonComponents do
     battery_warning: "Batterie-Warnung"
   }
 
-  @doc "The status lines of a condition list (`Ziwoas.Solakon.conditions/1`); none is all quiet."
   @spec status_messages([atom]) :: [String.t()]
   def status_messages([]), do: ["Alles ruhig"]
   def status_messages(conditions), do: Enum.map(conditions, &Map.fetch!(@condition_labels, &1))
@@ -280,7 +254,6 @@ defmodule ZiwoasWeb.SolakonComponents do
     end
   end
 
-  # The first of the readings that has a value for `field`.
   defp first_value(readings, field), do: Enum.find_value(readings, &(&1 && Map.get(&1, field)))
 
   defp battery_fault?(reading, latest) do
@@ -289,13 +262,6 @@ defmodule ZiwoasWeb.SolakonComponents do
     Enum.any?(alarms ++ bms_faults, &((&1 || 0) > 0))
   end
 
-  # --- Steuerung ----------------------------------------------------------------
-
-  @doc """
-  The Steuerung cards: the outdoor socket and the Auto-Regelung, each a
-  `<button role="switch">` whose `aria-checked` is the state the server knows.
-  A switch waits disabled while its write is under way.
-  """
   attr :reading, Reading, default: nil
   attr :eps_on, :boolean, required: true
   attr :eps_pending, :boolean, default: false
@@ -410,8 +376,6 @@ defmodule ZiwoasWeb.SolakonComponents do
     </div>
     """
   end
-
-  # --- Panels and storage -------------------------------------------------------
 
   attr :snapshot, Snapshot, default: nil
 

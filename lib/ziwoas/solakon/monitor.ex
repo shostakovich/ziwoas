@@ -1,23 +1,5 @@
 defmodule Ziwoas.Solakon.Monitor do
-  @moduledoc """
-  The one Modbus TCP connection to the Solakon ONE: every read and write of the
-  inverter goes through this process, so requests never interleave.
-  `Ziwoas.Solakon.MonitorJob` (every 30 s) and `SnapshotJob` (every 2 min) call
-  `read_state/1` and `read_snapshot/1`; the control tick and the PV page's
-  switches call `apply_control/3`, `release_control/1` and `set_eps_output/2`.
-
-  The connection stays open between requests; a reused connection that fails is
-  retried once on a fresh one (the inverter may have dropped it while idle; every
-  write sets an absolute value, so repeating one is harmless). With `keep_open:
-  false` it is opened per request and closed again. The connection
-  (`Ziwoas.Solakon.Modbus`) carries its transaction id, which counts from 1 on
-  every connection.
-
-  After a failed connect or request the next attempt waits: 1 s, doubling to 60 s,
-  back to 1 s after a success. A request inside that wait answers `{:error,
-  {:backoff, ms}}` without touching the network. A write the inverter answers with
-  a Modbus exception is the exception: it neither waits nor retries.
-  """
+  @moduledoc "A failed reused connection is retried once: the inverter drops idle clients and every write sets an absolute value."
   use GenServer
 
   require Logger
@@ -39,16 +21,13 @@ defmodule Ziwoas.Solakon.Monitor do
   @spec read_snapshot(GenServer.server()) :: {:ok, map} | {:error, term}
   def read_snapshot(server \\ __MODULE__), do: request(server, :snapshot)
 
-  @doc "Minimum SoC guard, remote control on, watchdog, setpoint (`Client.apply_control/4`)."
   @spec apply_control(GenServer.server(), integer, integer) :: :ok | {:error, term}
   def apply_control(server \\ __MODULE__, power_w, min_soc),
     do: request(server, {:apply_control, power_w, min_soc})
 
-  @doc "Remote control off."
   @spec release_control(GenServer.server()) :: :ok | {:error, term}
   def release_control(server \\ __MODULE__), do: request(server, :release_control)
 
-  @doc "The outdoor socket on or off."
   @spec set_eps_output(GenServer.server(), boolean | nil) :: :ok | {:error, term}
   def set_eps_output(server \\ __MODULE__, enabled),
     do: request(server, {:set_eps_output, enabled})
@@ -56,10 +35,6 @@ defmodule Ziwoas.Solakon.Monitor do
   defp request(server, operation),
     do: GenServer.call(server, {:request, operation}, @call_timeout_ms)
 
-  @doc """
-  Options: `:host`, `:port`, `:unit_id`, `:keep_open` (default true), `:name`;
-  `:io_timeout_ms`, `:clock` (monotonic ms) for tests.
-  """
   @impl true
   def init(opts) do
     state = %{
@@ -81,8 +56,7 @@ defmodule Ziwoas.Solakon.Monitor do
   def handle_call({:request, operation}, _from, state) do
     now = state.clock.()
 
-    # Handing control back must not wait out a backoff: it is what the tick does
-    # after its writes failed, often for the very reason that started the backoff.
+    # Release must not wait out a backoff: it follows failed writes, often the backoff's cause.
     if (operation != :release_control and state.retry_at) && now < state.retry_at do
       {:reply, {:error, {:backoff, state.retry_at - now}}, state}
     else
@@ -95,8 +69,7 @@ defmodule Ziwoas.Solakon.Monitor do
     reused = not is_nil(state.conn)
 
     case attempt(operation, state) do
-      # The inverter answered and refused: no retry, no wait before the next
-      # command — the tick releases control right after its third failed write.
+      # The inverter refused: no retry and no backoff.
       {{:error, {:modbus_exception, _}} = error, state} when operation not in @reads ->
         Logger.warning("Solakon.Monitor: #{inspect(elem(error, 1))}")
         {error, state}

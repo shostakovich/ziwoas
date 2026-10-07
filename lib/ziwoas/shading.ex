@@ -1,18 +1,10 @@
 defmodule Ziwoas.Shading do
-  @moduledoc """
-  How much of the sun the panels turn into power, hour by hour: the PV hours
-  against the station's irradiance and the sun's position. `report/2` is what
-  the PV page shows: every PV hour with the irradiance of the same hour and the
-  sun's position at its middle, calibrated by the best hour's ratio of power to
-  irradiance.
-  """
+  @moduledoc false
   alias Ziwoas.{Location, Solakon, Sun, Weather}
   alias Ziwoas.Shading.{DailyProfiles, PanelCurves, SunPaths, YieldMap}
 
   @calibration_min_irradiance_w_per_m2 300
-  # "The best hour" as the 95th percentile rather than the single maximum: one
-  # hour with an underreported irradiance would otherwise set the scale for
-  # every field of the sky.
+  # A percentile, not the maximum: one underreported irradiance hour would set the scale.
   @best_hour_percentile 0.95
   @middle_of_hour_s 30 * 60
 
@@ -41,12 +33,12 @@ defmodule Ziwoas.Shading do
   end
 
   defmodule Path do
-    @moduledoc "A sun path on `day` (`:summer_solstice`, `:equinox`, `:winter_solstice`); points are `{azimuth, elevation}`."
+    @moduledoc false
     defstruct [:day, :points, :dots]
   end
 
   defmodule Curve do
-    @moduledoc "Points are `{hour, watts}`; an unmeasured hour is absent, not zero."
+    @moduledoc false
     defstruct [:key, :points]
 
     def empty?(%__MODULE__{points: points}), do: points == []
@@ -111,14 +103,11 @@ defmodule Ziwoas.Shading do
     end
   end
 
-  # Irradiance keyed by the start of the hour it was summed over. The station
-  # stamps a record with the end of its hour, so the hour that starts with
-  # the last PV hour is stamped one hour later than that.
+  # The station stamps a record with the end of its hour.
   defp irradiance_by_time(_location, []), do: %{}
 
   defp irradiance_by_time(location, rows) do
     from = DateTime.add(hd(rows).started_at, 3600)
-    # Inclusive: the record stamped at the end of the last PV hour.
     to = List.last(rows).started_at |> DateTime.add(3600) |> DateTime.add(1, :microsecond)
 
     location
@@ -155,14 +144,11 @@ defmodule Ziwoas.Shading do
     end
   end
 
-  @doc "The curve with `key` of a profile or the panels."
   def curve(%{curves: curves}, key), do: Enum.find(curves, &(&1.key == key))
 
-  @doc "Every hour any curve has a point for, in curve order."
   def hours(%{curves: curves}),
     do: Enum.flat_map(curves, fn curve -> Enum.map(curve.points, &elem(&1, 0)) end)
 
-  @doc "The highest point of the non-empty curves, or nil."
   def max(%{curves: curves}) do
     case curves |> Enum.reject(&Curve.empty?/1) |> Enum.map(&Curve.max/1) do
       [] -> nil
@@ -170,10 +156,7 @@ defmodule Ziwoas.Shading do
     end
   end
 
-  @doc """
-  The inverter reports through the night as well; keeping those zeros would
-  squeeze the day into the middle of the picture.
-  """
+  @doc "The inverter reports zeros through the night; dropping them lets the day fill the chart."
   def daylight(curves) do
     hours =
       for curve <- curves, {hour, value} <- curve.points, value != 0, do: hour
@@ -192,7 +175,6 @@ defmodule Ziwoas.Shading do
   defp points_within(points, {first, last}),
     do: Enum.filter(points, fn {hour, _} -> hour >= first and hour <= last end)
 
-  @doc "Groups in the order their keys first appear, as `[{key, items}]`."
   def group_by(items, fun) do
     {keys, groups} =
       Enum.reduce(items, {[], %{}}, fn item, {keys, groups} ->

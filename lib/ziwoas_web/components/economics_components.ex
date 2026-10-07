@@ -1,9 +1,5 @@
 defmodule ZiwoasWeb.EconomicsComponents do
-  @moduledoc """
-  The Wirtschaftlichkeit card: what the
-  plant cost, what it saved, how much of it is earned back and when it pays
-  for itself.
-  """
+  @moduledoc false
   use ZiwoasWeb, :html
 
   alias Ziwoas.Economics.Overview

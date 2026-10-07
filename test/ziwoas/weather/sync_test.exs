@@ -27,8 +27,6 @@ defmodule Ziwoas.Weather.SyncTest do
         extra
       )
 
-  # Bright Sky with `bodies` by date ("current" for the observation), 404 otherwise;
-  # tells the test each date it was asked for.
   defp stub_brightsky(bodies) do
     test = self()
 
@@ -236,7 +234,6 @@ defmodule Ziwoas.Weather.SyncTest do
   end
 
   describe "backfill_historic_from_daily_totals/1" do
-    # 2026-05-01 in Berlin (CEST) runs from 2026-04-30T22:00Z to 2026-05-01T22:00Z.
     defp historic_hours!(first_utc, count) do
       for i <- 0..(count - 1),
           do: insert!(:historic, DateTime.add(first_utc, i * 3600, :second))

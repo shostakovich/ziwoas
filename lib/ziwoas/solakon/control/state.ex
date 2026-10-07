@@ -1,10 +1,5 @@
 defmodule Ziwoas.Solakon.Control.State do
-  @moduledoc """
-  The single row of control state (`solakon_control_states`): whether the loop
-  is paused, the last decision that actually reached the inverter, and the
-  consecutive write failures. A row, not a cache: the policy regulates against
-  what is stored here. `Ziwoas.Solakon.Control` reads and writes it.
-  """
+  @moduledoc false
   use Ziwoas.Schema
 
   alias Ziwoas.Solakon.Control.Decision
@@ -24,7 +19,6 @@ defmodule Ziwoas.Solakon.Control.State do
   @spec active?(t) :: boolean
   def active?(%__MODULE__{paused: paused}), do: not paused
 
-  @doc "The last written decision and when, or nil before the first one."
   @spec stored(t) :: {Decision.t(), DateTime.t()} | nil
   def stored(%__MODULE__{decision_state: name, last_decision_at: at})
       when name in [nil, ""] or is_nil(at),

@@ -1,13 +1,5 @@
 defmodule Ziwoas.Sun.Position do
-  @moduledoc """
-  Where the sun stands — azimuth clockwise from north, elevation above the
-  horizon, both in degrees — and when it rises and sets, computed locally with
-  the NOAA general solar position algorithm
-  (https://gml.noaa.gov/grad/solcalc/solareqns.PDF). Sunrise and sunset are a
-  single pass at solar noon, accurate to a few minutes at mid latitudes —
-  sufficient for deciding whether a weather record falls into "day" or "night".
-  Event times are truncated to microseconds.
-  """
+  @moduledoc "The NOAA general solar position algorithm; sunrise and sunset are a single pass at solar noon."
 
   @zenith_deg 90.833
   @deg :math.pi() / 180.0
@@ -19,14 +11,12 @@ defmodule Ziwoas.Sun.Position do
 
   @type event :: :sunrise | :sunset
 
-  @doc "UTC instant of sunrise, or nil on a polar day or night."
   @spec sunrise(Date.t(), number, number) :: DateTime.t() | nil
   def sunrise(date, lat, lon), do: event_time(date, lat, lon, :sunrise)
 
   @spec sunset(Date.t(), number, number) :: DateTime.t() | nil
   def sunset(date, lat, lon), do: event_time(date, lat, lon, :sunset)
 
-  @doc "Whether the sun is up at an instant, judged on the local date in `timezone`."
   @spec daytime?(DateTime.t(), number, number, String.t()) :: boolean
   def daytime?(%DateTime{} = timestamp, lat, lon, timezone) do
     local_date = timestamp |> DateTime.shift_zone!(timezone) |> DateTime.to_date()
@@ -47,9 +37,6 @@ defmodule Ziwoas.Sun.Position do
     end
   end
 
-  @doc """
-  Sun position at an instant, in whole seconds: a sub-second part is ignored.
-  """
   @spec at(DateTime.t(), number, number) :: t
   def at(%DateTime{} = time, lat, lon) do
     utc = DateTime.shift_zone!(time, "Etc/UTC")
@@ -63,8 +50,7 @@ defmodule Ziwoas.Sun.Position do
       :math.sin(lat_rad) * :math.sin(decl) +
         :math.cos(lat_rad) * :math.cos(decl) * :math.cos(hour_angle)
 
-    # atan2 instead of NOAA's acos-and-branch form: the same angle, but it
-    # wraps the hour angle by itself and has no pole at the zenith.
+    # atan2 instead of NOAA's acos form: wraps the hour angle itself, no pole at the zenith.
     from_north =
       :math.atan2(
         :math.sin(hour_angle),
@@ -77,10 +63,6 @@ defmodule Ziwoas.Sun.Position do
     }
   end
 
-  @doc """
-  Equation of time (minutes) and declination (radians) for a UTC hour of the
-  day; the sunrise/sunset pass evaluates them once at solar noon.
-  """
   @spec solar_terms(Date.t(), number) :: {float, float}
   def solar_terms(%Date{} = date, hour_utc \\ 12.0) do
     n = Date.day_of_year(date)
@@ -106,7 +88,6 @@ defmodule Ziwoas.Sun.Position do
     {eqtime, decl}
   end
 
-  @doc "Below -1 the sun never sets (polar day), above 1 it never rises (polar night)."
   @spec cos_hour_angle(Date.t(), number) :: float
   def cos_hour_angle(date, lat) do
     {_eqtime, decl} = solar_terms(date)
@@ -146,7 +127,6 @@ defmodule Ziwoas.Sun.Position do
 
   defp clamp(value), do: value |> max(-1.0) |> min(1.0)
 
-  # fmod, then shifted to the sign of the divisor.
   defp floored_mod(x, y) do
     mod = if x == 0.0, do: x, else: :math.fmod(x, y)
     if y * mod < 0, do: mod + y, else: mod

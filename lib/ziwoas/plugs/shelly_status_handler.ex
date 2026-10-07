@@ -1,13 +1,5 @@
 defmodule Ziwoas.Plugs.ShellyStatusHandler do
-  @moduledoc """
-  A `Ziwoas.Collector.MqttRouter` handler: every `<prefix>/<plug>/status/switch:0`
-  status goes to `Ziwoas.Plugs.Ingest`, which stores it and sends the live
-  deltas.
-
-  A status needs `apower` and `aenergy.total` as numbers; anything else (broken
-  JSON, a missing field, an unknown plug) is logged and dropped, the state
-  unchanged.
-  """
+  @moduledoc false
   @behaviour Ziwoas.Collector.MqttRouter
 
   require Logger
@@ -19,7 +11,6 @@ defmodule Ziwoas.Plugs.ShellyStatusHandler do
 
   @type t :: %__MODULE__{}
 
-  @doc "The handler for `config`'s plugs and topic prefix; `opts` go to `Ingest.new/1`."
   @spec new(Config.t(), keyword) :: t
   def new(%Config{} = config, opts \\ []) do
     %__MODULE__{
@@ -70,7 +61,6 @@ defmodule Ziwoas.Plugs.ShellyStatusHandler do
     end
   end
 
-  # A Shelly reports its relay as a JSON boolean; anything else says nothing about it.
   defp output(output) when is_boolean(output), do: output
   defp output(_output), do: nil
 

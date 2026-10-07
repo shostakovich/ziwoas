@@ -1,9 +1,5 @@
 defmodule ZiwoasWeb.Layouts do
-  @moduledoc """
-  The application shell: `root` (the document and its head) and `app/1`
-  (header, navigation, main, tab bar). LiveViews wrap their markup in
-  `<Layouts.app>`.
-  """
+  @moduledoc false
   use ZiwoasWeb, :html
 
   alias Ziwoas.Config
@@ -85,7 +81,6 @@ defmodule ZiwoasWeb.Layouts do
 
   attr :look, :string, required: true
 
-  # The browser switches the look in place (assets/js/lib/look.js); the push keeps @look in step.
   defp look_toggle(assigns) do
     assigns = assign(assigns, :next, if(assigns.look == "felt", do: "clean", else: "felt"))
 
@@ -104,7 +99,6 @@ defmodule ZiwoasWeb.Layouts do
     """
   end
 
-  @doc "The configured time zone, exposed to the page as `ziwoas-time-zone`; nil without a config."
   def time_zone do
     case Config.fetch() do
       {:ok, config} -> config.location.timezone

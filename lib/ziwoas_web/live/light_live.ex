@@ -1,17 +1,5 @@
 defmodule ZiwoasWeb.LightLive do
-  @moduledoc """
-  A lamp's page: power and zones, brightness, white, colour and scenes, and the
-  settings gear. `Ziwoas.Lights`' update for the lamp reloads the hero's
-  snapshot alone, so the controls keep what the hand is doing.
-
-  Every control sends `"light_command"` (`ZiwoasWeb.LightEvents`, run off the
-  LiveView process by `start_async`): the
-  brightness and white sliders as forms debounced by `phx-debounce`, the buttons
-  and swatches by `phx-click`, the colour wheel through the `LightDetail` hook.
-  What a command set is kept in assigns (`brightness`, `kelvin`, `color`), and
-  a refused command puts the sliders back there (`revert`); the
-  tabs are an assign too. The gear opens the settings sheet in place.
-  """
+  @moduledoc false
   use ZiwoasWeb, :live_view
 
   import ZiwoasWeb.LightsComponents
@@ -19,7 +7,6 @@ defmodule ZiwoasWeb.LightLive do
   alias Ziwoas.{Config, Lights}
   alias ZiwoasWeb.LightEvents
 
-  # The toast hides itself after 5 s.
   @toast_ms 5_000
 
   @impl true
@@ -123,15 +110,13 @@ defmodule ZiwoasWeb.LightLive do
   def handle_async({:light_command, _command}, {:exit, _reason}, socket),
     do: {:noreply, failed(socket)}
 
-  # The sliders' thumbs moved on the client; a new `revert` sends them back to
-  # the values kept here, focused or not.
+  # The thumbs moved on the client; a new `revert` sends them back.
   defp failed(socket) do
     socket
     |> put_flash(:error, LightEvents.failed_message())
     |> update(:revert, &((&1 || 0) + 1))
   end
 
-  # What the hand set stays on the controls; the lamp's report only redraws the hero.
   defp keep(socket, {:brightness, value}), do: assign(socket, :brightness, value)
   defp keep(socket, {:color_temp, kelvin}), do: assign(socket, :kelvin, kelvin)
   defp keep(socket, {:color, rgb}), do: assign(socket, :color, hex(rgb))

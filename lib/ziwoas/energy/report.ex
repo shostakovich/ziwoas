@@ -1,14 +1,5 @@
 defmodule Ziwoas.Energy.Report do
-  @moduledoc """
-  The energy report over a range of aggregated days: totals and ratios, a
-  ranking per role, each consumer's daily energy, the power detail and the
-  weather behind them. Days are summed in Wh and rounded only where a number
-  is shown.
-
-  The detail is 5-minute power for up to seven days (`:five_minutes`, with
-  Unix `timestamps`), else the average power of each day (`:daily_mean`,
-  with `dates`); each series carries signed watts, nil where a plug has none.
-  """
+  @moduledoc false
   alias Ziwoas.{Economics, Plugs}
   alias Ziwoas.Energy
   alias Ziwoas.Energy.{Amount, DailyPoint, PowerSeries, ReportWeather}
@@ -31,16 +22,11 @@ defmodule Ziwoas.Energy.Report do
 
   @type t :: %__MODULE__{}
 
-  @typedoc "The last `n` aggregated days, or the days of a range (cut to the aggregated ones)."
   @type range :: {:last_days, pos_integer} | Date.Range.t()
 
   @max_five_minute_days 7
 
-  @doc """
-  Options: `:plugs`, `:location` (weather needs its coordinates), `:today`
-  (the date an empty report shows) and `:prices` (default: the prices on
-  record).
-  """
+  @doc "Options: `:plugs`, `:location`, `:today` (shown when empty) and `:prices`."
   @spec build(range, keyword) :: t
   def build(range, opts) do
     roster = Roster.new(Keyword.fetch!(opts, :plugs))
@@ -85,8 +71,7 @@ defmodule Ziwoas.Energy.Report do
     }
   end
 
-  # A typo like 1026 would span ~365,000 days: nothing before the first aggregated day,
-  # unless that is less than a year back.
+  # Caps a typo like 1026 days at the first aggregated day, unless that is under a year back.
   defp resolve({:last_days, days}, aggregated),
     do: {Date.add(aggregated.last, -(days - 1)), aggregated.last} |> clamp(aggregated)
 
@@ -156,7 +141,6 @@ defmodule Ziwoas.Energy.Report do
     }
   end
 
-  # Each day carries the price in force on it, so a range spanning a price change isn't levelled.
   defp savings_eur(covered_points, prices) do
     dated = Enum.map(covered_points, &{&1.date, &1.self_consumed})
 
@@ -169,8 +153,6 @@ defmodule Ziwoas.Energy.Report do
   defp average_kwh(_total, 0), do: 0.0
   defp average_kwh(total, days), do: total |> Amount.divide(days) |> rounded_kwh()
 
-  # position follows config order, the order the dashboard and charts colour plugs by.
-  # Ties in kWh keep config order.
   defp ranking(rows, roster, role) do
     peers =
       if role == :producer, do: Roster.producer_ids(roster), else: Roster.consumer_ids(roster)
@@ -199,7 +181,6 @@ defmodule Ziwoas.Energy.Report do
     |> Enum.sort_by(& &1.kwh, :desc)
   end
 
-  # Every consumer in config order, with the days it has a total for.
   defp consumer_daily(roster, rows) do
     by_plug = Enum.group_by(rows, & &1.plug_id)
 
@@ -253,7 +234,6 @@ defmodule Ziwoas.Energy.Report do
   defp mean_watts(nil), do: nil
   defp mean_watts(row), do: row.energy_wh / 24.0
 
-  # One series per configured plug, dropping plugs without any value.
   defp present_series(roster, watts_fun) do
     for plug <- roster.all,
         watts = watts_fun.(plug),

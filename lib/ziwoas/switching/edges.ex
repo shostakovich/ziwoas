@@ -1,13 +1,9 @@
 defmodule Ziwoas.Switching.Edges do
-  @moduledoc """
-  Pure edge computation: no I/O, no clock. One
-  rule, one edge — a rule carries its weekdays absolutely, so nothing here
-  knows about midnight.
-  """
+  @moduledoc false
   alias Ziwoas.Switching.Rule
 
   defmodule Edge do
-    @moduledoc "A switch time falling due: rule plus local instant."
+    @moduledoc false
     @enforce_keys [:plug_id, :rule_id, :action, :at]
     defstruct @enforce_keys
 
@@ -22,7 +18,6 @@ defmodule Ziwoas.Switching.Edges do
   # :off sorts before :on, so "last edge wins" resolves a tie towards on.
   @action_order %{off: 0, on: 1}
 
-  @doc "All edges with `from < at <= to`, ascending by time, in `zone`."
   @spec edges_between([Rule.t()], DateTime.t(), DateTime.t(), String.t()) :: [Edge.t()]
   def edges_between(rules, from, to, zone) do
     if DateTime.compare(to, from) != :gt do
@@ -40,7 +35,6 @@ defmodule Ziwoas.Switching.Edges do
     end
   end
 
-  @doc "At most one edge per plug: the latest within the interval (the tick's edge)."
   @spec latest_edge_per_plug([Rule.t()], DateTime.t(), DateTime.t(), String.t()) :: [Edge.t()]
   def latest_edge_per_plug(rules, from, to, zone) do
     rules
@@ -50,10 +44,7 @@ defmodule Ziwoas.Switching.Edges do
     |> Enum.map(&List.last/1)
   end
 
-  @doc """
-  At most one edge per plug, the earliest within the interval; among edges
-  sharing that instant the one "last edge wins" would pick.
-  """
+  @doc "Among edges sharing the earliest instant, the one \"last edge wins\" would pick."
   @spec next_edge_per_plug([Rule.t()], DateTime.t(), DateTime.t(), String.t()) :: [Edge.t()]
   def next_edge_per_plug(rules, from, to, zone) do
     rules
@@ -63,7 +54,6 @@ defmodule Ziwoas.Switching.Edges do
     |> Enum.map(&tie_winner/1)
   end
 
-  # Enumerable#group_by over the sorted edges.
   defp group_in_order(chunks) do
     chunks
     |> Enum.reduce({[], %{}}, fn [%{plug_id: id} | _] = chunk, {ids, groups} ->
@@ -89,8 +79,7 @@ defmodule Ziwoas.Switching.Edges do
     end
   end
 
-  # An ambiguous time takes the earlier (summer) offset, a time inside a
-  # spring-forward gap is read with the offset before it.
+  # An ambiguous time takes the earlier offset, a time in a gap the offset before it.
   defp local_time(date, minutes, zone) do
     naive = NaiveDateTime.new!(date, Time.new!(div(minutes, 60), rem(minutes, 60), 0))
 

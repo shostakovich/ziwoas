@@ -1,5 +1,5 @@
 defmodule Ziwoas.Weather.Record do
-  @moduledoc "One observed or forecast weather data point for a location (`weather_records`)."
+  @moduledoc false
   use Ziwoas.Schema
 
   import Ecto.Changeset
@@ -39,10 +39,6 @@ defmodule Ziwoas.Weather.Record do
     timestamps()
   end
 
-  @doc """
-  A record from Bright Sky's values (`Ziwoas.Weather.BrightskyClient`); whole
-  numbers given as floats are rounded.
-  """
   @spec changeset(t, map) :: Ecto.Changeset.t()
   def changeset(record \\ %__MODULE__{}, attrs) do
     attrs =

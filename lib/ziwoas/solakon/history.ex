@@ -1,24 +1,14 @@
 defmodule Ziwoas.Solakon.History do
-  @moduledoc """
-  The Solakon-Verlauf: the snapshots of the last 24 hours, 7 or 30 days as
-  power series, the energy balance of the range and the outlet's mean power.
-  An unknown range reads as 24 h. `Ziwoas.Solakon.history/3` builds it.
-
-  Series are in W, oldest first, one value per snapshot; the outlet's power is
-  positive while it delivers into the house, negative while it draws. Without
-  snapshots `times` is empty and `balance` and `outlet_average_w` are nil.
-  """
+  @moduledoc false
   import Ecto.Query
 
   alias Ziwoas.{LocalDay, Repo}
   alias Ziwoas.Solakon.{Reading, Snapshot}
 
-  # 24 h is fixed seconds; 7 and 30 days are calendar days on the local clock.
   @ranges [{"24h", {:seconds, 24 * 3600}}, {"7d", {:days, 7}}, {"30d", {:days, 30}}]
 
   # Snapshots arrive every 2 min; a gap past this is downtime and must not inflate the outlet energy.
   @outlet_max_gap_s 300
-  # How far a reading may lie from a snapshot without active power to stand in for it.
   @reading_window_s 120
 
   @enforce_keys [:range]
@@ -53,7 +43,6 @@ defmodule Ziwoas.Solakon.History do
   @spec ranges() :: [range]
   def ranges, do: Enum.map(@ranges, &elem(&1, 0))
 
-  @doc "The range a parameter names; anything unknown reads as 24h."
   @spec range(term) :: range
   def range(key) do
     if List.keymember?(@ranges, key, 0), do: key, else: "24h"
@@ -83,7 +72,6 @@ defmodule Ziwoas.Solakon.History do
     end
   end
 
-  @doc "Where the range starts: 24 h back, or 7 or 30 days back on the local clock."
   @spec from_time(range, DateTime.t(), String.t()) :: DateTime.t()
   def from_time(range, now, zone) do
     case List.keyfind(@ranges, range, 0) do
@@ -92,7 +80,6 @@ defmodule Ziwoas.Solakon.History do
     end
   end
 
-  # Both bounds inclusive, oldest first.
   defp snapshots(from, to) do
     Repo.all(
       from s in Snapshot,
@@ -101,8 +88,6 @@ defmodule Ziwoas.Solakon.History do
     )
   end
 
-  # No active power on a snapshot: the reading nearest to it within two minutes
-  # stands in, compared in whole seconds. The readings come in one query.
   defp outlet_powers(rows) do
     readings =
       if Enum.any?(rows, &is_nil(&1.active_power_w)),
@@ -147,8 +132,7 @@ defmodule Ziwoas.Solakon.History do
     first = hd(rows)
     last = List.last(rows)
 
-    # No grid meter on this unit (grid_power reads 0): the outlet's integrated power stands in,
-    # which is the inverter's feed/draw at the socket, not whole-house grid flow.
+    # No grid meter on this unit (grid_power reads 0): the outlet's power stands in.
     %{
       pv_kwh: delta(first.pv_total_kwh, last.pv_total_kwh),
       charged_kwh: delta(first.battery_charge_total_kwh, last.battery_charge_total_kwh),

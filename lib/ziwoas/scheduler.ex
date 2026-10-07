@@ -1,12 +1,5 @@
 defmodule Ziwoas.Scheduler do
-  @moduledoc """
-  The recurring jobs: one `Ziwoas.Scheduler.Runner` per job the device config
-  enables, under this supervisor. `jobs/1` is the table, schedules are
-  `Ziwoas.Scheduler.Schedule`s on the local clock of `location.timezone`.
-
-  `Ziwoas.Application` starts it with `config:` unless the config failed to
-  load or `config :ziwoas, scheduler: false` (test).
-  """
+  @moduledoc false
   use Supervisor
 
   alias Ziwoas.{Config, Location}
@@ -25,10 +18,6 @@ defmodule Ziwoas.Scheduler do
     |> Supervisor.init(strategy: :one_for_one)
   end
 
-  @doc """
-  One runner per job of `jobs/1`. `runner_opts` go to every runner (tests:
-  `:clock`, `:timer`).
-  """
   @spec children(Config.t(), keyword) :: [Supervisor.child_spec() | {module, keyword}]
   def children(%Config{} = config, runner_opts \\ []) do
     for {name, schedule, job} <- jobs(config) do
@@ -37,7 +26,6 @@ defmodule Ziwoas.Scheduler do
     end
   end
 
-  @doc "The jobs `config` enables; each job's opts carry the config."
   @spec jobs(Config.t()) :: [job]
   def jobs(%Config{} = config) do
     located? = Location.located?(config.location)

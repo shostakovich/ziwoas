@@ -1,5 +1,4 @@
 defmodule Ziwoas.Sensors.PollJobTest do
-  # PubSub topics are global, hence not async.
   use Ziwoas.DataCase
 
   import Ecto.Query
@@ -32,7 +31,6 @@ defmodule Ziwoas.Sensors.PollJobTest do
 
   defp context, do: [config: TestConfigs.plugs(@sensors), at: Ziwoas.Clock.now()]
 
-  # Each device answers `status.(id)`: a body map, or an HTTP status.
   defp stub_switchbot(status) do
     Req.Test.stub(SwitchBotClient, fn conn ->
       id = conn.path_info |> Enum.at(2)
@@ -144,7 +142,6 @@ defmodule Ziwoas.Sensors.PollJobTest do
     assert_received {:polled, _}
   end
 
-  # The test's mailbox before it is read: what arrived, in order.
   defp mailbox do
     send(self(), :end)
     {:messages, collect([])}

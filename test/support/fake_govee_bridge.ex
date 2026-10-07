@@ -1,10 +1,5 @@
 defmodule Ziwoas.FakeGoveeBridge do
-  @moduledoc """
-  Stands in for `Ziwoas.Govee.Bridge` under its name: every command goes to the
-  test as `{:govee, key, verb}` and is answered with `:answer` (default `:ok`),
-  after `:sleep_ms` (default 0) — longer than the bridge's timeout makes it busy.
-  The name is global, so a test that starts it is not async.
-  """
+  @moduledoc false
   use GenServer
 
   def start_link(opts),

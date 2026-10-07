@@ -1,5 +1,5 @@
 defmodule Ziwoas.Economics.CostItem do
-  @moduledoc "One amount spent on the plant on one date (`cost_items`). Negative amounts are subsidies."
+  @moduledoc "Negative amounts are subsidies."
   use Ziwoas.Schema
 
   import Ecto.Changeset
@@ -16,7 +16,6 @@ defmodule Ziwoas.Economics.CostItem do
     timestamps()
   end
 
-  @doc "A Kostenposten as typed: German keyboards type a decimal comma."
   @spec changeset(t, map) :: Ecto.Changeset.t()
   def changeset(item, attrs) do
     item

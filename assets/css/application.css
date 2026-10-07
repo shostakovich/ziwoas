@@ -1,15 +1,8 @@
-/* Global layer on top of felt-css: data-viz tokens, the page shell and blocks shared across areas. */
-
-/* Data-viz colours: the only place colour values are defined. Every series
-   colour takes its hue from the felt palette and sets lightness/chroma per
-   mode, validated as a categorical set on --felt-surface (light and dark, clean and
-   felt). --viz-1..10 follow a fixed order: assign by entity, never cycle. */
 :root {
   --viz-solar:   light-dark(oklch(from var(--felt-mustard) 0.74 0.15 h), oklch(from var(--felt-mustard) 0.72 0.14 h));
   --viz-battery: light-dark(oklch(from var(--felt-petrol) 0.6 0.11 calc(h - 25)), oklch(from var(--felt-petrol) 0.62 0.11 calc(h - 25)));
   --viz-grid:    light-dark(oklch(from var(--felt-denim) 0.5 0.13 h), oklch(from var(--felt-denim) 0.6 0.13 h));
   --viz-muted:   light-dark(oklch(from var(--felt-taupe) 0.66 0.03 h), oklch(from var(--felt-taupe) 0.6 0.03 h));
-  /* A reference total (Gesamtverbrauch): neutral ink, apart from every hue. */
   --viz-total:   color-mix(in oklab, var(--felt-body-color) 75%, var(--felt-surface));
 
   --viz-1:  light-dark(oklch(from var(--felt-denim) 0.52 0.13 h), oklch(from var(--felt-denim) 0.62 0.12 h));
@@ -23,12 +16,10 @@
   --viz-9:  light-dark(oklch(from var(--felt-taupe) 0.48 0.105 calc(h - 20)), oklch(from var(--felt-taupe) 0.55 0.11 calc(h - 20)));
   --viz-10: light-dark(oklch(from var(--felt-petrol) 0.64 0.11 calc(h + 28)), oklch(from var(--felt-petrol) 0.66 0.11 calc(h + 28)));
 
-  /* Shared by SVG and Chart.js charts; translucent so the felt shows through. */
   --chart-grid: color-mix(in oklab, var(--felt-border-color) 55%, transparent);
   --chart-halo: color-mix(in oklab, var(--felt-surface) 60%, transparent);
 }
 
-/* The header spans the widest page; single-column pages read at 760px, data pages go wide. */
 :root { --felt-container-max: 1040px; }
 .app-main { max-width: 760px; padding-bottom: var(--felt-space-4); }
 .app-main-wide { max-width: var(--felt-container-max); }
@@ -39,27 +30,18 @@
   .app-main { padding-bottom: calc(var(--tabbar-height) + 1.375rem); }
 }
 
-/* On a narrow phone the name shrinks with the viewport and the tagline breaks
-   at its soft hyphen instead of running into the look toggle (.navbar-brand
-   would keep it on one line). */
 .app-brand { gap: .5rem; min-width: 0; color: var(--felt-body-color); }
 .app-brand-mascot { display: block; flex-shrink: 0; height: 40px; width: auto; }
 .app-brand-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.1; }
 .app-brand-name { font-size: clamp(.8rem, 4vw, 1.05rem); font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
 .app-brand-tagline { font-size: .7rem; font-weight: 400; letter-spacing: .02em; white-space: normal; color: var(--felt-secondary-color); }
 
-/* German compounds (EIGENVERBRAUCHSQUOTE) outgrow a narrow tile. Long fixed
-   labels carry soft hyphens (U+00AD), which break at a joint in every browser;
-   hyphens: auto covers other labels where the browser has a dictionary;
-   break-word is the last resort and, unlike anywhere, keeps min-content sane. */
+/* Long fixed labels carry soft hyphens (U+00AD); break-word is the last resort. */
 .stat-label { hyphens: auto; overflow-wrap: break-word; }
 
-/* Plush nav icons are not square: a square box, never squashed. */
 .app-nav-icon { width: 1.75rem; height: 1.75rem; object-fit: contain; }
 .fixed-bottom .app-nav-icon { width: 1.5rem; height: 1.5rem; }
 
-/* Six tabs share one row even on a 320px phone: equal columns without gaps or
-   side padding, and below ~360px the labels shrink so "Sensoren" still fits. */
 .fixed-bottom .nav { gap: 0; }
 .fixed-bottom .nav-item { min-width: 0; }
 .fixed-bottom .nav-link.flex-column { padding-inline: 0; }

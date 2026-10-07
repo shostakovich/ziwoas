@@ -1,10 +1,5 @@
 defmodule Ziwoas.Energy.Flow do
-  @moduledoc """
-  Where the power goes right now: the house's draw from
-  the consumer plugs, the inverter's fresh reading, and the six flows between
-  PV, grid, battery and house. Without a fresh reading the inverter is
-  offline and everything derived from it is unknown (nil), not zero.
-  """
+  @moduledoc false
   alias Ziwoas.Solakon.Reading
 
   defmodule Flows do

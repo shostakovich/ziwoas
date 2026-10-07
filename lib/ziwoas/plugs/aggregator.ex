@@ -1,11 +1,5 @@
 defmodule Ziwoas.Plugs.Aggregator do
-  @moduledoc """
-  Folds a finished local day of raw `samples` into `samples_5min` and
-  `daily_totals` (and the day's energy summary when plugs are given, through
-  `Ziwoas.Energy.summarize_day/3`), purges raw samples past their retention
-  and backs the database up. The arithmetic stays in SQLite.
-  `Ziwoas.Plugs.AggregatorJob` runs it every night through `Ziwoas.Plugs.aggregate/3`.
-  """
+  @moduledoc false
   import Ecto.Query
 
   alias Ziwoas.{Energy, LocalDay, Repo}
@@ -16,7 +10,7 @@ defmodule Ziwoas.Plugs.Aggregator do
 
   def raw_retention_days, do: @raw_retention_days
 
-  @doc "Rewrites one local day; running it twice gives the same rows. `plugs` nil skips the summary."
+  @doc "Idempotent; `plugs` nil skips the energy summary."
   @spec aggregate_day(Date.t(), String.t(), list | nil) :: :ok
   def aggregate_day(%Date{} = date, timezone, plugs) do
     {start_ts, end_ts} = LocalDay.window(date, timezone)
@@ -66,7 +60,6 @@ defmodule Ziwoas.Plugs.Aggregator do
       select: %{plug_id: d.plug_id, date: type(^date, :date), energy_wh: sum(d.delta_wh)}
   end
 
-  @doc "Drops raw samples older than the retention; a sample exactly at the cutoff stays."
   @spec purge_old_raw(integer, non_neg_integer) :: non_neg_integer
   def purge_old_raw(now_unix, retention_days \\ @raw_retention_days) do
     cutoff = now_unix - retention_days * 86_400
@@ -74,14 +67,6 @@ defmodule Ziwoas.Plugs.Aggregator do
     count
   end
 
-  @doc """
-  Aggregates every finished day not yet in `daily_totals`, from the UTC date of
-  the oldest sample up to the day before `:today`, then purges. Without
-  samples it does nothing.
-
-  Options: `:today` (default: today in `timezone`) and `:now` (Unix seconds),
-  both from `Ziwoas.Clock`.
-  """
   @spec run(String.t(), list | nil, keyword) :: :ok
   def run(timezone, plugs, opts \\ []) do
     today = Keyword.get_lazy(opts, :today, fn -> Ziwoas.Clock.today(timezone) end)
@@ -104,11 +89,7 @@ defmodule Ziwoas.Plugs.Aggregator do
     end
   end
 
-  @doc """
-  Copies the database the process writes to into `dir/ziwoas-<today>.db`
-  (`VACUUM INTO`, replacing that day's file) and keeps the newest `keep`
-  backups by modification time. `VACUUM INTO` cannot run inside a transaction.
-  """
+  @doc "`VACUUM INTO` cannot run inside a transaction."
   @spec backup!(String.t(), Date.t(), pos_integer) :: String.t()
   def backup!(dir, %Date{} = today, keep \\ 7) do
     File.mkdir_p!(dir)

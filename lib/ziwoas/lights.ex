@@ -1,12 +1,5 @@
 defmodule Ziwoas.Lights do
-  @moduledoc """
-  The Govee lights: the lamps and their last known state, as the Govee bridge
-  reports them (`put_lamp/1`, `put_state/2`), the commands the pages send
-  (`command/3`, through `Ziwoas.Govee.Bridge`) and the lamp settings form.
-
-  `subscribe/0` (every lamp) and `subscribe/1` (one lamp's key) deliver
-  `{:updated, key}` when a lamp's state changed.
-  """
+  @moduledoc false
   import Ecto.Query
 
   alias Ziwoas.{Clock, Repo}
@@ -21,7 +14,6 @@ defmodule Ziwoas.Lights do
   @spec subscribe(String.t()) :: :ok | {:error, term}
   def subscribe(key), do: Phoenix.PubSub.subscribe(Ziwoas.PubSub, topic(key))
 
-  @doc "Tells the subscribers that the lamp `key` changed."
   @spec notify_updated(String.t()) :: :ok
   def notify_updated(key) do
     broadcast(@topic, :updated, key)
@@ -35,14 +27,14 @@ defmodule Ziwoas.Lights do
     do: Phoenix.PubSub.broadcast(Ziwoas.PubSub, topic, {event, payload})
 
   defmodule Zone do
-    @moduledoc "One zone of a zone lamp: a main light or a side light."
+    @moduledoc false
     @enforce_keys [:key, :role, :on]
     defstruct @enforce_keys
     @type t :: %__MODULE__{key: String.t(), role: :main | :side, on: boolean}
   end
 
   defmodule Snapshot do
-    @moduledoc "A light and its last known state."
+    @moduledoc false
     @enforce_keys [:light, :state]
     defstruct @enforce_keys
     @type t :: %__MODULE__{light: Light.t(), state: State.t() | nil}
@@ -51,11 +43,9 @@ defmodule Ziwoas.Lights do
   @spec get_by_key(String.t()) :: Light.t() | nil
   def get_by_key(key), do: Repo.get_by(Light, key: key)
 
-  @doc "The light with `key`; raises `Ecto.NoResultsError` (a 404) when there is none."
   @spec get_by_key!(String.t()) :: Light.t()
   def get_by_key!(key), do: Repo.get_by!(Light, key: key)
 
-  @doc "Every light by name with its state."
   @spec snapshots() :: [Snapshot.t()]
   def snapshots do
     lights = Repo.all(from l in Light, order_by: l.name)
@@ -68,42 +58,23 @@ defmodule Ziwoas.Lights do
   def snapshot(light),
     do: %Snapshot{light: light, state: Repo.get_by(State, light_key: light.key)}
 
-  @doc "The settings form's changeset: name and Shelly plug."
   @spec change_settings(Light.t(), map) :: Ecto.Changeset.t()
   def change_settings(light, params \\ %{}), do: Light.settings_changeset(light, params)
 
-  @doc "Saves name and Shelly plug, or answers the changeset with its errors."
   @spec update_settings(Light.t(), map) :: {:ok, Light.t()} | {:error, Ecto.Changeset.t()}
   def update_settings(light, params), do: light |> change_settings(params) |> Repo.update()
 
-  # --- Commands ------------------------------------------------------------------
-
-  @doc "Whether `name` is a lamp command."
   @spec command?(term) :: boolean
   defdelegate command?(name), to: Commands
 
-  @doc """
-  Runs a lamp command from a page's parameters (`Ziwoas.Lights.Commands.run/3`):
-  `{:ok, result}`, `{:error, :invalid}` for parameters that do not cast,
-  `{:error, :unreachable}` when the bridge did not take it.
-  """
   @spec command(Light.t(), String.t(), map) ::
           {:ok, Commands.result()} | {:error, :invalid | :unreachable}
   defdelegate command(light, name, params), to: Commands, as: :run
 
-  @doc "The lamp's limit of zones lit at once, nil for none."
   @spec max_active_zones(Light.t()) :: pos_integer | nil
   defdelegate max_active_zones(light), to: Commands
 
-  # --- What the bridge reports -----------------------------------------------------
-
-  @doc """
-  Creates or updates the lamp the bridge knows (`key`, `name`, `sku`,
-  `supports_color`, `supports_color_temp`, `color_temp_min_k`, `color_temp_max_k`,
-  `zones`, `scenes`). A stored name is kept: it is the settings form's. An empty
-  zone or scene list is stored as NULL. Values that do not cast are refused
-  with the changeset.
-  """
+  @doc "A stored name is kept."
   @spec put_lamp(map) :: {:ok, Light.t()} | {:error, :invalid | Ecto.Changeset.t()}
   def put_lamp(%{key: key} = lamp) do
     {light, name} =
@@ -131,14 +102,7 @@ defmodule Ziwoas.Lights do
     end
   end
 
-  @doc """
-  Records the state the bridge reports for the lamp `key` and tells the
-  subscribers: `on` and `reachable` always, `brightness`, `color`
-  (`%{r:, g:, b:}`), `color_temp_k` and `zone_states` when given; an absent
-  field stays untouched, zone bits merge into the stored ones. A reading that
-  does not cast is refused with the changeset, a database that refuses the
-  write with its `Exqlite.Error`; then nobody is told.
-  """
+  @doc "Absent fields stay untouched; zone bits merge into the stored ones."
   @spec put_state(String.t(), map) ::
           {:ok, State.t()} | {:error, Ecto.Changeset.t() | Exqlite.Error.t()}
   def put_state(key, state) when is_binary(key) and key != "" do
@@ -182,17 +146,11 @@ defmodule Ziwoas.Lights do
   defp present(nil), do: nil
   defp present(text), do: if(String.trim(text) == "", do: nil, else: text)
 
-  # --- Lamp readings ------------------------------------------------------------------
-
-  @doc "The white range the Govee capabilities reported, else 2700–6500 K."
   @spec color_temp_range(Light.t()) :: {pos_integer, pos_integer}
   def color_temp_range(light), do: {Light.color_temp_min_k(light), Light.color_temp_max_k(light)}
 
-  @doc "The lamp's Govee scenes, always a list."
   @spec scenes(Light.t()) :: [String.t()]
   def scenes(light), do: Light.firmware_scenes(light)
-
-  # --- Snapshot readings -------------------------------------------------------
 
   def on?(%Snapshot{state: state}), do: state != nil and state.on == true
   def brightness(%Snapshot{state: state}), do: (state && state.brightness) || 0
@@ -203,12 +161,10 @@ defmodule Ziwoas.Lights do
 
   def rgb(%Snapshot{}), do: nil
 
-  @doc "White when there is no colour, or a positive colour temperature is set."
   def white?(snapshot), do: (color_temp_k(snapshot) || 0) > 0 or is_nil(rgb(snapshot))
 
   def zone_lamp?(%Snapshot{light: light}), do: Light.zone_lamp?(light)
 
-  @doc "The lamp's zones with their on/off bits, main zones first."
   @spec zones(Snapshot.t()) :: [Zone.t()]
   def zones(%Snapshot{light: light, state: state}) do
     bits = (state && state.zone_states) || %{}

@@ -8,7 +8,6 @@ defmodule Ziwoas.Switching.ScheduleTickJobTest do
   alias Ziwoas.Switching
   alias Ziwoas.Switching.{Command, SchedulerState, ScheduleTickJob}
 
-  # Monday 2026-06-15 18:05 in Berlin.
   @now "2026-06-15T18:05:00+02:00"
 
   setup do
@@ -23,7 +22,6 @@ defmodule Ziwoas.Switching.ScheduleTickJobTest do
         else: :ok
     end)
 
-    # test/fixtures/ziwoas.test.yml: fridge switches.
     %{config: Ziwoas.Config.get()}
   end
 

@@ -1,11 +1,5 @@
 defmodule Ziwoas.Fritz.Bridge do
-  @moduledoc """
-  One process per Fritz!DECT plug: polls the plug through the Fritz!Box
-  (`Ziwoas.Fritz.DectClient`, its own session) and hands each reading to
-  `Ziwoas.Plugs.Ingest`, the path a Shelly status takes too.
-  Every `active_interval_seconds` while the plug draws more than
-  `idle_threshold_w`, else every `idle_interval_seconds`; the first poll is at once.
-  """
+  @moduledoc false
   use GenServer
 
   require Logger
@@ -21,11 +15,6 @@ defmodule Ziwoas.Fritz.Bridge do
       start: {__MODULE__, :start_link, [opts]}
     }
 
-  @doc """
-  Options: `:plug`, `:client` (a `DectClient`), `:poll` (`Config.FritzPoll`);
-  for tests `:timer` (`Process.send_after/3`'s shape) and `:ingest` (the
-  options of `Ingest.new/1`).
-  """
   @impl true
   def init(opts) do
     state = %{
@@ -48,7 +37,6 @@ defmodule Ziwoas.Fritz.Bridge do
     {:noreply, state}
   end
 
-  @doc "One poll: fetch, record, remember the watts; a Fritz error is logged and records nothing."
   def poll(state) do
     case DectClient.fetch(state.client, state.plug.ain) do
       {:ok, reading, client} ->
@@ -61,7 +49,6 @@ defmodule Ziwoas.Fritz.Bridge do
     end
   end
 
-  @doc "Seconds until the next poll."
   def interval(%{last_apower_w: watts, poll: poll}) do
     if watts > poll.idle_threshold_w,
       do: poll.active_interval_seconds,

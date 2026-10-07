@@ -1,10 +1,5 @@
 defmodule Ziwoas.FakeMqttBroker do
-  @moduledoc """
-  An MQTT 3.1.1 broker on `:gen_tcp`, just enough for Tortoise311 at QoS 0:
-  CONNECT/CONNACK, SUBSCRIBE/SUBACK, PUBLISH both ways, PINGREQ, DISCONNECT. Records
-  client ids, subscriptions and what clients publish; `publish/3` delivers to every
-  connected client (no topic matching — the clients' routers decide).
-  """
+  @moduledoc false
   use GenServer
 
   def start_link(_opts \\ []), do: GenServer.start_link(__MODULE__, [])
@@ -15,7 +10,6 @@ defmodule Ziwoas.FakeMqttBroker do
   def clients(broker), do: GenServer.call(broker, :clients)
   def publish(broker, topic, payload), do: GenServer.call(broker, {:deliver, topic, payload})
 
-  @doc "Waits until `fun.(broker)` is truthy (up to `timeout` ms)."
   def await(broker, fun, timeout \\ 2_000) do
     cond do
       result = fun.(broker) -> result

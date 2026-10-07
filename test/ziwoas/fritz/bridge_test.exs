@@ -1,5 +1,4 @@
 defmodule Ziwoas.Fritz.BridgeTest do
-  # The bridge process writes samples before the test could allow it the connection.
   use Ziwoas.DataCase
 
   import ExUnit.CaptureLog
@@ -30,7 +29,6 @@ defmodule Ziwoas.Fritz.BridgeTest do
 
   @session ~s(<?xml version="1.0"?><SessionInfo><SID>abc123def456abcd</SID><Challenge>deadbeef</Challenge></SessionInfo>)
 
-  # A Fritz!Box that always answers: login, then `watts` mW and 100 Wh.
   defp client(milliwatts) do
     plug = fn conn ->
       body =

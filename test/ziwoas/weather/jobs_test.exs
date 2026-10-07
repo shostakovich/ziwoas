@@ -1,5 +1,4 @@
 defmodule Ziwoas.Weather.JobsTest do
-  # PubSub topics are global, hence not async.
   use Ziwoas.DataCase
 
   import Ecto.Query
@@ -22,8 +21,6 @@ defmodule Ziwoas.Weather.JobsTest do
   defp hour(timestamp, extra \\ %{}),
     do: Map.merge(%{"timestamp" => timestamp, "source_id" => 7003, "icon" => "cloudy"}, extra)
 
-  # Bright Sky with `bodies` by date ("current" for the observation), 404 otherwise;
-  # tells the test each date it was asked for.
   defp stub_brightsky(bodies) do
     test = self()
 

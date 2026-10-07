@@ -1,5 +1,4 @@
 defmodule Ziwoas.MigrationsTest do
-  # Each test works on a file of its own, outside the SQL sandbox.
   use ExUnit.Case, async: true
 
   alias Ziwoas.{Repo, TestMigrations}

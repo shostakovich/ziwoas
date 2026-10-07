@@ -1,17 +1,11 @@
 defmodule ZiwoasWeb.Charts.Dashboard do
-  @moduledoc """
-  The payloads of the dashboard's chart hooks, pushed by `ZiwoasWeb.DashboardLive`:
-  `TodayChart` gets each plug's minute means of the last 24 hours (Unix
-  seconds, from the full hour), `HistoryChart` the producer's daily totals of
-  the last 14 days.
-  """
+  @moduledoc false
   alias Ziwoas.{Clock, Config, Energy, Plugs}
   alias Ziwoas.Plugs.Roster
 
   @today_bucket_seconds 60
   @history_days 14
 
-  @doc "`%{series: [%{plug_id, name, role, points: [%{ts, avg_power_w}]}]}` in config order."
   @spec today(Config.t(), integer) :: map
   def today(%Config{plugs: plugs}, end_ts \\ Clock.unix_now()) do
     start_ts = Integer.floor_div(end_ts - 86_400, 3600) * 3600
@@ -29,10 +23,6 @@ defmodule ZiwoasWeb.Charts.Dashboard do
     %{series: series}
   end
 
-  @doc """
-  `%{points: [%{date, energy_wh}]}` of the first producer from `today` minus
-  14 days on; `points: nil` without a producer.
-  """
   @spec history(Config.t(), Date.t()) :: map
   def history(%Config{} = config, %Date{} = today) do
     case config |> Config.plug_roster() |> Roster.producer_ids() do

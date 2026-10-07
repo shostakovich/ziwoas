@@ -1,8 +1,5 @@
 defmodule Ziwoas.Switching.SchedulerState do
-  @moduledoc """
-  When the scheduler last worked through a plug's edges (`scheduler_states`). One
-  row per plug, so a failed switch only makes its own plug retry.
-  """
+  @moduledoc false
   use Ziwoas.Schema
 
   schema "scheduler_states" do

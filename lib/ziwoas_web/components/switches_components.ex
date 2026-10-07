@@ -1,9 +1,5 @@
 defmodule ZiwoasWeb.SwitchesComponents do
-  @moduledoc """
-  The Schalten page's pieces: a plug card with its head, the count of
-  Schaltzeiten, the entries and the inline editor. The events they send are
-  handled by `ZiwoasWeb.SwitchesLive`.
-  """
+  @moduledoc false
   use ZiwoasWeb, :html
 
   alias Ziwoas.Switching.{Row, Schedule}
@@ -193,7 +189,6 @@ defmodule ZiwoasWeb.SwitchesComponents do
       class="d-flex align-items-center flex-wrap gap-1 py-1 border-top"
       id={entry_dom_id(@plug, @id)}
     >
-      <%!-- Only an Einzelschaltung carries an arrow: a Zeitfenster's two times say both directions. --%>
       <span class={@pill_class}>
         {entry_label(@entry)}
         <span :if={@direction} class="fw-bold ms-1">{@direction}</span>
@@ -237,7 +232,6 @@ defmodule ZiwoasWeb.SwitchesComponents do
     """
   end
 
-  # An Einzelschaltung's pill is drawn open: its counter-direction is missing.
   defp pill_class(window, enabled) do
     tone =
       cond do
@@ -272,8 +266,6 @@ defmodule ZiwoasWeb.SwitchesComponents do
     ><path d={@d} /></svg>
     """
   end
-
-  # --- The editors -------------------------------------------------------------------
 
   attr :plug, :any, required: true
   attr :form, Phoenix.HTML.Form, required: true
@@ -355,7 +347,6 @@ defmodule ZiwoasWeb.SwitchesComponents do
   attr :field, Phoenix.HTML.FormField, required: true
   attr :id_prefix, :string, required: true
 
-  # Radios, not a checkbox: the direction can never end up neither.
   defp action_choice(assigns) do
     assigns =
       assign(assigns, value: to_string(assigns.field.value), errors: errors(assigns.field))
@@ -442,9 +433,6 @@ defmodule ZiwoasWeb.SwitchesComponents do
     """
   end
 
-  # --- Labels ------------------------------------------------------------------------
-
-  @doc "`Mo–Fr`, `Mo, Mi, Fr`, `täglich`."
   @spec weekday_label([integer]) :: String.t()
   def weekday_label(days) do
     sorted = Enum.sort(days)
@@ -470,7 +458,6 @@ defmodule ZiwoasWeb.SwitchesComponents do
 
   defp abbr(day), do: @day_abbr |> List.keyfind(day, 0) |> elem(1)
 
-  @doc "A window's days come from its on rule, which reads a shift past midnight back out."
   def entry_label(entry) do
     times = entry |> Schedule.rules() |> Enum.map_join("–", &hhmm(&1.at_minute))
     "#{weekday_label(Schedule.days(entry))} · #{times}"
@@ -479,7 +466,6 @@ defmodule ZiwoasWeb.SwitchesComponents do
   defp hhmm(minute), do: "#{pad(div(minute, 60))}:#{pad(rem(minute, 60))}"
   defp pad(number), do: number |> Integer.to_string() |> String.pad_leading(2, "0")
 
-  @doc "The plug's state, where it came from and what the schedule does next."
   @spec status_line(Row.t(), String.t()) :: String.t()
   def status_line(row, zone) do
     if Row.offline?(row) do

@@ -1,14 +1,9 @@
 defmodule ZiwoasWeb.SensorsComponents do
-  @moduledoc """
-  The Sensoren page's parts: the dashboard `ZiwoasWeb.SensorsLive` reloads after
-  every sensor poll, one card per sensor, the battery warning and the chart cards
-  the `SensorsChart` hook draws from the `"sensors_chart:data"` event.
-  """
+  @moduledoc false
   use ZiwoasWeb, :html
 
   alias Ziwoas.Sensors
 
-  @doc "Everything below the heading."
   attr :sensors, :list, required: true
   attr :latest, :map, required: true
   attr :now, DateTime, required: true
@@ -105,7 +100,6 @@ defmodule ZiwoasWeb.SensorsComponents do
     """
   end
 
-  @doc "\"vor 4 Min\": whole seconds, minutes or hours since the reading, truncated."
   @spec age_label(map | nil, DateTime.t()) :: String.t()
   def age_label(reading, now) do
     case Sensors.age_s(reading, now) do
@@ -159,11 +153,6 @@ defmodule ZiwoasWeb.SensorsComponents do
     """
   end
 
-  @doc """
-  The `SensorsChart` hook's series from `readings`: per chart one entry per
-  sensor (CO₂ only the CO₂ meters) with its `[unix_ms, value]` points, and
-  the CO₂ chart's `[warn, bad]` lines in ppm.
-  """
   @spec chart_data([map], [map]) :: %{
           temperature: [map],
           humidity: [map],
@@ -194,7 +183,6 @@ defmodule ZiwoasWeb.SensorsComponents do
     end
   end
 
-  # A chart of one sensor names it; several have a legend.
   defp chart_subtitle(unit, [sensor]), do: "#{unit} · #{sensor.name} · letzte 24 h"
   defp chart_subtitle(unit, _sensors), do: "#{unit} · letzte 24 h"
 
@@ -209,7 +197,6 @@ defmodule ZiwoasWeb.SensorsComponents do
   @stitch_scale "1.15"
   @stitch_pitch 11
 
-  @doc "A felt CO₂ gauge: three zones, the needle at `ppm`."
   attr :ppm, :integer, required: true
 
   def co2_gauge(assigns) do
@@ -353,7 +340,6 @@ defmodule ZiwoasWeb.SensorsComponents do
       " " <> fixed(@center - @radius * :math.sin(angle))
   end
 
-  # SVG coordinates and angles to a tenth.
   defp fixed(number), do: :erlang.float_to_binary(number * 1.0, decimals: 1)
 
   defp share(ppm),

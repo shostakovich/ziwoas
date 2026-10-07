@@ -1,6 +1,5 @@
 import { renderChart, vizToken, tonesByOrder, timeScale, timeTooltipTitle } from "../lib/chart_theme.js"
 
-// The server's [warn, bad] ppm get these names and tones.
 const CO2_LINES = [
   { name: "Lüften", tone: "--felt-warning", textTone: "--felt-warning-text" },
   { name: "Grenzwert", tone: "--felt-danger", textTone: "--felt-danger-text" },
@@ -11,8 +10,6 @@ const DECIMALS = { "°C": 1, "%": 0, "ppm": 0 }
 // A temperature has no natural zero: 0 °C would flatten the indoor swing.
 const FROM_ZERO = { "°C": false, "%": true, "ppm": true }
 
-// The Sensoren page's three charts, drawn from the LiveView's "sensors_chart:data" event:
-// on connect and after every sensor poll.
 export default {
   mounted() {
     this.charts = {}
@@ -73,7 +70,6 @@ function thresholdLine(xBounds, { value, name, tone, textTone }) {
   }
 }
 
-// A single sensor needs no legend: the card's subtitle names its room.
 function chartOptions(unit, xBounds, seriesCount) {
   return {
     responsive: true,

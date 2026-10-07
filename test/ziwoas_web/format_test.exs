@@ -3,9 +3,11 @@ defmodule ZiwoasWeb.FormatTest do
 
   alias ZiwoasWeb.Format
 
-  doctest ZiwoasWeb.Format
-
   describe "number/2" do
+    test "appends the unit after a space" do
+      assert Format.number(1234.5, precision: 2, unit: "kWh") == "1.234,50 kWh"
+    end
+
     test "groups thousands with dots and uses a decimal comma" do
       assert Format.number(1_234_567) == "1.234.567"
       assert Format.number(1234.5, precision: 2) == "1.234,50"

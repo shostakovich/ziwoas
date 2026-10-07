@@ -1,5 +1,5 @@
 defmodule Ziwoas.Sensors.Reading do
-  @moduledoc "One reading of an air sensor (`sensor_readings`)."
+  @moduledoc false
   use Ziwoas.Schema
 
   import Ecto.Changeset
@@ -19,10 +19,6 @@ defmodule Ziwoas.Sensors.Reading do
     timestamps()
   end
 
-  @doc """
-  A new reading of `device_id` at `taken_at` from a sensor's measurements; whole
-  numbers given as floats are rounded.
-  """
   @spec changeset(String.t(), DateTime.t(), map) :: Ecto.Changeset.t()
   def changeset(device_id, taken_at, measurements) do
     measurements =

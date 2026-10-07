@@ -1,5 +1,4 @@
 defmodule Ziwoas.Switching.ScheduleTest do
-  # Folding is pure, no database.
   use ExUnit.Case, async: true
 
   alias Ziwoas.Switching.{Rule, Schedule}

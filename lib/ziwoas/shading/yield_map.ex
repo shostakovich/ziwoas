@@ -1,10 +1,5 @@
 defmodule Ziwoas.Shading.YieldMap do
-  @moduledoc """
-  The sky cut into fields of a few degrees: every hour lands where the sun
-  stood, and a field keeps the median of its hours. The median, not the mean,
-  because a single cloud passing through must not lift a field that lies in
-  the shade every day.
-  """
+  @moduledoc "A field keeps the median of its hours, so a passing cloud cannot lift a field that is shaded every day."
   alias Ziwoas.Shading
   alias Ziwoas.Shading.{Bin, Hour, SkyMap}
 
