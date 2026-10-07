@@ -29,7 +29,7 @@ defmodule Ziwoas.ClockTest do
     TestClock.freeze(~U[2026-10-04 22:30:00Z])
 
     assert Clock.today("Europe/Berlin") == ~D[2026-10-05]
-    assert Clock.utc_today() == ~D[2026-10-04]
+    assert Clock.today("Etc/UTC") == ~D[2026-10-04]
   end
 
   test "processes started by a frozen process see its instant" do

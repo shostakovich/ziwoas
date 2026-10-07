@@ -28,10 +28,6 @@ defmodule Ziwoas.Clock do
   @spec today(String.t()) :: Date.t()
   def today(zone), do: zone |> now() |> DateTime.to_date()
 
-  @doc "The calendar date in UTC."
-  @spec utc_today() :: Date.t()
-  def utc_today, do: DateTime.to_date(now())
-
   @doc """
   Parses an ISO 8601 instant with offset into UTC with microsecond precision, as
   `:utc_datetime_usec` fields take it; raises on anything else.
