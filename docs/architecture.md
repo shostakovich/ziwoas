@@ -131,7 +131,7 @@ skips it, nothing is made up after downtime, and a failure is logged, not retrie
 | `fetch_current_weather` | every 15 min | `Weather.CurrentJob` | coordinates | Bright Sky current conditions |
 | `fetch_today_weather` | every hour | `Weather.TodayJob` | coordinates | today's hours |
 | `fetch_weather_forecast` | every 3 h | `Weather.ForecastJob` | coordinates | forecast hours |
-| `fetch_historic_weather` | 3:45 daily | `Weather.HistoricJob` | coordinates | yesterday's observations, backfill of days with energy totals |
+| `fetch_historic_weather` | 3:45 daily | `Weather.HistoricJob` | coordinates | yesterday's observations, backfill of days with energy totals (also after a failed yesterday) |
 | `poll_sensors` | every 15 min | `Sensors.PollJob` | SwitchBot and sensors | SwitchBot → `sensor_readings`, `Sensors` event, TRMNL sensor push |
 | `push_trmnl_widget` | every 15 min | `Trmnl.EnergyPushJob` | `trmnl.energy_webhook_url` | TRMNL energy widget |
 | `aggregate_energy_samples` | 3:15 daily | `Plugs.AggregatorJob` | always | daily roll-up, backup (into `backup_dir`), PV hours |
@@ -282,7 +282,6 @@ Ecto migrations in `priv/repo/migrations/` own the schema. Schemas `use Ziwoas.S
 | `samples_5min` | `Plugs.Sample5min` | five-minute means; `bucket_ts` in Unix seconds |
 | `daily_totals` | `Plugs.DailyTotal` | energy per plug and local day |
 | `daily_energy_summary` | `Energy.DailySummary` | produced, consumed, self-consumed Wh per day; `date` a `:date` (ISO text, as in `daily_totals` and `electricity_prices`) |
-
 | `plug_states` | `Plugs.State` | last relay output per plug |
 | `switch_rules` | `Switching.Rule` | switch times |
 | `switch_commands` | `Switching.Command` | every switch sent, manual or scheduled |

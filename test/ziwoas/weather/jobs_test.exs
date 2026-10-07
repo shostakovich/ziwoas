@@ -114,13 +114,47 @@ defmodule Ziwoas.Weather.JobsTest do
     refute_received {:synced, _}
   end
 
-  test "HistoricJob stops at a failing yesterday" do
+  test "HistoricJob backfills past a failing yesterday, then fails with its error" do
     Repo.insert!(%DailyTotal{plug_id: "bkw", date: ~D[2026-05-01], energy_wh: 1000.0})
-    Req.Test.stub(BrightskyClient, &Plug.Conn.send_resp(&1, 400, ""))
+    test = self()
 
-    capture_log(fn -> assert {:error, _} = HistoricJob.perform(context()) end)
+    Req.Test.stub(BrightskyClient, fn conn ->
+      case URI.decode_query(conn.query_string)["date"] do
+        "2026-05-01" ->
+          body = JSON.encode!(%{"weather" => [hour("2026-05-01T10:00:00+00:00")]})
+          send(test, :backfilled)
+          Plug.Conn.send_resp(conn, 200, body)
 
-    assert kinds() == []
+        _yesterday ->
+          Plug.Conn.send_resp(conn, 400, "")
+      end
+    end)
+
+    log =
+      capture_log(fn ->
+        assert HistoricJob.perform(context()) == {:error, {:http_status, 400}}
+      end)
+
+    assert_received :backfilled
+    assert kinds() == [{:historic, ~U[2026-05-01 10:00:00.000000Z]}]
+    assert log =~ "Bright Sky sync failed: {:http_status, 400}"
     refute_received {:synced, _}
+  end
+
+  test "HistoricJob logs a failing yesterday when the backfill fails too" do
+    Repo.insert!(%DailyTotal{plug_id: "bkw", date: ~D[2026-05-01], energy_wh: 1000.0})
+
+    Req.Test.stub(BrightskyClient, fn conn ->
+      status = if URI.decode_query(conn.query_string)["date"] == "2026-05-01", do: 500, else: 400
+      Plug.Conn.send_resp(conn, status, "")
+    end)
+
+    log =
+      capture_log(fn ->
+        assert HistoricJob.perform(context()) == {:error, {:http_status, 500}}
+      end)
+
+    assert log =~ "yesterday failed: {:http_status, 400}"
+    assert log =~ "Bright Sky sync failed: {:http_status, 500}"
   end
 end
