@@ -1,11 +1,5 @@
 defmodule ZiwoasWeb.Charts.EnergyReport do
-  @moduledoc """
-  The payload of the Berichte page's `EnergyReport` hook, pushed as
-  `"energy_report:data"`: one bar per day (`daily`, with the ratios), the
-  power detail (`detail`, a line of 5-minute values or a bar of daily means),
-  each with a `:weather` overlay when the location has historic weather, and
-  the weather icons' asset paths by name (`weather_assets`).
-  """
+  @moduledoc false
   use ZiwoasWeb, :verified_routes
 
   import ZiwoasWeb.Format, only: [day_month: 1]
@@ -57,7 +51,6 @@ defmodule ZiwoasWeb.Charts.EnergyReport do
 
   defp pct(ratio), do: Float.round(ratio * 100, 1)
 
-  # Icons only while a bar per day leaves room for one.
   defp put_daily_weather(chart, weather, _dates) when map_size(weather) == 0, do: chart
 
   defp put_daily_weather(chart, weather, dates) do
@@ -126,7 +119,6 @@ defmodule ZiwoasWeb.Charts.EnergyReport do
     })
   end
 
-  # Hourly icons for a single day, one at noon per day otherwise.
   defp detail_icon_at(_zone, day, day), do: fn ts -> Integer.mod(ts, 3600) == 0 end
 
   defp detail_icon_at(zone, _first, _last),
@@ -135,7 +127,6 @@ defmodule ZiwoasWeb.Charts.EnergyReport do
   defp icon(code, daytime),
     do: %{asset_name: WeatherIcon.asset_name(code, daytime), alt: code || ""}
 
-  # Every weather icon's asset path by name, for the hook to preload.
   defp weather_assets(charts) do
     charts
     |> Enum.flat_map(&get_in(&1, [Access.key(:weather, %{}), Access.key(:icons, [])]))

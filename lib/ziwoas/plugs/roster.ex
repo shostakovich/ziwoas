@@ -1,8 +1,5 @@
 defmodule Ziwoas.Plugs.Roster do
-  @moduledoc """
-  The configured plugs plus their roles: the one place that knows who
-  produces and who consumes, and which sign a measurement carries.
-  """
+  @moduledoc false
   alias Ziwoas.Plugs.Plug
 
   @enforce_keys [:all, :by_id]

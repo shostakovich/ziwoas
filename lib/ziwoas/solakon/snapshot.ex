@@ -1,8 +1,5 @@
 defmodule Ziwoas.Solakon.Snapshot do
-  @moduledoc """
-  Full register snapshot of the Solakon inverter (`solakon_snapshots`): the four
-  panels and the status.
-  """
+  @moduledoc false
   use Ziwoas.Schema
 
   @type t :: %__MODULE__{}
@@ -51,10 +48,6 @@ defmodule Ziwoas.Solakon.Snapshot do
     timestamps()
   end
 
-  @doc """
-  The row `Ziwoas.Solakon.SnapshotJob` stores for a decoded
-  `Ziwoas.Solakon.Client.read_snapshot/1` taken at `taken_at`.
-  """
   @spec from_data(map, DateTime.t()) :: Ecto.Changeset.t()
   def from_data(data, taken_at) do
     panels =
@@ -94,7 +87,6 @@ defmodule Ziwoas.Solakon.Snapshot do
     end
   end
 
-  @doc "Total PV power: the panels' sum, never a figure stored in its own right."
   @spec pv_power_w(t) :: float
   def pv_power_w(%__MODULE__{} = s) do
     [s.pv1_power_w, s.pv2_power_w, s.pv3_power_w, s.pv4_power_w]

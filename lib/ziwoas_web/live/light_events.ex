@@ -1,14 +1,9 @@
 defmodule ZiwoasWeb.LightEvents do
-  @moduledoc """
-  The lamp controls' `"light_command"` event, shared by `ZiwoasWeb.SwitchesLive`
-  (the tile) and `ZiwoasWeb.LightLive`: `light_key`, `command` and the command's
-  parameters, run through `Ziwoas.Lights.command/3`.
-  """
+  @moduledoc false
   alias Ziwoas.Lights
 
   @failed "Lampe nicht erreichbar"
 
-  @doc "The flash for a command the bridge did not take."
   def failed_message, do: @failed
 
   @spec run(map) ::

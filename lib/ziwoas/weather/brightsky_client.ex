@@ -1,17 +1,10 @@
 defmodule Ziwoas.Weather.BrightskyClient do
-  @moduledoc """
-  Bright Sky, the DWD's open weather data: the current
-  observation and the hours of a date, as `weather_records` attributes. Retries
-  twice on a 5xx or a transport error, 0.5 s and 1 s apart. Failures come back as
-  `{:error, reason}`: `{:http_status, status}`, `{:invalid_json, reason}`,
-  `:unexpected_body`, `{:invalid_timestamp, value}` or Req's transport exception.
-  """
+  @moduledoc false
   alias Ziwoas.{Clock, Http, Location, Weather}
 
   @base_url "https://api.brightsky.dev"
   @retries 2
   @timeout_ms 5_000
-  # Tests do not wait between retries (config/test.exs).
   @retry_base_ms Application.compile_env(:ziwoas, :brightsky_retry_base_ms, 500)
 
   @type row :: %{atom => term}

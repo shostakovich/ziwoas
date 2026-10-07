@@ -1,11 +1,5 @@
 defmodule Ziwoas.Solakon.SnapshotJob do
-  @moduledoc """
-  Every two minutes: the full register snapshot — panels, battery, energy
-  counters, status — read through `Ziwoas.Solakon.Monitor` into a
-  `solakon_snapshots` row, then `Ziwoas.Solakon`'s subscribers hear of it.
-
-  Opts: `:monitor`, the monitor process (`Ziwoas.Solakon.Monitor`).
-  """
+  @moduledoc false
   @behaviour Ziwoas.Scheduler.Job
 
   require Logger

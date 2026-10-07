@@ -46,7 +46,6 @@ defmodule Ziwoas.Solakon.ModbusTest do
     Modbus.close(socket)
   end
 
-  # A server that answers each request with `frames.(request)`, raw bytes.
   defp raw_server(frames) do
     {:ok, listen} = :gen_tcp.listen(0, [:binary, active: false, packet: :raw, reuseaddr: true])
 

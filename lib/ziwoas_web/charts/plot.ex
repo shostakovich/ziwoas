@@ -1,12 +1,5 @@
 defmodule ZiwoasWeb.Charts.Plot do
-  @moduledoc """
-  The geometry of an SVG chart: a frame with margins mapping two domains onto
-  pixels. Geometry is rounded to one decimal (`number/1`, integral values as
-  Integers); `x/2` and `y/2` stay raw, so callers calculating on don't round
-  twice.
-
-  Domains are `{from, to}` pairs (`to` may be below `from`).
-  """
+  @moduledoc false
 
   @enforce_keys [:width, :height, :margins, :x_domain, :y_domain]
   defstruct @enforce_keys
@@ -56,7 +49,6 @@ defmodule ZiwoasWeb.Charts.Plot do
     }
   end
 
-  @doc "Rounded to one decimal; an integral result is an Integer."
   @spec number(number) :: number
   def number(value) when is_integer(value), do: value
 
@@ -71,7 +63,6 @@ defmodule ZiwoasWeb.Charts.Plot do
   @spec round_down(number, number) :: number
   def round_down(value, to), do: floor(value / to) * to
 
-  @doc "The first step that fits `peak` into `max_steps` grid lines, and the top it reaches."
   @spec nice_scale(number, [number], pos_integer) :: Scale.t()
   def nice_scale(peak, steps, max_steps) do
     step =
@@ -85,7 +76,6 @@ defmodule ZiwoasWeb.Charts.Plot do
   def extent([]), do: {0, 0}
   def extent(values), do: Enum.min_max(values)
 
-  @doc "Every integer of a domain, ascending; none when `to` is below `from`."
   @spec domain_values(domain) :: [integer]
   def domain_values({from, to}) when from <= to, do: Enum.to_list(from..to//1)
   def domain_values(_domain), do: []
@@ -116,7 +106,6 @@ defmodule ZiwoasWeb.Charts.Plot do
     end
   end
 
-  @doc "Points `[{value, measure}]` as an SVG `points` list."
   def line(plot, points),
     do:
       Enum.map_join(points, " ", fn {value, measure} ->
@@ -168,7 +157,6 @@ defmodule ZiwoasWeb.Charts.Plot do
     }
   end
 
-  @doc "A number as SVG text: integers plain, floats in their shortest form."
   @spec to_s(number) :: String.t()
   def to_s(value) when is_integer(value), do: Integer.to_string(value)
   def to_s(value) when is_float(value), do: Float.to_string(value)
@@ -183,7 +171,6 @@ defmodule ZiwoasWeb.Charts.Plot do
     (value - from) / if(span == 0, do: 1.0, else: :erlang.float(span))
   end
 
-  # `slice_when`: a new run wherever the next value lies more than `gap` ahead.
   defp runs([], _gap), do: []
 
   defp runs([first | rest], gap) do

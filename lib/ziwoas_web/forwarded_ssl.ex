@@ -1,11 +1,5 @@
 defmodule ZiwoasWeb.ForwardedSSL do
-  @moduledoc """
-  TLS ends at the reverse proxy. A request it forwarded as HTTPS
-  (`X-Forwarded-Proto: https`) counts as HTTPS: its response carries an HSTS header
-  (2 years, subdomains) and flags its cookies `Secure`. A plain request straight to
-  the port, say from the LAN, stays HTTP, so the browser keeps its session cookie.
-  The endpoint plugs it first when `config :ziwoas, forwarded_ssl: true` (prod).
-  """
+  @moduledoc "TLS ends at the reverse proxy: a request forwarded as HTTPS counts as HTTPS, a plain LAN request stays HTTP."
   @behaviour Plug
 
   import Plug.Conn

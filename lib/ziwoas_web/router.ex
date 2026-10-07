@@ -21,7 +21,6 @@ defmodule ZiwoasWeb.Router do
       live "/", DashboardLive
       live "/solakon", SolakonLive
       live "/solakon/history", SolakonHistoryLive
-      # Under the PV tab, because that is where the Wirtschaftlichkeit card reads them.
       live "/solakon/wirtschaftlichkeit", EconomicsLive
       live "/weather", WeatherLive
       live "/reports", ReportsLive

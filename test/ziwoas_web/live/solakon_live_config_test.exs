@@ -1,7 +1,4 @@
 defmodule ZiwoasWeb.SolakonLiveConfigTest do
-  # The pages with an inverter configured (TestConfigs.file(:inverter): the test
-  # config plus monitoring and control). Not async: it swaps the config, which
-  # every process reads; ExUnit runs sync modules after the async ones.
   use ZiwoasWeb.ConnCase
 
   import ExUnit.CaptureLog
@@ -75,7 +72,6 @@ defmodule ZiwoasWeb.SolakonLiveConfigTest do
     {:ok, view, _html} = live(conn, ~p"/solakon")
     assert has_element?(view, "button#solakon-eps-toggle[aria-checked=false]")
 
-    # No monitor runs in the tests: the write cannot reach the inverter.
     log =
       capture_log(fn ->
         view |> element("#solakon-eps-toggle") |> render_click()

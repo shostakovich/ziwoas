@@ -1,5 +1,4 @@
 defmodule Ziwoas.Switching.EdgesTest do
-  # Plain rules, no database.
   use ExUnit.Case, async: true
 
   alias Ziwoas.Switching.{Edges, Rule}
@@ -19,8 +18,6 @@ defmodule Ziwoas.Switching.EdgesTest do
     }
   end
 
-  # A Zeitfenster is two rules; a caller that wants one crossing midnight puts the
-  # off rule on the following weekdays itself.
   defp window(opts \\ []) do
     days = Keyword.get(opts, :days, [1])
     plug = Keyword.get(opts, :plug_id, "lamp")

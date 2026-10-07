@@ -4,9 +4,6 @@ import { renderChart, tonesByOrder, timeScale, timeCategoryScale, timeTooltipTit
 const MIN_PRODUCED_KWH = 0.02
 const GAP_THRESHOLD_MS = 120_000
 
-// The dashboard's 24 h charts. The LiveView pushes "today_chart:data" once connected and
-// every hour, as the window slides; in between "today_chart:deltas" extend the power chart
-// in place.
 export default {
   mounted() {
     this.powerChart = null

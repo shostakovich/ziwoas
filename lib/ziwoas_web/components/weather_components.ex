@@ -1,7 +1,5 @@
 defmodule ZiwoasWeb.WeatherComponents do
-  @moduledoc """
-  The Wetter page's parts: current conditions, today's hours, the next days in four segments.
-  """
+  @moduledoc false
   use ZiwoasWeb, :html
 
   alias Ziwoas.Weather
@@ -31,13 +29,11 @@ defmodule ZiwoasWeb.WeatherComponents do
     evening: "Abend"
   ]
 
-  # weather.css places the rows in this order; rain, the rarest, comes last.
+  # weather.css places the rows in this order.
   @hour_units [wind: "Wind in km/h", solar: "Sonne in W/m²", rain: "Regen in mm"]
   @segment_rows [:temp, :rain, :solar]
   @windy_km_per_h 20
   @sunny_w_per_m2 400
-
-  # --- Sections ------------------------------------------------------------------
 
   attr :current, :any, required: true
   attr :today, :list, required: true
@@ -122,7 +118,6 @@ defmodule ZiwoasWeb.WeatherComponents do
     <%= if @records != [] do %>
       <h2 class="h6 text-uppercase text-body-secondary mt-4 mb-2">Heute</h2>
       <section class="weather-hour-row card mb-3" aria-label="Heute">
-        <%!-- A key below takes over the card body's bottom padding. --%>
         <div class={["weather-hour-scroller card-body overflow-x-auto", @units != [] && "pb-2"]}>
           <.hour_card :for={record <- @records} record={record} rows={@rows} zone={@zone} />
         </div>
@@ -301,8 +296,6 @@ defmodule ZiwoasWeb.WeatherComponents do
     """
   end
 
-  # --- Cells and thresholds ------------------------------------------------------
-
   def icon_label(icon), do: WeatherIcon.label(icon)
 
   def weekday(date), do: Enum.at(@weekdays, Date.day_of_week(date) - 1)
@@ -325,7 +318,6 @@ defmodule ZiwoasWeb.WeatherComponents do
     for {row, _unit} <- @hour_units, Enum.any?(records, &hour_cell(&1, row)), do: row
   end
 
-  @doc "A chance of rain carries its own \"%\" and needs no key."
   def hour_units(records) do
     for {row, unit} <- @hour_units,
         Enum.any?(records, fn record -> match?(%Cell{alt: ^unit}, hour_cell(record, row)) end),

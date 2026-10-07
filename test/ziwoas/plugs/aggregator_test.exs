@@ -16,14 +16,12 @@ defmodule Ziwoas.Plugs.AggregatorTest do
 
   defp seed do
     m = berlin_midnight(@day)
-    # Two five-minute buckets of the fridge, one with a counter reset.
     insert_sample!("fridge", m, 100.0, 1000.0)
     insert_sample!("fridge", m + 60, 120.0, 1002.0)
     insert_sample!("fridge", m + 300, 80.0, 1003.0)
     insert_sample!("fridge", m + 360, 60.0, 0.5)
     insert_sample!("bkw", m + 300, -400.0, 50.0)
     insert_sample!("bkw", m + 360, -600.0, 60.0)
-    # The next local day stays out.
     insert_sample!("fridge", m + 86_400, 100.0, 2000.0)
   end
 

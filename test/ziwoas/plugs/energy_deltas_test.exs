@@ -8,7 +8,6 @@ defmodule Ziwoas.Plugs.EnergyDeltasTest do
 
   @t0 1_700_000_000
 
-  # {plug_id, ts, delta_wh} of every sample in the window, by plug and time.
   defp deltas(plug_ids \\ nil, start_ts \\ @t0, end_ts \\ @t0 + 86_400) do
     from(d in subquery(EnergyDeltas.query(start_ts, end_ts, plug_ids)),
       order_by: [d.plug_id, d.ts],
@@ -59,7 +58,6 @@ defmodule Ziwoas.Plugs.EnergyDeltasTest do
   end
 
   test "a gap in the samples spreads the plausible energy over its length" do
-    # Two hours offline: 30 kWh is 15 kW on average, plausible; 50 kWh is not.
     counter!("heater", [{0, 0.0}, {7200, 30_000.0}])
     counter!("glitch", [{0, 0.0}, {7200, 50_000.0}])
 

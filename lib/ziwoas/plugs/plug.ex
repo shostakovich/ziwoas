@@ -1,8 +1,5 @@
 defmodule Ziwoas.Plugs.Plug do
-  @moduledoc """
-  A configured plug (`plugs:` in the device config, not the database): rows
-  reference it only by its string `id`.
-  """
+  @moduledoc false
   use Ecto.Schema
 
   import Ecto.Changeset

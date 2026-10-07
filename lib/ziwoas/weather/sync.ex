@@ -1,9 +1,5 @@
 defmodule Ziwoas.Weather.Sync do
-  @moduledoc """
-  Bright Sky into `Ziwoas.Weather`: one `current` record per location, `forecast`
-  hours that a day's observations later replace as `historic`. A date Bright Sky
-  answers with 404 is past the end of its range and stores nothing.
-  """
+  @moduledoc false
   require Logger
 
   alias Ziwoas.{Clock, Location, Plugs, Weather}
@@ -13,11 +9,6 @@ defmodule Ziwoas.Weather.Sync do
 
   @type error :: {:error, BrightskyClient.reason() | Ecto.Changeset.t()}
 
-  @doc """
-  A weather job's frame: runs `sync` with the configured location (which has
-  coordinates, else the scheduler starts no weather job) and today's date. Tells
-  the subscribers when it succeeded, logs the reason when not.
-  """
   @spec perform(keyword, (Location.t(), Date.t() -> :ok | {:ok, term} | error)) ::
           :ok | error
   def perform(opts, sync) do
@@ -54,7 +45,6 @@ defmodule Ziwoas.Weather.Sync do
     end
   end
 
-  @doc "The days after `today`, one request each, until Bright Sky has no more."
   @spec sync_forecast(Location.t(), Date.t(), pos_integer) :: :ok | error
   def sync_forecast(%Location{} = location, %Date{} = today, max_days \\ @forecast_max_days) do
     Enum.reduce_while(1..max_days, :ok, fn offset, :ok ->
@@ -67,7 +57,6 @@ defmodule Ziwoas.Weather.Sync do
     end)
   end
 
-  @doc "A day's observed hours as `historic`, each replacing the forecast for its hour."
   @spec sync_historic_date(Location.t(), Date.t()) :: :ok | error
   def sync_historic_date(%Location{} = location, %Date{} = date) do
     case BrightskyClient.weather_for_date(location, date) do
@@ -77,7 +66,6 @@ defmodule Ziwoas.Weather.Sync do
     end
   end
 
-  @doc "Fetches the observations of every day with energy totals that lacks 24 historic hours."
   @spec backfill_historic_from_daily_totals(Location.t()) :: :ok | error
   def backfill_historic_from_daily_totals(%Location{} = location) do
     Plugs.dates_with_daily_totals()

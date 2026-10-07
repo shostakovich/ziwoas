@@ -1,23 +1,5 @@
 defmodule Ziwoas.Govee.Bridge do
-  @moduledoc """
-  The lamps' side of `Ziwoas.Lights`. One process holds the device registry and
-  the state store; every Platform API call runs in a task under
-  `Ziwoas.Govee.Tasks` (`Task.Supervisor.async_nolink/2`), so a slow or
-  rate-limited cloud never stalls the LAN path.
-
-    * **Bootstrap** — load the lamps from the Platform API, hand each one to
-      `Lights.put_lamp/1`, discover the LAN; retried every `api_poll_seconds`
-      until some lamp is known.
-    * **LAN** — listen on UDP 4002 (multicast group joined) for scan and
-      `devStatus` replies; every `lan_poll_seconds` re-discover and ask each lamp
-      with an IP for its status. A reading that changes the lamp's state goes to
-      `Lights.put_state/2`; a deviating one asks the API.
-    * **API** — every `api_poll_seconds` the cloud state of each lamp, adopted as
-      the truth.
-    * **Commands** — `command/3` (from `Ziwoas.Lights`) goes over the LAN at once
-      or through the API in a task (`Ziwoas.Govee.CommandRouter`); the optimistic
-      state is recorded once the command went out.
-  """
+  @moduledoc false
   use GenServer
 
   require Logger
@@ -41,12 +23,6 @@ defmodule Ziwoas.Govee.Bridge do
   def start_link(opts),
     do: GenServer.start_link(__MODULE__, opts, name: Keyword.get(opts, :name, __MODULE__))
 
-  @doc """
-  Sends `verb` to the lamp `key`: `:ok` once it went out over the LAN or its API
-  call was started, `{:error, :unavailable}` without a running bridge or one
-  that does not answer in time, `{:error, :unknown_lamp | :unknown_scene |
-  {:lan, reason}}` otherwise.
-  """
   @spec command(String.t(), verb, GenServer.server()) :: :ok | {:error, term}
   def command(key, verb, server \\ __MODULE__) do
     case GenServer.whereis(server) do
@@ -59,13 +35,6 @@ defmodule Ziwoas.Govee.Bridge do
       {:error, :unavailable}
   end
 
-  @doc """
-  Options: `:govee` (`Config.Govee`); for tests `:name`, `:api_req` (Req options),
-  `:tasks` (a `Task.Supervisor`, default `Ziwoas.Govee.Tasks`), `:listen_port`
-  (default 4002, `false` for none), `:send` (a datagram sender), `:put_lamp` and
-  `:put_state` (default `Lights.put_lamp/1`, `Lights.put_state/2`), `:clock`
-  (monotonic seconds).
-  """
   @impl true
   def init(opts) do
     govee = Keyword.fetch!(opts, :govee)
@@ -95,7 +64,6 @@ defmodule Ziwoas.Govee.Bridge do
     {:ok, listen(state)}
   end
 
-  @doc "The port the LAN listener is bound to (tests)."
   def listen_port(server \\ __MODULE__), do: GenServer.call(server, :listen_port)
 
   @impl true
@@ -158,8 +126,6 @@ defmodule Ziwoas.Govee.Bridge do
     {:noreply, state}
   end
 
-  # --- Task results -------------------------------------------------------------
-
   defp finished(state, :refreshed, result) do
     state = adopt_refresh(state, result)
     if state.bootstrapped, do: state, else: bootstrap(state)
@@ -182,8 +148,6 @@ defmodule Ziwoas.Govee.Bridge do
     Logger.warning("Govee bridge: #{inspect(verb)} for #{key} failed: #{inspect(reason)}")
     state
   end
-
-  # --- Bootstrap and registry ---------------------------------------------------
 
   defp refresh(state) do
     scenes = fn raw ->
@@ -247,12 +211,9 @@ defmodule Ziwoas.Govee.Bridge do
          do: Logger.warning("Govee bridge: lamp #{device.key} refused: #{inspect(reason)}")
   end
 
-  # --- LAN ----------------------------------------------------------------------
-
   defp listen(%{listen_port: false} = state), do: state
 
-  # A port another process holds (a bridge not yet gone) is retried with backoff,
-  # 1 s to 60 s: without its listener the bridge hears no lamp.
+  # A port still held by a bridge not yet gone is retried with backoff.
   defp listen(%{listen_port: port} = state) do
     opts = [
       :binary,
@@ -321,8 +282,6 @@ defmodule Ziwoas.Govee.Bridge do
     end
   end
 
-  # --- API ----------------------------------------------------------------------
-
   defp apply_api(state, {device, {:ok, map}}, report?) do
     case PlatformApi.telemetry(map, device.zones) do
       {:ok, telemetry} ->
@@ -342,8 +301,6 @@ defmodule Ziwoas.Govee.Bridge do
     Logger.warning("Govee.Reconciler: api state #{device.key}: #{inspect(reason)}")
     state
   end
-
-  # --- Commands -----------------------------------------------------------------
 
   defp run_command(state, key, verb) do
     with %{} = device <- DeviceRegistry.find(state.registry, key) || {:error, :unknown_lamp},
@@ -383,12 +340,8 @@ defmodule Ziwoas.Govee.Bridge do
     %{state | store: store}
   end
 
-  # --- Effects ------------------------------------------------------------------
-
   defp lan(state, command), do: state.send.(Lan.datagram(command))
 
-  # A store entry as `Lights.put_state/2` takes it: a nil clears nothing there,
-  # power defaults to off and reachability to reachable.
   defp report_state(state, key, published) do
     lamp_state =
       for {field, value} <- Map.take(published, @state_fields),

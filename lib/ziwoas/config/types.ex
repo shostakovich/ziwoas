@@ -1,11 +1,6 @@
 defmodule Ziwoas.Config.Types do
-  @moduledoc """
-  The Ecto types `Ziwoas.Config` casts YAML scalars with. They are as lenient as
-  the config always was: `"1883 "` reads as 1883, `8.0` as 8, a bare number as
-  text, but a flag is only an unquoted YAML boolean.
-  """
+  @moduledoc false
 
-  @doc "The message for a value that does not cast, for `Ecto.Changeset.cast/4`'s `:message`."
   @spec cast_message(atom, keyword) :: String.t() | nil
   def cast_message(_field, meta) do
     case meta[:type] do
@@ -18,7 +13,7 @@ defmodule Ziwoas.Config.Types do
   defp one_of(mappings), do: "must be one of " <> Enum.map_join(mappings, ", ", &elem(&1, 1))
 
   defmodule Text do
-    @moduledoc "Text; a number or a boolean reads as its text."
+    @moduledoc false
     use Ecto.Type
 
     def type, do: :string
@@ -34,7 +29,7 @@ defmodule Ziwoas.Config.Types do
   end
 
   defmodule Count do
-    @moduledoc "An integer: a float is truncated, text read up to its first non-digit."
+    @moduledoc false
     use Ecto.Type
 
     def type, do: :integer
@@ -58,7 +53,7 @@ defmodule Ziwoas.Config.Types do
   end
 
   defmodule Number do
-    @moduledoc "A number as written; text must be nothing but a number."
+    @moduledoc false
     use Ecto.Type
 
     def type, do: :float
@@ -82,7 +77,7 @@ defmodule Ziwoas.Config.Types do
   end
 
   defmodule Real do
-    @moduledoc "A number as a float; text must be nothing but a number."
+    @moduledoc false
     use Ecto.Type
 
     def type, do: :float
@@ -99,7 +94,7 @@ defmodule Ziwoas.Config.Types do
   end
 
   defmodule Flag do
-    @moduledoc "A YAML boolean (`true`, `yes`, `on`, …); text is not one."
+    @moduledoc false
     use Ecto.Type
 
     def type, do: :boolean

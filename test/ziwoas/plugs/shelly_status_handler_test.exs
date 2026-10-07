@@ -1,5 +1,4 @@
 defmodule Ziwoas.Plugs.ShellyStatusHandlerTest do
-  # Subscribes to a global PubSub topic another test broadcasts on.
   use Ziwoas.DataCase
 
   import ExUnit.CaptureLog

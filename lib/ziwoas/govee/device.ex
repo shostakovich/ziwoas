@@ -1,5 +1,5 @@
 defmodule Ziwoas.Govee.Device do
-  @moduledoc "One lamp as the bridge knows it. `ip` comes from LAN discovery."
+  @moduledoc false
   @enforce_keys [:key, :api_id, :sku, :name]
   defstruct [
     :key,

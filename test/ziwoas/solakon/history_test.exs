@@ -5,7 +5,6 @@ defmodule Ziwoas.Solakon.HistoryTest do
   alias Ziwoas.Solakon.{History, Reading, Snapshot}
   alias ZiwoasWeb.SolakonComponents
 
-  # 2026-06-20 12:00 Europe/Berlin
   @now ~U[2026-06-20 10:00:00.000000Z]
 
   defp snapshot!(seconds_ago, attrs) do
@@ -27,7 +26,6 @@ defmodule Ziwoas.Solakon.HistoryTest do
   defp label(dataset), do: dataset.label
 
   test "signed power series and the energy balance from snapshots, labelled in the web" do
-    # 40 + 10 Wh each way: the middle interval straddles zero and splits into two triangles.
     snapshot!(360,
       pv1_power_w: 100,
       pv2_power_w: 50,
@@ -143,7 +141,6 @@ defmodule Ziwoas.Solakon.HistoryTest do
     snapshot!(120, active_power_w: 3000, pv_total_kwh: 1.0)
     snapshot!(0, active_power_w: 3000, pv_total_kwh: 1.5)
 
-    # 0,5 kWh PV and 0,1 kWh delivered: the 3 kW mean would set the scale if it counted.
     assert shares(history()) == [100.0, 0.0, 0.0, 20.0, 0.0]
   end
 
@@ -194,15 +191,6 @@ defmodule Ziwoas.Solakon.HistoryTest do
     assert history(nil).range == "24h"
   end
 
-  # 7 and 30 days step calendar days on the local clock (Europe/Berlin):
-  #   2026-11-01 12:00 - 30.days = 2026-10-02 10:00 UTC, 2_595_600 s
-  #   2026-11-01 12:00 -  7.days = 2026-10-25 11:00 UTC,   604_800 s
-  #   2026-03-29 12:00 -  7.days = 2026-03-22 11:00 UTC,   601_200 s
-  #   2026-03-29 12:00 - 30.days = 2026-02-27 11:00 UTC, 2_588_400 s
-  #   2026-04-02 12:00:00.123456 - 7.days = 2026-03-26 11:00:00.123456 UTC
-  #   2026-10-30 02:30 - 5.days = 2026-10-25 01:30 UTC (ambiguous: now's offset, +01:00)
-  #   2026-04-03 02:30 - 5.days = 2026-03-29 01:30 UTC (gap: 02:30 → 03:30 +02:00)
-  #   24.hours stays 86_400 s.
   test "7d and 30d start on the same local clock time, across both DST changes" do
     for {now, range, from} <- [
           {~U[2026-11-01 11:00:00.000000Z], "30d", ~U[2026-10-02 10:00:00.000000Z]},
@@ -240,7 +228,6 @@ defmodule Ziwoas.Solakon.HistoryTest do
 
     rows = SolakonComponents.balance_rows(history())
 
-    # Averaging the endpoints first would report 0,00 kWh both ways.
     assert Enum.find(rows, &(&1.label == "Ins Hausnetz geliefert")).value == "0,01 kWh"
     assert Enum.find(rows, &(&1.label == "Aus Hausnetz gezogen")).value == "0,01 kWh"
   end

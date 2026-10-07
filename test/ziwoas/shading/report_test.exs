@@ -31,7 +31,6 @@ defmodule Ziwoas.Shading.ReportTest do
     })
   end
 
-  # `hour` is the hour the record sums up; Bright Sky stamps its end.
   defp weather(hour, opts) do
     Repo.insert!(%Record{
       kind: Keyword.get(opts, :kind, :historic),
@@ -102,7 +101,6 @@ defmodule Ziwoas.Shading.ReportTest do
 
     august = Enum.find(build().profiles, &(&1.month == 8))
 
-    # 0.8 W per W/m², the ratio of the twenty ordinary hours, not the outlier's 4.0.
     assert points(august, :expected) == [{12, 400.0}]
   end
 
@@ -112,7 +110,6 @@ defmodule Ziwoas.Shading.ReportTest do
     pv_hour(12, 900.0, date: Date.add(@july, 1))
     weather(12, solar: 0.2, date: Date.add(@july, 1))
 
-    # The dim hour's ratio of 4.5 never calibrates; 350 W/m² average at 0.8 W per W/m².
     assert build() |> profile() |> points(:expected) == [{12, 280.0}]
 
     Repo.delete_all(PvHour)
@@ -131,7 +128,6 @@ defmodule Ziwoas.Shading.ReportTest do
       weather(12, solar: 0.5, date: Date.add(@july, index))
     end
 
-    # Ratios 0.2 to 4.2; the 95th percentile sits on 4.0, over 500 W/m² average.
     assert build() |> profile() |> points(:expected) == [{12, 2000.0}]
   end
 
@@ -149,7 +145,6 @@ defmodule Ziwoas.Shading.ReportTest do
 
     assert Enum.map(build().map.paths, & &1.day) == [:summer_solstice, :equinox, :winter_solstice]
 
-    # 22:00 UTC on Dec 31st is already Jan 1st in Pacific/Auckland (+13h).
     auckland = Location.new("Pacific/Auckland", lat: @lat, lon: @lon)
 
     assert build(zone: "Pacific/Auckland", now: ~U[2026-12-31 22:00:00Z]).map.paths ==

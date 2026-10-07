@@ -8,9 +8,6 @@ const FLOW_WORDS = {
   "Außensteckdose": { positive: "liefert", negative: "zieht" },
 }
 
-// The Solakon-Verlauf: ZiwoasWeb.SolakonHistoryComponent pushes "solakon_history:data"
-// ({range, times, datasets}) once connected, on a range tab and on every stored snapshot;
-// the chart is redrawn in place.
 export default {
   mounted() {
     this.handleEvent("solakon_history:data", (payload) => this.draw(payload))

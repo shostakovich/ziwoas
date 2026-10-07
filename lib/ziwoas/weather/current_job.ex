@@ -1,5 +1,5 @@
 defmodule Ziwoas.Weather.CurrentJob do
-  @moduledoc "The `fetch_current_weather` job: the current observation."
+  @moduledoc false
   @behaviour Ziwoas.Scheduler.Job
 
   alias Ziwoas.Weather.Sync

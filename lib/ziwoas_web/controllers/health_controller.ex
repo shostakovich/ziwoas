@@ -1,8 +1,5 @@
 defmodule ZiwoasWeb.HealthController do
-  @moduledoc """
-  `GET /up` for the container health check: `{"status":"up"}`, or a 503 with
-  the error when the device config did not load at boot.
-  """
+  @moduledoc false
   use ZiwoasWeb, :controller
 
   alias Ziwoas.Config

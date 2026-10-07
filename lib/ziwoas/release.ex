@@ -1,13 +1,11 @@
 defmodule Ziwoas.Release do
-  @moduledoc "Database tasks a release runs without Mix (`bin/migrate`)."
+  @moduledoc false
 
   @app :ziwoas
 
-  # One connection is all the migrator needs on SQLite, and on an empty file a second
-  # one would race the first to switch it to WAL ("database is locked" while connecting).
+  # A second connection would race the first to switch an empty file to WAL.
   @migrator_opts [pool_size: 1]
 
-  @doc "Runs every pending migration."
   def migrate do
     Application.ensure_loaded(@app)
 

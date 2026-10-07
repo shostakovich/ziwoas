@@ -1,10 +1,5 @@
 defmodule Ziwoas.Solakon.PvHourAggregator do
-  @moduledoc """
-  Condenses a finished local day of inverter readings into hourly PV means
-  (`solakon_pv_hours`), with the four panel means from the snapshots of the same
-  hour. Hours with fewer than 20 readings are dropped. The averages are taken in
-  SQLite.
-  """
+  @moduledoc false
   import Ecto.Query
 
   alias Ziwoas.{LocalDay, Repo}
@@ -17,7 +12,6 @@ defmodule Ziwoas.Solakon.PvHourAggregator do
 
   def min_readings, do: @min_readings
 
-  # Epoch of the local clock hour an instant falls into, `offset` seconds east of UTC.
   defmacrop hour_start(taken_at, offset) do
     quote do
       fragment(
@@ -31,13 +25,11 @@ defmodule Ziwoas.Solakon.PvHourAggregator do
     end
   end
 
-  @doc "Rewrites the PV hours of one local day."
   @spec aggregate_day(String.t(), Date.t()) :: :ok
   def aggregate_day(zone, %Date{} = date) do
     day = LocalDay.midnight(date, zone)
     next_day = date |> Date.add(1) |> LocalDay.midnight(zone)
-    # The day's offset at midnight shifts the buckets onto local hours, also in
-    # zones like Asia/Kolkata whose offset is not a whole hour.
+    # Also right for zones whose offset is not a whole hour (Asia/Kolkata).
     offset = day.utc_offset + day.std_offset
     panels = panel_means(day, next_day, offset)
 
@@ -68,7 +60,6 @@ defmodule Ziwoas.Solakon.PvHourAggregator do
     :ok
   end
 
-  @doc "Aggregates every finished local day since the first reading that has no PV hours yet."
   @spec run_once(String.t(), Date.t()) :: :ok
   def run_once(zone, %Date{} = today) do
     case Repo.one(from r in Reading, select: min(r.taken_at)) do

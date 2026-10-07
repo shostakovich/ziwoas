@@ -1,8 +1,5 @@
 defmodule ZiwoasWeb.Components.PanelCurves do
-  @moduledoc """
-  The four panels beside each other over the day, counted only on days all of
-  them delivered. Geometry: `ZiwoasWeb.Charts.PanelCurves`.
-  """
+  @moduledoc false
   use ZiwoasWeb, :html
 
   import ZiwoasWeb.Components.ChartParts

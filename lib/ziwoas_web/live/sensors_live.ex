@@ -1,10 +1,5 @@
 defmodule ZiwoasWeb.SensorsLive do
-  @moduledoc """
-  The Sensoren page. On a connected mount and after every poll
-  (`Ziwoas.Sensors.subscribe/0`) it reloads the cards and pushes the last 24 hours
-  to the `SensorsChart` hook (`"sensors_chart:data"`, see
-  `ZiwoasWeb.SensorsComponents.chart_data/2`).
-  """
+  @moduledoc false
   use ZiwoasWeb, :live_view
 
   import ZiwoasWeb.SensorsComponents

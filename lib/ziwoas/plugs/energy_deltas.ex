@@ -1,24 +1,14 @@
 defmodule Ziwoas.Plugs.EnergyDeltas do
-  @moduledoc """
-  Plausibility-capped energy deltas from the cumulative counters in `samples`,
-  as a query: one row per sample in the window with `plug_id`, `ts`,
-  `apower_w` and `delta_wh`, for callers to aggregate further.
-
-  A delta is dropped (0) for a plug's first sample in the window, when the
-  counter went backwards (a reset), and when it implies more than
-  `max_plausible_w/0` over the gap since the previous sample (a glitch).
-  """
+  @moduledoc false
   import Ecto.Query
 
   alias Ziwoas.Plugs.Sample
 
-  # 20 kW is above any realistic single-circuit load, while counter glitches
-  # can imply megawatts for a few seconds.
+  # Above any realistic single-circuit load; counter glitches imply megawatts.
   @max_plausible_w 20_000
 
   def max_plausible_w, do: @max_plausible_w
 
-  @doc "Samples in `[start_ts, end_ts)`; with `plug_ids`, only those plugs (an empty list matches none)."
   @spec query(integer, integer, [String.t()] | nil) :: Ecto.Query.t()
   def query(start_ts, end_ts, plug_ids \\ nil) do
     window_samples =

@@ -8,7 +8,6 @@ defmodule Ziwoas.Switching.RowTest do
   @zone "Europe/Berlin"
   @plug %Plug{id: "fridge", name: "Kühlschrank", role: :consumer, switchable: true}
 
-  # Monday 2026-06-15.
   defp at(hour, minute \\ 0),
     do:
       DateTime.new!(~D[2026-06-15], Time.new!(hour, minute, 0), @zone)

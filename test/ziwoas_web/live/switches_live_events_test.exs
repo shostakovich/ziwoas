@@ -1,6 +1,4 @@
 defmodule ZiwoasWeb.SwitchesLiveEventsTest do
-  # The Schalten page's controls: the plug button, the lamp tile and the inline
-  # schedule editor. The broker is TestMqtt; nothing reaches a device.
   use ZiwoasWeb.ConnCase
 
   import Ecto.Query

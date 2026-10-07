@@ -1,9 +1,5 @@
 defmodule Ziwoas.Switching.Window do
-  @moduledoc """
-  The Zeitfenster form: an on and an off time and one set of weekdays, stored as
-  two rules sharing a `group_id` (`Ziwoas.Switching.save_window/3`). The
-  days are the ones typed; the shift past midnight belongs to the off rule alone.
-  """
+  @moduledoc false
   use Ecto.Schema
 
   import Ecto.Changeset
@@ -20,7 +16,6 @@ defmodule Ziwoas.Switching.Window do
 
   @type t :: %__MODULE__{}
 
-  @doc "The form of a stored Zeitfenster; its days come from the on rule."
   @spec from_rules(String.t(), Rule.t(), Rule.t()) :: t
   def from_rules(group_id, on, off) do
     %__MODULE__{

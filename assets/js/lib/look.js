@@ -1,7 +1,3 @@
-// The look toggle (ZiwoasWeb.Look): the header button dispatches "ziwoas:set-look" and pushes
-// "set_look" to its LiveView; this side switches data-look on <html> and keeps the look cookie,
-// so the next full page load renders the same look server-side. The browser chrome follows the
-// page background token.
 import { themeColor, onThemeChange } from "./theme_colors.js"
 
 const COOKIE_MAX_AGE_S = 20 * 365 * 24 * 60 * 60

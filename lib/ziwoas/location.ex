@@ -1,8 +1,5 @@
 defmodule Ziwoas.Location do
-  @moduledoc """
-  Where the house stands: an IANA time zone, and coordinates when configured
-  (`location:` in the device config).
-  """
+  @moduledoc false
   use Ecto.Schema
 
   import Ecto.Changeset
@@ -39,7 +36,6 @@ defmodule Ziwoas.Location do
     |> validate_coordinates(params)
   end
 
-  # Both or neither: without a pair there is no sun and no weather.
   defp validate_coordinates(changeset, params) do
     if Map.has_key?(params, "lat") or Map.has_key?(params, "lon") do
       changeset

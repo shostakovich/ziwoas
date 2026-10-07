@@ -1,5 +1,5 @@
 defmodule Ziwoas.Energy.DailyPoint do
-  @moduledoc "One day of the report. Uncovered days have no summary behind them."
+  @moduledoc false
   alias Ziwoas.Energy.Amount
 
   @enforce_keys [:date, :produced, :consumed, :self_consumed, :covered]

@@ -1,14 +1,5 @@
 defmodule ZiwoasWeb.SwitchesLive do
-  @moduledoc """
-  The Schalten page: the lamps, then every switchable plug with its schedule.
-  Schaltzeiten of a plug no longer in `ziwoas.yml` stay in the database unseen
-  and switch nothing.
-
-  `Ziwoas.Plugs`' live updates rebuild the plug rows, `Ziwoas.Lights`' updates
-  the lamp tiles. The plug button (switched off the LiveView process), the lamp
-  tiles (`ZiwoasWeb.LightEvents`) and the inline schedule editor — one per
-  plug, for a new entry or in place of an existing one — are events here.
-  """
+  @moduledoc false
   use ZiwoasWeb, :live_view
 
   import ZiwoasWeb.LightsComponents
@@ -19,7 +10,6 @@ defmodule ZiwoasWeb.SwitchesLive do
 
   @failed "Schalten fehlgeschlagen — MQTT-Broker nicht erreichbar"
 
-  @doc "The flash for a switch the broker did not take."
   def failed_message, do: @failed
 
   @impl true
@@ -37,8 +27,6 @@ defmodule ZiwoasWeb.SwitchesLive do
 
   def handle_info({:updated, _key}, socket),
     do: {:noreply, assign(socket, :snapshots, Lights.snapshots())}
-
-  # --- The plug button and the lamp tiles ------------------------------------------
 
   @impl true
   def handle_event("switch_plug", %{"plug_id" => plug_id, "state" => state}, socket)
@@ -63,8 +51,6 @@ defmodule ZiwoasWeb.SwitchesLive do
 
   def handle_event("light_command", params, socket),
     do: {:noreply, start_async(socket, :light_command, fn -> LightEvents.run(params) end)}
-
-  # --- The schedule editor -----------------------------------------------------------
 
   def handle_event("new_entry", %{"plug_id" => plug_id, "kind" => kind}, socket) do
     editor =
@@ -155,8 +141,6 @@ defmodule ZiwoasWeb.SwitchesLive do
   def handle_async(:light_command, _unreachable, socket),
     do: {:noreply, put_flash(socket, :error, LightEvents.failed_message())}
 
-  # --- Helpers ----------------------------------------------------------------------
-
   defp editor(kind, id, changeset), do: %{kind: kind, id: id, form: to_form(changeset)}
 
   defp change(%{kind: :window, id: id}, plug_id, params),
@@ -200,7 +184,6 @@ defmodule ZiwoasWeb.SwitchesLive do
   defp noun(kind) when kind in [:window, "window"], do: "Zeitfenster"
   defp noun(_kind), do: "Schaltzeit"
 
-  # A Zeitfenster is addressed by its group, an Einzelschaltung by its rule.
   defp rules_of(socket, %{"plug_id" => plug_id, "kind" => kind, "id" => id}) do
     cond do
       is_nil(plug(socket, plug_id)) -> []

@@ -1,6 +1,4 @@
 defmodule ZiwoasWeb.SolakonLiveTest do
-  # On the test config (no inverter configured); ZiwoasWeb.SolakonLiveConfigTest
-  # covers an inverter.
   use ZiwoasWeb.ConnCase
 
   import Phoenix.LiveViewTest
@@ -30,7 +28,6 @@ defmodule ZiwoasWeb.SolakonLiveTest do
   defp page(conn, path \\ ~p"/solakon"),
     do: conn |> get(path) |> html_response(200) |> LazyHTML.from_document()
 
-  # The page once connected and its sun calendar, shading and Wirtschaftlichkeit loaded.
   defp loaded_page(conn) do
     {:ok, view, _html} = live(conn, ~p"/solakon")
     view |> render_async() |> LazyHTML.from_fragment()
@@ -43,7 +40,6 @@ defmodule ZiwoasWeb.SolakonLiveTest do
   defp count(doc, selector), do: doc |> LazyHTML.query(selector) |> Enum.count()
   defp squish(text), do: text |> String.split() |> Enum.join(" ")
 
-  # Integers given for float columns become floats.
   defp floats(schema, attrs),
     do:
       Map.new(attrs, fn {key, value} ->
@@ -106,7 +102,6 @@ defmodule ZiwoasWeb.SolakonLiveTest do
     assert count(doc, "button#solakon-control-toggle[role=switch][phx-click=toggle_control]") == 1
     assert count(doc, "label[for=solakon-eps-toggle]") == 1
 
-    # Loaded once connected.
     assert count(doc, "[data-async=loading]") == 3
 
     refute LazyHTML.to_html(doc) =~ ~r/SOH|EPS|46613|39067|Modbus/
@@ -267,7 +262,6 @@ defmodule ZiwoasWeb.SolakonLiveTest do
       date = Date.add(~D[2026-07-01], index)
       pv_hour!(date, 12, 400.0)
 
-      # Bright Sky stamps the end of the hour it sums up.
       Repo.insert!(%Record{
         kind: :historic,
         daytime: "day",

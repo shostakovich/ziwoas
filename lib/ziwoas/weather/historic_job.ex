@@ -1,10 +1,5 @@
 defmodule Ziwoas.Weather.HistoricJob do
-  @moduledoc """
-  The `fetch_historic_weather` job: yesterday's observations, then every day
-  with energy totals that still lacks them — the backfill runs even when
-  yesterday failed. The job fails with the first error; when both fail,
-  yesterday's is logged here and the backfill's is returned.
-  """
+  @moduledoc false
   @behaviour Ziwoas.Scheduler.Job
 
   require Logger

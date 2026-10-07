@@ -1,9 +1,5 @@
 const TICK_MS = 10_000
 
-// The one thing only the client can know: how long ago the last live broadcast arrived.
-// Every broadcast moves data-beat; when the beats stop, the page dims (.live-stale) instead
-// of showing watts nobody measured anymore. Missed broadcasts need no catching up here: a
-// rejoined LiveView pushes its charts afresh.
 export default {
   mounted() {
     this.beat = this.el.dataset.beat

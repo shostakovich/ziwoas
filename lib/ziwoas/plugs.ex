@@ -1,14 +1,5 @@
 defmodule Ziwoas.Plugs do
-  @moduledoc """
-  The plugs: their samples and relay states, five-minute means and daily
-  totals, each plug's newest measurement, the nightly aggregation and the
-  live updates.
-
-  `subscribe/0` delivers `{:live, deltas}`, at most every 5 s per ingesting
-  process, with one `Ziwoas.Plugs.Ingest.delta()` per plug that reported since.
-  `subscribe(:aggregated)` delivers `{:aggregated, date}` once the nightly
-  aggregation of `date` is done.
-  """
+  @moduledoc false
   import Ecto.Query
 
   alias Ziwoas.Plugs.{Aggregator, DailyTotal, EnergyDeltas, Measurement, Sample, Sample5min}
@@ -24,7 +15,6 @@ defmodule Ziwoas.Plugs do
   @spec subscribe(:aggregated) :: :ok | {:error, term}
   def subscribe(:aggregated), do: Phoenix.PubSub.subscribe(Ziwoas.PubSub, @aggregated_topic)
 
-  @doc "Sends the live deltas an ingesting process collected to the subscribers."
   @spec notify_live([map]) :: :ok
   def notify_live(deltas) do
     broadcast(:live, deltas)
@@ -37,9 +27,6 @@ defmodule Ziwoas.Plugs do
   defp broadcast(event, payload),
     do: Phoenix.PubSub.broadcast(Ziwoas.PubSub, @topic, {event, payload})
 
-  # --- Ingest ----------------------------------------------------------------
-
-  @doc "Stores one sample; `:duplicate` when the plug already has one at `ts`."
   @spec record_sample(String.t(), integer, float, float) :: :ok | :duplicate
   def record_sample(plug_id, ts, apower_w, aenergy_wh) do
     sample = %{plug_id: plug_id, ts: ts, apower_w: apower_w, aenergy_wh: aenergy_wh}
@@ -67,7 +54,6 @@ defmodule Ziwoas.Plugs do
     end
   end
 
-  @doc "The last known relay state of each listed plug that has one, by plug id."
   @spec states([String.t()]) :: %{String.t() => State.t()}
   def states(plug_ids) do
     from(s in State, where: s.plug_id in ^plug_ids)
@@ -75,12 +61,6 @@ defmodule Ziwoas.Plugs do
     |> Map.new(&{&1.plug_id, &1})
   end
 
-  # --- Measurements ----------------------------------------------------------
-
-  @doc """
-  One `Measurement` per plug id as of `now`: the newest sample's watts, offline
-  once no sample arrived for `offline_after_s` (fractions of a second count).
-  """
   @spec latest_measurements([String.t()], DateTime.t(), number) :: %{
           String.t() => Measurement.t()
         }
@@ -124,7 +104,6 @@ defmodule Ziwoas.Plugs do
     |> Map.new(&{&1.plug_id, &1})
   end
 
-  @doc "The newest sample's `ts` of these plugs in `[start_ts, end_ts)`, nil without one."
   @spec latest_sample_ts([String.t()], integer, integer) :: integer | nil
   def latest_sample_ts([], _start_ts, _end_ts), do: nil
 
@@ -136,12 +115,7 @@ defmodule Ziwoas.Plugs do
     )
   end
 
-  # --- Energy and power from raw samples -----------------------------------
-
-  @doc """
-  The energy these plugs' counters advanced in `[start_ts, end_ts)`, in Wh and
-  summed over the plugs; implausible steps count nothing (`EnergyDeltas`).
-  """
+  @doc "Implausible counter steps count nothing."
   @spec energy_wh([String.t()], integer, integer) :: float
   def energy_wh([], _start_ts, _end_ts), do: 0.0
 
@@ -152,11 +126,6 @@ defmodule Ziwoas.Plugs do
     (Repo.one(query) || 0) * 1.0
   end
 
-  @doc """
-  The mean watts of each plug per bucket of `bucket_seconds` in
-  `[start_ts, end_ts)`, as `{plug_id, bucket_ts, watts}`; a bucket's `ts` is
-  floored to the bucket width.
-  """
   @spec mean_power([String.t()], integer, integer, pos_integer) :: [
           {String.t(), integer, float | nil}
         ]
@@ -179,9 +148,6 @@ defmodule Ziwoas.Plugs do
     |> Repo.all()
   end
 
-  # --- Aggregates ------------------------------------------------------------
-
-  @doc "The five-minute means in `[start_ts, end_ts)`, by time."
   @spec samples_5min(integer, integer) :: [Sample5min.t()]
   def samples_5min(start_ts, end_ts) do
     Repo.all(
@@ -191,10 +157,6 @@ defmodule Ziwoas.Plugs do
     )
   end
 
-  @doc """
-  `{bucket_ts, energy_delta_wh}` of each five-minute mean of these plugs in
-  `[from, to)`, in no particular order; no query without plugs.
-  """
   @spec five_minute_energy([String.t()], DateTime.t(), DateTime.t()) :: [{integer, float}]
   def five_minute_energy([], _from, _to), do: []
 
@@ -208,7 +170,6 @@ defmodule Ziwoas.Plugs do
     )
   end
 
-  @doc "The daily totals from `first` to `last` (both included), by date; all plugs, or the given ones."
   @spec daily_totals(Date.t(), Date.t(), [String.t()] | nil) :: [DailyTotal.t()]
   def daily_totals(%Date{} = first, %Date{} = last, plug_ids \\ nil) do
     from(d in DailyTotal, where: d.date >= ^first and d.date <= ^last, order_by: d.date)
@@ -219,7 +180,6 @@ defmodule Ziwoas.Plugs do
   defp where_plugs(query, nil), do: query
   defp where_plugs(query, plug_ids), do: where(query, [d], d.plug_id in ^plug_ids)
 
-  @doc "The first and the last day with daily totals, or nil before the first."
   @spec daily_total_range() :: Date.Range.t() | nil
   def daily_total_range do
     case Repo.one(from d in DailyTotal, select: {min(d.date), max(d.date)}) do
@@ -228,16 +188,10 @@ defmodule Ziwoas.Plugs do
     end
   end
 
-  @doc "Every day with daily totals, oldest first."
   @spec dates_with_daily_totals() :: [Date.t()]
   def dates_with_daily_totals,
     do: Repo.all(from d in DailyTotal, distinct: true, select: d.date, order_by: d.date)
 
-  @doc """
-  Aggregates every finished local day not yet in the daily totals and purges
-  old raw samples (`Ziwoas.Plugs.Aggregator.run/3`), then tells the
-  subscribers `{:aggregated, today}`.
-  """
   @spec aggregate(String.t(), list, keyword) :: :ok
   def aggregate(timezone, plugs, opts \\ []) do
     today = Keyword.get_lazy(opts, :today, fn -> Ziwoas.Clock.today(timezone) end)
@@ -246,7 +200,6 @@ defmodule Ziwoas.Plugs do
     :ok
   end
 
-  @doc "A `VACUUM INTO` copy of the database (`Ziwoas.Plugs.Aggregator.backup!/3`)."
   @spec backup!(String.t(), Date.t(), pos_integer) :: String.t()
   defdelegate backup!(dir, today, keep \\ 7), to: Aggregator
 end

@@ -1,7 +1,5 @@
 import { renderChart, timeCategoryScale, localMidnight } from "../lib/chart_theme.js"
 
-// The dashboard's 14-day yield, pushed as "history_chart:data" once connected, after the
-// nightly aggregation and at midnight. Without a producer there is nothing to draw.
 export default {
   mounted() {
     this.chart = null

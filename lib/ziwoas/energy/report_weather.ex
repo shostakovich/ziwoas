@@ -1,10 +1,5 @@
 defmodule Ziwoas.Energy.ReportWeather do
-  @moduledoc """
-  The weather behind the energy report's chart overlays: `historic` records
-  of the configured location between the local midnights of a date range. A
-  location without coordinates has none. Icons are Bright Sky's codes with
-  their daytime; the web picks the pictures.
-  """
+  @moduledoc false
   alias Ziwoas.{LocalDay, Location, Weather}
   alias Ziwoas.Weather.{Record, Segment}
 
@@ -16,7 +11,6 @@ defmodule Ziwoas.Energy.ReportWeather do
           daytime: String.t() | nil
         }
 
-  @doc "Per local date with records: summed solar kWh/m² and the day's dominant icon."
   @spec daily(Location.t(), Date.t(), Date.t()) :: %{Date.t() => day}
   def daily(location, start_date, end_date) do
     location
@@ -34,7 +28,6 @@ defmodule Ziwoas.Energy.ReportWeather do
     end)
   end
 
-  @doc "One point per record, `ts` its timestamp (the end of its hour) in Unix seconds."
   @spec hourly(Location.t(), Date.t(), Date.t()) :: [hour]
   def hourly(location, start_date, end_date) do
     for record <- historic_records(location, start_date, end_date) do

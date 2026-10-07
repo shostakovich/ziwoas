@@ -1,9 +1,5 @@
 defmodule Ziwoas.Trmnl.SensorPayload do
-  @moduledoc """
-  The TRMNL sensor widget's `merge_variables`: one entry per configured
-  sensor, in config order, with a 3-hour trend in twelve 15-minute buckets.
-  The values are the widget's wire format: German text for the e-ink display.
-  """
+  @moduledoc false
   alias Ziwoas.{Clock, Config, Sensors}
   alias Ziwoas.Config.Sensor
   alias Ziwoas.Trmnl.Window
@@ -72,7 +68,6 @@ defmodule Ziwoas.Trmnl.SensorPayload do
     end
   end
 
-  # "vor 4 Min": whole seconds, minutes or hours, truncated.
   defp age_label(nil), do: "—"
   defp age_label(seconds) when seconds < 60, do: "vor #{seconds} s"
   defp age_label(seconds) when seconds < 3600, do: "vor #{div(seconds, 60)} Min"
@@ -110,7 +105,6 @@ defmodule Ziwoas.Trmnl.SensorPayload do
     if outdoor, do: Float.round(avg, 1), else: round(avg)
   end
 
-  @doc "`{start_ts, end_ts}`: 3 hours up to the local 15-minute boundary after `now`."
   @spec window(DateTime.t(), String.t()) :: {integer, integer}
   def window(now, zone), do: Window.ending_after(now, zone, @bucket_seconds, @buckets)
 

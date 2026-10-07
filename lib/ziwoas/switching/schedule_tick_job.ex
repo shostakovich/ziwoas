@@ -1,11 +1,5 @@
 defmodule Ziwoas.Switching.ScheduleTickJob do
-  @moduledoc """
-  The edge-driven scheduler (`schedule_tick`, every minute, ADR-0001). Per
-  switchable plug the latest edge between its watermark and now is switched,
-  unless a manual command came after it; the watermark then moves to now. A
-  missed edge is made up within `grace_s/0` only. A failed switch leaves its
-  plug's watermark, so the next tick retries that plug alone.
-  """
+  @moduledoc false
   @behaviour Ziwoas.Scheduler.Job
 
   require Logger
@@ -21,7 +15,6 @@ defmodule Ziwoas.Switching.ScheduleTickJob do
   @impl true
   def perform(opts), do: opts |> Keyword.fetch!(:config) |> tick(Clock.now())
 
-  @doc "One tick at `now`; returns the edges it dispatched, `{plug_id, edge, :ok | :failed}`."
   @spec tick(Ziwoas.Config.t(), DateTime.t()) :: [{String.t(), Edges.Edge.t(), atom}]
   def tick(config, now) do
     zone = config.location.timezone
@@ -34,15 +27,13 @@ defmodule Ziwoas.Switching.ScheduleTickJob do
       edge = due_edge(plug.id, Map.get(rules, plug.id, []), now, zone)
       outcome = edge && dispatch(plug, edge, config.mqtt)
 
-      # Every plug of the tick advances, not just the ones with an edge, or an
-      # untouched plug would drag an ancient watermark along.
+      # Every plug advances, or an untouched plug would drag an ancient watermark along.
       if outcome != :failed, do: Switching.advance_tick!(plug.id, now)
 
       if edge, do: [{plug.id, edge, outcome}], else: []
     end)
   end
 
-  # The calculator knows neither clock nor grace: both live in the interval.
   defp due_edge(plug_id, rules, now, zone) do
     floor = DateTime.add(now, -@grace_s)
 

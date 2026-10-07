@@ -147,7 +147,6 @@ defmodule ZiwoasWeb.EconomicsLiveTest do
     test "is checked while typing, only on the fields touched", %{conn: conn} do
       {:ok, view, _html} = live(conn, @path)
 
-      # The browser marks the fields not yet touched as `_unused_`.
       params = %{
         "label" => "",
         "_unused_label" => "",

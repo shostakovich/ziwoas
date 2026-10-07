@@ -1,10 +1,5 @@
 defmodule Ziwoas.Trmnl.EnergyPayload do
-  @moduledoc """
-  The TRMNL energy widget's `merge_variables`: today's balance plus 24 hours
-  of production and consumption in 144 ten-minute buckets that end at the
-  next local 10-minute boundary. Watts are whole and never negative, which
-  keeps the payload under TRMNL's 2 kB.
-  """
+  @moduledoc "Whole, non-negative watts keep the payload under TRMNL's 2 kB."
   alias Ziwoas.{Clock, Config, Energy, LocalDay, Plugs}
   alias Ziwoas.Energy.{Amount, PowerSeries}
   alias Ziwoas.Plugs.Roster
@@ -37,7 +32,6 @@ defmodule Ziwoas.Trmnl.EnergyPayload do
     }
   end
 
-  @doc "`{start_ts, end_ts}`: 24 hours up to the local 10-minute boundary after `now`."
   @spec window(DateTime.t(), String.t()) :: {integer, integer}
   def window(now, zone), do: Window.ending_after(now, zone, @bucket_seconds, @buckets)
 

@@ -1,12 +1,5 @@
 defmodule ZiwoasWeb.Nav do
-  @moduledoc """
-  `on_mount` for every LiveView: the look and the request path the navigation
-  marks as current.
-
-  The look comes from the socket's connect params once connected (the browser
-  may have switched it since the page was loaded), else from the session. The
-  look toggle's `"set_look"` event is answered here for every page.
-  """
+  @moduledoc false
   import Phoenix.Component, only: [assign: 3]
   import Phoenix.LiveView, only: [attach_hook: 4, connected?: 1, get_connect_params: 1]
 

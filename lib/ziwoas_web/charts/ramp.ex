@@ -1,8 +1,5 @@
 defmodule ZiwoasWeb.Charts.Ramp do
-  @moduledoc """
-  A colour ramp over CSS tokens. Colours between stops are
-  `color-mix()`, so the browser resolves them and dark mode follows.
-  """
+  @moduledoc false
   @stops %{
     amber: ~w[var(--ramp-amber-0) var(--ramp-amber-1) var(--ramp-amber-2)],
     blue: ~w[var(--ramp-blue-0) var(--ramp-blue-1) var(--ramp-blue-2)],

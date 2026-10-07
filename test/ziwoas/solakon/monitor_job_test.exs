@@ -1,5 +1,4 @@
 defmodule Ziwoas.Solakon.MonitorJobTest do
-  # Subscribes to a global PubSub topic another test broadcasts on.
   use Ziwoas.DataCase
 
   alias Ziwoas.{Config, FakeModbusServer, Repo, TestClock}
@@ -174,7 +173,6 @@ defmodule Ziwoas.Solakon.MonitorJobTest do
       assert {:ok, %Reading{id: id}, %Outcome{status: :applied, decision: decision}} =
                MonitorJob.perform(Keyword.put(controlled(), :monitor, monitor))
 
-      # No consumer plugs configured: no load, no floor.
       assert decision == %Decision{state: :normal, target_w: 0, trim: false}
       assert List.last(writes(server)) == "0000000b0110b3b300020400000000"
       assert {^decision, _at} = State.stored(Control.state())

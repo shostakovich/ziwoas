@@ -1,5 +1,4 @@
 defmodule ZiwoasWeb.Charts.EnergyReportTest do
-  # The report from the database, its charts through the web.
   use Ziwoas.DataCase
 
   alias Ziwoas.{Energy, Location, Repo}
@@ -44,7 +43,6 @@ defmodule ZiwoasWeb.Charts.EnergyReportTest do
     })
   end
 
-  # A total of a plug outside the config makes the range's days aggregated.
   defp payload(_points, first, last) do
     total!("meter", Date.to_iso8601(last), 0)
 
@@ -115,7 +113,6 @@ defmodule ZiwoasWeb.Charts.EnergyReportTest do
     test "several days carry the date in each label and change day at local midnight" do
       bucket!("fridge", ~U[2026-06-01 21:55:00Z], 50)
       bucket!("fridge", ~U[2026-06-01 22:00:00Z], 50)
-      # Outside the range: the local day before it, and after it.
       bucket!("fridge", ~U[2026-05-31 21:55:00Z], 50)
       bucket!("fridge", ~U[2026-06-02 22:00:00Z], 50)
 

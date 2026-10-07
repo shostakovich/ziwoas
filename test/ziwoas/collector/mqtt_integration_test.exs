@@ -1,8 +1,4 @@
 defmodule Ziwoas.Collector.MqttIntegrationTest do
-  # Tortoise311 against a broker on a socket: the ingest connection subscribes and
-  # writes what arrives, a publisher publishes. Client ids are global names, so this
-  # module runs alone. The connections' handlers write from processes of Tortoise's own,
-  # hence the shared sandbox.
   use Ziwoas.DataCase
 
   alias Ziwoas.Collector.MqttRouter

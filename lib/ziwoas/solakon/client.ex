@@ -1,16 +1,5 @@
 defmodule Ziwoas.Solakon.Client do
-  @moduledoc """
-  Which holding registers make a reading (`read_state/1`, the 30 s monitor) and
-  a snapshot (`read_snapshot/1`, every two minutes), how their words decode, and
-  what the control writes (`apply_control/4`, `set_eps_output/2`,
-  `release_control/1`) — `docs/solakon-modbus-protocol.md` §2 and §9. Registers
-  are read one field at a time.
-
-  Every function takes the monitor's connection (`Ziwoas.Solakon.Modbus`) and
-  hands it back with its transaction id moved on: `{:ok, value, conn}` for a read,
-  `{:ok, conn}` for a write, `{:error, reason}` otherwise. Unscaled values decode
-  as integers, scaled ones as floats.
-  """
+  @moduledoc false
   import Bitwise
 
   alias Ziwoas.Solakon.Modbus
@@ -19,7 +8,6 @@ defmodule Ziwoas.Solakon.Client do
   @eps_on 2
   @eps_off 0
 
-  # Control registers (volatile, written every tick) and the persisted minimum SoC.
   @reg_remote_control 46001
   @reg_remote_timeout 46002
   @reg_remote_active_power 46003
@@ -33,7 +21,6 @@ defmodule Ziwoas.Solakon.Client do
   @doc "The inverter-side watchdog: without a command for this long it drops remote control."
   def remote_timeout_s, do: @remote_timeout_s
 
-  # The reading's fields, in the order they are read.
   @fast [
     battery_soc: {39424, 1, :i16, nil},
     active_power_w: {39248, 2, :i32, nil},
@@ -64,7 +51,6 @@ defmodule Ziwoas.Solakon.Client do
     grid_power_w: {39168, 2, :i32, :negate}
   ]
 
-  # An overridden key keeps its place, new keys follow.
   @snapshot Enum.map(@fast, fn {key, spec} ->
               {key, Keyword.get(@snapshot_overrides, key, spec)}
             end) ++
@@ -79,11 +65,7 @@ defmodule Ziwoas.Solakon.Client do
 
   @type conn :: Modbus.t()
 
-  @doc """
-  The minimum SoC only when the device holds another value (a
-  persisted register, so flash is spared), then remote control on, the watchdog
-  re-armed and the active-power setpoint last.
-  """
+  @doc "The min SoC is written only when it differs: a persisted register, so flash is spared."
   @spec apply_control(conn, integer, integer) :: {:ok, conn} | {:error, term}
   def apply_control(conn, power_w, min_soc) do
     with {:ok, [current | _], conn} <- Modbus.read(conn, @reg_minimum_soc, 1),
@@ -119,7 +101,6 @@ defmodule Ziwoas.Solakon.Client do
     [raw >>> 16 &&& 0xFFFF, raw &&& 0xFFFF]
   end
 
-  @doc "The fields of the monitor's reading."
   @spec read_state(conn) :: {:ok, map, conn} | {:error, term}
   def read_state(conn) do
     with {:ok, fields, conn} <- read_fields(conn, @fast),
@@ -134,7 +115,6 @@ defmodule Ziwoas.Solakon.Client do
     end
   end
 
-  @doc "The fields of a snapshot, panels as `%{index:, voltage_v:, current_a:, power_w:}`."
   @spec read_snapshot(conn) :: {:ok, map, conn} | {:error, term}
   def read_snapshot(conn) do
     with {:ok, fields, conn} <- read_fields(conn, @snapshot),

@@ -1,9 +1,5 @@
 defmodule Ziwoas.Solakon.Control do
-  @moduledoc """
-  The control's stored state (`Ziwoas.Solakon.Control.State`, one row): the
-  tick reads and writes it here, the PV page's switch pauses and resumes it
-  through `Ziwoas.Solakon.set_control_active/2`.
-  """
+  @moduledoc false
   import Ecto.Query
 
   alias Ziwoas.Repo
@@ -11,10 +7,6 @@ defmodule Ziwoas.Solakon.Control do
 
   @cleared [decision_state: nil, trim: false, last_target_w: nil, last_decision_at: nil]
 
-  @doc """
-  The row, or an unsaved default while there is none (reads only; a missing row
-  reads as not paused).
-  """
   @spec state() :: State.t()
   def state do
     case Repo.all(from(s in State, order_by: s.id, limit: 1)) do
@@ -23,7 +15,6 @@ defmodule Ziwoas.Solakon.Control do
     end
   end
 
-  @doc "The row, created on first use."
   @spec state!() :: State.t()
   def state! do
     case state() do

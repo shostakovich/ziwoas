@@ -1,5 +1,5 @@
 defmodule Ziwoas.Shading.SunPaths do
-  @moduledoc "The sun's way across the sky on the solstices and the equinox, with dots every three hours."
+  @moduledoc false
   alias Ziwoas.Shading.{Dot, Path}
   alias Ziwoas.Sun
 

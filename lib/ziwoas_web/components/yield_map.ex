@@ -1,9 +1,5 @@
 defmodule ZiwoasWeb.Components.YieldMap do
-  @moduledoc """
-  The yield map of the shading report: the sky as azimuth over elevation, its
-  fields coloured by yield ratio, with the sun paths. Geometry:
-  `ZiwoasWeb.Charts.YieldMap`.
-  """
+  @moduledoc false
   use ZiwoasWeb, :html
 
   import ZiwoasWeb.Components.ChartParts

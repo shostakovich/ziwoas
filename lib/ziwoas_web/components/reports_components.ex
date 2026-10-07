@@ -1,18 +1,11 @@
 defmodule ZiwoasWeb.ReportsComponents do
-  @moduledoc """
-  The parts of the Berichte page: range picker, summary tiles, plug ranking
-  and the charts' weather switches.
-  """
+  @moduledoc false
   use ZiwoasWeb, :html
 
   alias Ziwoas.Energy.Report
 
   @presets [{:last_7, "7 Tage"}, {:last_30, "30 Tage"}]
 
-  @doc """
-  Presets as patch links, a custom range as a form that submits `apply_range`
-  to the LiveView. The fields keep what was asked for, else the report's range.
-  """
   attr :report, Report, required: true
   attr :preset, :atom, required: true, doc: ":last_7, :last_30 or :custom"
   attr :params, :map, required: true
@@ -75,11 +68,9 @@ defmodule ZiwoasWeb.ReportsComponents do
 
   @plug_colors for n <- 1..10, do: "var(--viz-#{n})"
 
-  # As on the dashboard's plug bar: consumers by config position, producers in the sun's colour.
   defp plug_color(position), do: Enum.at(@plug_colors, Integer.mod(position || 0, 10))
   defp producer_color, do: "var(--viz-solar)"
 
-  # The dashboard's energy, money and share tiles, without an id.
   defp energy_tile(label, kwh, signed \\ false),
     do: measure_tile(nil, label, kwh, "kWh", 2, signed)
 
@@ -88,7 +79,6 @@ defmodule ZiwoasWeb.ReportsComponents do
   defp share_tile(label, ratio),
     do: measure_tile(nil, label, (ratio || 0) * 100, "%", 1)
 
-  @doc "The eight summary tiles."
   attr :summary, :map, required: true
 
   def summary(assigns) do
@@ -113,7 +103,6 @@ defmodule ZiwoasWeb.ReportsComponents do
     """
   end
 
-  @doc "Producers apart, consumers numbered; bars take each plug's dashboard colour (config order, never its rank)."
   attr :producers, :list, required: true
   attr :consumers, :list, required: true
 
@@ -179,7 +168,6 @@ defmodule ZiwoasWeb.ReportsComponents do
   defp share(kwh, max_kwh) when max_kwh > 0, do: Float.round(kwh * 1.0 / max_kwh * 100, 1)
   defp share(_kwh, _max_kwh), do: 0
 
-  @doc "The switch that overlays weather on a chart (`daily` or `detail`)."
   attr :chart, :string, required: true
 
   def weather_switch(assigns) do
@@ -200,7 +188,6 @@ defmodule ZiwoasWeb.ReportsComponents do
     """
   end
 
-  @doc "The Leistung card's subtitle: resolution and range, the year only when it is not this one."
   def power_subtitle(%Report{start_date: from, end_date: to}, today) do
     resolution = if Date.diff(to, from) > 6, do: "Tagesmittel", else: "5-Min-Werte"
     day = &if(&1.year == today.year, do: day_month(&1), else: date(&1))

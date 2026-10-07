@@ -1,15 +1,5 @@
 defmodule Ziwoas.Lights.Commands do
-  @moduledoc """
-  The lamp commands: cast the page's parameters (a schemaless changeset per
-  command), hand the verb to `Ziwoas.Govee.Bridge` and record the optimistic
-  state.
-
-  Results: `:power` (the hero and the tile change),
-  `{:zones, keys, toast}` (those zone buttons change; `toast` is nil, `:clear` or
-  `%{evicted:, added:}`) and `{:sent, verb}` (fire and forget). Failures:
-  `{:error, :invalid}` for parameters that do not cast, `{:error, :unreachable}`
-  when the bridge did not take the verb.
-  """
+  @moduledoc false
   import Ecto.Changeset
   import Ecto.Query
 
@@ -28,12 +18,10 @@ defmodule Ziwoas.Lights.Commands do
     "scene" => %{scene: :string}
   }
 
-  # Hardware limit: at most N zones lit at once.
   @max_active_zones %{"H60B0" => 2}
 
   @type result :: :power | {:zones, [String.t()], nil | :clear | map} | {:sent, Bridge.verb()}
 
-  @doc "Whether `name` is a command."
   @spec command?(term) :: boolean
   def command?(name), do: is_map_key(@types, name)
 
@@ -142,10 +130,8 @@ defmodule Ziwoas.Lights.Commands do
     end
   end
 
-  @doc "The lamp's limit of zones lit at once, nil for none."
   def max_active_zones(%Light{sku: sku}), do: Map.get(@max_active_zones, String.upcase(sku || ""))
 
-  # Which lit side zone must go dark so `zone` can come on.
   defp evict_for(light, zone) do
     max = max_active_zones(light) || 0
 
@@ -162,9 +148,6 @@ defmodule Ziwoas.Lights.Commands do
     Repo.one(from s in State, where: s.light_key == ^key, select: s.zone_states) || %{}
   end
 
-  # --- Recorded state ---------------------------------------------------------------
-
-  @doc "Records the lamp's power; the row is created when missing, written when changed."
   def record_state(key, on) do
     (Repo.get_by(State, light_key: key) || %State{light_key: key})
     |> Ecto.Changeset.change(on: on)
@@ -173,7 +156,6 @@ defmodule Ziwoas.Lights.Commands do
     :ok
   end
 
-  @doc "Records one zone's bit, merged into the stored zones."
   def record_zone_state(key, zone, on) do
     state = Repo.get_by(State, light_key: key) || %State{light_key: key}
     zones = state.zone_states || %{}

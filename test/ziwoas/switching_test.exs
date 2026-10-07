@@ -75,7 +75,6 @@ defmodule Ziwoas.SwitchingTest do
       assert Rule.at_minute_time(1320) == "22:00"
       assert Rule.minutes_from("07:05") == 425
       assert Rule.minutes_from("18:00:00") == 1080
-      # A leading zero must not be read as an octal prefix.
       assert Rule.minutes_from("08:09") == 489
       assert Rule.at_minute_time(489) == "08:09"
       assert Rule.minutes_from("") == nil

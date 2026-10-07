@@ -1,10 +1,5 @@
 defmodule ZiwoasWeb.Components.EnergyFlow do
-  @moduledoc """
-  The Energiefluss card of the dashboard and the PV page: four rings (PV, grid,
-  consumers, battery) and the channels between them. The card is the
-  `EnergyFlow` hook; the flow's state rides on its `data-state` and the hook
-  draws values, dots and the consumer ring from it on every update.
-  """
+  @moduledoc false
   use ZiwoasWeb, :html
 
   alias Ziwoas.Energy.{Flow, LiveState}
@@ -43,7 +38,6 @@ defmodule ZiwoasWeb.Components.EnergyFlow do
      "M 209.6,230.5 L 212.4,222 C 219.2,201 246.9,200.9 304,182.4 L 312.5,179.6"}
   ]
 
-  @doc "The battery picture for a battery state; an unknown state shows the normal one."
   @spec battery_asset(atom | nil) :: String.t()
   def battery_asset(state) do
     case List.keyfind(@battery_assets, state, 0) do
@@ -52,7 +46,6 @@ defmodule ZiwoasWeb.Components.EnergyFlow do
     end
   end
 
-  @doc "The flow's state as JSON, for the `EnergyFlow` hook's `data-state`."
   @spec state_json(Flow.t()) :: String.t()
   def state_json(%Flow{} = flow) do
     flow
@@ -219,7 +212,6 @@ defmodule ZiwoasWeb.Components.EnergyFlow do
 
   defp percent(units, extent), do: css_number(units * 100.0 / extent) <> "%"
 
-  # Three decimals are finer than a pixel; an integral value drops its ".0".
   defp css_number(value) do
     rounded = Float.round(value * 1.0, 3)
 

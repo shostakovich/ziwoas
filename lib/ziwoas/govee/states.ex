@@ -1,17 +1,5 @@
 defmodule Ziwoas.Govee.States do
-  @moduledoc """
-  Per lamp the published (desired or confirmed) state and how sure the bridge
-  is of it. Pure; the bridge keeps it in its state.
-
-    * a command publishes optimistically and stays `:pending` for the window;
-    * while pending, a LAN reading that matches confirms (`:synced`), one that
-      deviates counts as "not applied yet" and is ignored;
-    * after the window, `on: false` is adopted at once; an `on` reading from the LAN
-      that deviates asks for the API (`:reconciling`); API telemetry is the truth.
-
-  Published states are maps with atom keys (`:on`, `:brightness`, `:color`, …);
-  a `nil` value clears a field (`color_temp_k: nil` after a colour).
-  """
+  @moduledoc false
   @compare [:on, :brightness, :color, :color_temp_k]
 
   defstruct window_s: 5.0, entries: %{}
@@ -24,7 +12,6 @@ defmodule Ziwoas.Govee.States do
   def published(%__MODULE__{entries: entries}, key), do: entries[key] && entries[key].published
   def status(%__MODULE__{entries: entries}, key), do: entries[key] && entries[key].status
 
-  @doc "Records a command at monotonic second `now`; returns `{published, store}`."
   @spec record_command(t, String.t(), map, number) :: {map, t}
   def record_command(store, key, changes, now) do
     entry = entry(store, key)
@@ -39,7 +26,6 @@ defmodule Ziwoas.Govee.States do
     {entry.published, put(store, key, entry)}
   end
 
-  @doc "Applies telemetry from `source` (`:lan` or `:api`); returns `{result, store}`."
   @spec apply_telemetry(t, String.t(), map, :lan | :api, number) :: {result, t}
   def apply_telemetry(store, key, telemetry, source, now) do
     entry = entry(store, key)

@@ -1,8 +1,5 @@
 defmodule ZiwoasWeb.Components.Shading do
-  @moduledoc """
-  The shading report of the PV page: yield map, daily profiles and panel
-  curves, or one empty state while there is no PV hour.
-  """
+  @moduledoc false
   use ZiwoasWeb, :html
 
   import ZiwoasWeb.Components.DailyProfiles

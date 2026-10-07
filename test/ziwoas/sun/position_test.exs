@@ -13,7 +13,6 @@ defmodule Ziwoas.Sun.PositionTest do
     test "in Berlin at midsummer, within a few minutes of the almanac" do
       {lat, lon} = @berlin
 
-      # Almanac: 04:43 and 21:33 CEST.
       assert minutes_between(Position.sunrise(~D[2026-06-21], lat, lon), ~U[2026-06-21 02:43:00Z]) <
                3
 
@@ -24,7 +23,6 @@ defmodule Ziwoas.Sun.PositionTest do
     test "in Berlin at midwinter, within a few minutes of the almanac" do
       {lat, lon} = @berlin
 
-      # Almanac: 08:15 and 15:54 CET.
       assert minutes_between(Position.sunrise(~D[2026-12-21], lat, lon), ~U[2026-12-21 07:15:00Z]) <
                3
 

@@ -1,15 +1,5 @@
 defmodule Ziwoas.Config do
-  @moduledoc """
-  The device configuration: `config/ziwoas.yml`. Raw YAML is cast into embedded
-  schemas at this boundary, one per section; nothing downstream sees a map from
-  the file. A config that does not validate is one error message listing every
-  problem. Keys no schema knows are ignored (only `trmnl` refuses them).
-
-  `Ziwoas.Application` loads the file once at boot (`load/1` on `path/0`, set
-  from `ZIWOAS_CONFIG` in `config/runtime.exs`) and keeps the result with
-  `put/1`. `fetch/0` answers it as `{:ok, config}` or `{:error, message}`,
-  `get/0` answers the config or raises `Ziwoas.Config.Error`.
-  """
+  @moduledoc false
   use Ecto.Schema
 
   import Ecto.Changeset
@@ -113,7 +103,7 @@ defmodule Ziwoas.Config do
   end
 
   defmodule Sensor do
-    @moduledoc "An air sensor: `type` is `:meter_pro_co2` (indoor) or `:outdoor_meter`."
+    @moduledoc false
     use Ecto.Schema
     import Ecto.Changeset
     alias Ziwoas.Config.Types
@@ -207,7 +197,6 @@ defmodule Ziwoas.Config do
       field :lan_poll_seconds, Types.Count, default: 8
       field :api_poll_seconds, Types.Count, default: 180
       field :pending_window_seconds, Types.Count, default: 5
-      # Display names by device key, from `devices`.
       field :names, :map, default: %{}
 
       embeds_many :devices, Device, primary_key: false do
@@ -273,13 +262,9 @@ defmodule Ziwoas.Config do
           govee: %Govee{} | nil
         }
 
-  # --- The loaded configuration --------------------------------------------------
-
-  @doc "The configuration loaded at boot: `{:ok, config}` or `{:error, message}`."
   @spec fetch() :: {:ok, t} | {:error, String.t()}
   def fetch, do: :persistent_term.get(__MODULE__, {:error, "config not loaded"})
 
-  @doc "The configuration loaded at boot; raises `Ziwoas.Config.Error` with its error."
   @spec get() :: t
   def get do
     case fetch() do
@@ -288,23 +273,18 @@ defmodule Ziwoas.Config do
     end
   end
 
-  @doc "Keeps a load result for `fetch/0` and `get/0`."
   @spec put({:ok, t} | {:error, String.t()}) :: :ok
   def put({:ok, %__MODULE__{}} = result), do: :persistent_term.put(__MODULE__, result)
 
   def put({:error, message} = result) when is_binary(message),
     do: :persistent_term.put(__MODULE__, result)
 
-  @doc "The path of the device config (`config :ziwoas, :config_path`)."
   @spec path() :: String.t()
   def path, do: Application.fetch_env!(:ziwoas, :config_path)
 
   @spec plug_roster(t) :: Roster.t()
   def plug_roster(%__MODULE__{plugs: plugs}), do: Roster.new(plugs)
 
-  # --- Loading ---------------------------------------------------------------------
-
-  @doc "Reads and validates the config file at `path`."
   @spec load(String.t()) :: {:ok, t} | {:error, String.t()}
   def load(path) do
     if File.regular?(path),
@@ -312,11 +292,9 @@ defmodule Ziwoas.Config do
       else: {:error, "config file not found: #{path}"}
   end
 
-  @doc "Validates a configuration given as YAML text."
   @spec from_yaml(String.t()) :: {:ok, t} | {:error, String.t()}
   def from_yaml(yaml), do: with({:ok, raw} <- parse_string(yaml), do: build(raw))
 
-  @doc "`from_yaml/1`, raising `Ziwoas.Config.Error`."
   @spec from_yaml!(String.t()) :: t
   def from_yaml!(yaml) do
     case from_yaml(yaml) do
@@ -363,8 +341,6 @@ defmodule Ziwoas.Config do
 
   defp build(_raw), do: {:error, "config root must be a mapping"}
 
-  # --- Validation ------------------------------------------------------------------
-
   defp changeset(raw) do
     params = raw |> Map.put_new("trmnl", %{}) |> list_govee_devices()
 
@@ -398,7 +374,6 @@ defmodule Ziwoas.Config do
     |> validate_fritz()
   end
 
-  # A single device reads as a list of one.
   defp list_govee_devices(%{"govee" => %{"devices" => %{} = device}} = raw),
     do: put_in(raw, ["govee", "devices"], [device])
 
@@ -445,15 +420,12 @@ defmodule Ziwoas.Config do
         add_error(changeset, :base, "#{section} config required when using driver: fritz_dect")
   end
 
-  # The embedded entries as cast so far, valid or not.
   defp embedded(changeset, field) do
     case get_change(changeset, field) do
       changesets when is_list(changesets) -> Enum.map(changesets, &apply_changes/1)
       nil -> []
     end
   end
-
-  # --- Error message ----------------------------------------------------------------
 
   defp error_message(changeset) do
     changeset

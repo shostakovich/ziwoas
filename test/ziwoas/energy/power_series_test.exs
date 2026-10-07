@@ -41,7 +41,6 @@ defmodule Ziwoas.Energy.PowerSeriesTest do
   end
 
   test "self-consumption is the per-bucket overlap, clamped to the meters" do
-    # 5-minute buckets: 1/12 h each.
     series =
       PowerSeries.new(
         [{"bkw", 0, -1200.0}, {"fridge", 0, 600.0}, {"bkw", 300, -120.0}, {"fridge", 300, 600.0}],
@@ -49,7 +48,6 @@ defmodule Ziwoas.Energy.PowerSeriesTest do
         300
       )
 
-    # min(1200, 600) / 12 + min(120, 600) / 12 = 50 + 10
     assert_in_delta PowerSeries.self_consumed_wh(series, 1000.0, 1000.0), 60.0, 1.0e-9
     assert PowerSeries.self_consumed_wh(series, 1000.0, 30) === 30.0
     assert PowerSeries.self_consumed_wh(series, 20, 1000.0) === 20.0

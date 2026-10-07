@@ -1,5 +1,5 @@
 defmodule Ziwoas.Economics.ElectricityPrice do
-  @moduledoc "Price per kWh valid from a date on (`electricity_prices`, one per date)."
+  @moduledoc false
   use Ziwoas.Schema
 
   import Ecto.Changeset
@@ -17,10 +17,6 @@ defmodule Ziwoas.Economics.ElectricityPrice do
     timestamps()
   end
 
-  @doc """
-  A Strompreis as typed. The price is kept to the column's five decimals and
-  must stay above zero after that.
-  """
   @spec changeset(t, map) :: Ecto.Changeset.t()
   def changeset(price, attrs) do
     price

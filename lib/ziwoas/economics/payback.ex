@@ -1,14 +1,7 @@
 defmodule Ziwoas.Economics.Payback do
-  @moduledoc """
-  How far the savings have carried the plant towards its acquisition cost, and
-  when they will have covered it. Every figure rests on the days actually on
-  record: savings before the data start are never estimated, so the payback is
-  reckoned late rather than early.
-  """
-  # Below this many days on record a projection says more about the season
-  # than about the plant, so none is made.
+  @moduledoc false
+  # Below this a projection says more about the season than about the plant.
   @min_projection_days 90
-  # A full year levels out the seasons; a shorter record uses everything it has.
   @projection_window_days 365
 
   @enforce_keys [:cost, :days, :today]
@@ -43,9 +36,6 @@ defmodule Ziwoas.Economics.Payback do
   @spec reached?(t) :: boolean
   def reached?(payback), do: costed?(payback) and saved_eur(payback) >= payback.cost
 
-  @doc """
-  The day the running total first reached the cost.
-  """
   @spec reached_on(t) :: Date.t() | nil
   def reached_on(%__MODULE__{} = payback) do
     if reached?(payback), do: first_reaching_day(payback.days, 0.0, payback.cost)

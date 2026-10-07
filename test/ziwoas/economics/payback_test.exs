@@ -5,7 +5,6 @@ defmodule Ziwoas.Economics.PaybackTest do
 
   @today ~D[2026-10-06]
 
-  # `count` days ending today, each saving `eur`.
   defp days(count, eur, until \\ @today),
     do: for(offset <- (count - 1)..0//-1, do: {Date.add(until, -offset), eur})
 

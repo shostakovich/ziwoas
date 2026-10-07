@@ -3,9 +3,6 @@ import { renderChart, vizToken, tonesByOrder, timeCategoryScale, localMidnight, 
 const DAILY_ICONS_PADDING = 44
 const DETAIL_ICONS_PADDING = 38
 
-// The Berichte page's three charts, pushed as "energy_report:data" for every range, with
-// the weather icons' asset paths. The "Wetter einblenden" switches (data-weather-toggle)
-// show the weather series in place; a new payload redraws every chart.
 export default {
   mounted() {
     this.charts = {}

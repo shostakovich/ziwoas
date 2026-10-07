@@ -7,7 +7,6 @@ end
 config :ziwoas, ZiwoasWeb.Endpoint,
   http: [port: String.to_integer(System.get_env("PORT", "4000"))]
 
-# A release (prod) names every path; development and tests default to this checkout.
 path_env = fn name, example, default ->
   cond do
     path = System.get_env(name) -> path
@@ -16,8 +15,6 @@ path_env = fn name, example, default ->
   end
 end
 
-# The device configuration (ADR-0004 keeps prices out of it). ZIWOAS_CONFIG overrides
-# the path; tests read test/fixtures/ziwoas.test.yml, development config/ziwoas.yml.
 config :ziwoas,
   config_path:
     path_env.(
@@ -32,9 +29,6 @@ config :ziwoas,
       )
     )
 
-# The database. ZIWOAS_DB overrides the path; dev defaults to storage/development.sqlite3.
-# Tests always use tmp/test.sqlite3 (config/test.exs): the sandbox wraps every test in a
-# transaction, but `mix test` migrates the file first.
 if config_env() != :test do
   database =
     path_env.(
@@ -45,7 +39,6 @@ if config_env() != :test do
 
   config :ziwoas, Ziwoas.Repo, database: database
 
-  # The aggregator's nightly backups (Ziwoas.Plugs.AggregatorJob), next to the database.
   config :ziwoas, backup_dir: Path.join(Path.dirname(database), "backup")
 end
 
@@ -61,8 +54,6 @@ if config_env() == :prod do
 
   phx_host = System.get_env("PHX_HOST", "localhost")
 
-  # LiveView's websocket accepts PHX_HOST and the hosts in ZIWOAS_ALLOWED_HOSTS
-  # ("ziwoas.example.org,192.168.1.50") as Origin, any scheme and port.
   # The origin check runs before ForwardedSSL, so it cannot compare schemes behind the proxy.
   check_origin =
     System.get_env("ZIWOAS_ALLOWED_HOSTS", "")

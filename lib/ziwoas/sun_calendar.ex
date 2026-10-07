@@ -1,10 +1,5 @@
 defmodule Ziwoas.SunCalendar do
-  @moduledoc """
-  A year of the PV plant hour by hour: PV power, irradiance and cloud cover as
-  strips of day × local hour, the daily energy, and the lines of sunrise,
-  sunset and solar noon. Before the inverter's PV hours begin (the seam), the
-  producer plugs' five-minute energy stands in for the PV power.
-  """
+  @moduledoc false
 
   alias Ziwoas.{LocalDay, Location, Plugs, Solakon, Weather}
   alias Ziwoas.SunCalendar.SunLines
@@ -16,11 +11,7 @@ defmodule Ziwoas.SunCalendar do
   def base_hours, do: @base_hours
 
   defmodule Strip do
-    @moduledoc """
-    One quantity over the year (`:pv` in W, `:irradiance` in W/m², `:cloud` in
-    %): `values` is keyed by `{day of year, local clock hour}`, `max` is the top
-    of its scale.
-    """
+    @moduledoc false
     defstruct [:key, :max, :values]
 
     @type t :: %__MODULE__{key: :pv | :irradiance | :cloud, max: float, values: map}
@@ -32,14 +23,14 @@ defmodule Ziwoas.SunCalendar do
   end
 
   defmodule Lines do
-    @moduledoc "Points are `{day of year, local hour}`."
+    @moduledoc false
     defstruct [:rise, :set, :noon]
 
     def empty?(%__MODULE__{rise: rise}), do: rise == []
   end
 
   defmodule Year do
-    @moduledoc "`strips` in drawing order: PV, irradiance, cloud cover."
+    @moduledoc false
     defstruct [:year, :days, :hours, :strips, :max_kwh, :lines, :seam]
 
     @type t :: %__MODULE__{}
@@ -47,7 +38,6 @@ defmodule Ziwoas.SunCalendar do
     def empty?(%__MODULE__{strips: [pv | _]}), do: pv.values == %{}
   end
 
-  @doc "The year of the newest PV hour, else the current one."
   @spec latest_year(Location.t(), DateTime.t()) :: integer
   def latest_year(%Location{timezone: zone}, now) do
     (Solakon.latest_pv_hour_start() || now)
@@ -55,7 +45,6 @@ defmodule Ziwoas.SunCalendar do
     |> Map.fetch!(:year)
   end
 
-  @doc "One calendar year of the PV plant; `producer_ids` stand in before the seam."
   @spec year(Location.t(), [String.t()], integer) :: Year.t()
   def year(%Location{} = location, producer_ids, year) do
     zone = location.timezone
@@ -106,7 +95,6 @@ defmodule Ziwoas.SunCalendar do
   defp plug_points(_range, _seam, [], _zone), do: []
 
   defp plug_points({from, to}, seam, producer_ids, zone) do
-    # Unordered: the running sums follow SQLite's row order.
     rows = Plugs.five_minute_energy(producer_ids, from, to)
 
     {order, totals} =
@@ -139,8 +127,7 @@ defmodule Ziwoas.SunCalendar do
         do: {DateTime.shift_zone!(record.timestamp, zone), v}
   end
 
-  # One cell per local clock hour. The autumn clock change repeats an hour;
-  # its second reading wins the cell, while the day's totals keep both.
+  # The repeated autumn hour: its second reading wins the cell, the day's totals keep both.
   defp cells(points),
     do: Map.new(points, fn {time, value} -> {{yday(time), time.hour}, value} end)
 

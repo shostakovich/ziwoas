@@ -1,5 +1,5 @@
 defmodule Ziwoas.Weather.Day do
-  @moduledoc "One forecast day and its four segments."
+  @moduledoc false
   alias Ziwoas.Weather
   alias Ziwoas.Weather.{Record, Segment}
 
@@ -33,7 +33,6 @@ defmodule Ziwoas.Weather.Day do
     end
   end
 
-  @doc "Night, morning, afternoon and evening by local hour; a segment may be empty."
   @spec segments(t) :: [Segment.t()]
   def segments(%__MODULE__{records: records, zone: zone}) do
     by_label =

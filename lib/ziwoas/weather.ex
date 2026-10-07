@@ -1,12 +1,5 @@
 defmodule Ziwoas.Weather do
-  @moduledoc """
-  The weather records (`weather_records`). `timestamp` is the end of the period
-  a record sums up: 10 minutes for `current`, 60 for `forecast` and `historic`.
-  Rows are keyed by kind, location and timestamp (`idx_weather_records_identity`);
-  storing a known hour again updates its row.
-
-  `subscribe/0` delivers `{:synced, local_date}` after a sync with Bright Sky.
-  """
+  @moduledoc "A record's `timestamp` is the end of the period it sums up."
   import Ecto.Query
 
   alias Ziwoas.{LocalDay, Location, Repo}
@@ -19,7 +12,6 @@ defmodule Ziwoas.Weather do
   @spec subscribe() :: :ok | {:error, term}
   def subscribe, do: Phoenix.PubSub.subscribe(Ziwoas.PubSub, @topic)
 
-  @doc "Tells the subscribers that a sync on the local date `today` is stored."
   @spec notify_synced(Date.t()) :: :ok
   def notify_synced(%Date{} = today) do
     broadcast(:synced, today)
@@ -29,9 +21,6 @@ defmodule Ziwoas.Weather do
   defp broadcast(event, payload),
     do: Phoenix.PubSub.broadcast(Ziwoas.PubSub, @topic, {event, payload})
 
-  # --- Storing --------------------------------------------------------------------
-
-  @doc "Replaces the `current` record at `location` with one from Bright Sky's `attrs`."
   @spec replace_current(Location.t(), map) :: {:ok, Record.t()} | {:error, Ecto.Changeset.t()}
   def replace_current(%Location{} = location, attrs) do
     {lat, lon} = coordinates(location)
@@ -45,12 +34,10 @@ defmodule Ziwoas.Weather do
     end)
   end
 
-  @doc "Stores Bright Sky's hours at `location` as `forecast`."
   @spec put_forecast(Location.t(), [map]) :: :ok | {:error, Ecto.Changeset.t()}
   def put_forecast(%Location{} = location, rows),
     do: transact_each(rows, &upsert(:forecast, &1, location))
 
-  @doc "Stores observed hours at `location` as `historic`, each replacing the forecast for its hour."
   @spec put_historic(Location.t(), [map]) :: :ok | {:error, Ecto.Changeset.t()}
   def put_historic(%Location{} = location, rows) do
     {lat, lon} = coordinates(location)
@@ -67,7 +54,6 @@ defmodule Ziwoas.Weather do
     end)
   end
 
-  @doc "Whether `location` has the 24 `historic` hours from local midnight of `date` to the next."
   @spec historic_complete?(Location.t(), Date.t()) :: boolean
   def historic_complete?(%Location{} = location, %Date{} = date) do
     {lat, lon} = coordinates(location)
@@ -84,7 +70,6 @@ defmodule Ziwoas.Weather do
     ) >= 24
   end
 
-  # Stores every row in one transaction, or none.
   defp transact_each(rows, store) do
     with {:ok, _stored} <-
            Repo.transact(fn -> Enum.reduce_while(rows, {:ok, 0}, &store_next(store, &1, &2)) end),
@@ -112,12 +97,6 @@ defmodule Ziwoas.Weather do
 
   defp coordinates(%Location{lat: lat, lon: lon}), do: {lat * 1.0, lon * 1.0}
 
-  # --- Reading --------------------------------------------------------------------
-
-  @doc """
-  The `historic` records at `location` with timestamps in `[from, to)`, oldest
-  first; none without coordinates.
-  """
   @spec historic_records(Location.t(), DateTime.t(), DateTime.t()) :: [Record.t()]
   def historic_records(%Location{} = location, %DateTime{} = from, %DateTime{} = to) do
     if Location.located?(location) do
@@ -133,7 +112,6 @@ defmodule Ziwoas.Weather do
     end
   end
 
-  @doc "The newest `current` record, or nil."
   @spec latest_current() :: Record.t() | nil
   def latest_current do
     Repo.one(
@@ -141,7 +119,6 @@ defmodule Ziwoas.Weather do
     )
   end
 
-  @doc "Forecast and historic hours from the start of this hour to the end of tomorrow."
   @spec today_hourly(DateTime.t(), String.t()) :: [Record.t()]
   def today_hourly(now, zone) do
     local = DateTime.shift_zone!(now, zone)
@@ -157,7 +134,6 @@ defmodule Ziwoas.Weather do
     )
   end
 
-  @doc "The forecast after today, one `Day` per local date."
   @spec future_days(Date.t(), String.t()) :: [Day.t()]
   def future_days(today, zone) do
     from(r in Record,
@@ -171,12 +147,9 @@ defmodule Ziwoas.Weather do
     end)
   end
 
-  # --- Values ---------------------------------------------------------------------
-
   @spec local_time(Record.t(), String.t()) :: DateTime.t()
   def local_time(%Record{timestamp: timestamp}, zone), do: DateTime.shift_zone!(timestamp, zone)
 
-  @doc "Bright Sky's icon without its -day/-night suffix; anything unknown is \"unknown\"."
   @spec base_icon(String.t() | nil) :: String.t()
   def base_icon(icon) do
     raw =
@@ -187,7 +160,6 @@ defmodule Ziwoas.Weather do
     if raw in @icons, do: raw, else: "unknown"
   end
 
-  @doc ~s("day" or "night": the icon's suffix when it has one, else where the sun stands.)
   @spec daytime_for(String.t() | nil, DateTime.t(), Location.t()) :: String.t()
   def daytime_for(icon, timestamp, location) do
     icon = icon || ""
@@ -211,7 +183,6 @@ defmodule Ziwoas.Weather do
   def solar_w_per_m2(%Record{solar: solar} = record),
     do: solar * 1000.0 * (60.0 / period_minutes(record))
 
-  @doc "Sum of `precipitation`, missing values as 0."
   @spec precip_sum([Record.t()]) :: number
   def precip_sum(records), do: records |> Enum.map(&(&1.precipitation || 0)) |> Enum.sum()
 
@@ -227,7 +198,6 @@ defmodule Ziwoas.Weather do
   defp extreme([], _fun), do: nil
   defp extreme(values, fun), do: fun.(values)
 
-  # The last microsecond of the local day.
   defp end_of_day(date, zone) do
     {:ok, naive} = NaiveDateTime.new(date, ~T[23:59:59.999999])
     naive |> LocalDay.to_instant(zone) |> utc()

@@ -1,14 +1,5 @@
 defmodule Ziwoas.Plugs.Ingest do
-  @moduledoc """
-  A process's intake of plug readings, the one path for a Shelly status from
-  MQTT (`ShellyStatusHandler`) and a Fritz!DECT poll (`Ziwoas.Fritz.Bridge`):
-  each reading becomes a `samples` row (and a `plug_states` row when it
-  carries a relay output), and a live delta.
-
-  Live deltas (a plug's newest watts and the signed mean of its current
-  minute) collect per plug and go out at most every 5 s through `:broadcast`,
-  by default `Ziwoas.Plugs.notify_live/1`.
-  """
+  @moduledoc false
   require Logger
 
   alias Ziwoas.{Clock, Plugs}
@@ -21,10 +12,8 @@ defmodule Ziwoas.Plugs.Ingest do
 
   @type t :: %__MODULE__{}
 
-  @typedoc "A plug's reading: watts, the counter in Wh and the relay output if it reported one."
   @type reading :: %{apower_w: float, aenergy_wh: float, output: boolean | nil}
 
-  @typedoc "One plug's live update, as the dashboard's `TodayChart` hook reads it."
   @type delta :: %{
           id: String.t(),
           name: String.t() | nil,
@@ -36,7 +25,6 @@ defmodule Ziwoas.Plugs.Ingest do
           output: boolean | nil
         }
 
-  @doc "Options for tests: `:clock` (Unix seconds as a float) and `:broadcast` (a function of the delta list)."
   @spec new(keyword) :: t
   def new(opts \\ []) do
     %__MODULE__{
@@ -91,11 +79,9 @@ defmodule Ziwoas.Plugs.Ingest do
     |> maybe_broadcast()
   end
 
-  # Producers report with the opposite sign; the live mean is a positive magnitude.
   defp signed_watts(%Plug{role: :producer}, watts), do: abs(watts)
   defp signed_watts(%Plug{}, watts), do: watts
 
-  # A plug keeps its first position among the pending deltas until the broadcast.
   defp put_pending(ingest, id, delta) do
     pending =
       if List.keymember?(ingest.pending, id, 0),

@@ -1,10 +1,5 @@
 defmodule Ziwoas.Trmnl.Push do
-  @moduledoc """
-  Pushes a widget's `merge_variables` to its TRMNL webhook: JSON of at most
-  2 kB, one POST without retry. Every outcome is logged under the widget's name;
-  a failure comes back as `{:error, reason}`: `{:payload_too_large, bytes}`,
-  `{:http_status, status}` or Req's transport exception.
-  """
+  @moduledoc false
   require Logger
 
   alias Ziwoas.Http
@@ -17,10 +12,6 @@ defmodule Ziwoas.Trmnl.Push do
 
   def max_payload_bytes, do: @max_payload_bytes
 
-  @doc """
-  Builds the payload with `build` (only when a webhook URL is configured) and
-  POSTs it: `{:ok, :skipped}` without a URL, `{:ok, :sent}` once TRMNL took it.
-  """
   @spec run(widget, String.t() | nil, (-> term)) :: {:ok, :sent | :skipped} | {:error, reason}
   def run(widget, url, build) do
     if url in [nil, ""] do

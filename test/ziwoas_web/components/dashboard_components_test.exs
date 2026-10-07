@@ -1,5 +1,4 @@
 defmodule ZiwoasWeb.DashboardComponentsTest do
-  # In-memory live states, no database.
   use ExUnit.Case, async: true
 
   import Phoenix.LiveViewTest, only: [render_component: 2]

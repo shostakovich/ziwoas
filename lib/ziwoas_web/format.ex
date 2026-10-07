@@ -1,36 +1,17 @@
 defmodule ZiwoasWeb.Format do
-  @moduledoc """
-  Numbers, money, dates and clock times as German UI text. Imported into every
-  component and LiveView.
-
-  Numbers take a decimal comma, dots between thousands and a true minus
-  (U+2212), which is as wide as a plus in tabular figures: the twin of
-  `formatNumber` and `formatFlow` in `assets/js/lib/format.js`. They accept
-  integers, floats, `Decimal`s, `:nan` and nil; NaN and nil read as a dash.
-  Rounding is half away from zero on the shortest decimal form of a float, like
-  `Intl.NumberFormat`: 2.675 reads as 2,68.
-  """
+  @moduledoc "Mirrors `assets/js/lib/format.js`: decimal comma, true minus (U+2212), rounding half away from zero."
 
   @minus "−"
   @missing "—"
 
   @type value :: number | Decimal.t() | :nan | nil
 
-  @doc """
-  A number with `precision:` decimals (default 0) and an optional `unit:`.
-
-      iex> ZiwoasWeb.Format.number(1234.5, precision: 2, unit: "kWh")
-      "1.234,50 kWh"
-  """
   @spec number(value, keyword) :: String.t()
   def number(value, opts \\ []) do
     value |> digits(Keyword.get(opts, :precision, 0)) |> with_unit(opts[:unit])
   end
 
-  @doc """
-  A flow says its direction in words (`positive:`/`negative:`) instead of a
-  sign. One that rounds to zero is no flow and carries no direction.
-  """
+  @doc "A flow that rounds to zero carries no direction."
   @spec flow(value, keyword) :: String.t()
   def flow(value, opts) do
     unit = Keyword.get(opts, :unit, "W")
@@ -51,20 +32,16 @@ defmodule ZiwoasWeb.Format do
     end
   end
 
-  @doc "Euros with cents; an unknown amount is a dash without the sign."
   @spec eur(value) :: String.t()
   def eur(nil), do: @missing
   def eur(value), do: number(value, precision: 2, unit: "€")
 
-  @doc "A date as `07.10.2026`."
   @spec date(Date.t() | DateTime.t() | NaiveDateTime.t()) :: String.t()
   def date(date), do: Calendar.strftime(date, "%d.%m.%Y")
 
-  @doc "A date without its year, `07.10.`."
   @spec day_month(Date.t() | DateTime.t() | NaiveDateTime.t()) :: String.t()
   def day_month(date), do: Calendar.strftime(date, "%d.%m.")
 
-  @doc "An instant as the wall-clock time `HH:MM` in `zone`."
   @spec clock(DateTime.t(), String.t()) :: String.t()
   def clock(%DateTime{} = time, zone),
     do: time |> DateTime.shift_zone!(zone) |> Calendar.strftime("%H:%M")
@@ -81,7 +58,6 @@ defmodule ZiwoasWeb.Format do
           rounded |> Decimal.abs() |> Decimal.to_string(:normal) |> String.split(".")
 
         grouped = Regex.replace(~r/\B(?=(\d{3})+\z)/, integer, ".")
-        # A value that rounds to zero carries no sign.
         sign = if Decimal.negative?(rounded) and not Decimal.eq?(rounded, 0), do: @minus, else: ""
         sign <> Enum.join([grouped | fraction], ",")
     end

@@ -1,18 +1,11 @@
 defmodule ZiwoasWeb.WeatherLive do
-  @moduledoc """
-  The Wetter page. A weather sync (`Ziwoas.Weather.subscribe/0`) or a sensor
-  poll (`Ziwoas.Sensors.subscribe/0`, the outdoor sensor's temperature) reloads it.
-
-  A segment tile of the next days opens that segment's hours below the tiles and
-  closes the day's other segment (`"toggle_segment"`); the choice outlives a reload.
-  """
+  @moduledoc false
   use ZiwoasWeb, :live_view
 
   import ZiwoasWeb.WeatherComponents
 
   alias Ziwoas.{Clock, Config, Sensors, Weather}
 
-  # A day's four segments by the tile's `phx-value-index`.
   @segment_indexes %{"0" => 0, "1" => 1, "2" => 2, "3" => 3}
 
   @impl true

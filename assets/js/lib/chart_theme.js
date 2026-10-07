@@ -1,6 +1,3 @@
-// The one Chart.js plugin every chart uses. Dataset options: tone, fillAlpha, unit, decimals,
-// flowWords, legend: false, endLabel/endLabelTone; a value scale may set unit and decimals.
-
 import Chart from "../../vendor/chart.umd.js"
 import { themeColor, withAlpha, onThemeChange } from "./theme_colors.js"
 import { formatNumber, formatFlow } from "./format.js"
@@ -17,8 +14,7 @@ export function isPhone() {
   return PHONE.matches
 }
 
-// Hours and days are the household's (ziwoas-time-zone meta), not the browser's:
-// a traveller sees the same axis as at home.
+// Hours and days are the household's (ziwoas-time-zone meta), not the browser's.
 const HOUR_MS = 3_600_000
 const WEEKDAYS = [ "So", "Mo", "Di", "Mi", "Do", "Fr", "Sa" ]
 const pad2 = (n) => String(n).padStart(2, "0")
@@ -112,7 +108,6 @@ export function timeScale(min, max) {
   }
 }
 
-// Each tick sits on the first category at or within an hour after it.
 export function timeCategoryScale(times) {
   const labels = new Map()
   if (times.length > 0) {
@@ -210,7 +205,6 @@ export function tooltipLabel(context) {
   return `${dataset.label}: ${text}`
 }
 
-// A line's own fill is faint or none, so its legend key is a solid dot in the line's colour.
 function inLegend(chart, index) {
   const dataset = chart.data.datasets[index]
   if (!dataset || dataset.legend === false || dataset.endLabel) return false
@@ -269,7 +263,6 @@ function segmentBoxDistance(a, b, box) {
   )
 }
 
-// Negative where the series run through the box: a line clipping a corner beats one striking through.
 function clearance(box, lines) {
   let nearest = Infinity
   let through = 0
@@ -287,7 +280,6 @@ function clearance(box, lines) {
 
 const overlaps = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom
 
-// Every spot END_LABEL_CLEAR away counts as clear, so a free right end keeps the label where it was.
 export function placeEndLabel({ lineY, width, height, area, lines = [], taken = [] }) {
   let best = null
   for (const { end, side } of END_LABEL_SPOTS) {
@@ -361,7 +353,6 @@ function paintOptions(chart) {
   // The raw config, not the resolver proxy.
   const options = chart.config.options
 
-  // The card subtitle names the main axes' unit; a second value axis keeps its title except on phones.
   for (const [ id, scale ] of Object.entries(options.scales || {})) {
     scale.ticks = Object.assign(scale.ticks || {}, { color: muted })
     scale.title = Object.assign(scale.title || {}, { color: muted })
@@ -425,8 +416,6 @@ export const chartTheme = {
   },
 }
 
-// Draws `config` on `canvas` with the theme, reusing `chart` when it has the same type: a
-// refresh swaps data and options in place instead of building a new chart. Returns the chart.
 export function renderChart(chart, canvas, config) {
   if (chart && chart.config.type === config.type) {
     chart.data = config.data

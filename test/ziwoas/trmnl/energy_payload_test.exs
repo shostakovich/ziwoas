@@ -5,7 +5,6 @@ defmodule Ziwoas.Trmnl.EnergyPayloadTest do
   alias Ziwoas.{Repo, TestConfigs}
   alias Ziwoas.Trmnl.{EnergyPayload, Push}
 
-  # 16:56 Europe/Berlin: the window ends at the 17:00 boundary.
   @now ~U[2026-05-12 14:56:00Z]
   @end_ts DateTime.to_unix(~U[2026-05-12 15:00:00Z])
   @start_ts @end_ts - 86_400
@@ -87,7 +86,6 @@ defmodule Ziwoas.Trmnl.EnergyPayloadTest do
 
   describe "the window around daylight-saving changes" do
     test "both passes of the repeated hour end at the next boundary after now" do
-      # 2026-10-25: 02:35 CEST, then 02:35 CET an hour later.
       for now <- [~U[2026-10-25 00:35:00Z], ~U[2026-10-25 01:35:00Z]] do
         {start_ts, end_ts} = EnergyPayload.window(now, "Europe/Berlin")
 
@@ -97,15 +95,12 @@ defmodule Ziwoas.Trmnl.EnergyPayloadTest do
     end
 
     test "the skipped hour does not shift the boundary" do
-      # 2026-03-29 03:05 CEST, just after the clocks jumped from 02:00.
       {_start_ts, end_ts} = EnergyPayload.window(~U[2026-03-29 01:05:00Z], "Europe/Berlin")
       assert end_ts == DateTime.to_unix(~U[2026-03-29 01:10:00Z])
     end
   end
 
   describe "the 2 kB limit" do
-    # Every bucket at the four-digit maximum is the realistic worst case (a Shelly
-    # plug switches at most 16 A); five digits in all 288 values would not fit.
     test "holds for every plug at four-digit watts in every bucket and big totals" do
       producers =
         for i <- 1..2,

@@ -1,7 +1,4 @@
 defmodule ZiwoasWeb.LightLiveEventsTest do
-  # The lamp page's controls: power, zones with the eviction toast and its undo,
-  # the sliders, swatches and colour wheel, tabs, scenes and the settings sheet. The
-  # bridge is FakeGoveeBridge; nothing reaches a lamp.
   use ZiwoasWeb.ConnCase
 
   import Phoenix.LiveViewTest

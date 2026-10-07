@@ -1,16 +1,9 @@
 defmodule Ziwoas.Energy.PowerSeries do
-  @moduledoc """
-  The average power of a set of plugs over a run of equal time buckets.
-  Producers report with the opposite sign; the roster applies that convention
-  once, so every reader sees production as a positive magnitude.
-
-  A reading without a watt value counts as 0.0 W. `Ziwoas.Energy.power_series/4`
-  builds one from raw samples.
-  """
+  @moduledoc false
   alias Ziwoas.Plugs.Roster
 
   defmodule Bucket do
-    @moduledoc "Role totals of one bucket, in watts."
+    @moduledoc false
     @enforce_keys [:ts, :production_w, :consumption_w]
     defstruct @enforce_keys
 
@@ -44,7 +37,6 @@ defmodule Ziwoas.Energy.PowerSeries do
     }
   end
 
-  @doc "From five-minute means (anything with plug_id, bucket_ts and avg_power_w)."
   @spec from_5min([map], Roster.t() | list) :: t
   def from_5min(rows, plugs) do
     rows
@@ -55,15 +47,10 @@ defmodule Ziwoas.Energy.PowerSeries do
   @spec buckets(t) :: [Bucket.t()]
   def buckets(%__MODULE__{buckets: buckets}), do: buckets
 
-  @doc "Signed watts of one plug by bucket ts; empty for a plug without readings."
   @spec signed_watts_by_ts(t, String.t()) :: %{integer => float}
   def signed_watts_by_ts(%__MODULE__{watts_by_plug: by_plug}, plug_id),
     do: Map.get(by_plug, plug_id, %{})
 
-  @doc """
-  The energy the consumers drew straight from production: the per-bucket
-  overlap of both, clamped to what the meters counted; 0.0 without buckets.
-  """
   @spec self_consumed_wh(t, number, number) :: float
   def self_consumed_wh(%__MODULE__{} = series, produced_wh, consumed_wh),
     do: Enum.min([overlap_wh(series), produced_wh * 1.0, consumed_wh * 1.0])

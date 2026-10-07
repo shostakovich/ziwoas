@@ -1,14 +1,10 @@
 defmodule Ziwoas.Solakon.Reading do
-  @moduledoc """
-  One polled reading of the Solakon inverter (`solakon_readings`): the control's
-  thresholds and the battery character. `Ziwoas.Solakon` stores and reads them.
-  """
+  @moduledoc false
   use Ziwoas.Schema
 
   @min_soc_pct 10
   @resume_soc_pct 11
   @low_soc_pct 20
-  # Thermal de-rating starts here (full output ceiling) and protection ends below it.
   @hot_temp_c 45.0
   @cold_temp_c 5.0
   # De-rating reaches zero: 1 °C below the inverter's own 50 °C curtailment.
@@ -66,10 +62,6 @@ defmodule Ziwoas.Solakon.Reading do
     :eps_power_w
   ]
 
-  @doc """
-  A changeset for a decoded
-  `Ziwoas.Solakon.Client.read_state/1` taken at `taken_at`.
-  """
   @spec from_state(map, DateTime.t()) :: Ecto.Changeset.t()
   def from_state(state, taken_at) do
     attrs =
@@ -92,7 +84,6 @@ defmodule Ziwoas.Solakon.Reading do
     )
   end
 
-  # The control's thresholds.
   def soc_below_minimum?(%__MODULE__{battery_soc_pct: soc}), do: soc <= @min_soc_pct
   def soc_at_resume?(%__MODULE__{battery_soc_pct: soc}), do: soc >= @resume_soc_pct
 
@@ -108,7 +99,6 @@ defmodule Ziwoas.Solakon.Reading do
   @spec battery_display_power_w(t) :: float
   def battery_display_power_w(%__MODULE__{battery_power_w: watts}), do: (watts || 0) * 1.0
 
-  @doc "The battery character the UI shows; a fault wins, then thermal, then charge level and flow."
   @spec battery_state(t) :: :fault | :hot | :cold | :low | :charging | :discharging | :normal
   def battery_state(%__MODULE__{} = reading) do
     cond do

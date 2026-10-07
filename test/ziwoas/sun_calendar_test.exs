@@ -14,7 +14,6 @@ defmodule Ziwoas.SunCalendarTest do
   @may ~D[2026-05-10]
   @may_doy Date.day_of_year(@may)
 
-  # An ambiguous hour is the earlier (summer-time) instant.
   defp utc(date, hour, minute \\ 0),
     do:
       date
@@ -226,7 +225,6 @@ defmodule Ziwoas.SunCalendarTest do
 
   test "reads local times and the year's bounds in the builder's own zone" do
     honolulu = Location.new("Pacific/Honolulu")
-    # 2026-04-10 23:00 UTC is 2026-04-10 13:00 in Honolulu (UTC-10, no DST).
     pv_hour_at(~U[2026-04-10 23:00:00Z], 500.0)
     pv_hour_at(~U[2026-01-01 09:00:00Z], 111.0)
     pv_hour_at(~U[2026-01-01 10:00:00Z], 222.0)

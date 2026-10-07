@@ -1,12 +1,5 @@
 defmodule Ziwoas.Govee.Lan do
-  @moduledoc """
-  The Govee LAN protocol. Commands are JSON datagrams to a lamp's port 4003; a
-  scan goes to the multicast group 239.255.255.250:4001; lamps answer scans and
-  `devStatus` on port 4002, where the bridge listens.
-
-  `datagram/1` builds what to send (pure); `send_datagram/1` sends it from a
-  throwaway UDP socket, one per command.
-  """
+  @moduledoc false
   alias Ziwoas.Govee.Types
 
   @cmd_port 4003
@@ -18,11 +11,6 @@ defmodule Ziwoas.Govee.Lan do
 
   @type datagram :: %{host: String.t(), port: :inet.port_number(), data: String.t()}
 
-  @doc """
-  The datagram for a command: `{:turn, ip, on}`, `{:brightness, ip, value}`,
-  `{:color, ip, %{r:, g:, b:}}`, `{:color_temp, ip, kelvin}`,
-  `{:request_status, ip}` or `:discover`.
-  """
   @spec datagram(tuple | :discover) :: datagram
   def datagram({:turn, ip, on}), do: command(ip, "turn", %{"value" => if(on, do: 1, else: 0)})
   def datagram({:brightness, ip, value}), do: command(ip, "brightness", %{"value" => value})
@@ -54,7 +42,6 @@ defmodule Ziwoas.Govee.Lan do
 
   defp encode(cmd, data), do: JSON.encode!(%{"msg" => %{"cmd" => cmd, "data" => data}})
 
-  @doc "Sends one datagram from a fresh socket (multicast TTL 2, for the scan)."
   @spec send_datagram(datagram) :: :ok | {:error, term}
   def send_datagram(%{host: host, port: port, data: data}) do
     with {:ok, address} <- :inet.parse_address(String.to_charlist(host)),
@@ -67,13 +54,6 @@ defmodule Ziwoas.Govee.Lan do
     end
   end
 
-  # --- Replies --------------------------------------------------------------------
-
-  @doc """
-  A `devStatus` reply as `%{on:, brightness:, color_r:,
-  color_g:, color_b:, color_temp_k:, sku:}`, or nil for anything else, including
-  out-of-range values (never crashes the listener).
-  """
   @spec parse_status(binary) :: map | nil
   def parse_status(payload) do
     with %{"onOff" => on_off} = data <- reply_data(payload),
@@ -98,7 +78,6 @@ defmodule Ziwoas.Govee.Lan do
     end
   end
 
-  @doc "`%{ip:, mac:, sku:}` from a scan reply, else nil."
   @spec parse_scan(binary) :: map | nil
   def parse_scan(payload) do
     case reply_data(payload) do
@@ -121,10 +100,7 @@ defmodule Ziwoas.Govee.Lan do
   defp optional(nil, _fun), do: {:ok, nil}
   defp optional(value, fun), do: fun.(value)
 
-  @doc """
-  A parsed status as store telemetry. Kelvin wins when positive, else the
-  colour (when the lamp sent one).
-  """
+  @doc "A positive kelvin wins over the colour."
   @spec telemetry(map) :: map
   def telemetry(status) do
     telemetry = %{on: status.on, reachable: true}

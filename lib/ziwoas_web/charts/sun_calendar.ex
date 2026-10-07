@@ -1,10 +1,5 @@
 defmodule ZiwoasWeb.Charts.SunCalendar do
-  @moduledoc """
-  The geometry of the sun calendar (`ZiwoasWeb.Components.SunCalendar`): the
-  three strips of day × hour and the daily energy bars, each in a wide frame
-  and a narrow one for the phone. `view/1` computes everything the template
-  draws, once per render.
-  """
+  @moduledoc false
   import ZiwoasWeb.Format, only: [date: 1, day_month: 1, number: 2]
 
   alias Ziwoas.SunCalendar
@@ -29,7 +24,6 @@ defmodule ZiwoasWeb.Charts.SunCalendar do
   @month_label_lift 6
   @axis_label_gap 5
   @month_label_gap 5
-  # At the phone's size an hour label in the top rows would touch the month labels.
   @hour_label_clear_rows 2
 
   @strips %{
@@ -160,7 +154,6 @@ defmodule ZiwoasWeb.Charts.SunCalendar do
     }
   end
 
-  # A phone shows no SVG tooltips.
   defp hits(:wide, plot, shared), do: Plot.hits(plot, shared.doys, shared.titles)
   defp hits(_frame, _plot, _shared), do: []
 
@@ -197,8 +190,7 @@ defmodule ZiwoasWeb.Charts.SunCalendar do
 
   defp first_doy(year, month), do: Date.day_of_year(Date.new!(year, month, 1))
 
-  # Unmeasured hours get cells too: the ramp's low end is translucent, so a
-  # ground under the whole plot would tint every quiet hour.
+  # Unmeasured hours get cells too: under the translucent low end a full ground would tint them.
   defp cells(strip, ramp, hours, doys, wide_plot) do
     hours
     |> Enum.flat_map(&row_runs(strip, ramp, &1, doys))

@@ -1,7 +1,6 @@
 const DEBOUNCE_MS = 250
 
-// The colour wheel: the native picker fires while the hand moves, so its colour is sent
-// debounced as "light_command". Swatches, sliders and tabs are plain LiveView bindings.
+// The native picker fires while the hand moves, hence the debounce.
 export default {
   mounted() {
     this.el.addEventListener("input", () => {

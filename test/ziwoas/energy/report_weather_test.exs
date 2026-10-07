@@ -24,7 +24,6 @@ defmodule Ziwoas.Energy.ReportWeatherTest do
 
     assert Map.keys(daily) == [~D[2026-05-01]]
     assert_in_delta daily[~D[2026-05-01]].solar_kwh_per_m2, 0.65, 0.001
-    # rain dominates day-only severity vs clear / partly-cloudy
     assert daily[~D[2026-05-01]].daytime == "day"
     assert daily[~D[2026-05-01]].icon == "rain"
   end

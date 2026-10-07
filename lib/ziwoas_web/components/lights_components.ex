@@ -1,10 +1,5 @@
 defmodule ZiwoasWeb.LightsComponents do
-  @moduledoc """
-  A lamp on the Schalten page and on its own page: the tile, the power hero
-  with its zones, the brightness, white, colour and scene panels, the toast and
-  the settings form. The controls send `"light_command"` with `command` and its
-  parameters (`ZiwoasWeb.LightEvents`); the tile adds `light_key`.
-  """
+  @moduledoc false
   use ZiwoasWeb, :html
 
   alias Ziwoas.Lights
@@ -32,7 +27,6 @@ defmodule ZiwoasWeb.LightsComponents do
     "backgroundLightToggle" => "Ring"
   }
 
-  # The bridge only gives scene names, so names that say what they look like get a matching palette.
   @palettes [
     {~r/aurora|nordlicht|northern/u,
      ["hsl(150 70% 45%)", "hsl(175 70% 42%)", "hsl(270 55% 55%)"]},
@@ -59,8 +53,6 @@ defmodule ZiwoasWeb.LightsComponents do
     {~r/christmas|weihnacht|xmas/u, ["hsl(355 75% 48%)", "hsl(140 55% 35%)"]},
     {~r/autumn|herbst|\bfall\b/u, ["hsl(25 80% 50%)", "hsl(45 85% 52%)"]}
   ]
-
-  # --- The Schalten tile -------------------------------------------------------------
 
   attr :snapshot, Snapshot, required: true
 
@@ -125,7 +117,6 @@ defmodule ZiwoasWeb.LightsComponents do
     "lamp_#{type}_#{if on, do: "on", else: "off"}.webp"
   end
 
-  @doc "`#rrggbb` of the lamp's colour, nil without one."
   @spec color_hex(Snapshot.t()) :: String.t() | nil
   def color_hex(snapshot) do
     case Lights.rgb(snapshot) do
@@ -146,8 +137,6 @@ defmodule ZiwoasWeb.LightsComponents do
       true -> "An · Farbe"
     end
   end
-
-  # --- The hero ------------------------------------------------------------------------
 
   attr :snapshot, Snapshot, required: true
 
@@ -228,12 +217,9 @@ defmodule ZiwoasWeb.LightsComponents do
 
   defp zone_label(key), do: Map.fetch!(@zone_labels, key)
 
-  # --- The panels -----------------------------------------------------------------
-
   attr :brightness, :integer, required: true
   attr :revert, :integer, default: nil, doc: "set anew to put a focused thumb back"
 
-  @doc "The brightness slider: a form, so the server hears it debounced."
   def brightness_panel(assigns) do
     assigns = assign(assigns, :fill, share(assigns.brightness, 1, 100) * 100)
 
@@ -384,10 +370,6 @@ defmodule ZiwoasWeb.LightsComponents do
   attr :zone_lamp, :boolean, default: false
   attr :hidden, :boolean, default: false
 
-  @doc """
-  The swatches are radios that send their colour; the wheel is the
-  `LightDetail` hook, which sends what the native picker chose, debounced.
-  """
   def color_panel(assigns) do
     custom = not is_nil(assigns.color) and assigns.color not in @swatches
 
@@ -460,7 +442,6 @@ defmodule ZiwoasWeb.LightsComponents do
         do: {:"phx-value-#{name}", Integer.to_string(String.to_integer(byte, 16))}
   end
 
-  @doc "`#rrggbb` of a colour command's `%{r:, g:, b:}`."
   @spec hex(%{r: 0..255, g: 0..255, b: 0..255}) :: String.t()
   def hex(%{r: r, g: g, b: b}), do: rgb_hex({r, g, b})
 
@@ -548,7 +529,6 @@ defmodule ZiwoasWeb.LightsComponents do
     """
   end
 
-  @doc "The toast after a zone change: an eviction or nothing."
   def toast_assigns(_light, :clear), do: %{message: nil, undo: nil}
 
   def toast_assigns(light, %{evicted: evicted, added: added}) do
@@ -560,7 +540,6 @@ defmodule ZiwoasWeb.LightsComponents do
     }
   end
 
-  # A lamp control: the "light_command" event with the command's parameters.
   defp command(key, command, params) do
     values = for {name, value} <- params, do: {:"phx-value-#{name}", to_string(value)}
 
@@ -571,17 +550,10 @@ defmodule ZiwoasWeb.LightsComponents do
     ] ++ values
   end
 
-  # --- Settings -------------------------------------------------------------------------
-
   attr :form, Phoenix.HTML.Form, required: true
   attr :plugs, :list, required: true
 
-  @doc """
-  The settings as a modal sheet, the `SettingsSheet` hook: it opens the dialog
-  (the browser owns `open`, so a patch from `validate_settings` keeps it open),
-  closes it on the backdrop and on `data-dismiss="dialog"`, and tells the
-  LiveView when it closed (`"close_settings"`).
-  """
+  @doc "The browser owns the dialog's `open`, so a patch from `validate_settings` keeps it open."
   def settings_sheet(assigns) do
     ~H"""
     <dialog

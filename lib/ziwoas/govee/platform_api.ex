@@ -1,14 +1,5 @@
 defmodule Ziwoas.Govee.PlatformApi do
-  @moduledoc """
-  Govee's documented, API-key-only cloud API. The status code lives in the JSON
-  body, not in HTTP's. Every call returns `{:ok, value}` or `{:error, reason}`:
-  `{:http_status, status}`, `{:api, code, message}`, `:invalid_json` or the
-  transport's exception.
-  Every call counts against Govee's daily request quota.
-
-  `api` is `%{key: api_key, req: keyword}`; `req` are extra Req options
-  (`Ziwoas.Http`); tests pass `plug:`.
-  """
+  @moduledoc "Govee's status code lives in the JSON body, not in HTTP's."
   @base "https://openapi.api.govee.com"
 
   import Bitwise
@@ -28,7 +19,6 @@ defmodule Ziwoas.Govee.PlatformApi do
          do: {:ok, List.wrap(body["data"])}
   end
 
-  @doc "The capability states of a lamp, flattened to `%{instance => value}`."
   @spec state(api, String.t(), String.t()) :: {:ok, map} | {:error, error}
   def state(api, sku, device) do
     with {:ok, body} <-
@@ -36,7 +26,6 @@ defmodule Ziwoas.Govee.PlatformApi do
          do: {:ok, flatten_state(body)}
   end
 
-  @doc "A state response's capabilities as `%{instance => value}` (later instances win)."
   @spec flatten_state(map) :: map
   def flatten_state(body) do
     caps = get_in(body, ["payload", "capabilities"]) || []
@@ -60,10 +49,7 @@ defmodule Ziwoas.Govee.PlatformApi do
     end
   end
 
-  @doc """
-  A state's capabilities (`state/3`) as store telemetry: an unreachable lamp
-  is never on, whatever the cloud remembers. Numbers may come as strings.
-  """
+  @doc "An unreachable lamp is never on, whatever the cloud remembers."
   @spec telemetry(map, [String.t()]) :: {:ok, map} | :error
   def telemetry(map, zone_keys) do
     online = Map.get(map, "online", true)
@@ -109,7 +95,6 @@ defmodule Ziwoas.Govee.PlatformApi do
     end
   end
 
-  # Lenient: the cloud sends numbers or numeric strings; anything else counts as 0.
   defp to_int(value) when is_integer(value), do: value
   defp to_int(value) when is_float(value), do: trunc(value)
 
@@ -122,7 +107,6 @@ defmodule Ziwoas.Govee.PlatformApi do
 
   defp to_int(_value), do: 0
 
-  @doc "Switches a capability (`sku:, device:, type:, instance:, value:`)."
   @spec control(api, keyword) :: {:ok, true} | {:error, error}
   def control(api, opts) do
     payload = %{

@@ -1,5 +1,4 @@
 defmodule ZiwoasWeb.SunChartsTest do
-  # The PV page's SVG charts: the sun calendar and the shading report's three charts.
   use ExUnit.Case, async: true
 
   import Phoenix.LiveViewTest, only: [render_component: 2]

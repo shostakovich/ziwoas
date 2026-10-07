@@ -1,5 +1,5 @@
 defmodule Ziwoas.Plugs.DailyTotal do
-  @moduledoc "Energy of one plug on one local day (`daily_totals`); the date is stored as ISO text."
+  @moduledoc false
   use Ziwoas.Schema
 
   @primary_key false
