@@ -82,3 +82,38 @@ plugs:
 #   - id: "112233445566"
 #     name: "Balkon"
 #     type: outdoor_meter
+
+# Rails → Phoenix handover (ADR-0006, issue #158). Every task belongs to exactly one
+# app; a task missing here, or the whole section missing, stays with Rails. Modes:
+#   rails    Rails runs it, Phoenix leaves it alone
+#   shadow   Rails runs it; Phoenix runs it too, reads devices, writes only the shadow
+#            database (ZIWOAS_SHADOW_DB) – compare with script/shadow_compare
+#   dry_run  like shadow, for tasks that switch or push: Phoenix decides and logs, sends nothing
+#   phoenix  Phoenix runs it, Rails skips it
+# Owners are read at boot: restart every Rails process (web, jobs, collector) and Phoenix
+# after a change, the side that gives a task up first. Whoever acts for a task holds its
+# lease (table migration_leases): should both sides claim one, the second refuses to act and
+# logs an error, and a hand-over waits until the old holder's heartbeat is 60 s old.
+# migration:
+#   owners:
+#     # Jobs and connections that read devices or services: rails | shadow | phoenix
+#     aggregator: rails        # AggregatorJob: samples_5min, daily_totals, summaries, PV hours, backup
+#     weather: rails           # Weather{Current,Today,Forecast,Historic}Job: weather_records
+#     sensor_poll: rails       # SensorPollJob + its TRMNL sensors push: sensor_readings
+#     solakon_monitor: rails   # Solakon::MonitorJob readings + Solakon::SnapshotJob (Modbus reads)
+#     plug_ingest: rails       # collector: Shelly MQTT status -> samples, plug_states
+#     light_ingest: rails      # collector: govees/+/{config,state} -> lights, light_states;
+#                              # moves to phoenix with switching, lights, switch_schedule, light_settings
+#     fritz_bridge: rails      # collector: Fritz!Box DECT polling -> MQTT
+#     govee_bridge: rails      # collector: Govee LAN/API <-> MQTT (executes govees/+/set)
+#     # Tasks that switch devices or push out: rails | dry_run | phoenix
+#     trmnl_push: rails        # TrmnlPushJob: the energy widget
+#     switching: rails         # ScheduleTickJob + POST /plugs/:id/switch (group: see light_ingest)
+#     lights: rails            # POST /lights/:key/command (group: see light_ingest)
+#     solakon_control: rails   # control tick + PATCH /solakon/eps, /solakon/control;
+#                              # moves to phoenix together with solakon_monitor;
+#                              # dry_run needs solakon_monitor: shadow
+#     # Forms that write: rails | phoenix
+#     economics: rails         # cost items and electricity prices
+#     switch_schedule: rails   # Zeitfenster and Einzelschaltungen (group: see light_ingest)
+#     light_settings: rails    # PATCH /lights/:key (group: see light_ingest)

@@ -1,9 +1,0 @@
-<% content_for :title, "Wetter" %>
-<h1 class="h2 mb-3">Wetter</h1>
-
-<%= turbo_stream_from "weather" %>
-
-<%= render "empty", current_weather: @current_weather, today_weather: @today_weather, future_weather: @future_weather %>
-<%= render "current", current_weather: @current_weather, outdoor_sensor_reading: @outdoor_sensor_reading %>
-<%= render "today", today_weather: @today_weather %>
-<%= render "forecast", future_weather: @future_weather %>

@@ -1,6 +1,0 @@
-<% content_for :title, "Sensoren" %>
-<% content_for :main_class, "app-main-wide" %>
-<%= turbo_stream_from "sensors" %>
-
-<h1 class="h2 mb-3">Sensoren</h1>
-<%= render "dashboard", sensors: @sensors, latest: @latest %>

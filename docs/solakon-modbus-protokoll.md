@@ -28,7 +28,7 @@
 
 | Eigenschaft | Wert | Quelle |
 |-------------|------|--------|
-| Transport | **Modbus TCP** | `ModBus::TCPClient.connect` ([solakon/client.rb:115](../lib/solakon/client.rb#L115)), Gem `rmodbus` |
+| Transport | **Modbus TCP** | `ModBus::TCPClient.connect` ([solakon/client.rb:115](../lib/solakon/client.rb#L115)), Gem `rmodbus`; im Phoenix-Port `Ziwoas.Solakon.Modbus` (`:gen_tcp`, FC03/FC06/FC16, dieselben Register in derselben Reihenfolge und dieselben Frames wie rmodbus; geschrieben wird nur, solange Phoenix `solakon_control` besitzt) |
 | Registertyp | **Holding Registers** (FC03 lesen / FC06 + FC16 schreiben) | [solakon/client.rb:5-8](../lib/solakon/client.rb#L5) |
 | Word-Order (32-Bit) | **Big-Endian, High Word First** | `to_i32` / `from_i32` ([solakon/client.rb:130-138](../lib/solakon/client.rb#L130)) |
 | Host | `solakon.host` (z. B. `192.168.1.50`) | [`config/ziwoas.example.yml`](../config/ziwoas.example.yml) |

@@ -1,9 +1,0 @@
-<%= content_tag(as, class: css_classes, **attributes) do %>
-  <div class="card-body">
-    <% if title.present? %>
-      <%= content_tag(heading_tag, title, class: "card-title") %>
-      <% if subtitle.present? %><p class="card-subtitle"><%= subtitle %></p><% end %>
-    <% end %>
-    <%= content %>
-  </div>
-<% end %>

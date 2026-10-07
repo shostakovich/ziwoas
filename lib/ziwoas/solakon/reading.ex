@@ -1,0 +1,170 @@
+defmodule Ziwoas.Solakon.Reading do
+  @moduledoc """
+  One polled reading of the Solakon inverter (`solakon_readings`), with the
+  read side of Rails' `Solakon::Reading`: freshness, the battery character and
+  the decoded status.
+  """
+  use Ziwoas.Schema
+
+  import Ecto.Query
+
+  alias Ziwoas.Repo
+
+  @min_soc_pct 10
+  @resume_soc_pct 11
+  @low_soc_pct 20
+  # Thermal de-rating starts here (full output ceiling) and protection ends below it.
+  @hot_temp_c 45.0
+  @cold_temp_c 5.0
+  # De-rating reaches zero: 1 °C below the inverter's own 50 °C curtailment.
+  @cutoff_temp_c 49.0
+  @charge_deadband_w 10
+  @pv_present_w 50
+  @stale_after_s 120
+
+  @type t :: %__MODULE__{}
+
+  def min_soc_pct, do: @min_soc_pct
+  def low_soc_pct, do: @low_soc_pct
+  def hot_temp_c, do: @hot_temp_c
+  def cutoff_temp_c, do: @cutoff_temp_c
+  def cold_temp_c, do: @cold_temp_c
+  def charge_deadband_w, do: @charge_deadband_w
+  def stale_after_s, do: @stale_after_s
+
+  schema "solakon_readings" do
+    field :active_power_w, :float
+    field :alarm1, :integer
+    field :alarm2, :integer
+    field :alarm3, :integer
+    field :battery_current_a, :float
+    field :battery_power_w, :float
+    field :battery_soc_pct, :integer
+    field :battery_temperature_c, :float
+    field :battery_voltage_v, :float
+    field :eps_enabled, :boolean
+    field :eps_power_w, :float
+    field :eps_voltage_v, :float
+    field :inverter_temperature_c, :float
+    field :pv_power_w, :float
+    field :status1, :integer
+    field :status3, :integer
+    field :taken_at, Ziwoas.Ecto.RailsDateTime
+    timestamps()
+  end
+
+  @state_columns [
+    :active_power_w,
+    :pv_power_w,
+    :battery_power_w,
+    :battery_temperature_c,
+    :battery_voltage_v,
+    :battery_current_a,
+    :inverter_temperature_c,
+    :status1,
+    :status3,
+    :alarm1,
+    :alarm2,
+    :alarm3,
+    :eps_enabled,
+    :eps_voltage_v,
+    :eps_power_w
+  ]
+
+  @doc """
+  `Reading.from_state` plus the model's validations: a changeset for a decoded
+  `Ziwoas.Solakon.Client.read_state/1` taken at `taken_at`.
+  """
+  @spec from_state(map, DateTime.t()) :: Ecto.Changeset.t()
+  def from_state(state, taken_at) do
+    attrs =
+      state
+      |> Map.take(@state_columns)
+      |> Map.merge(%{battery_soc_pct: state.battery_soc, taken_at: taken_at})
+
+    %__MODULE__{}
+    |> Ecto.Changeset.cast(attrs, [:battery_soc_pct, :taken_at | @state_columns])
+    |> Ecto.Changeset.validate_required([
+      :taken_at,
+      :active_power_w,
+      :pv_power_w,
+      :battery_power_w,
+      :battery_soc_pct
+    ])
+    |> Ecto.Changeset.validate_number(:battery_soc_pct,
+      greater_than_or_equal_to: 0,
+      less_than_or_equal_to: 100
+    )
+  end
+
+  @doc "The newest reading, or nil (`newest_first.first`)."
+  @spec newest() :: t | nil
+  def newest, do: Repo.one(from r in __MODULE__, order_by: [desc: r.taken_at], limit: 1)
+
+  @doc "The newest reading taken at or after `now - stale_after_s`, or nil."
+  @spec latest_fresh(DateTime.t(), integer) :: t | nil
+  def latest_fresh(now, stale_after_s \\ @stale_after_s) do
+    since = DateTime.add(now, -stale_after_s)
+
+    Repo.one(
+      from r in __MODULE__,
+        where: r.taken_at >= type(^since, Ziwoas.Ecto.RailsDateTime),
+        order_by: [desc: r.taken_at],
+        limit: 1
+    )
+  end
+
+  # The control's thresholds (Rails' predicates on Solakon::Reading).
+  def soc_below_minimum?(%__MODULE__{battery_soc_pct: soc}), do: soc <= @min_soc_pct
+  def soc_at_resume?(%__MODULE__{battery_soc_pct: soc}), do: soc >= @resume_soc_pct
+
+  def battery_hot?(%__MODULE__{battery_temperature_c: temp}),
+    do: not is_nil(temp) and temp >= @hot_temp_c
+
+  def battery_cooled?(%__MODULE__{battery_temperature_c: temp}),
+    do: is_nil(temp) or temp < @hot_temp_c
+
+  def pv_present?(%__MODULE__{pv_power_w: pv}), do: Ziwoas.RubyNumeric.to_f(pv) >= @pv_present_w
+
+  @doc "Charging positive, discharging negative, as the inverter reports it."
+  @spec battery_display_power_w(t) :: float
+  def battery_display_power_w(%__MODULE__{battery_power_w: watts}),
+    do: Ziwoas.RubyNumeric.to_f(watts)
+
+  @doc "The battery character the UI shows; a fault wins, then thermal, then charge level and flow."
+  @spec battery_state(t) :: String.t()
+  def battery_state(%__MODULE__{} = reading) do
+    power = battery_display_power_w(reading)
+    temp = reading.battery_temperature_c
+
+    cond do
+      Enum.any?(
+        [reading.alarm1, reading.alarm2, reading.alarm3],
+        &(Ziwoas.RubyNumeric.to_i(&1) > 0)
+      ) ->
+        "fault"
+
+      not is_nil(temp) and temp >= @hot_temp_c ->
+        "hot"
+
+      not is_nil(temp) and temp <= @cold_temp_c ->
+        "cold"
+
+      not is_nil(reading.battery_soc_pct) and reading.battery_soc_pct <= @low_soc_pct ->
+        "low"
+
+      power > @charge_deadband_w ->
+        "charging"
+
+      power < -@charge_deadband_w ->
+        "discharging"
+
+      true ->
+        "normal"
+    end
+  end
+
+  @spec status_messages(t) :: [String.t()]
+  def status_messages(%__MODULE__{} = reading),
+    do: Ziwoas.Solakon.status_messages(reading, [])
+end

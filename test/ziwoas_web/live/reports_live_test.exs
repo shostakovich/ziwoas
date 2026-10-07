@@ -1,0 +1,273 @@
+defmodule ZiwoasWeb.ReportsLiveTest do
+  # Mirrors test/controllers/reports_controller_test.rb on the disconnected render;
+  # markup parity with Rails is the golden master's job.
+  use ZiwoasWeb.ConnCase, async: true, db: true
+
+  import Phoenix.LiveViewTest
+
+  alias Ziwoas.{Clock, Repo}
+  alias Ziwoas.EnergyReport.DailyEnergySummary
+  alias Ziwoas.Plugs.DailyTotal
+  alias Ziwoas.Weather.Record
+
+  setup do
+    Clock.freeze("2026-04-10T12:00:00+02:00")
+    :ok
+  end
+
+  defp total!(plug_id, date, energy_wh),
+    do: Repo.insert!(%DailyTotal{plug_id: plug_id, date: date, energy_wh: energy_wh * 1.0})
+
+  defp page(conn, params \\ []),
+    do: conn |> get(~p"/reports?#{params}") |> html_response(200) |> LazyHTML.from_document()
+
+  defp texts(doc, selector),
+    do: doc |> LazyHTML.query(selector) |> Enum.map(&squish(LazyHTML.text(&1)))
+
+  defp count(doc, selector), do: doc |> LazyHTML.query(selector) |> Enum.count()
+  defp attr(doc, selector, name), do: doc |> LazyHTML.query(selector) |> LazyHTML.attribute(name)
+  defp squish(text), do: text |> String.split() |> Enum.join(" ")
+
+  test "reports page renders", %{conn: conn} do
+    doc = page(conn)
+
+    assert texts(doc, "h1") == ["Berichte"]
+    assert count(doc, "section[aria-label='Zeitraum']") == 1
+    assert texts(doc, "title") == ["Berichte"]
+    assert texts(doc, "nav[aria-label=Hauptnavigation] a.active") == ["Berichte"]
+    assert count(doc, "main.app-main-wide") == 1
+  end
+
+  test "reports page accepts custom range params", %{conn: conn} do
+    doc = page(conn, start_date: "2026-04-01", end_date: "2026-04-07")
+
+    assert count(doc, "input[name='start_date'][value='2026-04-01']") == 1
+    assert count(doc, "input[name='end_date'][value='2026-04-07']") == 1
+  end
+
+  test "the date fields echo what was typed, as Rails' params do", %{conn: conn} do
+    total!("bkw", "2026-04-10", 2000)
+    doc = page(conn, start_date: "20260401", end_date: "2026-W15-2")
+
+    assert attr(doc, "#start_date", "value") == ["20260401"]
+    assert attr(doc, "#end_date", "value") == ["2026-W15-2"]
+    assert attr(doc, "#end_date", "min") == ["2026-04-01"]
+    assert texts(doc, ".alert") == []
+  end
+
+  test "the weather switch says what it does", %{conn: conn} do
+    total!("bkw", "2026-04-10", 2000)
+
+    Repo.insert!(%Record{
+      kind: "historic",
+      lat: 52.52,
+      lon: 13.405,
+      timestamp: ~U[2026-04-03 10:00:00.000000Z],
+      daytime: "day",
+      icon: "clear-day",
+      solar: 0.5
+    })
+
+    doc = page(conn, start_date: "2026-04-01", end_date: "2026-04-07")
+
+    assert texts(doc, "label[for='report-daily-weather']") == ["Wetter einblenden"]
+
+    assert attr(doc, "#report-daily-weather", "data-action") == [
+             "change->energy-report#toggleDailyWeather"
+           ]
+
+    assert count(doc, "script[data-energy-report-target='weatherAssets']") == 1
+  end
+
+  test "a custom range marks Benutzerdefiniert, not a preset, as active", %{conn: conn} do
+    total!("bkw", "2026-04-10", 2000)
+    doc = page(conn, start_date: "2026-04-01", end_date: "2026-04-07")
+
+    assert texts(doc, ".btn-group[aria-label='Schnellauswahl'] .btn.active") == [
+             "Benutzerdefiniert"
+           ]
+
+    assert count(doc, ".btn-group[aria-label='Schnellauswahl'] a[aria-current]") == 0
+  end
+
+  test "the active preset is marked as the current page", %{conn: conn} do
+    total!("bkw", "2026-04-10", 2000)
+    doc = page(conn, preset: "last_30")
+
+    assert count(doc, ".btn-group[aria-label='Schnellauswahl'] a.btn") == 2
+
+    assert texts(doc, ".btn-group[aria-label='Schnellauswahl'] a.btn.active[aria-current='page']") ==
+             ["Letzte 30 Tage"]
+
+    assert count(doc, ".btn-group[aria-label='Schnellauswahl'] .btn.active") == 1
+
+    assert attr(doc, ".btn-group a", "href") == [
+             "/reports?preset=last_7",
+             "/reports?preset=last_30"
+           ]
+  end
+
+  test "the date form labels its fields and submits without a commit param", %{conn: conn} do
+    doc = page(conn)
+    form = LazyHTML.query(doc, "form[action='/reports'][method='get']")
+
+    assert texts(form, "label.form-label[for='start_date']") == ["Von"]
+    assert texts(form, "label.form-label[for='end_date']") == ["Bis"]
+    assert count(form, "input.form-control#start_date[type='date']") == 1
+    assert count(form, "input.form-control#end_date[type='date']") == 1
+    assert count(form, "input[type='submit'][value='Anwenden']:not([name])") == 1
+  end
+
+  test "an invalid range is reported as a warning", %{conn: conn} do
+    total!("bkw", "2026-04-10", 2000)
+    doc = page(conn, start_date: "2026-04-07", end_date: "2026-04-01")
+
+    assert [warning] = texts(doc, ".alert.alert-warning")
+    assert warning =~ "ungueltig"
+  end
+
+  test "reports page renders summary ranking and chart payload", %{conn: conn} do
+    total!("bkw", "2026-04-10", 2000)
+    doc = page(conn)
+
+    assert count(doc, "section[aria-label='Zusammenfassung'] .stat") == 8
+
+    assert texts(doc, "section[aria-label='Zusammenfassung'] .stat-label") == [
+             "Ertrag",
+             "Verbrauch",
+             "Gespart",
+             "Bilanz",
+             "Autarkie",
+             "Eigen­verbrauchs­quote",
+             "Ø Ertrag/Tag",
+             "Ø Verbrauch/Tag"
+           ]
+
+    headings = texts(doc, "main h2")
+    refute "Zeitraum" in headings
+    refute "Zusammenfassung" in headings
+    assert "Steckdosen" in headings
+    assert "kWh je Tag · Ertrag und Verbrauch" in texts(doc, ".card-subtitle")
+    assert "Leistung" in texts(doc, ".card-title")
+    assert count(doc, ".card .chart-frame") >= 2
+    assert count(doc, "ul.list-group[aria-label='Erzeugung'] > li.list-group-item") == 1
+    assert count(doc, "[data-energy-report-target='dailyCanvas']") == 1
+    assert count(doc, "[data-energy-report-target='detailCanvas']") == 1
+    assert count(doc, "script[data-energy-report-target='payload']") == 1
+  end
+
+  test "the payload keeps Rails' key order and escaping", %{conn: conn} do
+    total!("bkw", "2026-04-10", 2000)
+    body = conn |> get(~p"/reports") |> html_response(200)
+
+    assert [_, json] =
+             Regex.run(~r{data-energy-report-target="payload">(.*?)</script>}s, body)
+
+    assert json =~ ~r/\A\{"daily":\{"labels":\["04\.04\.",/
+    assert json =~ ~s("detail":{"chart_type":"line","labels":[)
+    assert JSON.decode!(json)["daily"]["produced_kwh"] == [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+  end
+
+  test "the producer stands apart from the numbered consumers, each bar in its dashboard colour",
+       %{conn: conn} do
+    total!("bkw", "2026-04-10", 2000)
+    total!("fridge", "2026-04-10", 500)
+    doc = page(conn)
+
+    producer =
+      LazyHTML.query(doc, "ul.list-group[aria-label='Erzeugung'] > li[data-plug-id='bkw']")
+
+    assert count(producer, "img[alt='Erzeuger']") == 1
+
+    assert attr(producer, ".progress-bar", "style") == [
+             "width: 100.0%; background-color: var(--viz-solar)"
+           ]
+
+    assert count(doc, "ol.list-group[aria-label='Rangliste'] > li") == 1
+
+    consumer =
+      LazyHTML.query(doc, "ol.list-group[aria-label='Rangliste'] > li[data-plug-id='fridge']")
+
+    assert texts(consumer, ".col-1") == ["1"]
+
+    assert attr(consumer, ".progress-bar", "style") == [
+             "width: 25.0%; background-color: var(--viz-1)"
+           ]
+
+    assert texts(consumer, ".text-end") == ["0,50 kWh"]
+    assert count(consumer, ".order-last.order-sm-0 > .progress") == 1
+  end
+
+  test "reports page orders widgets like the dashboard", %{conn: conn} do
+    total!("bkw", "2026-04-10", 2000)
+
+    assert ["Steckdosen", "Energie", "Leistung", "Autarkie & Eigenverbrauchsquote"] =
+             texts(page(conn), "main h2")
+  end
+
+  test "reports page describes the power chart resolution", %{conn: conn} do
+    for i <- 0..29,
+        do: total!("bkw", Date.to_iso8601(Date.add(~D[2026-04-01], i)), 2000)
+
+    assert "Watt · Tagesmittel · 01.04.–30.04." in texts(
+             page(conn, preset: "last_30"),
+             ".card-subtitle"
+           )
+  end
+
+  test "the power chart's range names the year only when it is not this one", %{conn: conn} do
+    for i <- 0..2, do: total!("bkw", Date.to_iso8601(Date.add(~D[2026-04-01], i)), 2000)
+    range = [start_date: "2026-04-01", end_date: "2026-04-03"]
+
+    assert "Watt · 5-Min-Werte · 01.04.–03.04." in texts(page(conn, range), ".card-subtitle")
+
+    Clock.freeze("2027-01-10T12:00:00+01:00")
+
+    assert "Watt · 5-Min-Werte · 01.04.2026–03.04.2026" in texts(
+             page(conn, range),
+             ".card-subtitle"
+           )
+  end
+
+  test "a range without any data shows zeros and no ranking", %{conn: conn} do
+    total!("bkw", "2026-04-10", 2000)
+    doc = page(conn, start_date: "2020-01-01", end_date: "2020-01-07")
+
+    assert texts(doc, ".stat-value") |> hd() == "0,00 kWh"
+    assert texts(doc, "p.small.text-body-secondary") == ["Keine Daten"]
+  end
+
+  test "reports page shows empty state without data", %{conn: conn} do
+    doc = page(conn)
+
+    assert texts(doc, ".card .card-title") == ["Noch keine Berichtsdaten"]
+    assert hd(texts(doc, ".card p")) =~ "sobald die erste Tagesaggregation vorhanden ist"
+    assert attr(doc, "#start_date", "value") == ["2026-04-10"]
+  end
+
+  test "reports page renders Autarkie & Eigenverbrauchsquote section", %{conn: conn} do
+    total!("bkw", "2026-04-10", 2000)
+
+    Repo.insert!(%DailyEnergySummary{
+      date: "2026-04-10",
+      produced_wh: 2000.0,
+      consumed_wh: 1000.0,
+      self_consumed_wh: 500.0
+    })
+
+    doc = page(conn)
+
+    assert "Autarkie & Eigenverbrauchsquote" in texts(doc, ".card-title")
+    assert count(doc, "[data-energy-report-target='ratiosCanvas']") == 1
+    assert "50,0 %" in texts(doc, ".stat-value")
+  end
+
+  test "mounts connected, on the test's database", %{conn: conn} do
+    total!("bkw", "2026-04-10", 2000)
+    {:ok, view, _html} = live(conn, ~p"/reports?preset=last_30")
+    doc = view |> render() |> LazyHTML.from_fragment()
+
+    assert "Steckdosen" in texts(doc, "h2")
+    assert attr(doc, ".btn-group a[aria-current=page]", "href") == ["/reports?preset=last_30"]
+  end
+end

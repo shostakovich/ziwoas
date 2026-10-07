@@ -1,9 +1,8 @@
 name: Build and publish container
 
+# Manual only: the Dockerfile still builds the removed Rails app and does not work until
+# Phase 4 brings a new one; a merge to main must not overwrite `latest` meanwhile.
 on:
-  push:
-    branches: [main]
-    tags: ['v*.*.*']
   workflow_dispatch:
 
 env:
@@ -12,18 +11,37 @@ env:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    env:
+      MIX_ENV: test
     steps:
       - uses: actions/checkout@v7
 
-      - name: Set up Ruby
-        uses: ruby/setup-ruby@v1
+      - name: Set up Erlang/OTP and Elixir
+        uses: erlef/setup-beam@v1
         with:
-          ruby-version: '4.0.7'
-          bundler-cache: true
+          version-file: .tool-versions
+          version-type: strict
+
+      - name: Cache deps and build
+        uses: actions/cache@v6
+        with:
+          path: |
+            deps
+            _build
+          key: mix-${{ runner.os }}-${{ hashFiles('.tool-versions', 'mix.lock') }}
+
+      - name: Fetch deps
+        run: mix deps.get
+
+      - name: Check formatting
+        run: mix format --check-formatted
+
+      - name: Compile
+        run: mix compile --warnings-as-errors
 
       - name: Run tests
-        run: bundle exec rake test
+        run: mix test
 
   build:
     needs: test

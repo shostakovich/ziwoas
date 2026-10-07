@@ -1,0 +1,54 @@
+defmodule ZiwoasWeb.WeatherLive do
+  @moduledoc """
+  The Wetter page (Rails' `WeatherController#index`). Rails refreshes it over
+  the `weather` Turbo stream; here a `{:weather_updated}` on the `weather`
+  PubSub topic reloads it once something publishes there.
+  """
+  use ZiwoasWeb, :live_view
+
+  import ZiwoasWeb.WeatherComponents
+
+  alias Ziwoas.{Clock, Config, Sensors, Weather}
+
+  @topic "weather"
+
+  @impl true
+  def mount(_params, _session, socket) do
+    if connected?(socket), do: Phoenix.PubSub.subscribe(Ziwoas.PubSub, @topic)
+    {:ok, socket |> assign(:page_title, "Wetter") |> load()}
+  end
+
+  @impl true
+  def handle_info({:weather_updated}, socket), do: {:noreply, load(socket)}
+
+  @impl true
+  def render(assigns) do
+    ~H"""
+    <Layouts.app look={@look} current_path={@current_path}>
+      <h1 class="h2 mb-3">Wetter</h1>
+
+      <.empty current={@current} today={@today} days={@days} />
+      <.current current={@current} sensor={@sensor} />
+      <.today records={@today} zone={@zone} />
+      <.forecast days={@days} zone={@zone} />
+    </Layouts.app>
+    """
+  end
+
+  defp load(socket) do
+    config = Config.app_config()
+    zone = config.location.timezone
+    now = Clock.now()
+
+    assign(socket,
+      zone: zone,
+      current: Weather.latest_current(),
+      today: Weather.today_hourly(now, zone),
+      days: Weather.future_days(Clock.today(zone), zone),
+      sensor: Sensors.fresh_outdoor(outdoor_sensor_ids(config), now)
+    )
+  end
+
+  defp outdoor_sensor_ids(config),
+    do: for(%{type: :outdoor_meter, id: id} <- config.sensors, do: id)
+end
