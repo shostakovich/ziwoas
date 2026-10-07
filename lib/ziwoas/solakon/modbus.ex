@@ -2,7 +2,7 @@ defmodule Ziwoas.Solakon.Modbus do
   @moduledoc """
   Modbus TCP on `:gen_tcp`: function code 03 (read holding registers), 06 (write
   single register) and 16 (write multiple registers), which is how the Solakon ONE
-  serves every register (`docs/solakon-modbus-protokoll.md` §1).
+  serves every register (`docs/solakon-modbus-protocol.md` §1).
 
   A frame is the MBAP header — transaction id, protocol 0, length, unit id — and
   the PDU. Registers are big-endian 16-bit words; the address is the PDU address.

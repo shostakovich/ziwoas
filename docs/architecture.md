@@ -77,7 +77,7 @@ Ziwoas.Collector
 - **Inverter.** `Ziwoas.Solakon.Monitor` holds the one Modbus TCP connection; every read and
   write goes through it, so requests never interleave. `Ziwoas.Solakon.Modbus` speaks FC03, FC06
   and FC16 on `:gen_tcp`; `Ziwoas.Solakon.Client` knows the registers
-  ([`solakon-modbus-protokoll.md`](solakon-modbus-protokoll.md), skill `solakon-modbus`). After a
+  ([`solakon-modbus-protocol.md`](solakon-modbus-protocol.md), skill `solakon-modbus`). After a
   failure the monitor backs off 1 s → 60 s; a reused connection that fails is retried once on a
   fresh one.
 
