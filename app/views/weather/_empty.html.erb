@@ -1,7 +1,0 @@
-<%= turbo_frame_tag "weather_empty" do %>
-  <% if current_weather.nil? && today_weather.empty? && future_weather.empty? %>
-    <%= render CardComponent.new(title: "Noch keine Wetterdaten") do %>
-      <p>Die Wetteransicht erscheint, sobald Bright Sky Daten geladen hat.</p>
-    <% end %>
-  <% end %>
-<% end %>

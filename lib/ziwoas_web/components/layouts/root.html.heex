@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="de" data-look={@look == "felt" && "felt"}>
+  <head>
+    <title>{assigns[:page_title] || "Ziwoas"}</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+    <meta
+      name="theme-color"
+      content={theme_colors(@look).light}
+      media="(prefers-color-scheme: light)"
+    />
+    <meta
+      name="theme-color"
+      content={theme_colors(@look).dark}
+      media="(prefers-color-scheme: dark)"
+    />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="application-name" content="Ziwoas" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="ziwoas-time-zone" content={time_zone()} />
+    <meta name="csrf-token" content={get_csrf_token()} />
+
+    <link rel="icon" href="/favicon.png" type="image/png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+    <%!-- felt-css first: our stylesheets build on it. --%>
+    <link rel="preconnect" href="https://felt-css.rocu.de" />
+    <link rel="stylesheet" href="https://felt-css.rocu.de/felt.css" />
+    <link phx-track-static rel="stylesheet" href={~p"/assets/css/app.css"} />
+    <script defer phx-track-static type="text/javascript" src={~p"/assets/js/app.js"}>
+    </script>
+  </head>
+  <body>
+    {@inner_content}
+  </body>
+</html>

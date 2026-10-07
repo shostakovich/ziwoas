@@ -1,10 +1,15 @@
 name: Build and publish container
 
+# Publishes only under an explicit tag: a git tag, or one given by hand. Nothing moves
+# `latest`, so the home server runs exactly the tag its compose file names.
 on:
   push:
-    branches: [main]
-    tags: ['v*.*.*']
+    tags: ["v*", "phoenix-*"]
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "Image tag, e.g. phoenix-2026-10-07"
+        required: true
 
 env:
   REGISTRY: ghcr.io
@@ -12,18 +17,40 @@ env:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    env:
+      MIX_ENV: test
     steps:
       - uses: actions/checkout@v7
 
-      - name: Set up Ruby
-        uses: ruby/setup-ruby@v1
+      - name: Set up Erlang/OTP and Elixir
+        uses: erlef/setup-beam@v1
         with:
-          ruby-version: '4.0.7'
-          bundler-cache: true
+          version-file: .tool-versions
+          version-type: strict
+
+      - name: Cache deps and build
+        uses: actions/cache@v6
+        with:
+          path: |
+            deps
+            _build
+          key: mix-${{ runner.os }}-${{ hashFiles('.tool-versions', 'mix.lock') }}
+
+      - name: Fetch deps
+        run: mix deps.get
+
+      - name: Check formatting
+        run: mix format --check-formatted
+
+      - name: Compile
+        run: mix compile --warnings-as-errors
+
+      - name: Credo
+        run: mix credo --strict
 
       - name: Run tests
-        run: bundle exec rake test
+        run: mix test
 
   build:
     needs: test
@@ -34,9 +61,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v4
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -53,18 +77,17 @@ jobs:
         uses: docker/metadata-action@v6
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          flavor: latest=false
           tags: |
-            type=ref,event=branch
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
+            type=ref,event=tag
+            type=raw,value=${{ inputs.tag }},enable=${{ github.event_name == 'workflow_dispatch' }}
             type=sha,prefix=sha-
-            type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build and push
         uses: docker/build-push-action@v7
         with:
           context: .
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

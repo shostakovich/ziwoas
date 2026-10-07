@@ -45,7 +45,8 @@ _Avoid_: Edge (in German UI text), Event, Trigger
 The deadline within which a missed edge is still made up. After that it lapses for good,
 instead of switching late.
 _German UI_: Karenz
-_Avoid_: Grace Period (in German UI text; the code constant is `GRACE`), Nachlauf, Toleranz
+_Avoid_: Grace Period (in German UI text; in code `Ziwoas.Switching.ScheduleTickJob.grace_s/0`),
+Nachlauf, Toleranz
 
 **Manual switch**:
 A switch command that comes from the human — via the button in the app or on the device
@@ -69,21 +70,21 @@ _Avoid_: Sample (in German UI text), Messung
 **Energy**:
 An amount of energy as one value. Watt-hours are canonical — everything is summed,
 subtracted and compared in Wh; kilowatt-hours are a display conversion, and rounding
-happens only where a number is rendered. `Energy`, `lib/energy.rb`.
+happens only where a number is rendered. `Ziwoas.Energy`.
 _German UI_: Energie
 _Avoid_: kWh value, Wh float
 
 **Offline**:
 A plug from which no measurement has arrived for a while — unplugged, Wi-Fi gone, broker
-dead. The deadline is fixed in `Plugs::Measurement::OFFLINE_AFTER_S` and applies equally to
-all plugs: what's offline is neither shown nor counted. Zero watts isn't offline — a plug
+dead. The deadline is fixed in `Ziwoas.Plugs.Measurement.offline_after_s/0` and applies equally
+to all plugs: what's offline is neither shown nor counted. Zero watts isn't offline — a plug
 with nothing running on it keeps on reporting.
 _German UI_: Offline
 _Avoid_: Stale (that's the inverter's deadline), Stumm, Abgezogen
 
 **Stale**:
 A reading from the inverter that's too old to describe its current state. Its own
-deadline in `Solakon::Reading::STALE_AFTER_S` — a plug and an inverter report at different
+deadline in `Ziwoas.Solakon.Reading.stale_after_s/0` — a plug and an inverter report at different
 intervals for different reasons, which is why there are two deadlines and not one. If the
 reading is stale, the inverter counts as offline and every value derived from it is
 unknown, not zero.
@@ -93,15 +94,15 @@ _Avoid_: Offline (that's the state of a plug), Stale (in German UI text)
 **Panel**:
 One of the inverter's four PV inputs, each carrying a single module. All four are read and
 stored on every reading — a panel without yield reports 0 W, it does not go absent. Total PV
-power is their sum, never a figure stored in its own right. `Solakon::Snapshot#panels`.
+power is their sum, never a figure stored in its own right. `Ziwoas.Solakon.Snapshot.panels/1`.
 _German UI_: Panel
-_Avoid_: String, Strang, MPPT-Eingang. `PV_STRINGS` in `lib/solakon/client.rb` names the
+_Avoid_: String, Strang, MPPT-Eingang. `@pv_strings` in `Ziwoas.Solakon.Client` names the
 Modbus layer, not the domain, and stays.
 
 **Plug roster**:
 The configured plugs together with their roles. The one place that knows who produces and
 who consumes, and which sign a measurement carries — every reader asks the roster instead
-of comparing roles itself. `Plugs::Roster`, reachable as `config.plug_roster`.
+of comparing roles itself. `Ziwoas.Plugs.Roster`, reachable as `Ziwoas.Config.plug_roster/1`.
 _German UI_: Steckdosenverzeichnis
 _Avoid_: Plug list, Registry, Verzeichnis (in German UI text)
 
@@ -115,9 +116,9 @@ _Avoid_: Bucket list, Time series, Samples
 **Live state**:
 The household as it is right now, as one answer: every plug resolved against the **offline**
 deadline, the inverter's newest reading against the **stale** deadline, and the energy flow that
-follows from both. `LiveState`, the only thing `/api/live` renders. It owns neither deadline — it
-is the one place they are applied together, which is why a plug the flow dropped is offline in the
-same payload.
+follows from both. `Ziwoas.LiveState`, what the dashboard and the PV page show live. It owns
+neither deadline — it is the one place they are applied together, which is why a plug the flow
+dropped is offline in the same picture.
 _German UI_: Live-Bild
 _Avoid_: Live data, Snapshot, Live payload, Realtime state
 
@@ -256,7 +257,8 @@ _Avoid_: Abregelung, Abschattung, Curtailment (in German UI text)
 The part of the producer plug's **energy** that the measured consumers took at the same moment:
 per bucket the smaller of production and consumption, summed over the day. A lower bound — what
 unmeasured loads take from the array is real but not provable, and does not count. Battery
-discharge counts, because it leaves the inverter as AC just like PV does. `PowerSeries#self_consumed_wh`.
+discharge counts, because it leaves the inverter as AC just like PV does.
+`Ziwoas.PowerSeries.self_consumed_wh/3`.
 _German UI_: Eigenverbrauch
 _Avoid_: Selbstverbrauch, Direktverbrauch, Gesicherter Eigenverbrauch (gesichert belongs to the
 control's **guaranteed floor**), Eigenverbrauch for the quota (that is **Eigenverbrauchsquote**)

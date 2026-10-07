@@ -1,9 +1,0 @@
-<%# locals: (units:, classes:) -%>
-<%# The gap separates the units, so a narrow key breaks between them without a stray dot. %>
-<% if units.any? %>
-  <ul class="weather-hour-key list-unstyled d-flex flex-wrap column-gap-3 row-gap-0 small text-body-secondary mb-0 <%= classes %>">
-    <% units.each do |unit| %>
-      <li class="text-nowrap"><%= unit %></li>
-    <% end %>
-  </ul>
-<% end %>

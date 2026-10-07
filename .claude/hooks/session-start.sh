@@ -1,75 +1,77 @@
 #!/bin/bash
 # SessionStart hook for Claude Code on the web.
 #
-# Brings a remote container to the point where bin/rubocop, bin/rails test and
-# bin/ci run unattended: Ruby from .ruby-version on PATH, gems installed, a
-# device config in place and the SQLite databases prepared.
+# Brings a remote container to the point where `mix format --check-formatted`,
+# `mix compile --warnings-as-errors` and `mix test` run unattended: Erlang/OTP and
+# Elixir from .tool-versions on PATH, Hex deps fetched and compiled, the esbuild
+# binary installed and a device config in place.
 set -euo pipefail
 
 [ "${CLAUDE_CODE_REMOTE:-}" = "true" ] || exit 0
 
 cd "${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 
-RBENV_ROOT="${RBENV_ROOT:-/opt/rbenv}"
-RUBY_VERSION="$(cat .ruby-version)"
+# Both come precompiled from builds.hex.pm (or the mirror in $HEX_BUILDS_URL, as for
+# Hex itself); versions are pinned once, in .tool-versions, which erlef/setup-beam
+# reads in GitHub Actions as well.
+BUILDS_URL="${HEX_BUILDS_URL:-https://builds.hex.pm}"
+ERLANG_VERSION="$(awk '$1 == "erlang" { print $2 }' .tool-versions)"
+ELIXIR_VERSION="$(awk '$1 == "elixir" { print $2 }' .tool-versions)"
+ERLANG_ROOT="/opt/erlang/${ERLANG_VERSION}"
+ELIXIR_ROOT="/opt/elixir/${ELIXIR_VERSION}"
 
-# The image can lag behind .ruby-version (it shipped 4.0.5 while the repo pins
-# 4.0.7). The Gemfile accepts any 4.x, so fall back to the newest patch release
-# of the same minor version instead of failing every step below.
-if [ ! -d "/opt/hostedtoolcache/Ruby/${RUBY_VERSION}" ]; then
-  FALLBACK="$(ls /opt/hostedtoolcache/Ruby | grep "^${RUBY_VERSION%.*}\." | sort -V | tail -1 || true)"
-  if [ -n "${FALLBACK}" ]; then
-    echo "== Ruby ${RUBY_VERSION} is not in this image, using ${FALLBACK} =="
-    RUBY_VERSION="${FALLBACK}"
-    export RBENV_VERSION="${FALLBACK}"
-    if [ -n "${CLAUDE_ENV_FILE:-}" ]; then
-      echo "export RBENV_VERSION=\"${FALLBACK}\"" >> "${CLAUDE_ENV_FILE}"
-    fi
-  fi
+# A root counts as installed only once its marker exists, so an aborted download
+# never leaves a half-unpacked toolchain that later runs accept.
+if [ ! -f "${ERLANG_ROOT}/.installed" ]; then
+  echo "== Installing Erlang/OTP ${ERLANG_VERSION} =="
+  . /etc/os-release
+  rm -rf "${ERLANG_ROOT}" && mkdir -p "${ERLANG_ROOT}"
+  curl -fsSL --retry 3 "${BUILDS_URL}/builds/otp/${ID}-${VERSION_ID}/OTP-${ERLANG_VERSION}.tar.gz" \
+    | tar -xz -C "${ERLANG_ROOT}" --strip-components=1
+  (cd "${ERLANG_ROOT}" && ./Install -minimal "${ERLANG_ROOT}" > /dev/null)
+  touch "${ERLANG_ROOT}/.installed"
 fi
 
-TOOLCACHE="/opt/hostedtoolcache/Ruby/${RUBY_VERSION}/x64"
-
-# The prebuilt Ruby is unpacked one level too deep (…/x64/x64). Both the
-# interpreter's rpath and every gem shebang point at the outer path, so ruby
-# cannot find libruby.so and `gem`/`bundle` fail with "required file not found".
-# Flattening the directory repairs rbenv's 4.x version in place.
-if [ ! -x "${TOOLCACHE}/bin/ruby" ] && [ -x "${TOOLCACHE}/x64/bin/ruby" ]; then
-  echo "== Repairing Ruby ${RUBY_VERSION} toolcache layout =="
-  mv "${TOOLCACHE}/x64"/* "${TOOLCACHE}/"
-  rmdir "${TOOLCACHE}/x64"
+if [ ! -f "${ELIXIR_ROOT}/.installed" ]; then
+  echo "== Installing Elixir ${ELIXIR_VERSION} =="
+  ELIXIR_ZIP="$(mktemp --suffix=.zip)"
+  curl -fsSL --retry 3 -o "${ELIXIR_ZIP}" "${BUILDS_URL}/builds/elixir/v${ELIXIR_VERSION}.zip"
+  rm -rf "${ELIXIR_ROOT}" && mkdir -p "${ELIXIR_ROOT}"
+  unzip -q "${ELIXIR_ZIP}" -d "${ELIXIR_ROOT}"
+  rm -f "${ELIXIR_ZIP}"
+  touch "${ELIXIR_ROOT}/.installed"
 fi
 
-# Non-login shells start on the system Ruby; the shims pick up .ruby-version.
-export PATH="${RBENV_ROOT}/shims:${RBENV_ROOT}/bin:${PATH}"
-rbenv rehash
+# Without a UTF-8 locale the VM falls back to latin1 file names and Elixir warns
+# on every start.
+export PATH="${ELIXIR_ROOT}/bin:${ERLANG_ROOT}/bin:${PATH}"
+export LANG="${LANG:-C.UTF-8}"
 if [ -n "${CLAUDE_ENV_FILE:-}" ]; then
-  echo "export PATH=\"${RBENV_ROOT}/shims:${RBENV_ROOT}/bin:\$PATH\"" >> "${CLAUDE_ENV_FILE}"
+  echo "export PATH=\"${ELIXIR_ROOT}/bin:${ERLANG_ROOT}/bin:\$PATH\"" >> "${CLAUDE_ENV_FILE}"
+  echo "export LANG=\"${LANG}\"" >> "${CLAUDE_ENV_FILE}"
 fi
-echo "== Ruby: $(ruby -v) =="
+echo "== Elixir: $(elixir --short-version) on OTP $(erl -noshell -eval 'io:put_chars(erlang:system_info(otp_release)), halt().') =="
+
+# HEX_CACERTS_PATH (set by the container) lets Hex trust the egress proxy.
+mix local.hex --force --if-missing > /dev/null
+mix local.rebar --force --if-missing > /dev/null
 
 # config/ziwoas.yml is gitignored and holds device credentials. The test config
 # describes the same shape with fixture values and talks to no real device.
 if [ ! -f config/ziwoas.yml ]; then
-  echo "== Seeding config/ziwoas.yml from config/ziwoas.test.yml =="
-  cp config/ziwoas.test.yml config/ziwoas.yml
+  echo "== Seeding config/ziwoas.yml from test/fixtures/ziwoas.test.yml =="
+  cp test/fixtures/ziwoas.test.yml config/ziwoas.yml
 fi
 
-echo "== Installing gems =="
-bundle check || bundle install --jobs 4 --retry 3
+echo "== Fetching and compiling deps =="
+mix deps.get > /dev/null
+MIX_ENV=test mix deps.compile > /dev/null
 
-# System tests drive Chrome through Cuprite and look for a Playwright browser
-# under ~/.cache/ms-playwright; the remote container keeps one elsewhere.
-CHROME="${PLAYWRIGHT_BROWSERS_PATH:-/opt/pw-browsers}/chromium"
-if [ -x "${CHROME}" ]; then
-  export CUPRITE_CHROME_PATH="${CHROME}"
-  if [ -n "${CLAUDE_ENV_FILE:-}" ]; then
-    echo "export CUPRITE_CHROME_PATH=\"${CHROME}\"" >> "${CLAUDE_ENV_FILE}"
-  fi
+# The esbuild binary comes from the npm registry; without it only `mix assets.*`
+# fails, so a blocked download warns instead of stopping the session setup.
+if grep -q '"assets.setup"' mix.exs; then
+  echo "== Installing esbuild =="
+  mix assets.setup > /dev/null || echo "WARNING: esbuild could not be installed; mix assets.* is unavailable this session." >&2
 fi
-
-echo "== Preparing databases =="
-bin/rails db:prepare
-RAILS_ENV=test bin/rails db:test:prepare
 
 echo "== Setup complete =="

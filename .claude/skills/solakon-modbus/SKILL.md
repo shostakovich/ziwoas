@@ -1,13 +1,21 @@
 ---
 name: solakon-modbus
-description: Modbus registers, scaling factors, alarms, grid codes and remote control of the Solakon ONE inverter in ZiWoAS. Use for anything touching Solakon, the inverter, the battery, SoC, zero export, Modbus registers, rmodbus or lib/solakon_client.rb — instead of re-parsing the PDF or guessing register addresses.
+description: Modbus registers, scaling factors, alarms, grid codes and remote control of the Solakon ONE inverter in ZiWoAS. Use for anything touching Solakon, the inverter, the battery, SoC, the control loop (Regelung), Modbus registers, or the modules under lib/ziwoas/solakon/ (Client, Modbus, Monitor, Control) — instead of re-parsing the PDF or guessing register addresses.
 ---
 
 # Solakon ONE – Modbus
 
 The full reference is [`docs/solakon-modbus-protokoll.md`](../../../docs/solakon-modbus-protokoll.md)
-(608 lines, German). It merges the official PDF "Solakon ONE Modbus Protokoll v.02/26" with how
-[`lib/solakon_client.rb`](../../../lib/solakon_client.rb) actually uses it.
+(German). It merges the official PDF "Solakon ONE Modbus Protokoll v.02/26" with how the code
+under [`lib/ziwoas/solakon/`](../../../lib/ziwoas/solakon/) actually uses it:
+
+- [`client.ex`](../../../lib/ziwoas/solakon/client.ex) – `Ziwoas.Solakon.Client`: which registers
+  make a reading and a snapshot, how they decode, what the control writes.
+- [`modbus.ex`](../../../lib/ziwoas/solakon/modbus.ex) – `Ziwoas.Solakon.Modbus`: Modbus TCP on
+  `:gen_tcp`, FC03/FC06/FC16.
+- [`monitor.ex`](../../../lib/ziwoas/solakon/monitor.ex) – `Ziwoas.Solakon.Monitor`: the one
+  connection every read and write goes through.
+- [`control/`](../../../lib/ziwoas/solakon/control/) – the control loop (ADR-0002).
 
 **Never derive register addresses, factors or bit layouts from memory or from the PDF — always
 look them up in that file.** The PDF is not in the repo; the reference is the source of truth
@@ -28,7 +36,7 @@ Read the relevant section, not the whole file:
 | Work mode, grid dispatch, system time | 6., table 2-11 |
 | Decoding alarm bits | 7. Alarms (39067–39069) |
 | Grid code values | 8. Grid codes |
-| Controlling the battery / zero export | 9. Remote control (46001) |
+| Controlling the battery / the control loop | 9. Remote control (46001) |
 
 ## Verified hardware facts
 
@@ -40,6 +48,7 @@ Confirmed on the device, on top of the reference:
 
 ## Changing the client
 
-When you change `lib/solakon_client.rb` and add, remove or rescale a register: **update the
+When you change `Ziwoas.Solakon.Client` and add, remove or rescale a register: **update the
 cross-reference table in section 2** and record any newly found deviation from the PDF in
 section 3. Otherwise the reference drifts from reality and loses exactly the value it exists for.
+Tests run against `Ziwoas.FakeModbusServer` (`test/support/`).

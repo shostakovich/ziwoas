@@ -6,58 +6,57 @@ decisions in [`docs/adr/`](docs/adr/).
 
 ## Setup
 
-Rails 8.1 · Ruby 4.0.7 · SQLite · Solid Queue/Cache/Cable · Propshaft + Importmap + Turbo ·
-ViewComponent · dry-rb.
+Phoenix 1.8 · LiveView · Ecto + SQLite · Bandit. Erlang/OTP and Elixir are pinned in
+[`.tool-versions`](.tool-versions).
 
 | Path | What |
 | --- | --- |
-| `app/models/` | Domain models; `lights/`, `plugs/`, `switching/`, `sensors/`, `energy_report/`, `economics/` are the functional seams |
-| `app/jobs/` | Solid Queue jobs; schedule in `config/recurring.yml` |
-| `lib/` | Device clients and calculation cores without Rails ties: `solakon/client.rb`, `govees/`, `power_series.rb`, `aggregator.rb` |
-| `bin/ziwoas_collector` | Long-running collector (MQTT, Modbus, Govee bridge) |
-| `config/ziwoas.yml` | **Not in the repo** — device config incl. the plug list. Template: `config/ziwoas.example.yml`, tests use `config/ziwoas.test.yml`. Cost items and the electricity price live in the database instead (ADR-0004) |
-| `test/` | Minitest mirroring `app/` and `lib/`; VCR cassettes in `test/vcr_cassettes/` |
+| `lib/ziwoas/` | Domain, device clients, collector and scheduler; `lights/`, `plugs/`, `switching/`, `sensors/`, `energy_report/`, `economics/`, `solakon/` are the functional seams |
+| `lib/ziwoas_web/` | Router, controllers, LiveViews, components |
+| `config/ziwoas.yml` | **Not in the repo** — device config incl. the plug list. Template: `config/ziwoas.example.yml`, tests use `test/fixtures/ziwoas.test.yml`. Cost items and the electricity price live in the database instead (ADR-0004) |
+| `assets/` | CSS, JS (LiveView hooks in `js/hooks/`) and vendored Chart.js, bundled by the standalone esbuild into `priv/static/assets/` |
+| `priv/repo/migrations/` | Ecto migrations; `Ziwoas.Release` adopts a database the Rails app left behind |
+| `priv/static/` | Images and icons, served as they are |
+| `test/` | ExUnit mirroring `lib/`; `test/support/` holds the cases and the fakes (Modbus, MQTT, clock) |
 
-`bundle install && bin/rails db:prepare && bin/dev` starts web, collector and worker together.
-
-Non-interactive shells don't load rbenv and fall back to Ruby 2.6 — prefix Ruby commands with
-`PATH="$HOME/.rbenv/shims:$PATH"`.
+`mix setup` (deps, database, esbuild, assets), then `mix phx.server`. Paths default to
+`config/ziwoas.yml` and `storage/development.sqlite3`; `ZIWOAS_CONFIG` and `ZIWOAS_DB` override them
+(see [`config/runtime.exs`](config/runtime.exs)).
 
 Cloud sessions (Claude Code on the web) are set up by the SessionStart hook
-[`.claude/hooks/session-start.sh`](.claude/hooks/session-start.sh): rbenv shims on `PATH`, gems,
-`config/ziwoas.yml` seeded from the test config, prepared databases, Chromium for system tests.
-It is a no-op outside a remote container.
+[`.claude/hooks/session-start.sh`](.claude/hooks/session-start.sh): Erlang/OTP and Elixir
+from `.tool-versions`, Hex deps, the esbuild binary, `config/ziwoas.yml` seeded from the test
+fixture. It is a no-op outside a remote container.
 
 Real data only exists on the home server (Docker). Local SQLite is not a copy of production:
 "empty locally" doesn't mean empty.
 
 ## Conventions
 
-- **dry-rb at the data boundaries**: type domain data at the edge (dry-types/-struct,
-  dry-validation) instead of passing raw hashes and strings around. `dry-operation` only for
-  complex flows (multi-step, side effects, error paths) — **not** for plain CRUD. See
-  `app/models/lights/` and `lib/govees/`.
-- **ViewComponent** for logic-heavy UI. Trivial markup and simple views (`_form`, `index`)
-  stay ERB.
+- **Idiomatic Phoenix**, no compatibility with the former Rails app
+  ([ADR-0007](docs/adr/0007-idiomatic-phoenix-big-bang-cutover.md)); how the app is built:
+  [`docs/architecture.md`](docs/architecture.md). Until the cutover, plan and status are in
+  [`docs/port-plan.md`](docs/port-plan.md) (issue #158).
+- **Ecto migrations own the schema**; timestamps are `:utc_datetime_usec` with `inserted_at`.
+  Forms are changesets with German messages and `core_components`, interaction is LiveView
+  events, client code LiveView hooks in `assets/js/hooks/`.
 - **felt-css** (Bootstrap class names) for styling: its components and utilities first; own CSS
-  in `app/assets/stylesheets/` only for ZiWoAS widgets, with tokens, never hex. Chart colours via
-  `--viz-*` and `lib/chart_theme.js`. See [ADR-0005](docs/adr/0005-felt-css-as-the-ui-foundation.md).
+  in `assets/css/` only for ZiWoAS widgets, with tokens, never hex. Chart colours via
+  `--viz-*` and `assets/js/lib/chart_theme.js`.
+  See [ADR-0005](docs/adr/0005-felt-css-as-the-ui-foundation.md).
 - Comments in English and sparse — speaking names over commentary. UI text is German.
 
 ## Validation
 
-`bin/ci` runs the full chain: RuboCop, bundler-audit, importmap audit, Brakeman,
-`bin/rails test`, seeds (see [`config/ci.rb`](config/ci.rb)). A Stop hook triggers it on Ruby,
-ERB, Gemfile, `db/` and `config/` changes. Single file: `bin/rails test test/lib/foo_test.rb`.
+```
+mix format --check-formatted
+mix compile --warnings-as-errors
+mix credo --strict
+mix test
+```
 
-SimpleCov enforces a coverage floor. That floor is the lower bound across run orders, not a
-target.
-
-**At the end of a session, run mutation testing on the subjects touched in that session** —
-not the whole codebase. Coverage measures execution, not verification: `lib/power_series.rb`
-had 100 % line and branch coverage and still let four mutations survive. Commands, the `cover`
-declaration, handling survivors, delegating to a subagent: skill
-[`mutation-testing`](.claude/skills/mutation-testing/SKILL.md).
+CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs the same with `MIX_ENV=test`.
+Single file: `mix test test/ziwoas/power_series_test.exs`.
 
 ## Agent skills
 

@@ -1,0 +1,44 @@
+defmodule ZiwoasWeb.SensorsLive do
+  @moduledoc """
+  The Sensoren page. `{:sensors_updated}` on the `sensors` PubSub topic
+  (`Ziwoas.Sensors.PollJob`) reloads the dashboard and tells the `SensorsChart`
+  hook to reload its series (`"sensors_updated"`).
+  """
+  use ZiwoasWeb, :live_view
+
+  import ZiwoasWeb.SensorsComponents
+
+  alias Ziwoas.{Clock, Config, Sensors}
+
+  @topic "sensors"
+
+  @impl true
+  def mount(_params, _session, socket) do
+    if connected?(socket), do: Phoenix.PubSub.subscribe(Ziwoas.PubSub, @topic)
+    {:ok, socket |> assign(:page_title, "Sensoren") |> load()}
+  end
+
+  @impl true
+  def handle_info({:sensors_updated}, socket),
+    do: {:noreply, socket |> load() |> push_event("sensors_updated", %{})}
+
+  @impl true
+  def render(assigns) do
+    ~H"""
+    <Layouts.app flash={@flash} look={@look} current_path={@current_path} main_class="app-main-wide">
+      <h1 class="h2 mb-3">Sensoren</h1>
+      <.dashboard sensors={@sensors} latest={@latest} now={@now} />
+    </Layouts.app>
+    """
+  end
+
+  defp load(socket) do
+    sensors = Config.app_config().sensors
+
+    assign(socket,
+      sensors: sensors,
+      latest: sensors |> Enum.map(& &1.id) |> Sensors.latest_per_device(),
+      now: Clock.now()
+    )
+  end
+end

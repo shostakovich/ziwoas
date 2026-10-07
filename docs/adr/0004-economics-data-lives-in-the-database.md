@@ -25,3 +25,8 @@ between running the migration and hand-editing the config.
   price energy by accident.
 - Savings are unknown, not zero, while no price is on record. Every display shows an em dash
   rather than a free kilowatt-hour.
+
+_Note (Phoenix, ADR-0007):_ the migration that carried the YAML price over was a Rails migration
+and has run in production; the Ecto baseline does not repeat it. `Ziwoas.Config` takes the place of
+`ConfigLoader::Config` and logs the same warning for the old key; prices and cost items are
+`Ziwoas.Economics`.

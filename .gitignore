@@ -4,51 +4,39 @@
 # belong in git's global ignore instead:
 # `$XDG_CONFIG_HOME/git/ignore` or `~/.config/git/ignore`
 
-# Ignore bundler config.
-/.bundle
+# Mix and Phoenix build output.
+/_build/
+/deps/
+/cover/
+/doc/
+/.fetch
+erl_crash.dump
+*.ez
+/ziwoas-*.tar
 
-# Ignore all environment files.
+# esbuild bundles assets/ into priv/static/assets; phx.digest writes the digested copies
+# and the manifest.
+/priv/static/assets/
+/priv/static/cache_manifest.json
+
+# The test database (migrated by `mix test`), logs and environment files.
+/tmp/
+/log/
 /.env*
 
-# Ignore all logfiles and tempfiles.
-/log/*
-/tmp/*
-!/log/.keep
-!/tmp/.keep
-
-# Ignore pidfiles, but keep the directory.
-/tmp/pids/*
-!/tmp/pids/
-!/tmp/pids/.keep
-
-# Ignore storage (uploaded files in development and any SQLite databases).
+# The device config and the databases, at the defaults of config/runtime.exs.
+/config/ziwoas.yml
 /storage/*
 !/storage/.keep
-/tmp/storage/*
-!/tmp/storage/
-!/tmp/storage/.keep
-
-/public/assets
-
-# Ignore key files for decrypting credentials and more.
-/config/*.key
-
-# Ignore custom application config with secrets
-/config/ziwoas.yml
-
-# Ignore SQLite databases in data folder
 /data/*.db
 /data/*.db-*
-.idea
 .legacy_backup/
 
-/coverage/
+.idea
 /.superpowers/*
 /docs/superpowers/
 /.worktrees/
 
-# ruby-lsp local tooling
-/.ruby-lsp/
-
-# mutant incremental result cache
+# Left over from the Rails app.
+/coverage/
 /.mutant/

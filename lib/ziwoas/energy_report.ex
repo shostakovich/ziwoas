@@ -1,0 +1,260 @@
+defmodule Ziwoas.EnergyReport do
+  @moduledoc """
+  The energy report over a range of aggregated days: totals and ratios, a
+  ranking per role, and the chart payloads. Days are summed in Wh and rounded
+  only where a number is shown.
+  """
+  alias Ziwoas.{Economics, Energy}
+  alias Ziwoas.Economics.SavingsCalculator
+  alias Ziwoas.EnergyReport.{ChartBuilder, DailyPoint, Store}
+  alias Ziwoas.Plugs.Roster
+
+  defstruct [
+    :start_date,
+    :end_date,
+    :selected_date,
+    :preset,
+    :summary,
+    :daily_points,
+    :producer_ranking,
+    :consumer_ranking,
+    :detail_start_date,
+    :detail_end_date,
+    :chart_payload,
+    :first_date,
+    :last_date,
+    messages: []
+  ]
+
+  @type t :: %__MODULE__{}
+
+  @default_preset "last_7"
+  @preset_days %{"last_7" => 7, "last_30" => 30}
+  @invalid_range_message "Der Datumsbereich war ungültig und wurde auf die letzten 7 Tage zurückgesetzt."
+
+  @doc """
+  Options: `:params` (string keys: `preset`, `start_date`, `end_date`,
+  `selected_date`, dates as ISO 8601), `:plugs`, `:location` (weather
+  overlays need its coordinates), `:today` (the date an empty report shows)
+  and `:price_book` (default: the prices on record).
+  """
+  @spec build(keyword) :: t
+  def build(opts) do
+    params = Keyword.get(opts, :params, %{})
+    roster = Roster.new(Keyword.fetch!(opts, :plugs))
+    location = Keyword.fetch!(opts, :location)
+    today = Keyword.fetch!(opts, :today)
+
+    calculator =
+      SavingsCalculator.new(Keyword.get_lazy(opts, :price_book, &Economics.price_book/0))
+
+    case Store.aggregate_date_range() do
+      nil -> empty_report(today, calculator)
+      range -> report(params, range, roster, location, calculator)
+    end
+  end
+
+  @spec empty?(t) :: boolean
+  def empty?(%__MODULE__{daily_points: points}), do: points == []
+
+  defp report(params, {earliest, latest}, roster, location, calculator) do
+    {%{start_date: first, end_date: last, preset: preset}, messages} =
+      resolve_range(params, latest)
+
+    # A typo like 1026 would draw ~365,000 days: nothing before the first aggregated day,
+    # unless that is less than a year back.
+    first = Enum.max([first, Enum.min([earliest, Date.add(last, -365)], Date)], Date)
+
+    rows = Store.daily_rows(first, last)
+    daily_points = daily_points(Store.daily_summaries(first, last), first, last)
+
+    %__MODULE__{
+      start_date: first,
+      end_date: last,
+      selected_date: selected_date(params, first, last),
+      preset: preset,
+      summary: summarize(daily_points, calculator),
+      daily_points: daily_points,
+      producer_ranking: ranking(rows, roster, :producer),
+      consumer_ranking: ranking(rows, roster, :consumer),
+      detail_start_date: first,
+      detail_end_date: last,
+      chart_payload: ChartBuilder.payload(roster, location, daily_points, rows, {first, last}),
+      first_date: earliest,
+      last_date: latest,
+      messages: messages
+    }
+  end
+
+  defp empty_report(today, calculator) do
+    %__MODULE__{
+      start_date: today,
+      end_date: today,
+      first_date: today,
+      last_date: today,
+      selected_date: today,
+      preset: @default_preset,
+      summary: empty_summary(calculator),
+      daily_points: [],
+      producer_ranking: [],
+      consumer_ranking: [],
+      detail_start_date: today,
+      detail_end_date: today,
+      chart_payload: %{
+        daily: %{
+          labels: [],
+          produced_kwh: [],
+          consumed_kwh: [],
+          balance_kwh: [],
+          consumer_series: [],
+          ratios: []
+        },
+        detail: %{labels: [], series: []}
+      }
+    }
+  end
+
+  defp resolve_range(params, latest) do
+    if present?(params["start_date"]) or present?(params["end_date"]) do
+      with {:ok, first} <- parse_date(params["start_date"]),
+           {:ok, last} <- parse_date(params["end_date"]),
+           true <- Date.compare(first, last) != :gt do
+        last = Enum.min([last, latest], Date)
+        {%{start_date: Enum.min([first, last], Date), end_date: last, preset: "custom"}, []}
+      else
+        _ -> {preset_range(params, latest), [@invalid_range_message]}
+      end
+    else
+      {preset_range(params, latest), []}
+    end
+  end
+
+  defp preset_range(params, latest) do
+    preset =
+      if Map.has_key?(@preset_days, params["preset"]), do: params["preset"], else: @default_preset
+
+    %{start_date: Date.add(latest, -(@preset_days[preset] - 1)), end_date: latest, preset: preset}
+  end
+
+  defp selected_date(params, first, last) do
+    case parse_date(params["selected_date"]) do
+      {:ok, date} ->
+        if Date.compare(date, first) != :lt and Date.compare(date, last) != :gt,
+          do: date,
+          else: last
+
+      :error ->
+        last
+    end
+  end
+
+  defp parse_date(value) when is_binary(value) do
+    case Date.from_iso8601(String.trim(value)) do
+      {:ok, date} -> {:ok, date}
+      {:error, _} -> :error
+    end
+  end
+
+  defp parse_date(_value), do: :error
+
+  defp present?(value), do: is_binary(value) and String.trim(value) != ""
+
+  defp daily_points(summaries, first, last) do
+    for date <- Date.range(first, last) do
+      date_s = Date.to_iso8601(date)
+
+      case summaries do
+        %{^date_s => summary} ->
+          %DailyPoint{
+            date: date_s,
+            produced: Energy.wh(summary.produced_wh),
+            consumed: Energy.wh(summary.consumed_wh),
+            self_consumed: Energy.wh(summary.self_consumed_wh),
+            covered: true
+          }
+
+        _ ->
+          DailyPoint.uncovered(date_s)
+      end
+    end
+  end
+
+  defp summarize(daily_points, calculator) do
+    covered = Enum.filter(daily_points, & &1.covered)
+    produced = covered |> Enum.map(& &1.produced) |> Energy.sum()
+    consumed = covered |> Enum.map(& &1.consumed) |> Energy.sum()
+    self_consumed = covered |> Enum.map(& &1.self_consumed) |> Energy.sum()
+    days = length(covered)
+
+    %{
+      produced_kwh: rounded_kwh(produced),
+      consumed_kwh: rounded_kwh(consumed),
+      self_consumed_kwh: rounded_kwh(self_consumed),
+      savings_eur: savings_eur(covered, calculator),
+      balance_kwh: rounded_kwh(Energy.subtract(produced, consumed)),
+      avg_produced_kwh: average_kwh(produced, days),
+      avg_consumed_kwh: average_kwh(consumed, days),
+      autarky_ratio: Float.round(Energy.ratio_to(self_consumed, consumed), 4),
+      self_consumption_ratio: Float.round(Energy.ratio_to(self_consumed, produced), 4)
+    }
+  end
+
+  defp empty_summary(calculator) do
+    %{
+      produced_kwh: 0.0,
+      consumed_kwh: 0.0,
+      self_consumed_kwh: 0.0,
+      savings_eur: savings_eur([], calculator),
+      balance_kwh: 0.0,
+      avg_produced_kwh: 0.0,
+      avg_consumed_kwh: 0.0,
+      autarky_ratio: 0.0,
+      self_consumption_ratio: 0.0
+    }
+  end
+
+  # Each day carries the price in force on it, so a range spanning a price change isn't levelled.
+  defp savings_eur(covered_points, calculator) do
+    dated = Enum.map(covered_points, &{Date.from_iso8601!(&1.date), &1.self_consumed})
+
+    case SavingsCalculator.total_eur(calculator, dated) do
+      nil -> nil
+      total -> Float.round(total * 1.0, 2)
+    end
+  end
+
+  defp average_kwh(_total, 0), do: 0.0
+  defp average_kwh(total, days), do: total |> Energy.divide(days) |> rounded_kwh()
+
+  # position follows config order, the order the dashboard and charts colour plugs by.
+  # Ties in kWh keep config order.
+  defp ranking(rows, roster, role) do
+    peers =
+      if role == :producer, do: Roster.producer_ids(roster), else: Roster.consumer_ids(roster)
+
+    rows = Enum.filter(rows, &(Roster.role_of(roster, &1.plug_id) == role))
+    rows_by_plug = Enum.group_by(rows, & &1.plug_id)
+
+    rows
+    |> Enum.map(& &1.plug_id)
+    |> Enum.uniq()
+    |> Enum.sort_by(fn plug_id -> Enum.find_index(peers, &(&1 == plug_id)) end)
+    |> Enum.map(fn plug_id ->
+      %{
+        plug_id: plug_id,
+        name: Roster.find(roster, plug_id).name,
+        role: Atom.to_string(role),
+        position: Enum.find_index(peers, &(&1 == plug_id)),
+        kwh:
+          rows_by_plug[plug_id]
+          |> Enum.map(& &1.energy_wh)
+          |> Enum.sum()
+          |> Energy.wh()
+          |> rounded_kwh()
+      }
+    end)
+    |> Enum.sort_by(& &1.kwh, :desc)
+  end
+
+  defp rounded_kwh(energy), do: energy |> Energy.kwh() |> Float.round(3)
+end

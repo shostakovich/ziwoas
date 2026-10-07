@@ -11,7 +11,7 @@ mqtt:
   port: 1883
   topic_prefix: shellies
 
-# Solakon One – Null-Einspeisung (Steuerung per Modbus TCP).
+# Solakon One – Regelung über Modbus TCP (ADR-0002).
 # Ohne diesen Block ist die Regelung aus.
 # solakon:
 #   host: 192.168.1.50
@@ -74,7 +74,7 @@ plugs:
 #   secret: "..."
 #
 # sensors:
-#   - id: "ABCDEF123456"           # 'bin/rails switchbot:list_devices' zeigt IDs
+#   - id: "ABCDEF123456"           # Geräte-ID aus GET /v1.1/devices der SwitchBot-API
 #     name: "Wohnzimmer"
 #     type: meter_pro_co2           # meter_pro_co2 | outdoor_meter
 #     room: "Wohnzimmer"            # optional
@@ -82,3 +82,6 @@ plugs:
 #   - id: "112233445566"
 #     name: "Balkon"
 #     type: outdoor_meter
+
+# A `migration:` section from the Rails → Phoenix handover (ADR-0006) is ignored with a
+# warning; remove it.

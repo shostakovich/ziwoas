@@ -1,9 +1,0 @@
-<%# The blank value goes outside the group, so unticking every day still sends the key. %>
-<input type="hidden" name="<%= scope %>[days][]" value="">
-<div class="btn-group btn-group-sm w-100" role="group" aria-label="Wochentage">
-  <% SwitchesHelper::DAY_ABBR.each do |num, label| %>
-    <%= check_box_tag "#{scope}[days][]", num, days.include?(num),
-                      id: "#{id_prefix}_#{num}", class: "btn-check", autocomplete: "off" %>
-    <label class="btn btn-outline-primary px-1" for="<%= id_prefix %>_<%= num %>"><%= label %></label>
-  <% end %>
-</div>

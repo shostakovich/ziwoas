@@ -19,3 +19,6 @@ human action wins.
   in use.
 - The schedule cannot guarantee the actual device state. Whoever needs to rely on "it's
   off now" must read `Plugs::State`, not the schedule.
+
+_Note (Phoenix, ADR-0007):_ the plug state is `Ziwoas.Plugs.State` today, the scheduler
+`Ziwoas.Switching.ScheduleTickJob` with its grace in `grace_s/0`.

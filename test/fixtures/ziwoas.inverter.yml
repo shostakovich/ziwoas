@@ -1,0 +1,54 @@
+# ziwoas.test.yml plus an inverter, so the dashboard and /solakon show the battery and
+# the control state (Ziwoas.TestConfigs.file(:inverter)). Keep the rest in step with
+# ziwoas.test.yml.
+location:
+  timezone: Europe/Berlin
+  lat: 52.52
+  lon: 13.405
+
+mqtt:
+  host: localhost
+  port: 1883
+  topic_prefix: shellies
+
+plugs:
+  - id: bkw
+    name: Balkonkraftwerk
+    role: producer
+
+  - id: fridge
+    name: Kühlschrank
+    role: consumer
+    switchable: true
+
+switchbot:
+  token: "test-tok"
+  secret: "test-sec"
+
+sensors:
+  - id: "TEST_INDOOR"
+    name: "Test Wohnzimmer"
+    type: meter_pro_co2
+    room: "Wohnzimmer"
+  - id: "TEST_OUTDOOR"
+    name: "Test Balkon"
+    type: outdoor_meter
+
+trmnl:
+  energy_webhook_url:  https://example.test/energy
+  sensors_webhook_url: https://example.test/sensors
+
+govee:
+  api_key: test-dummy-key
+  lan_poll_seconds: 8
+  api_poll_seconds: 180
+  pending_window_seconds: 5
+  devices:
+    - key: 14ABDB4844064B60
+      name: Uplighter
+      room: Wohnzimmer
+
+solakon:
+  host: 127.0.0.1
+  monitoring_enabled: true
+  control_enabled: true
