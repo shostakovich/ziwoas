@@ -80,8 +80,7 @@ reaches ZiWoAS under, comma-separated; without it: the host that served the page
 `ZIWOAS_CONFIG` point to `/app/storage` and `/app/config`. `docker-compose.yml` is one service on
 the host network (Govee answers by multicast on UDP 4002) and expects `ZIWOAS_TAG` and
 `SECRET_KEY_BASE`. `.github/workflows/docker.yml` publishes images for `linux/amd64` only under an
-explicit tag, never `latest`. The Rails → Phoenix cutover is recorded in
-[`docs/cutover.md`](docs/cutover.md).
+explicit tag, never `latest`.
 
 Take a backup before a new image migrates (`sqlite3 … ".backup …"`). The app itself backs up the database every
 night into `backup/` next to the database file.
@@ -89,7 +88,6 @@ night into `backup/` next to the database file.
 ## Further reading
 
 - [`CONTEXT.md`](CONTEXT.md) – domain vocabulary (Schaltzeit, Flanke, Regelung, Eigenverbrauch, …)
-- [`docs/architecture.md`](docs/architecture.md) – how the app is built
 - [`docs/adr/`](docs/adr/) – architecture decisions
 - [`docs/solakon-modbus-protocol.md`](docs/solakon-modbus-protocol.md) – Modbus registers of the
   Solakon ONE

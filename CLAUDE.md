@@ -35,7 +35,8 @@ Real data only exists on the home server (Docker). Local SQLite is not a copy of
 
 - **Idiomatic Phoenix**, no compatibility with the former Rails app
   ([ADR-0007](docs/adr/0007-idiomatic-phoenix-big-bang-cutover.md)); how the app is built and
-  its code conventions: [`docs/architecture.md`](docs/architecture.md).
+  its code conventions live in Outline ("ZiWoAS-Architektur", https://outline.rocu.de/doc/mS5HPHX1WJ),
+  not in the repo.
 - **Ecto migrations own the schema**; timestamps are `:utc_datetime_usec` with `inserted_at`.
   Forms are changesets with German messages and `core_components`, interaction is LiveView
   events, client code LiveView hooks in `assets/js/hooks/`.
