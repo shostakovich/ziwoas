@@ -63,14 +63,13 @@ takes the endpoint down). It starts only the children the configuration asks for
 ```
 Ziwoas.Collector
 ├── ziwoas-phoenix-ingest    MQTT: Ziwoas.Collector.MqttRouter
-│                            ├── Ziwoas.Plugs.ShellyStatusHandler
-│                            └── Ziwoas.Lights.GoveeSubscriber
+│                            └── Ziwoas.Plugs.ShellyStatusHandler
 ├── Ziwoas.Solakon.Monitor   the Modbus TCP connection to the inverter
 ├── ziwoas-phoenix-fritz     MQTT publisher for the Fritz bridges
 ├── Ziwoas.Fritz.Bridge ×n   one per fritz_dect plug
-├── Ziwoas.Govee.Bridge      LAN (UDP 4002) + Platform API
-├── ziwoas-phoenix-govee     MQTT: govees/+/set in (Ziwoas.Govee.CommandHandler)
-└── ziwoas-phoenix-command   MQTT publisher: plug switches and lamp commands
+├── Ziwoas.Govee.Tasks       Task.Supervisor for the bridge's Platform API calls
+├── Ziwoas.Govee.Bridge      LAN (UDP 4002) + Platform API, in-process with Ziwoas.Lights
+└── ziwoas-phoenix-command   MQTT publisher: plug switches
 ```
 
 - **MQTT** is `tortoise311` (MQTT 3.1.1, QoS 0), wrapped by `Ziwoas.Mqtt`: `connection_spec/4` for
@@ -86,14 +85,18 @@ Ziwoas.Collector
   Fritz!DECT plugs are polled by `Ziwoas.Fritz.Bridge` through `Ziwoas.Fritz.DectClient` (AHA
   HTTP, MD5 or PBKDF2 challenge, `:xmerl`, `:crypto`) and published as Shelly-shaped status, so
   they take the same path.
-- **Lamps.** `Ziwoas.Govee.Bridge` owns the `govees/<key>/{config,state,set}` contract: it loads
-  the lamps from the Platform API (`PlatformApi`, `DeviceRegistry`), discovers and polls them on
-  the LAN (`Lan`, multicast 239.255.255.250:4001, replies on UDP 4002, commands to 4003), keeps
-  the published state (`StateStore`) and publishes config and state retained. A `set` verb goes
-  through `CommandRouter` to the LAN or the cloud. `GoveeSubscriber` turns `config`/`state` into
-  `lights`/`light_states` rows and tells `Lights`' subscribers (also `{:light_updated, key}` on
-  `light_<key>` and `lights`).
-  The LAN multicast needs host networking.
+- **Lamps.** `Ziwoas.Govee.Bridge` talks to `Ziwoas.Lights` in-process, no MQTT: it loads the
+  lamps from the Platform API (`PlatformApi`, `DeviceRegistry`) and hands each to
+  `Lights.put_lamp/1`, discovers and polls them on the LAN (`Lan`, multicast
+  239.255.255.250:4001, replies on UDP 4002, commands to 4003), keeps each lamp's state
+  (`StateStore`) and hands a changed one to `Lights.put_state/2`, which writes
+  `lights`/`light_states` and tells `Lights`' subscribers. A command is
+  `Bridge.command(key, verb)`, a call from `Lights`: `CommandRouter` (pure) sends it over the LAN
+  at once or through the cloud; every Platform API call (bootstrap, polls, clarifications,
+  controls) runs under `Ziwoas.Govee.Tasks` (`Task.Supervisor.async_nolink/2`), and an API
+  control's optimistic state is recorded only once the call succeeded. `Govee.Types` is the
+  lenient parsing of the wire (LAN replies, API states). The LAN multicast needs host
+  networking.
 - **Inverter.** `Ziwoas.Solakon.Monitor` holds the one Modbus TCP connection; every read and
   write goes through it, so requests never interleave. `Ziwoas.Solakon.Modbus` speaks FC03, FC06
   and FC16 on `:gen_tcp`; `Ziwoas.Solakon.Client` knows the registers
@@ -164,14 +167,18 @@ The PV page's switches (EPS output, pausing the control) go through `Ziwoas.Sola
 
 ## Switching and lamps
 
-- **Schedule.** `switch_rules` hold the switch times; `Ziwoas.Switching.Rules` and `Schedule`
-  group them into time windows and single switches for the page. `ScheduleTickJob` asks
+- **Schedule.** `switch_rules` hold the switch times; `Ziwoas.Switching` is the context (rules
+  and their forms, the page's `rows/3`, commands, the tick's watermarks), `Schedule` groups the
+  rules into time windows and single switches for the page. `Rule.action`,
+  `Command.action` and `Command.source` are `Ecto.Enum`s over the stored text. `ScheduleTickJob` asks
   `EdgeCalculator` for the latest edge per switchable plug between its watermark
   (`scheduler_states`) and now, skips it when a manual command came later, and makes up a missed
   edge only within the grace (`ScheduleTickJob.grace_s/0`, 10 min).
-- **Commands.** `Ziwoas.Switching.Commander` publishes a plug switch over the command connection
-  and logs it to `switch_commands` once sent. `Ziwoas.Lights.Commands` coerces a lamp command,
-  records the optimistic state and `Ziwoas.Lights.Commander` publishes it on `govees/<key>/set`; the bridge does the rest.
+- **Commands.** `Switching.switch/4` (`Commander`, guarded to `:on`/`:off` and
+  `:manual`/`:schedule`) publishes a plug switch over the command connection and logs it to
+  `switch_commands` once sent; errors are tuples. `Lights.command/3` casts a lamp command's
+  parameters with a schemaless changeset, hands the verb to `Govee.Bridge.command/3` and records
+  the optimistic power and zone bits.
 
 ## Web
 
@@ -203,8 +210,8 @@ title is `<.header>`.
 | `/weather` | `WeatherLive` | `Weather` (`{:synced, date}`), `Sensors` (`{:polled, instant}`, the outdoor sensor) |
 | `/reports` | `ReportsLive` | none; range in the query |
 | `/sensors` | `SensorsLive` | `Sensors` (`{:polled, instant}`); chart data as `"sensors_chart:data"` |
-| `/switches` | `SwitchesLive` | `dashboard` (plug rows), `lights` (lamp tiles); plug button, schedule editor and lamp tiles as events |
-| `/lights/:key` | `LightLive` | `light_<key>`; commands (`ZiwoasWeb.LightEvents`), settings sheet |
+| `/switches` | `SwitchesLive` | `Plugs` (plug rows), `Lights` (lamp tiles); plug button (`start_async`), schedule editor and lamp tiles as events |
+| `/lights/:key` | `LightLive` | `Lights` for its key; commands (`ZiwoasWeb.LightEvents`), sliders as debounced forms, tabs as an assign, settings sheet |
 
 Plain controllers: `GET /api/today`, `/api/today/summary`, `/api/history` (`ApiController`,
 JSON, internal consumers only), `GET /up` (`HealthController`:
@@ -215,7 +222,7 @@ plain HTTP straight to port 3000 stays HTTP.
 
 **Hooks** (`assets/js/hooks/`, registered in `assets/js/app.js`): `EnergyFlow`, `TodayChart`,
 `HistoryChart`, `LiveFreshness` (dashboard, PV page), `SolakonHistory`, `EnergyReport`,
-`SensorsChart`, `LightDetail`, `SettingsSheet`. `SensorsChart` only draws what its LiveView
+`SensorsChart`, `LightDetail` (the colour wheel only), `SettingsSheet`. `SensorsChart` only draws what its LiveView
 pushes (`push_event` on connected mount and on every poll); it fetches nothing and keeps no
 timer. Charts are Chart.js
 (`assets/vendor/chart.umd.js`), painted through `assets/js/lib/chart_theme.js` and updated in

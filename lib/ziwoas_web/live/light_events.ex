@@ -2,23 +2,22 @@ defmodule ZiwoasWeb.LightEvents do
   @moduledoc """
   The lamp controls' `"light_command"` event, shared by `ZiwoasWeb.SwitchesLive`
   (the tile) and `ZiwoasWeb.LightLive`: `light_key`, `command` and the command's
-  parameters, run through `Ziwoas.Lights.Commands`.
+  parameters, run through `Ziwoas.Lights.command/3`.
   """
   alias Ziwoas.Lights
-  alias Ziwoas.Lights.Commands
 
-  @failed "Lampe nicht erreichbar — MQTT-Broker nicht erreichbar"
+  @failed "Lampe nicht erreichbar"
 
-  @doc "The flash for a command the broker did not take."
+  @doc "The flash for a command the bridge did not take."
   def failed_message, do: @failed
 
   @spec run(map) ::
-          {:ok, Lights.Light.t(), Commands.result()}
-          | {:error, :not_found | :invalid | :commander}
+          {:ok, Lights.Light.t(), Lights.Commands.result()}
+          | {:error, :not_found | :invalid | :unreachable}
   def run(params) do
     with {:ok, light} <- light(params["light_key"]),
-         true <- Commands.command?(params["command"]) || {:error, :invalid},
-         {:ok, result} <- Commands.run(light, params["command"], params) do
+         true <- Lights.command?(params["command"]) || {:error, :invalid},
+         {:ok, result} <- Lights.command(light, params["command"], params) do
       {:ok, light, result}
     end
   end

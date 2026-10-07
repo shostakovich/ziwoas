@@ -122,30 +122,31 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
 
   describe "the lamp tile" do
     setup do
+      start_supervised!({Ziwoas.FakeGoveeBridge, test: self()})
       %{light: Repo.insert!(%Light{key: "ABCDEF01", name: "Stehlampe", sku: "H607C"})}
     end
 
     test "turns its lamp", %{conn: conn} do
       view = open_page(conn)
-      html = view |> element("#light_card_ABCDEF01 button.sw-knob") |> render_click()
+      view |> element("#light_card_ABCDEF01 button.sw-knob") |> render_click()
 
-      assert_received {:published, "govees/ABCDEF01/set", ~s({"power":"on"})}
-      assert html =~ "An · Weiß"
+      assert_received {:govee, "ABCDEF01", {:power, true}}
+      assert has_element?(view, "#light_card_ABCDEF01 .small", "An · Weiß")
     end
 
-    test "a broker failure is a flash", %{conn: conn} do
-      record({:error, :closed})
+    test "a lamp the bridge does not take is a flash", %{conn: conn} do
+      stop_supervised!(Ziwoas.FakeGoveeBridge)
       view = open_page(conn)
       view |> element("#light_card_ABCDEF01 button.sw-knob") |> render_click()
 
-      assert render(view) =~ "Lampe nicht erreichbar"
+      assert has_element?(view, "#flash-error", "Lampe nicht erreichbar")
     end
 
     test "an unknown lamp or command does nothing", %{conn: conn} do
       view = open_page(conn)
       render_hook(view, "light_command", %{"light_key" => "nope", "command" => "turn"})
       render_hook(view, "light_command", %{"light_key" => "ABCDEF01", "command" => "explode"})
-      refute_received {:published, _, _}
+      refute_received {:govee, _, _}
     end
   end
 

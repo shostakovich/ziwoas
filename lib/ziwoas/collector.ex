@@ -4,14 +4,14 @@ defmodule Ziwoas.Collector do
 
       Ziwoas.Collector (one_for_one)
       ├── ziwoas-phoenix-ingest     MQTT: Ziwoas.Collector.MqttRouter with
-      │                             ShellyStatusHandler and GoveeSubscriber
+      │                             ShellyStatusHandler
       ├── Ziwoas.Solakon.Monitor    Modbus TCP (the scheduler's solakon_monitor and
       │                             solakon_snapshot jobs read through it)
       ├── ziwoas-phoenix-fritz      MQTT publisher for the Fritz bridges
       ├── Ziwoas.Fritz.Bridge ×n    one per Fritz!DECT plug
-      ├── Ziwoas.Govee.Bridge       LAN + Platform API
-      ├── ziwoas-phoenix-govee      MQTT: govees/+/set in, state out
-      └── ziwoas-phoenix-command    MQTT publisher: plug switches and lamp commands
+      ├── Ziwoas.Govee.Tasks        Task.Supervisor: the bridge's Platform API calls
+      ├── Ziwoas.Govee.Bridge       LAN + Platform API, reports to Ziwoas.Lights
+      └── ziwoas-phoenix-command    MQTT publisher: plug switches
 
   Each child restarts on its own; devices reconnect with backoff inside their
   process. Tortoise311 stops a connection on some network errors (an unreachable
@@ -26,7 +26,6 @@ defmodule Ziwoas.Collector do
   alias Ziwoas.Collector.MqttRouter
   alias Ziwoas.{Config, Mqtt}
   alias Ziwoas.Fritz.DectClient
-  alias Ziwoas.Lights.GoveeSubscriber
   alias Ziwoas.Plugs.ShellyStatusHandler
 
   @ingest_client_id "ziwoas-phoenix-ingest"
@@ -50,10 +49,7 @@ defmodule Ziwoas.Collector do
       mqtt_ingest(config) ++ solakon(config) ++ fritz(config) ++ govee(config) ++ commands(config)
 
   defp mqtt_ingest(config) do
-    handlers = [
-      {ShellyStatusHandler, ShellyStatusHandler.new(config)},
-      {GoveeSubscriber, GoveeSubscriber.new()}
-    ]
+    handlers = [{ShellyStatusHandler, ShellyStatusHandler.new(config)}]
 
     [
       Mqtt.connection_spec(
@@ -129,14 +125,9 @@ defmodule Ziwoas.Collector do
     []
   end
 
-  defp govee(%Config{govee: govee} = config),
+  defp govee(%Config{govee: govee}),
     do: [
-      {Ziwoas.Govee.Bridge, govee: govee},
-      Mqtt.connection_spec(
-        Ziwoas.Govee.Bridge.client_id(),
-        config.mqtt,
-        {Ziwoas.Govee.CommandHandler, [Ziwoas.Govee.Bridge]},
-        ["govees/+/set"]
-      )
+      {Task.Supervisor, name: Ziwoas.Govee.Tasks},
+      {Ziwoas.Govee.Bridge, govee: govee}
     ]
 end

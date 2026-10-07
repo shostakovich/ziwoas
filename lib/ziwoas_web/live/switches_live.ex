@@ -66,7 +66,7 @@ defmodule ZiwoasWeb.SwitchesLive do
       {:ok, _light, _result} ->
         {:noreply, assign(socket, :snapshots, Lights.snapshots())}
 
-      {:error, :commander} ->
+      {:error, :unreachable} ->
         {:noreply, put_flash(socket, :error, LightEvents.failed_message())}
 
       {:error, _reason} ->
