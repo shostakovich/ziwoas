@@ -1,19 +1,80 @@
 defmodule Ziwoas.Solakon.Modbus do
-  @moduledoc """
-  Modbus TCP on `:gen_tcp`: function code 03 (read holding registers), 06 (write
-  single register) and 16 (write multiple registers), which is how the Solakon ONE
-  serves every register (`docs/solakon-modbus-protocol.md` §1).
-
-  A frame is the MBAP header — transaction id, protocol 0, length, unit id — and
-  the PDU. Registers are big-endian 16-bit words; the address is the PDU address.
-  """
+  @moduledoc false
   @read_holding 0x03
   @write_single 0x06
   @write_multiple 0x10
   @max_registers 125
   @max_write_registers 123
 
+  @enforce_keys [:socket, :unit, :timeout]
+  defstruct [:socket, :unit, :timeout, transaction: 0]
+
   @type socket :: :gen_tcp.socket()
+  @type t :: %__MODULE__{
+          socket: socket,
+          unit: non_neg_integer,
+          timeout: timeout,
+          transaction: non_neg_integer
+        }
+  @type write_op ::
+          {:single, non_neg_integer, non_neg_integer}
+          | {:multiple, non_neg_integer, [non_neg_integer]}
+
+  @spec open(String.t() | charlist, :inet.port_number(), non_neg_integer, timeout) ::
+          {:ok, t} | {:error, term}
+  def open(host, port, unit, timeout) do
+    with {:ok, socket} <- connect(host, port, timeout),
+         do: {:ok, %__MODULE__{socket: socket, unit: unit, timeout: timeout}}
+  end
+
+  @spec read(t, non_neg_integer, pos_integer) :: {:ok, [non_neg_integer], t} | {:error, term}
+  def read(%__MODULE__{} = conn, address, count) do
+    conn = next_transaction(conn)
+
+    with {:ok, words} <-
+           read_holding_registers(
+             conn.socket,
+             conn.transaction,
+             conn.unit,
+             address,
+             count,
+             conn.timeout
+           ),
+         do: {:ok, words, conn}
+  end
+
+  @spec write(t, write_op) :: {:ok, t} | {:error, term}
+  def write(%__MODULE__{} = conn, operation) do
+    conn = next_transaction(conn)
+
+    result =
+      case operation do
+        {:single, address, value} ->
+          write_single_register(
+            conn.socket,
+            conn.transaction,
+            conn.unit,
+            address,
+            value,
+            conn.timeout
+          )
+
+        {:multiple, address, values} ->
+          write_multiple_registers(
+            conn.socket,
+            conn.transaction,
+            conn.unit,
+            address,
+            values,
+            conn.timeout
+          )
+      end
+
+    with :ok <- result, do: {:ok, conn}
+  end
+
+  defp next_transaction(%__MODULE__{transaction: id} = conn),
+    do: %{conn | transaction: rem(id, 0xFFFF) + 1}
 
   @spec connect(String.t() | charlist, :inet.port_number(), timeout) ::
           {:ok, socket} | {:error, term}
@@ -26,21 +87,17 @@ defmodule Ziwoas.Solakon.Modbus do
         timeout
       )
 
-  @spec close(socket | nil) :: :ok
+  @spec close(t | socket | nil) :: :ok
   def close(nil), do: :ok
+  def close(%__MODULE__{socket: socket}), do: :gen_tcp.close(socket)
   def close(socket), do: :gen_tcp.close(socket)
 
-  @doc "The request frame for `count` holding registers from `address`."
   @spec read_request(non_neg_integer, non_neg_integer, non_neg_integer, pos_integer) :: binary
   def read_request(transaction, unit, address, count)
       when count in 1..@max_registers and address in 0..0xFFFF do
     <<transaction::16, 0::16, 6::16, unit::8, @read_holding::8, address::16, count::16>>
   end
 
-  @doc """
-  Reads `count` holding registers: `{:ok, [word]}` (unsigned 16-bit) or
-  `{:error, reason}` — a Modbus exception reads `{:modbus_exception, code}`.
-  """
   @spec read_holding_registers(
           socket,
           non_neg_integer,
@@ -57,7 +114,6 @@ defmodule Ziwoas.Solakon.Modbus do
     end
   end
 
-  @doc "The request frame writing `value` into one holding register."
   @spec write_single_request(non_neg_integer, non_neg_integer, non_neg_integer, non_neg_integer) ::
           binary
   def write_single_request(transaction, unit, address, value)
@@ -65,7 +121,6 @@ defmodule Ziwoas.Solakon.Modbus do
     <<transaction::16, 0::16, 6::16, unit::8, @write_single::8, address::16, value::16>>
   end
 
-  @doc "The request frame writing `values` into consecutive holding registers from `address`."
   @spec write_multiple_request(non_neg_integer, non_neg_integer, non_neg_integer, [
           non_neg_integer
         ]) :: binary
@@ -79,9 +134,6 @@ defmodule Ziwoas.Solakon.Modbus do
       count::16, count * 2::8, data::binary>>
   end
 
-  @doc """
-  Writes one holding register (FC06): `:ok` or `{:error, reason}`.
-  """
   @spec write_single_register(
           socket,
           non_neg_integer,
@@ -95,7 +147,6 @@ defmodule Ziwoas.Solakon.Modbus do
     write(socket, frame, transaction, timeout, @write_single)
   end
 
-  @doc "Writes consecutive holding registers (FC16): `:ok` or `{:error, reason}`."
   @spec write_multiple_registers(
           socket,
           non_neg_integer,
@@ -116,8 +167,6 @@ defmodule Ziwoas.Solakon.Modbus do
     end
   end
 
-  # Neither the echoed address nor the value is checked: any answer with the
-  # function code is success, an exception code is the error.
   defp decode_write_pdu(<<function, _rest::binary>>, function), do: :ok
 
   defp decode_write_pdu(<<exception, code>>, function) when exception == function + 0x80,
@@ -125,9 +174,7 @@ defmodule Ziwoas.Solakon.Modbus do
 
   defp decode_write_pdu(pdu, _function), do: {:error, {:unexpected_pdu, pdu}}
 
-  # Reads frame after frame until one carries the request's transaction id,
-  # skipping late answers to earlier requests; the protocol and unit ids are not
-  # checked. `timeout` bounds the whole search.
+  # Skips late answers to earlier requests.
   defp response(socket, transaction, timeout),
     do: read_response(socket, transaction, System.monotonic_time(:millisecond) + timeout)
 
@@ -142,7 +189,6 @@ defmodule Ziwoas.Solakon.Modbus do
 
   defp remaining(deadline), do: max(deadline - System.monotonic_time(:millisecond), 0)
 
-  @doc "The words of a read response PDU."
   @spec decode_pdu(binary, pos_integer) :: {:ok, [non_neg_integer]} | {:error, term}
   def decode_pdu(<<@read_holding, byte_count, data::binary-size(byte_count)>>, count)
       when byte_count == count * 2,

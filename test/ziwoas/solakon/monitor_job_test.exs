@@ -1,10 +1,9 @@
 defmodule Ziwoas.Solakon.MonitorJobTest do
-  # Subscribes to a global PubSub topic another test broadcasts on.
   use Ziwoas.DataCase
 
   alias Ziwoas.{Config, FakeModbusServer, Repo, TestClock}
+  alias Ziwoas.Solakon.{Control, Monitor, MonitorJob, Reading, Snapshot, SnapshotJob}
   alias Ziwoas.Solakon.Control.{Decision, Outcome, State}
-  alias Ziwoas.Solakon.{Monitor, MonitorJob, Reading, Snapshot, SnapshotJob}
 
   @moduletag :capture_log
 
@@ -64,7 +63,7 @@ defmodule Ziwoas.Solakon.MonitorJobTest do
 
   setup do
     TestClock.freeze(@now)
-    Phoenix.PubSub.subscribe(Ziwoas.PubSub, "solakon")
+    Ziwoas.Solakon.subscribe()
     :ok
   end
 
@@ -72,10 +71,6 @@ defmodule Ziwoas.Solakon.MonitorJobTest do
     Config.from_yaml!("""
     location:
       timezone: Europe/Berlin
-    mqtt:
-      host: localhost
-      port: 1883
-      topic_prefix: shellies
     plugs: []
     solakon:
       host: 127.0.0.1
@@ -102,12 +97,7 @@ defmodule Ziwoas.Solakon.MonitorJobTest do
         do: String.slice(frame, 4..-1//1)
   end
 
-  defp context(opts),
-    do:
-      Map.merge(
-        %{at: DateTime.utc_now(), config: config()},
-        Map.new(opts)
-      )
+  defp context(opts), do: Keyword.merge([config: config(), at: DateTime.utc_now()], opts)
 
   test "a reading is stored and announced" do
     assert {:ok, %Reading{id: id}, nil} = MonitorJob.perform(context(monitor: monitor!()))
@@ -129,20 +119,7 @@ defmodule Ziwoas.Solakon.MonitorJobTest do
     assert {reading.eps_enabled, reading.eps_voltage_v, reading.eps_power_w} ==
              {true, 230.1, 125.0}
 
-    assert_receive {:solakon_reading, ^id}
-  end
-
-  test "nothing is read without an inverter or with monitoring off" do
-    monitor = monitor!()
-    no_inverter = %{config() | solakon: nil}
-
-    MonitorJob.perform(context(config: no_inverter, monitor: monitor))
-    MonitorJob.perform(context(config: config("  monitoring_enabled: false"), monitor: monitor))
-    SnapshotJob.perform(context(config: no_inverter, monitor: monitor))
-    SnapshotJob.perform(context(config: config("  monitoring_enabled: false"), monitor: monitor))
-
-    assert Repo.aggregate(Reading, :count) == 0
-    assert Repo.aggregate(Snapshot, :count) == 0
+    assert_receive {:reading, %Reading{id: ^id}}
   end
 
   test "a Modbus failure stores nothing" do
@@ -151,7 +128,7 @@ defmodule Ziwoas.Solakon.MonitorJobTest do
     MonitorJob.perform(context(monitor: monitor))
 
     assert Repo.aggregate(Reading, :count) == 0
-    refute_receive {:solakon_reading, _}
+    refute_receive {:reading, _}
   end
 
   test "a state of charge outside 0..100 is an invalid reading, not a row" do
@@ -160,8 +137,10 @@ defmodule Ziwoas.Solakon.MonitorJobTest do
     assert Repo.aggregate(Reading, :count) == 0
   end
 
-  test "a snapshot is stored with its panels and counters" do
+  test "a snapshot is stored with its panels and counters, and its subscribers hear of it" do
+    Ziwoas.Solakon.subscribe()
     assert {:ok, %Snapshot{id: id}} = SnapshotJob.perform(context(monitor: monitor!()))
+    assert_received {:snapshot, %Snapshot{id: ^id}}
 
     row = Repo.get!(Snapshot, id)
     assert row.taken_at == ~U[2026-06-18 10:00:00.000000Z]
@@ -176,7 +155,7 @@ defmodule Ziwoas.Solakon.MonitorJobTest do
 
     assert_in_delta row.pv_total_kwh, 123.45, 0.001
     assert row.battery_soc_pct == nil
-    refute_receive {:solakon_reading, _}
+    refute_receive {:reading, _}
   end
 
   describe "with control enabled" do
@@ -188,29 +167,28 @@ defmodule Ziwoas.Solakon.MonitorJobTest do
       {server, monitor} = inverter!(@controlled)
 
       assert {:ok, %Reading{id: id}, %Outcome{status: :applied, decision: decision}} =
-               MonitorJob.perform(Map.put(controlled(), :monitor, monitor))
+               MonitorJob.perform(Keyword.put(controlled(), :monitor, monitor))
 
-      # No consumer plugs configured: no load, no floor.
       assert decision == %Decision{state: :normal, target_w: 0, trim: false}
       assert List.last(writes(server)) == "0000000b0110b3b300020400000000"
-      assert {^decision, _at} = State.stored(State.current())
-      assert_receive {:solakon_reading, ^id}
+      assert {^decision, _at} = State.stored(Control.state())
+      assert_receive {:reading, %Reading{id: ^id}}
     end
 
     test "a refused write keeps the reading and its announcement, and counts the failure" do
       {_server, monitor} = inverter!(@controlled, fail: ["16:46003"])
 
       assert {:ok, %Reading{id: id}, %Outcome{status: :failed, failures: 1}} =
-               MonitorJob.perform(Map.put(controlled(), :monitor, monitor))
+               MonitorJob.perform(Keyword.put(controlled(), :monitor, monitor))
 
       assert Repo.aggregate(Reading, :count) == 1
-      assert_receive {:solakon_reading, ^id}
-      assert State.current().consecutive_failures == 1
+      assert_receive {:reading, %Reading{id: ^id}}
+      assert Control.state().consecutive_failures == 1
     end
 
     test "the third refused write in a row hands control back" do
       {server, monitor} = inverter!(@controlled, fail: ["16:46003"])
-      context = Map.put(controlled(), :monitor, monitor)
+      context = Keyword.put(controlled(), :monitor, monitor)
 
       outcomes = for _ <- 1..3, do: context |> MonitorJob.perform() |> elem(2)
 
@@ -218,7 +196,7 @@ defmodule Ziwoas.Solakon.MonitorJobTest do
                [failed: 1, failed: 2, released: 3]
 
       assert List.last(writes(server)) == "000000060106b3b10000"
-      assert State.current().consecutive_failures == 0
+      assert Control.state().consecutive_failures == 0
       assert Repo.aggregate(Reading, :count) == 3
     end
 
@@ -226,7 +204,7 @@ defmodule Ziwoas.Solakon.MonitorJobTest do
       {server, monitor} = inverter!(Map.delete(@controlled, "39424:1"))
 
       assert {:error, {:modbus_exception, 2}} =
-               MonitorJob.perform(Map.put(controlled(), :monitor, monitor))
+               MonitorJob.perform(Keyword.put(controlled(), :monitor, monitor))
 
       assert writes(server) == []
       assert Repo.aggregate(State, :count) == 0
@@ -236,7 +214,7 @@ defmodule Ziwoas.Solakon.MonitorJobTest do
       {server, monitor} = inverter!(%{@controlled | "39424:1" => [0xFFFF]})
 
       assert {:error, %Ecto.Changeset{}} =
-               MonitorJob.perform(Map.put(controlled(), :monitor, monitor))
+               MonitorJob.perform(Keyword.put(controlled(), :monitor, monitor))
 
       assert writes(server) == []
     end

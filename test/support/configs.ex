@@ -1,5 +1,5 @@
 defmodule Ziwoas.TestConfigs do
-  @moduledoc "Device configs for tests: built from YAML here, or the files in test/fixtures."
+  @moduledoc false
   alias Ziwoas.Config
 
   @fixtures Path.expand("../fixtures", __DIR__)
@@ -7,21 +7,24 @@ defmodule Ziwoas.TestConfigs do
   @base """
   location:
     timezone: Europe/Berlin
-  mqtt:
-    host: localhost
-    port: 1883
-    topic_prefix: shellies
   """
 
-  @doc """
-  The path of a config file in test/fixtures: `:test` (the default under
-  `MIX_ENV=test`) or `:inverter` (the same plus a Solakon inverter with
-  monitoring and control enabled).
-  """
   def file(:test), do: Path.join(@fixtures, "ziwoas.test.yml")
   def file(:inverter), do: Path.join(@fixtures, "ziwoas.inverter.yml")
 
-  @doc "`plugs/1` with coordinates (Berlin's centre), as the weather jobs need them."
+  def load(name) do
+    {:ok, config} = Config.load(file(name))
+    config
+  end
+
+  def put(%Config{} = config), do: put({:ok, config})
+
+  def put(result) do
+    previous = Config.fetch()
+    Config.put(result)
+    ExUnit.Callbacks.on_exit(fn -> Config.put(previous) end)
+  end
+
   def located(extra \\ "") do
     @base
     |> String.replace(
@@ -32,7 +35,6 @@ defmodule Ziwoas.TestConfigs do
     |> Config.from_yaml!()
   end
 
-  @doc "bkw (producer) and fridge (consumer) in Berlin, plus `extra` YAML."
   def plugs(extra \\ ""), do: @base |> plugs_yaml(extra) |> Config.from_yaml!()
 
   defp plugs_yaml(base, extra) do

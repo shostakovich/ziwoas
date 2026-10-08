@@ -1,14 +1,5 @@
 defmodule ZiwoasWeb.LightLive do
-  @moduledoc """
-  A lamp's page: power and zones, brightness, white, colour and scenes, and the
-  settings gear. `{:light_updated, key}` from `Ziwoas.Lights.GoveeSubscriber`
-  reloads the hero's snapshot alone, so the sliders keep what the hand is doing.
-
-  Brightness, white and colour are the `LightDetail` hook's `"light_command"`
-  events; power, zones, scenes and the toast's undo send the same event from
-  their buttons (`ZiwoasWeb.LightEvents`). The gear opens the settings sheet in
-  place.
-  """
+  @moduledoc false
   use ZiwoasWeb, :live_view
 
   import ZiwoasWeb.LightsComponents
@@ -16,29 +7,40 @@ defmodule ZiwoasWeb.LightLive do
   alias Ziwoas.{Config, Lights}
   alias ZiwoasWeb.LightEvents
 
-  # The toast hides itself after 5 s.
   @toast_ms 5_000
 
   @impl true
   def mount(%{"key" => key}, _session, socket) do
-    light = Lights.get_by_key(key) || raise ZiwoasWeb.NotFoundError
+    light = Lights.get_by_key!(key)
     snapshot = Lights.snapshot(light)
-    if connected?(socket), do: Phoenix.PubSub.subscribe(Ziwoas.PubSub, "light_#{key}")
+    if connected?(socket), do: Lights.subscribe(key)
 
     {:ok,
      assign(socket,
        page_title: light.name,
        light: light,
-       snapshot: snapshot,
+       plugs: Config.get().plugs,
+       tabs: tabs_of(light),
+       tab: "white",
        power_snapshot: snapshot,
+       brightness: max(Lights.brightness(snapshot), 1),
+       kelvin: Lights.color_temp_k(snapshot),
+       color: if(Lights.white?(snapshot), do: nil, else: color_hex(snapshot)),
+       revert: nil,
        toast: %{message: nil, undo: nil},
        toast_timer: nil,
        settings: nil
      )}
   end
 
+  defp tabs_of(light) do
+    [{"white", "Weiß"}] ++
+      if(light.supports_color, do: [{"color", "Farbe"}], else: []) ++
+      [{"scenes", "Szenen"}]
+  end
+
   @impl true
-  def handle_info({:light_updated, _key}, socket), do: {:noreply, refresh_power(socket)}
+  def handle_info({:updated, _key}, socket), do: {:noreply, refresh_power(socket)}
 
   def handle_info(:hide_toast, socket),
     do: {:noreply, assign(socket, toast: %{message: nil, undo: nil}, toast_timer: nil)}
@@ -47,23 +49,14 @@ defmodule ZiwoasWeb.LightLive do
   def handle_event("light_command", params, socket) do
     params = Map.put(params, "light_key", socket.assigns.light.key)
 
-    case LightEvents.run(params) do
-      {:ok, light, {:zones, _keys, toast}} ->
-        socket = refresh_power(socket)
-        {:noreply, if(toast, do: show_toast(socket, toast_assigns(light, toast)), else: socket)}
+    {:noreply,
+     start_async(socket, {:light_command, params["command"]}, fn -> LightEvents.run(params) end)}
+  end
 
-      {:ok, _light, :power} ->
-        {:noreply, refresh_power(socket)}
-
-      {:ok, _light, _sent} ->
-        {:noreply, socket}
-
-      {:error, :commander} ->
-        {:noreply, put_flash(socket, :error, LightEvents.failed_message())}
-
-      {:error, _reason} ->
-        {:noreply, socket}
-    end
+  def handle_event("select_tab", %{"tab" => tab}, socket) do
+    if List.keymember?(socket.assigns.tabs, tab, 0),
+      do: {:noreply, assign(socket, :tab, tab)},
+      else: {:noreply, socket}
   end
 
   def handle_event("open_settings", _params, socket),
@@ -93,6 +86,42 @@ defmodule ZiwoasWeb.LightLive do
     end
   end
 
+  @impl true
+  def handle_async({:light_command, _command}, {:ok, result}, socket) do
+    case result do
+      {:ok, light, {:zones, _keys, toast}} ->
+        socket = refresh_power(socket)
+        {:noreply, if(toast, do: show_toast(socket, toast_assigns(light, toast)), else: socket)}
+
+      {:ok, _light, :power} ->
+        {:noreply, refresh_power(socket)}
+
+      {:ok, _light, {:sent, verb}} ->
+        {:noreply, socket |> assign(:revert, nil) |> keep(verb)}
+
+      {:error, :unreachable} ->
+        {:noreply, failed(socket)}
+
+      {:error, _reason} ->
+        {:noreply, socket}
+    end
+  end
+
+  def handle_async({:light_command, _command}, {:exit, _reason}, socket),
+    do: {:noreply, failed(socket)}
+
+  # The thumbs moved on the client; a new `revert` sends them back.
+  defp failed(socket) do
+    socket
+    |> put_flash(:error, LightEvents.failed_message())
+    |> update(:revert, &((&1 || 0) + 1))
+  end
+
+  defp keep(socket, {:brightness, value}), do: assign(socket, :brightness, value)
+  defp keep(socket, {:color_temp, kelvin}), do: assign(socket, :kelvin, kelvin)
+  defp keep(socket, {:color, rgb}), do: assign(socket, :color, hex(rgb))
+  defp keep(socket, _verb), do: socket
+
   defp refresh_power(socket),
     do: assign(socket, :power_snapshot, Lights.snapshot(socket.assigns.light))
 
@@ -103,88 +132,50 @@ defmodule ZiwoasWeb.LightLive do
 
   @impl true
   def render(assigns) do
-    assigns =
-      assign(assigns,
-        brightness: max(Lights.brightness(assigns.snapshot), 1),
-        plugs: Config.app_config().plugs,
-        tabs:
-          [{"white", "Weiß"}] ++
-            if(assigns.light.supports_color, do: [{"color", "Farbe"}], else: []) ++
-            [{"scenes", "Szenen"}]
-      )
-
     ~H"""
     <Layouts.app flash={@flash} look={@look} current_path={@current_path}>
-      <div id="light_detail" phx-hook="LightDetail" data-key={@light.key}>
-        <div class="d-flex align-items-center gap-2 mb-3">
-          <.link
-            class="btn btn-icon btn-light flex-shrink-0"
-            aria-label="Zurück"
-            navigate={~p"/switches"}
-          >
-            ←
-          </.link>
-          <h1 class="ld-title h2 mb-0 me-auto">{@light.name}</h1>
-          <button
-            type="button"
-            class="btn btn-icon flex-shrink-0"
-            aria-label="Einstellungen"
-            phx-click="open_settings"
-          >
-            <img
-              width="28"
-              height="28"
-              alt=""
-              aria-hidden="true"
-              src={~p"/images/settings_plush.webp"}
-            />
-          </button>
-        </div>
+      <div id="light_detail" data-key={@light.key}>
+        <.header title_class="ld-title">
+          <:leading>
+            <.link
+              class="btn btn-icon btn-light flex-shrink-0"
+              aria-label="Zurück"
+              navigate={~p"/switches"}
+            >
+              ←
+            </.link>
+          </:leading>
+          {@light.name}
+          <:actions>
+            <button
+              type="button"
+              class="btn btn-icon flex-shrink-0"
+              aria-label="Einstellungen"
+              phx-click="open_settings"
+            >
+              <img
+                width="28"
+                height="28"
+                alt=""
+                aria-hidden="true"
+                src={~p"/images/settings_plush.webp"}
+              />
+            </button>
+          </:actions>
+        </.header>
 
         <.power snapshot={@power_snapshot} />
+        <.brightness_panel brightness={@brightness} revert={@revert} />
+        <.tabs tabs={@tabs} active={@tab} />
 
-        <div class="card mb-3">
-          <div class="card-body">
-            <div class="d-flex gap-1 mb-2 small text-uppercase text-body-secondary">
-              <label for="light_brightness">Helligkeit</label><span aria-hidden="true">·</span>
-              <output
-                for="light_brightness"
-                class="text-body tabular-nums"
-                data-light="brightness-value"
-              >{@brightness} %</output>
-            </div>
-            <input
-              class="form-range ld-range"
-              type="range"
-              id="light_brightness"
-              phx-update="ignore"
-              min="1"
-              max="100"
-              value={@brightness}
-              data-light="brightness"
-            />
-          </div>
-        </div>
-
-        <div class="nav nav-pills nav-fill mb-3" role="tablist" aria-label="Lichtart">
-          <button
-            :for={{key, label} <- @tabs}
-            type="button"
-            class="nav-link"
-            role="tab"
-            id={"light_tab_#{key}"}
-            phx-update="ignore"
-            aria-controls={"light_panel_#{key}"}
-            aria-selected="false"
-            data-tab={key}
-          >
-            {label}
-          </button>
-        </div>
-
-        <.white_panel snapshot={@snapshot} />
-        <.color_panel :if={@light.supports_color} snapshot={@snapshot} />
-        <.scenes light={@light} />
+        <.white_panel light={@light} kelvin={@kelvin} revert={@revert} hidden={@tab != "white"} />
+        <.color_panel
+          :if={@light.supports_color}
+          color={@color}
+          zone_lamp={Lights.zone_lamp?(@power_snapshot)}
+          hidden={@tab != "color"}
+        />
+        <.scenes light={@light} hidden={@tab != "scenes"} />
 
         <div class="toast-container ld-toast-container">
           <.toast message={@toast.message} undo={@toast.undo} />

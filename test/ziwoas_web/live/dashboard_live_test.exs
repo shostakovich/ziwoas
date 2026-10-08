@@ -3,7 +3,9 @@ defmodule ZiwoasWeb.DashboardLiveTest do
 
   import Phoenix.LiveViewTest
 
-  alias Ziwoas.{Clock, Repo, TestClock}
+  alias Ziwoas.{Clock, Plugs, Repo, Solakon, TestClock}
+  alias Ziwoas.Plugs.DailyTotal
+  alias Ziwoas.Solakon.Reading
   alias Ziwoas.Weather.Record
 
   @now "2026-10-05T12:00:00+02:00"
@@ -26,7 +28,7 @@ defmodule ZiwoasWeb.DashboardLiveTest do
   defp squish(text), do: text |> String.split() |> Enum.join(" ")
 
   defp weather!(attrs) do
-    defaults = %{kind: "current", lat: 52.52, lon: 13.405, timestamp: Clock.now(), daytime: "day"}
+    defaults = %{kind: :current, lat: 52.52, lon: 13.405, timestamp: Clock.now(), daytime: "day"}
     Repo.insert!(struct!(Record, Map.merge(defaults, Map.new(attrs))))
   end
 
@@ -149,17 +151,34 @@ defmodule ZiwoasWeb.DashboardLiveTest do
   end
 
   describe "connected" do
-    test "a live beat re-renders hero, tiles, plug bar and energy flow, and pushes the deltas", %{
-      conn: conn
-    } do
+    test "the charts get their data once connected", %{conn: conn} do
+      insert_sample!("fridge", now_ts() - 5, 82.4, 110.0)
+      Repo.insert!(%DailyTotal{plug_id: "bkw", date: ~D[2026-10-01], energy_wh: 1500.0})
+      Repo.insert!(%DailyTotal{plug_id: "fridge", date: ~D[2026-10-01], energy_wh: 400.0})
+      Repo.insert!(%DailyTotal{plug_id: "bkw", date: ~D[2026-09-20], energy_wh: 9.0})
+
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      assert_push_event(view, "today_chart:data", %{series: series})
+      fridge = Enum.find(series, &(&1.plug_id == "fridge"))
+      assert %{name: "Kühlschrank", role: :consumer} = fridge
+      assert fridge.points == [%{ts: div(now_ts() - 5, 60) * 60, avg_power_w: 82.4}]
+      assert %{points: []} = Enum.find(series, &(&1.plug_id == "bkw"))
+
+      assert_push_event(view, "history_chart:data", %{
+        points: [%{date: "2026-10-01", energy_wh: 1500.0}]
+      })
+    end
+
+    test "a plug event re-renders hero, tiles, plug bar and energy flow, and pushes the deltas",
+         %{conn: conn} do
       {:ok, view, html} = live(conn, ~p"/")
       assert texts(from(html), "#tile_consumption_now .stat-value") == ["—"]
 
       insert_sample!("fridge", now_ts() - 5, 82.4, 110.0)
-
       deltas = [%{id: "fridge", avg_power_w: 82.4, bucket_ts: div(now_ts() - 5, 60) * 60}]
 
-      send(view.pid, {:dashboard_live, deltas})
+      send(view.pid, {:live, deltas})
       doc = from(render(view))
 
       assert texts(doc, "#tile_consumption_now .stat-value") == ["82 W"]
@@ -168,39 +187,75 @@ defmodule ZiwoasWeb.DashboardLiveTest do
       assert [state] = attrs(doc, "#energy_flow", "data-state")
       assert JSON.decode!(state)["home_w"] == 82.4
 
-      assert_push_event(view, "plug_deltas", %{deltas: ^deltas})
+      assert_push_event(view, "today_chart:deltas", %{deltas: ^deltas})
     end
 
-    test "a beat without deltas keeps the plug deltas, an inverter reading beats too", %{
-      conn: conn
-    } do
+    test "an event without deltas pushes none, an inverter reading beats too", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/")
 
-      send(view.pid, {:dashboard_live, []})
-      send(view.pid, {:solakon_reading, 1})
+      send(view.pid, {:live, []})
+      send(view.pid, {:reading, %Reading{id: 1}})
       doc = from(render(view))
 
-      refute_push_event(view, "plug_deltas", _)
+      refute_push_event(view, "today_chart:deltas", _)
       assert attrs(doc, "#live_freshness", "data-beat") == ["2"]
     end
 
-    test "the minute timer recomputes the day's tiles", %{conn: conn} do
+    test "plug events recompute the day's tiles at most once a minute", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/")
 
       insert_sample!("bkw", now_ts() - 600, -300.0, 1000.0)
       insert_sample!("bkw", now_ts() - 5, -412.6, 1500.0)
+
+      send(view.pid, {:live, []})
       assert texts(from(render(view)), "#tile_produced .stat-value") == ["0,00 kWh"]
 
-      send(view.pid, :refresh_summary)
+      TestClock.freeze(DateTime.add(Clock.parse!(@now), 60))
+      send(view.pid, {:live, []})
       assert texts(from(render(view)), "#tile_produced .stat-value") == ["0,50 kWh"]
     end
 
-    test "the page listens on the dashboard and solakon topics", %{conn: conn} do
+    test "midnight starts the day's tiles afresh and redraws the history", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/")
+      assert_push_event(view, "history_chart:data", %{points: []})
+
+      insert_sample!("bkw", now_ts() - 600, -300.0, 1000.0)
+      insert_sample!("bkw", now_ts() - 5, -412.6, 1500.0)
+      Repo.insert!(%DailyTotal{plug_id: "bkw", date: ~D[2026-10-04], energy_wh: 700.0})
+
+      send(view.pid, :midnight)
+
+      assert texts(from(render(view)), "#tile_produced .stat-value") == ["0,50 kWh"]
+      assert_push_event(view, "history_chart:data", %{points: [%{energy_wh: 700.0}]})
+    end
+
+    test "the nightly aggregation redraws the history", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/")
+      assert_push_event(view, "history_chart:data", %{points: []})
+
+      Repo.insert!(%DailyTotal{plug_id: "bkw", date: ~D[2026-10-04], energy_wh: 700.0})
+      Plugs.aggregate("Europe/Berlin", [], today: ~D[2026-10-05])
+
+      assert_push_event(view, "history_chart:data", %{points: [%{date: "2026-10-04"}]})
+    end
+
+    test "every hour the 24 h window slides on", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/")
+      assert_push_event(view, "today_chart:data", _)
+
+      send(view.pid, :slide_today_chart)
+      assert_push_event(view, "today_chart:data", %{series: [_ | _]})
+    end
+
+    test "the page listens to Plugs and Solakon", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/")
       insert_sample!("fridge", now_ts() - 5, 12.0, 1.0)
 
-      Phoenix.PubSub.broadcast(Ziwoas.PubSub, "solakon", {:solakon_reading, 7})
+      Solakon.notify_reading(%Reading{id: 7})
       assert texts(from(render(view)), "#tile_consumption_now .stat-value") == ["12 W"]
+
+      Plugs.notify_live([%{id: "fridge"}])
+      assert_push_event(view, "today_chart:deltas", %{deltas: [%{id: "fridge"}]})
     end
   end
 end

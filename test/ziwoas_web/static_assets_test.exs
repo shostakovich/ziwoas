@@ -1,8 +1,4 @@
 defmodule ZiwoasWeb.StaticAssetsTest do
-  # Only files in git: the esbuild bundles under /assets are build output, so `mix test`
-  # stays green on a fresh checkout. CI builds them (`mix assets.deploy`), which fails on
-  # an import that does not resolve; `~p` already verifies at compile time that the
-  # layout's /assets paths are static paths.
   use ZiwoasWeb.ConnCase
 
   for path <-

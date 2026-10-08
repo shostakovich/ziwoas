@@ -1,8 +1,5 @@
 defmodule Ziwoas.Solakon.Control.Outcome do
-  @moduledoc """
-  One answer per control tick: applied, paused, failed or released, and the line
-  the monitor logs for it.
-  """
+  @moduledoc false
   alias Ziwoas.Solakon.Control.{Decision, Load}
   alias Ziwoas.Solakon.Reading
 

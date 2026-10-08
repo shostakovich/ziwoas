@@ -1,8 +1,5 @@
 defmodule Ziwoas.Schema do
-  @moduledoc """
-  Base for the Ecto schemas: `inserted_at`/`updated_at` as `:utc_datetime_usec`,
-  stamped through `Ziwoas.Clock` so tests can pin them.
-  """
+  @moduledoc false
 
   defmacro __using__(_opts) do
     quote do

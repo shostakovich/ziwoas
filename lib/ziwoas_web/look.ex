@@ -1,22 +1,21 @@
 defmodule ZiwoasWeb.Look do
-  @moduledoc """
-  Carries the `look` cookie into controllers (`plug ZiwoasWeb.Look`) and
-  LiveViews (`live_session ..., session: {ZiwoasWeb.Look, :session, []}`).
-  """
+  @moduledoc false
   import Plug.Conn
 
-  alias Ziwoas.Look
+  @names ~w[clean felt]
+  @default "clean"
+  @cookie "look"
+
+  @spec named(term) :: String.t()
+  def named(value) when value in @names, do: value
+  def named(_value), do: @default
 
   def init(opts), do: opts
 
-  def call(conn, _opts) do
-    conn = fetch_cookies(conn)
-    assign(conn, :look, Look.named(conn.cookies[Look.cookie()]))
-  end
+  def call(conn, _opts), do: assign(conn, :look, from_cookie(conn))
 
-  @doc "LiveView session data: the look, read from the request's cookie."
-  def session(conn) do
-    conn = fetch_cookies(conn)
-    %{"look" => Look.named(conn.cookies[Look.cookie()])}
-  end
+  def session(conn), do: %{"look" => from_cookie(conn)}
+
+  defp from_cookie(conn),
+    do: conn |> fetch_cookies() |> Map.fetch!(:cookies) |> Map.get(@cookie) |> named()
 end

@@ -1,7 +1,6 @@
 import { formatWatts, formatPercent } from "./format.js"
 
-// Keyed as the channels of ZiwoasWeb.DashboardComponents.energy_flow; the SVG's data-ef
-// names are efLine<key> and efDots<key>.
+// Keys match the SVG's data-ef names efLine<key> and efDots<key>.
 const CHANNELS = [
   { key: "SolarHome",    flow: "solar_to_home_w" },
   { key: "SolarGrid",    flow: "solar_to_grid_w" },
@@ -21,7 +20,6 @@ const IDLE_W = 1
 
 const SVG_NS = "http://www.w3.org/2000/svg"
 
-// One second per lap; playbackRate sets the real pace without restarting the animation.
 const BASE_S = 1
 
 function duration(w, len) {

@@ -1,9 +1,5 @@
 defmodule ZiwoasWeb.ConnCase do
-  @moduledoc """
-  Tests that go through the endpoint: requests with `Phoenix.ConnTest`, LiveViews with
-  `Phoenix.LiveViewTest`. Each test runs in the SQL sandbox like `Ziwoas.DataCase`,
-  whose helpers it imports, and like it cannot run async.
-  """
+  @moduledoc false
   use ExUnit.CaseTemplate
 
   using opts do

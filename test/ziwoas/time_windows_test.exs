@@ -1,15 +1,10 @@
 defmodule Ziwoas.TimeWindowsTest do
-  # Time windows compare timestamp columns as text, which only orders like the instants
-  # when the bound is written exactly as the stored values (Ziwoas.Repo.dump_time/1). The
-  # bounds here carry no microseconds on purpose: a DateTime written as it is would lose
-  # the `.000000Z` and miss or catch the rows on the bound.
   use Ziwoas.DataCase
 
   import Ecto.Query
 
-  alias Ziwoas.{Location, Repo, Weather}
+  alias Ziwoas.{Location, Repo, Solakon, SunCalendar, Weather}
   alias Ziwoas.Solakon.{PvHour, PvHourAggregator, Reading, Snapshot}
-  alias Ziwoas.SunCalendar.Builder
   alias Ziwoas.Weather.Record
 
   defp before(time), do: DateTime.add(usec(time), -1, :microsecond)
@@ -17,7 +12,7 @@ defmodule Ziwoas.TimeWindowsTest do
 
   defp record!(timestamp, attrs) do
     Repo.insert!(%Record{
-      kind: Keyword.get(attrs, :kind, "historic"),
+      kind: Keyword.get(attrs, :kind, :historic),
       lat: 52.52,
       lon: 13.405,
       daytime: "day",
@@ -40,44 +35,43 @@ defmodule Ziwoas.TimeWindowsTest do
 
   describe "Weather.today_hourly: from the start of this local hour to the end of tomorrow" do
     test "both bounds are in, a microsecond beyond either is out" do
-      # 12:34 in Berlin: the window is 2026-05-04 12:00 to 2026-05-05 23:59:59.999999 local.
       from = ~U[2026-05-04 10:00:00Z]
       to = ~U[2026-05-05 21:59:59.999999Z]
 
       for timestamp <- [before(from), from, to, after_(to)],
-          do: record!(timestamp, kind: "forecast")
+          do: record!(timestamp, kind: :forecast)
 
       assert Weather.today_hourly(~U[2026-05-04 10:34:00Z], "Europe/Berlin")
              |> Enum.map(& &1.timestamp) == [usec(from), usec(to)]
     end
   end
 
-  describe "Reading.latest_fresh: readings from `now - stale_after_s` on" do
+  describe "Solakon.fresh_reading: readings from `now - stale_after_s` on" do
     test "a reading exactly on the bound is fresh, one a microsecond older is not" do
       now = ~U[2026-06-20 12:00:00Z]
       since = ~U[2026-06-20 11:59:00Z]
 
       reading!(before(since))
-      assert Reading.latest_fresh(now, 60) == nil
+      assert Solakon.fresh_reading(now, 60) == nil
 
       reading!(since)
-      assert %Reading{taken_at: taken_at} = Reading.latest_fresh(now, 60)
+      assert %Reading{taken_at: taken_at} = Solakon.fresh_reading(now, 60)
       assert taken_at == usec(since)
     end
   end
 
-  describe "Snapshot.in_range: both bounds inclusive" do
+  describe "Solakon.history: snapshots of [now - 24 h, now]" do
     test "snapshots on either bound are in, a microsecond beyond is out" do
       from = ~U[2026-06-20 12:00:00Z]
-      to = ~U[2026-06-20 12:05:00Z]
+      to = ~U[2026-06-21 12:00:00Z]
 
       for taken_at <- [before(from), from, to, after_(to)], do: snapshot!(taken_at)
 
-      assert Snapshot.in_range(from, to) |> Enum.map(& &1.taken_at) == [usec(from), usec(to)]
+      assert Solakon.history("24h", to, "UTC").times == [usec(from), usec(to)]
     end
   end
 
-  describe "SunCalendar.Builder: the weather of a year, [local new year, next new year)" do
+  describe "SunCalendar.year: the weather of a year, [local new year, next new year)" do
     test "the first instant of the year is in, the first of the next year is out" do
       location = Location.new("UTC", lat: 52.52, lon: 13.405)
       from = ~U[2026-01-01 00:00:00Z]
@@ -88,7 +82,7 @@ defmodule Ziwoas.TimeWindowsTest do
       record!(before(~U[2026-12-31 23:00:00Z]), cloud_cover: 21)
       record!(to, cloud_cover: 22)
 
-      year = Builder.build(location, [], 2026)
+      year = SunCalendar.year(location, [], 2026)
       cloud = Enum.find(year.strips, &(&1.key == :cloud))
 
       assert cloud.values == %{{1, 0} => 11, {365, 22} => 21}
@@ -96,7 +90,6 @@ defmodule Ziwoas.TimeWindowsTest do
   end
 
   describe "PvHourAggregator.aggregate_day: readings of [local midnight, next midnight)" do
-    # 2026-04-10 in Berlin runs from 2026-04-09 22:00 to 2026-04-10 22:00 UTC.
     @day ~D[2026-04-10]
     @midnight ~U[2026-04-09 22:00:00Z]
     @next_midnight ~U[2026-04-10 22:00:00Z]

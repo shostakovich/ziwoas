@@ -1,15 +1,11 @@
 defmodule ZiwoasWeb.SwitchesComponents do
-  @moduledoc """
-  The Schalten page's pieces: a plug card with its head, the count of
-  Schaltzeiten, the entries and the inline editor. The events they send are
-  handled by `ZiwoasWeb.SwitchesLive`.
-  """
+  @moduledoc false
   use ZiwoasWeb, :html
 
-  alias Ziwoas.Switching.{Row, Rule, Schedule}
+  alias Ziwoas.Switching.{Row, Schedule}
 
   @day_abbr [{1, "Mo"}, {2, "Di"}, {3, "Mi"}, {4, "Do"}, {5, "Fr"}, {6, "Sa"}, {7, "So"}]
-  @source_label %{"manual" => "manuell", "schedule" => "Zeitplan"}
+  @source_label %{manual: "manuell", schedule: "Zeitplan"}
 
   # Drawn in the text colour: emoji render as boxes or in their own colours, depending on the device.
   @ui_icons %{
@@ -85,7 +81,7 @@ defmodule ZiwoasWeb.SwitchesComponents do
           />
         </button>
         <span :if={@lit} class="badge border tabular-nums">
-          <span class="text-warning me-1" aria-hidden="true">⚡</span>{de_number(@row.watt || 0)} W
+          <span class="text-warning me-1" aria-hidden="true">⚡</span>{number(@row.watt || 0)} W
         </span>
       </div>
     </div>
@@ -193,7 +189,6 @@ defmodule ZiwoasWeb.SwitchesComponents do
       class="d-flex align-items-center flex-wrap gap-1 py-1 border-top"
       id={entry_dom_id(@plug, @id)}
     >
-      <%!-- Only an Einzelschaltung carries an arrow: a Zeitfenster's two times say both directions. --%>
       <span class={@pill_class}>
         {entry_label(@entry)}
         <span :if={@direction} class="fw-bold ms-1">{@direction}</span>
@@ -237,7 +232,6 @@ defmodule ZiwoasWeb.SwitchesComponents do
     """
   end
 
-  # An Einzelschaltung's pill is drawn open: its counter-direction is missing.
   defp pill_class(window, enabled) do
     tone =
       cond do
@@ -252,7 +246,7 @@ defmodule ZiwoasWeb.SwitchesComponents do
     )
   end
 
-  defp direction("on"), do: "→ an"
+  defp direction(:on), do: "→ an"
   defp direction(_action), do: "→ aus"
 
   attr :name, :atom, required: true
@@ -272,8 +266,6 @@ defmodule ZiwoasWeb.SwitchesComponents do
     ><path d={@d} /></svg>
     """
   end
-
-  # --- The editors -------------------------------------------------------------------
 
   attr :plug, :any, required: true
   attr :form, Phoenix.HTML.Form, required: true
@@ -355,7 +347,6 @@ defmodule ZiwoasWeb.SwitchesComponents do
   attr :field, Phoenix.HTML.FormField, required: true
   attr :id_prefix, :string, required: true
 
-  # Radios, not a checkbox: the direction can never end up neither.
   defp action_choice(assigns) do
     assigns =
       assign(assigns, value: to_string(assigns.field.value), errors: errors(assigns.field))
@@ -442,14 +433,11 @@ defmodule ZiwoasWeb.SwitchesComponents do
     """
   end
 
-  # --- Labels ------------------------------------------------------------------------
-
-  @doc "`Mo–Fr`, `Mo, Mi, Fr`, `täglich`."
   @spec weekday_label([integer]) :: String.t()
   def weekday_label(days) do
     sorted = Enum.sort(days)
 
-    if sorted == Rule.iso_days() do
+    if sorted == Enum.map(@day_abbr, &elem(&1, 0)) do
       "täglich"
     else
       sorted
@@ -470,13 +458,14 @@ defmodule ZiwoasWeb.SwitchesComponents do
 
   defp abbr(day), do: @day_abbr |> List.keyfind(day, 0) |> elem(1)
 
-  @doc "A window's days come from its on rule, which reads a shift past midnight back out."
   def entry_label(entry) do
-    times = entry |> Schedule.rules() |> Enum.map_join("–", &Rule.at_minute_time/1)
+    times = entry |> Schedule.rules() |> Enum.map_join("–", &hhmm(&1.at_minute))
     "#{weekday_label(Schedule.days(entry))} · #{times}"
   end
 
-  @doc "The plug's state, where it came from and what the schedule does next."
+  defp hhmm(minute), do: "#{pad(div(minute, 60))}:#{pad(rem(minute, 60))}"
+  defp pad(number), do: number |> Integer.to_string() |> String.pad_leading(2, "0")
+
   @spec status_line(Row.t(), String.t()) :: String.t()
   def status_line(row, zone) do
     if Row.offline?(row) do
@@ -487,7 +476,7 @@ defmodule ZiwoasWeb.SwitchesComponents do
       command = row.last_command
 
       first =
-        if command && command.action == "on" == on,
+        if command && command.action == :on == on,
           do:
             "#{word} seit #{clock(command.inserted_at, zone)} (#{@source_label[command.source]})",
           else: word
@@ -504,6 +493,4 @@ defmodule ZiwoasWeb.SwitchesComponents do
   defp schedule_part(%Row{next_edge: edge}, zone),
     do:
       "nächste Schaltung: #{clock(edge.at, zone)} → #{if edge.action == :on, do: "an", else: "aus"}"
-
-  defp clock(time, zone), do: time |> DateTime.shift_zone!(zone) |> Calendar.strftime("%H:%M")
 end

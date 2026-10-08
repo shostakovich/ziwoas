@@ -1,13 +1,8 @@
 defmodule ZiwoasWeb.EconomicsComponents do
-  @moduledoc """
-  The Wirtschaftlichkeit card: what the
-  plant cost, what it saved, how much of it is earned back and when it pays
-  for itself.
-  """
+  @moduledoc false
   use ZiwoasWeb, :html
 
   alias Ziwoas.Economics.Overview
-  alias Ziwoas.GermanNumber
 
   @min_projection_days 90
 
@@ -22,9 +17,8 @@ defmodule ZiwoasWeb.EconomicsComponents do
       assign(assigns,
         subtitle: result.data_start && "seit #{date(result.data_start)}",
         tiles: [
-          {"Anschaffungs­kosten",
-           GermanNumber.format(result.acquisition_cost_eur, precision: 2, unit: "€")},
-          {"Ersparnis", money(result.saved_eur)},
+          {"Anschaffungs­kosten", eur(result.acquisition_cost_eur)},
+          {"Ersparnis", eur(result.saved_eur)},
           {"Zurückverdient", covered_value(result)},
           {payback_label(result), payback_value(result)}
         ],
@@ -76,13 +70,10 @@ defmodule ZiwoasWeb.EconomicsComponents do
     """
   end
 
-  defp money(nil), do: "—"
-  defp money(eur), do: GermanNumber.format(eur, precision: 2, unit: "€")
-
   defp covered_value(%Overview{covered_ratio: nil}), do: "—"
 
   defp covered_value(%Overview{covered_ratio: ratio}),
-    do: GermanNumber.format(ratio * 100, precision: 1, unit: "%")
+    do: number(ratio * 100, precision: 1, unit: "%")
 
   defp payback_label(result),
     do: if(Overview.reached?(result), do: "Amortisiert", else: "Voraus­sichtliche Amortisation")
@@ -108,6 +99,4 @@ defmodule ZiwoasWeb.EconomicsComponents do
       true -> nil
     end
   end
-
-  defp date(%Date{} = date), do: Calendar.strftime(date, "%d.%m.%Y")
 end

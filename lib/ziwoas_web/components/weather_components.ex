@@ -1,30 +1,15 @@
 defmodule ZiwoasWeb.WeatherComponents do
-  @moduledoc """
-  The Wetter page's parts: current conditions, today's hours, the next days in four segments.
-  """
+  @moduledoc false
   use ZiwoasWeb, :html
 
   alias Ziwoas.Weather
-  alias Ziwoas.Weather.{Day, Icon, Segment}
+  alias Ziwoas.Weather.{Day, Segment}
+  alias ZiwoasWeb.WeatherIcon
 
   defmodule Cell do
     @moduledoc false
     defstruct [:text, :icon, :alt, :classes, emphasis: false]
   end
-
-  @icon_labels %{
-    "clear" => "klar",
-    "partly-cloudy" => "teils bewölkt",
-    "cloudy" => "bewölkt",
-    "fog" => "Nebel",
-    "wind" => "windig",
-    "rain" => "Regen",
-    "sleet" => "Schneeregen",
-    "snow" => "Schnee",
-    "hail" => "Hagel",
-    "thunderstorm" => "Gewitter",
-    "unknown" => "Wetter"
-  }
 
   @condition_labels %{
     "dry" => "trocken",
@@ -36,13 +21,19 @@ defmodule ZiwoasWeb.WeatherComponents do
     "thunderstorm" => "Gewitter"
   }
 
-  # weather.css places the rows in this order; rain, the rarest, comes last.
+  @weekdays ~w[Montag Dienstag Mittwoch Donnerstag Freitag Samstag Sonntag]
+  @segment_labels [
+    night: "Nacht",
+    morning: "Vormittag",
+    afternoon: "Nachmittag",
+    evening: "Abend"
+  ]
+
+  # weather.css places the rows in this order.
   @hour_units [wind: "Wind in km/h", solar: "Sonne in W/m²", rain: "Regen in mm"]
   @segment_rows [:temp, :rain, :solar]
   @windy_km_per_h 20
   @sunny_w_per_m2 400
-
-  # --- Sections ------------------------------------------------------------------
 
   attr :current, :any, required: true
   attr :today, :list, required: true
@@ -70,12 +61,12 @@ defmodule ZiwoasWeb.WeatherComponents do
               width="82"
               height="82"
               alt={icon_label(@current.icon)}
-              src={~p"/images/#{Weather.asset_name(@current)}"}
+              src={~p"/images/#{WeatherIcon.asset_name(@current)}"}
             />
             <div class="stat">
               <span class="stat-label">Jetzt</span>
               <span class="stat-value fs-1">
-                {de_number((@sensor || @current).temperature, precision: 1, unit: "°C")}
+                {number((@sensor || @current).temperature, precision: 1, unit: "°C")}
               </span>
               <span class="small text-body-secondary">{current_summary(@current, @sensor)}</span>
             </div>
@@ -83,18 +74,18 @@ defmodule ZiwoasWeb.WeatherComponents do
           <div class="col-12 col-md-auto">
             <ul class="list-unstyled row row-cols-4 row-cols-md-auto g-3 small text-body-secondary text-nowrap text-center text-md-start mb-0">
               <li class="col">
-                <strong class="d-block text-body tabular-nums">{de_number(@current.relative_humidity)}%</strong>Luft
+                <strong class="d-block text-body tabular-nums">{number(@current.relative_humidity)}%</strong>Luft
               </li>
               <li class="col">
-                <strong class="d-block text-body tabular-nums">{de_number(@current.cloud_cover)}%</strong>Wolken
+                <strong class="d-block text-body tabular-nums">{number(@current.cloud_cover)}%</strong>Wolken
               </li>
               <li class="col">
                 <strong class="d-block text-body tabular-nums">
-                  {de_number(@current.precipitation || 0, precision: 1, unit: "mm")}
+                  {number(@current.precipitation || 0, precision: 1, unit: "mm")}
                 </strong>Regen
               </li>
               <li class="col">
-                <strong class="d-block text-body tabular-nums">{de_number(@current.pressure_msl || 0)}</strong>hPa
+                <strong class="d-block text-body tabular-nums">{number(@current.pressure_msl || 0)}</strong>hPa
               </li>
             </ul>
           </div>
@@ -108,7 +99,7 @@ defmodule ZiwoasWeb.WeatherComponents do
           <%= if @current.daytime == "night" do %>
             Nacht
           <% else %>
-            {de_number(Weather.solar_w_per_m2(@current), unit: "W/m²")}
+            {number(Weather.solar_w_per_m2(@current), unit: "W/m²")}
           <% end %>
         </span>
       </div>
@@ -127,7 +118,6 @@ defmodule ZiwoasWeb.WeatherComponents do
     <%= if @records != [] do %>
       <h2 class="h6 text-uppercase text-body-secondary mt-4 mb-2">Heute</h2>
       <section class="weather-hour-row card mb-3" aria-label="Heute">
-        <%!-- A key below takes over the card body's bottom padding. --%>
         <div class={["weather-hour-scroller card-body overflow-x-auto", @units != [] && "pb-2"]}>
           <.hour_card :for={record <- @records} record={record} rows={@rows} zone={@zone} />
         </div>
@@ -178,21 +168,21 @@ defmodule ZiwoasWeb.WeatherComponents do
       <header class="card-header">
         <div class="d-flex justify-content-between align-items-baseline gap-2">
           <h3 class="h6 mb-0 text-nowrap">
-            {Day.weekday_label(@day)}
-            <span class="fw-normal text-body-secondary tabular-nums">{Day.date_label(@day)}</span>
+            {weekday(@day.date)}
+            <span class="fw-normal text-body-secondary tabular-nums">{day_month(@day.date)}</span>
           </h3>
           <div
             :if={@peak}
             class="weather-day-peak small fw-semibold text-warning-emphasis tabular-nums text-nowrap"
           >
             <img class="weather-icon-inline" alt="" src={~p"/images/weather_clear_day.webp"} />
-            Spitze {de_number(@peak, unit: "W/m²")}
+            Spitze {number(@peak, unit: "W/m²")}
           </div>
         </div>
         <div class="weather-day-summary small text-body-secondary tabular-nums">
-          {de_number(Day.temp_min(@day))} – {de_number(Day.temp_max(@day), unit: "°C")}
+          {number(Day.temp_min(@day))} – {number(Day.temp_max(@day), unit: "°C")}
           <%= if @precip > 0 do %>
-            · Regen {de_number(@precip, precision: 1, unit: "mm")}
+            · Regen {number(@precip, precision: 1, unit: "mm")}
           <% end %>
         </div>
       </header>
@@ -213,14 +203,14 @@ defmodule ZiwoasWeb.WeatherComponents do
             aria-expanded={to_string(idx == @selected)}
             aria-controls={"seg-#{@iso}-#{idx}"}
           >
-            <span class="weather-segment-label small">{segment.label}</span>
+            <span class="weather-segment-label small">{segment_label(segment)}</span>
             <img
               class="weather-segment-icon weather-icon weather-icon-md"
               width="72"
               height="72"
               loading="lazy"
               alt={icon_label(Segment.dominant_icon(segment))}
-              src={~p"/images/#{Segment.asset_name(segment)}"}
+              src={~p"/images/#{WeatherIcon.asset_name(segment)}"}
             />
             <%= for row <- @rows, cell = segment_cell(segment, row) do %>
               <.dynamic_tag
@@ -265,7 +255,7 @@ defmodule ZiwoasWeb.WeatherComponents do
     ~H"""
     <article class="weather-hour-card text-center small">
       <div class="weather-hour-time fw-semibold tabular-nums">
-        {@record |> Weather.local_time(@zone) |> Calendar.strftime("%H:%M")}
+        {clock(@record.timestamp, @zone)}
       </div>
       <img
         class="weather-icon weather-icon-sm d-block mx-auto my-2"
@@ -273,9 +263,9 @@ defmodule ZiwoasWeb.WeatherComponents do
         height="42"
         loading="lazy"
         alt={icon_label(@record.icon)}
-        src={~p"/images/#{Weather.asset_name(@record)}"}
+        src={~p"/images/#{WeatherIcon.asset_name(@record)}"}
       />
-      <strong class="d-block fs-4 tabular-nums">{de_number(@record.temperature)}°</strong>
+      <strong class="d-block fs-4 tabular-nums">{number(@record.temperature)}°</strong>
       <ul
         :if={@rows != []}
         class="weather-hour-extras list-unstyled mt-1 mb-0 text-body-secondary tabular-nums text-nowrap"
@@ -306,16 +296,18 @@ defmodule ZiwoasWeb.WeatherComponents do
     """
   end
 
-  # --- Cells and thresholds ------------------------------------------------------
+  def icon_label(icon), do: WeatherIcon.label(icon)
 
-  def icon_label(icon), do: Map.get(@icon_labels, Icon.normalized_icon(icon), "Wetter")
+  def weekday(date), do: Enum.at(@weekdays, Date.day_of_week(date) - 1)
+
+  def segment_label(%Segment{label: label}), do: Keyword.fetch!(@segment_labels, label)
 
   def condition_label(condition), do: Map.get(@condition_labels, condition)
 
   defp current_summary(current, sensor) do
     [
       condition_label(current.condition),
-      "Wind #{de_number(current.wind_speed || 0, unit: "km/h")}",
+      "Wind #{number(current.wind_speed || 0, unit: "km/h")}",
       if(sensor, do: "eigener Sensor", else: "DWD")
     ]
     |> Enum.reject(&is_nil/1)
@@ -326,7 +318,6 @@ defmodule ZiwoasWeb.WeatherComponents do
     for {row, _unit} <- @hour_units, Enum.any?(records, &hour_cell(&1, row)), do: row
   end
 
-  @doc "A chance of rain carries its own \"%\" and needs no key."
   def hour_units(records) do
     for {row, unit} <- @hour_units,
         Enum.any?(records, fn record -> match?(%Cell{alt: ^unit}, hour_cell(record, row)) end),
@@ -342,7 +333,7 @@ defmodule ZiwoasWeb.WeatherComponents do
         windy = windy?(wind)
 
         %Cell{
-          text: de_number(wind),
+          text: number(wind),
           icon: "weather_wind_day.webp",
           alt: @hour_units[:wind],
           emphasis: windy,
@@ -357,7 +348,7 @@ defmodule ZiwoasWeb.WeatherComponents do
     solar = Weather.solar_w_per_m2(record)
 
     %Cell{
-      text: de_number(solar),
+      text: number(solar),
       icon: "weather_clear_day.webp",
       alt: @hour_units[:solar],
       emphasis: sunny?(solar),
@@ -369,14 +360,14 @@ defmodule ZiwoasWeb.WeatherComponents do
     cond do
       is_number(record.precipitation) and record.precipitation > 0 ->
         %Cell{
-          text: de_number(record.precipitation, precision: 1),
+          text: number(record.precipitation, precision: 1),
           icon: "weather_rain_day.webp",
           alt: @hour_units[:rain]
         }
 
       at_least?(record.precipitation_probability, 30) ->
         %Cell{
-          text: de_number(record.precipitation_probability, unit: "%"),
+          text: number(record.precipitation_probability, unit: "%"),
           icon: "weather_rain_day.webp",
           alt: "Regenwahrscheinlichkeit"
         }
@@ -399,7 +390,7 @@ defmodule ZiwoasWeb.WeatherComponents do
 
       min ->
         %Cell{
-          text: "#{de_number(min)} – #{de_number(Segment.temp_max(segment))}°",
+          text: "#{number(min)} – #{number(Segment.temp_max(segment))}°",
           emphasis: true,
           classes: "fs-5"
         }
@@ -410,14 +401,14 @@ defmodule ZiwoasWeb.WeatherComponents do
     precip = Segment.precip_sum(segment)
 
     if precip > 0,
-      do: %Cell{text: de_number(precip, precision: 1, unit: "mm"), classes: "small fw-normal"}
+      do: %Cell{text: number(precip, precision: 1, unit: "mm"), classes: "small fw-normal"}
   end
 
   def segment_cell(segment, :solar) do
     solar = Segment.avg_solar_w_per_m2(segment)
 
     unless is_nil(solar) or Segment.all_night?(segment),
-      do: %Cell{text: de_number(solar, unit: "W/m²"), classes: "small text-warning-emphasis"}
+      do: %Cell{text: number(solar, unit: "W/m²"), classes: "small text-warning-emphasis"}
   end
 
   def segment_cell(_segment, _row), do: nil

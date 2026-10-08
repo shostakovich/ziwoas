@@ -1,15 +1,11 @@
 defmodule ZiwoasWeb.CoreComponents do
-  @moduledoc """
-  Shared function components in the style of Phoenix 1.8's generator, on
-  felt-css (Bootstrap class names) instead of Tailwind. Error messages are
-  German without Gettext, see `translate_error/1`.
-  """
+  @moduledoc false
   use Phoenix.Component
 
   alias Phoenix.HTML.Form
   alias Phoenix.LiveView.JS
+  alias ZiwoasWeb.Format
 
-  @doc "A felt-css card: optional title and subtitle above the content."
   attr :title, :string, default: nil
   attr :subtitle, :string, default: nil
   attr :class, :any, default: nil
@@ -32,11 +28,6 @@ defmodule ZiwoasWeb.CoreComponents do
     """
   end
 
-  @doc """
-  A flash message as a dismissible felt-css alert.
-
-      <.flash kind={:info} flash={@flash} />
-  """
   attr :id, :string, doc: "the optional id of the flash container"
   attr :flash, :map, default: %{}, doc: "the map of flash messages to display"
   attr :title, :string, default: nil
@@ -69,7 +60,6 @@ defmodule ZiwoasWeb.CoreComponents do
     """
   end
 
-  @doc "The flash messages of a page, plus the notices for a lost connection."
   attr :flash, :map, required: true, doc: "the map of flash messages"
   attr :id, :string, default: "flash-group", doc: "the optional id of flash container"
 
@@ -102,13 +92,6 @@ defmodule ZiwoasWeb.CoreComponents do
     """
   end
 
-  @doc """
-  A button, or a link styled as one when `href`, `navigate` or `patch` is given.
-
-      <.button>Speichern</.button>
-      <.button variant="outline-danger" phx-click="delete" data-confirm="Wirklich löschen?">Löschen</.button>
-      <.button navigate={~p"/"}>Zurück</.button>
-  """
   attr :variant, :string, default: "primary", doc: "the felt-css button variant (btn-<variant>)"
   attr :size, :string, default: nil, values: [nil, "sm", "lg"]
   attr :class, :any, default: nil
@@ -138,17 +121,6 @@ defmodule ZiwoasWeb.CoreComponents do
     end
   end
 
-  @doc """
-  A form input with label and German error messages, on a `Phoenix.HTML.FormField`
-  or with `name`/`value` given directly.
-
-      <.input field={@form[:label]} label="Bezeichnung" />
-      <.input field={@form[:plug_id]} type="select" options={@plugs} prompt="Bitte wählen" />
-      <.input field={@form[:enabled]} type="checkbox" label="Aktiv" />
-
-  `type="checkbox"` takes `switch` for a felt-css form switch. Other types
-  (`number`, `time`, `date`, `color`, `range`, …) render a plain `<input>`.
-  """
   attr :id, :any, default: nil
   attr :name, :any
   attr :label, :string, default: nil
@@ -273,7 +245,6 @@ defmodule ZiwoasWeb.CoreComponents do
     """
   end
 
-  @doc "A form error message below its control."
   slot :inner_block, required: true
 
   def error(assigns) do
@@ -282,41 +253,65 @@ defmodule ZiwoasWeb.CoreComponents do
     """
   end
 
-  @doc "A page header: title, optional subtitle and actions on the right."
+  attr :class, :any, default: nil
+  attr :title_class, :any, default: nil
   slot :inner_block, required: true
-  slot :subtitle
+  slot :leading
   slot :actions
 
   def header(assigns) do
     ~H"""
-    <header class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-3">
-      <div>
-        <h1 class="mb-1">{render_slot(@inner_block)}</h1>
-        <p :if={@subtitle != []} class="text-body-secondary mb-0">{render_slot(@subtitle)}</p>
-      </div>
-      <div :if={@actions != []} class="d-flex gap-2">{render_slot(@actions)}</div>
+    <header class={["d-flex align-items-center gap-2 mb-3", @class]}>
+      {render_slot(@leading)}
+      <h1 class={["h2 mb-0 me-auto", @title_class]}>{render_slot(@inner_block)}</h1>
+      {render_slot(@actions)}
     </header>
     """
   end
 
-  @doc """
-  Translates an error tuple from a changeset into German.
+  attr :id, :string, default: nil
+  attr :label, :string, required: true
+  attr :number, :string, required: true
+  attr :unit, :string, default: nil
+  attr :caption, :string, default: nil
 
-  Messages written in German at the validation (`message: "…"`) pass through
-  with their bindings filled in; Ecto's standard English messages are looked
-  up by their validation.
-  """
+  def tile(assigns) do
+    ~H"""
+    <div class="col" id={@id}>
+      <div class="card h-100">
+        <div class="card-body p-3 h-100 d-flex flex-column">
+          <div class="stat flex-grow-1">
+            <span class="stat-label">{@label}</span>
+            <span class="stat-value fs-2 mt-auto">{@number}
+            <%= if @unit do %>
+              <span class="fs-5 fw-semibold">{@unit}</span>
+            <% end %></span>
+            <span :if={@caption} class="small text-body-secondary">{@caption}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    """
+  end
+
+  def measure_tile(id, label, value, unit, precision, signed \\ false)
+
+  def measure_tile(id, label, nil, _unit, _precision, _signed),
+    do: %{id: id, label: label, number: "—", unit: nil}
+
+  def measure_tile(id, label, value, unit, precision, signed) do
+    number = Format.number(value, precision: precision)
+    number = if signed and not (value < 0), do: "+" <> number, else: number
+    %{id: id, label: label, number: number, unit: unit}
+  end
+
+  @doc "German messages from the validation pass through; Ecto's English ones are looked up."
   @spec translate_error({String.t(), keyword}) :: String.t()
   def translate_error({msg, opts}) do
     # unique_constraint/3 marks its error with `constraint: :unique`, not a validation.
     (Keyword.get(opts, :validation) || Keyword.get(opts, :constraint))
     |> german(msg, opts)
     |> interpolate(opts)
-  end
-
-  @doc "Translates the errors for a field from a keyword list of errors."
-  def translate_errors(errors, field) when is_list(errors) do
-    for {^field, {msg, opts}} <- errors, do: translate_error({msg, opts})
   end
 
   defp german(:required, "can't be blank", _opts), do: "muss ausgefüllt werden"
@@ -363,18 +358,13 @@ defmodule ZiwoasWeb.CoreComponents do
     end
   end
 
-  @doc "Shows an element with a fade (`phx-*` bindings)."
   def show(js \\ %JS{}, selector) do
     JS.show(js, to: selector, time: 200, transition: {"fade", "opacity-0", "opacity-100"})
   end
 
-  @doc "Hides an element with a fade (`phx-*` bindings)."
   def hide(js \\ %JS{}, selector) do
     JS.hide(js, to: selector, time: 200, transition: {"fade", "opacity-100", "opacity-0"})
   end
-
-  @doc "A number as German UI text, see `Ziwoas.GermanNumber.format/2`."
-  def de_number(value, opts \\ []), do: Ziwoas.GermanNumber.format(value, opts)
 
   defp present?(value), do: is_binary(value) and String.trim(value) != ""
 end

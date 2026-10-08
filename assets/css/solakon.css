@@ -1,4 +1,3 @@
-/* Ramp stops (Ziwoas.Ramp) run away from the card surface; low ends are translucent. */
 .sun-charts {
   --ramp-amber-0: color-mix(in oklab, var(--viz-solar) 14%, transparent);
   --ramp-amber-1: var(--viz-solar);
@@ -9,7 +8,6 @@
   --ramp-grey-0: color-mix(in oklab, var(--felt-body-color) 6%, transparent);
   --ramp-grey-1: color-mix(in oklab, var(--felt-body-color) 85%, var(--felt-surface));
   --ramp-low: var(--viz-grid);
-  /* Strong enough to stand apart from the card, felt and dark included. */
   --ramp-neutral: color-mix(in oklab, var(--felt-body-color) 19%, var(--felt-surface));
   --ramp-high: var(--viz-solar);
   --nodata: color-mix(in oklab, var(--felt-surface-sunk) 55%, transparent);
@@ -23,8 +21,6 @@
   height: auto;
   font-family: inherit;
 }
-/* Lines keep their screen width (non-scaling-stroke); type cannot, so this ladder per
-   breakpoint is the accepted approximation of 11–13px on screen. */
 .sun-charts { --chart-text: 9.5px; }
 .sun-charts .multiple { --chart-text: 11.5px; }
 .sun-charts .panel-chart-narrow { --chart-text: 13px; }
@@ -90,7 +86,6 @@ polyline.noon { stroke-width: 1.3px; stroke-dasharray: 2 4; }
 
 .shading svg .fields rect { stroke: none; }
 .shading svg .dot { fill: var(--felt-secondary-color); stroke: var(--felt-surface); stroke-width: 2; }
-/* Label halos in em: the type scales with the drawing, the halo has to follow. */
 .shading svg .path-label,
 .shading svg .dot-label,
 .shading svg .direct-labels text,
@@ -114,12 +109,10 @@ polyline.noon { stroke-width: 1.3px; stroke-dasharray: 2 4; }
 .shading svg .expected { stroke-dasharray: 3.5 3; }
 .shading .multiple svg .theory { stroke-width: 1px; stroke-dasharray: 1 2.5; }
 .shading svg .measured-area { fill: var(--viz-solar); fill-opacity: 0.18; }
-/* In their line's colour, leaders would read as spikes of it. */
 .shading svg .leaders line { stroke: var(--felt-secondary-color); stroke-width: 0.75px; }
 .shading .legend-line.expected { border-top-style: dashed; }
 .shading .legend-line.theory { border-top-style: dotted; }
 
-/* A phone shrinks the 720-unit drawings below half: dots grow in their own units, the halo narrows. */
 @media (max-width: 575.98px) {
   .sun-charts .label-dense { display: none; }
   .sun-charts .label-sparse { display: block; }
@@ -127,12 +120,10 @@ polyline.noon { stroke-width: 1.3px; stroke-dasharray: 2 4; }
   polyline.sun-halo { stroke-width: 3px; }
   .shading svg .dot { r: 7px; stroke-width: 3; }
 }
-/* Two columns share one scale: only the left one names its values. */
 @media (max-width: 991.98px) {
   .shading .multiple:nth-child(even) .value-labels { display: none; }
 }
 
-/* felt's accordion is a whole panel, too loud for a sentence behind a question. */
 .solakon-details > summary {
   display: inline-flex;
   align-items: center;
@@ -144,3 +135,11 @@ polyline.noon { stroke-width: 1.3px; stroke-dasharray: 2 4; }
 .solakon-details > summary::after { content: "›"; transition: rotate .15s; }
 .solakon-details[open] > summary::after { rotate: 90deg; }
 .solakon-details > summary:hover { color: var(--felt-body-color); }
+
+/* felt's switch is a checkbox; on a <button role="switch"> aria-checked stands in for :checked. */
+.form-switch button.form-check-input { padding: 0; }
+.form-switch button.form-check-input[aria-checked="true"] {
+  background-color: var(--_check-fill);
+  border-color: var(--_check-fill);
+  background-position: calc(100% - 1px) center;
+}

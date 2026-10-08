@@ -3,8 +3,8 @@ defmodule Ziwoas.Solakon.Control.TickTest do
 
   alias Ziwoas.{FakeModbusServer, Repo, TestClock}
   alias Ziwoas.Plugs.{Plug, Roster}
+  alias Ziwoas.Solakon.{Control, Monitor, Reading}
   alias Ziwoas.Solakon.Control.{Decision, Load, LoadReader, Outcome, State, Tick}
-  alias Ziwoas.Solakon.{Monitor, Reading}
 
   @moduletag :capture_log
   @now ~U[2026-10-05 10:00:00.000000Z]
@@ -31,8 +31,8 @@ defmodule Ziwoas.Solakon.Control.TickTest do
   describe "the stored decision" do
     test "round-trips and expires with the inverter's watchdog" do
       state =
-        State.current!()
-        |> State.store!(%Decision{state: :protected, target_w: 85, trim: true}, @now)
+        Control.state!()
+        |> Control.store!(%Decision{state: :protected, target_w: 85, trim: true}, @now)
 
       assert State.stored(state) == {%Decision{state: :protected, target_w: 85, trim: true}, @now}
 
@@ -58,12 +58,12 @@ defmodule Ziwoas.Solakon.Control.TickTest do
 
     test "resume clears it, pause keeps it" do
       state =
-        State.current!()
-        |> State.store!(%Decision{state: :surplus, target_w: 500, trim: false}, @now)
-        |> State.pause!()
+        Control.state!()
+        |> Control.store!(%Decision{state: :surplus, target_w: 500, trim: false}, @now)
+        |> Control.pause!()
 
       assert State.stored(state)
-      state = State.resume!(state)
+      state = Control.resume!(state)
       assert State.active?(state)
       assert State.stored(state) == nil
       assert {state.trim, state.last_target_w} == {false, nil}
@@ -123,7 +123,6 @@ defmodule Ziwoas.Solakon.Control.TickTest do
       :ok
     end
 
-    # The inverter holds the minimum SoC already, so a tick writes 46001, 46002 and 46003.
     defp inverter!(opts \\ []) do
       server = start_supervised!({FakeModbusServer, {%{"46609:1" => [10]}, opts}})
 
@@ -152,7 +151,7 @@ defmodule Ziwoas.Solakon.Control.TickTest do
                "00040000000b0110b3b30002040000012c"
              ]
 
-      state = State.current()
+      state = Control.state()
       assert State.stored(state) == {decision, @now}
       assert state.consecutive_failures == 0
     end
@@ -166,26 +165,31 @@ defmodule Ziwoas.Solakon.Control.TickTest do
                error: "{:modbus_exception, 4}"
              }
 
-      state = State.current()
+      state = Control.state()
       assert state.consecutive_failures == 1
       assert State.stored(state) == nil
     end
 
     test "the third failure in a row hands control back and forgets the decision" do
       {server, monitor} = inverter!(fail: ["16:46003"])
-      State.store!(State.current!(), %Decision{state: :normal, target_w: 250, trim: false}, @now)
+
+      Control.store!(
+        Control.state!(),
+        %Decision{state: :normal, target_w: 250, trim: false},
+        @now
+      )
 
       assert [%{status: :failed, failures: 1}, %{status: :failed, failures: 2}] =
                [tick(monitor), tick(monitor)]
 
-      assert State.stored(State.current())
+      assert State.stored(Control.state())
 
       assert %Outcome{status: :released, failures: 3, error: "{:modbus_exception, 4}"} =
                tick(monitor)
 
       assert List.last(frames(server)) == "0001000000060106b3b10000"
 
-      state = State.current()
+      state = Control.state()
       assert state.consecutive_failures == 0
       assert State.stored(state) == nil
     end
@@ -198,7 +202,7 @@ defmodule Ziwoas.Solakon.Control.TickTest do
       assert error =~ "could not relinquish remote control: {:modbus_exception, 4}"
 
       assert %Outcome{status: :failed, failures: 4} = tick(monitor)
-      assert State.current().consecutive_failures == 4
+      assert Control.state().consecutive_failures == 4
     end
 
     test "a monitor that is down counts as a failed write" do
@@ -217,7 +221,7 @@ defmodule Ziwoas.Solakon.Control.TickTest do
       Repo.insert!(%State{consecutive_failures: 2})
 
       assert %Outcome{status: :applied} = tick(monitor)
-      assert State.current().consecutive_failures == 0
+      assert Control.state().consecutive_failures == 0
     end
 
     test "a paused loop decides nothing and writes nothing" do
@@ -226,15 +230,15 @@ defmodule Ziwoas.Solakon.Control.TickTest do
 
       assert tick(monitor) == %Outcome{status: :paused}
       assert FakeModbusServer.frames(server) == []
-      assert State.stored(State.current()) == nil
+      assert State.stored(Control.state()) == nil
     end
 
     test "continues the stored decision while the watchdog holds it" do
       {_server, monitor} = inverter!()
       stored_at = DateTime.add(@now, -30)
 
-      State.store!(
-        State.current!(),
+      Control.store!(
+        Control.state!(),
         %Decision{state: :normal, target_w: 50, trim: false},
         stored_at
       )

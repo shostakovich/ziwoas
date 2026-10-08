@@ -1,14 +1,13 @@
 defmodule Ziwoas.Switching.RowTest do
   use Ziwoas.DataCase
 
-  alias Ziwoas.{Clock, Repo}
+  alias Ziwoas.{Clock, Repo, Switching}
   alias Ziwoas.Plugs.{Plug, State}
   alias Ziwoas.Switching.{Command, Row, Rule, Schedule}
 
   @zone "Europe/Berlin"
   @plug %Plug{id: "fridge", name: "Kühlschrank", role: :consumer, switchable: true}
 
-  # Monday 2026-06-15.
   defp at(hour, minute \\ 0),
     do:
       DateTime.new!(~D[2026-06-15], Time.new!(hour, minute, 0), @zone)
@@ -18,8 +17,8 @@ defmodule Ziwoas.Switching.RowTest do
     group = Ecto.UUID.generate()
 
     for {action, minute} <- [
-          {"on", Keyword.get(opts, :on_at, 1080)},
-          {"off", Keyword.get(opts, :off_at, 1380)}
+          {:on, Keyword.get(opts, :on_at, 1080)},
+          {:off, Keyword.get(opts, :off_at, 1380)}
         ] do
       Repo.insert!(%Rule{
         plug_id: Keyword.get(opts, :plug_id, "fridge"),
@@ -32,7 +31,7 @@ defmodule Ziwoas.Switching.RowTest do
     end
   end
 
-  defp build(now), do: Row.build(@plug, now, @zone)
+  defp build(now), do: Switching.row(@plug, now, @zone)
 
   test "build collects state, last command, entries, watt and next edge" do
     now = at(17)
@@ -40,8 +39,8 @@ defmodule Ziwoas.Switching.RowTest do
 
     Repo.insert!(%Command{
       plug_id: "fridge",
-      action: "on",
-      source: "schedule",
+      action: :on,
+      source: :schedule,
       inserted_at: now,
       updated_at: now
     })
@@ -56,7 +55,7 @@ defmodule Ziwoas.Switching.RowTest do
     assert length(row.entries) == 1
     assert row.next_edge.action == :on
     assert DateTime.compare(row.next_edge.at, at(18)) == :eq
-    assert row.last_command.action == "on"
+    assert row.last_command.action == :on
   end
 
   test "offline when the last sample outlives the deadline, or is missing" do
@@ -73,8 +72,8 @@ defmodule Ziwoas.Switching.RowTest do
 
     Repo.insert!(%Command{
       plug_id: "fridge",
-      action: "on",
-      source: "manual",
+      action: :on,
+      source: :manual,
       inserted_at: at(17),
       updated_at: at(17)
     })
@@ -93,8 +92,8 @@ defmodule Ziwoas.Switching.RowTest do
 
     Repo.insert!(%Command{
       plug_id: "fridge",
-      action: "on",
-      source: "manual",
+      action: :on,
+      source: :manual,
       inserted_at: at(17, 5),
       updated_at: at(17, 5)
     })
@@ -121,7 +120,7 @@ defmodule Ziwoas.Switching.RowTest do
   end
 
   test "entries of one plug are folded and sorted, other plugs stay out" do
-    late = Repo.insert!(%Rule{plug_id: "fridge", action: "off", at_minute: 1320, days: [1]})
+    late = Repo.insert!(%Rule{plug_id: "fridge", action: :off, at_minute: 1320, days: [1]})
     [early, _] = window(on_at: 360, off_at: 600)
     window(plug_id: "other")
 
@@ -133,7 +132,7 @@ defmodule Ziwoas.Switching.RowTest do
 
   test "the count is Schaltzeiten, not rows" do
     window()
-    Repo.insert!(%Rule{plug_id: "fridge", action: "off", at_minute: 60, days: [1]})
+    Repo.insert!(%Rule{plug_id: "fridge", action: :off, at_minute: 60, days: [1]})
     assert Row.rule_count(build(Clock.now())) == 3
   end
 end

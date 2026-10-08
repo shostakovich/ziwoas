@@ -1,15 +1,9 @@
 defmodule ZiwoasWeb.SensorsComponents do
-  @moduledoc """
-  The Sensoren page's parts: the dashboard `ZiwoasWeb.SensorsLive` reloads after
-  every sensor poll, one card per sensor, the battery warning and the chart cards
-  the `SensorsChart` hook fills from `/sensors/series`.
-  """
+  @moduledoc false
   use ZiwoasWeb, :html
 
-  alias Ziwoas.GermanNumber
-  alias Ziwoas.Sensors.{Reading, ReadingPresenter}
+  alias Ziwoas.Sensors
 
-  @doc "Everything below the heading."
   attr :sensors, :list, required: true
   attr :latest, :map, required: true
   attr :now, DateTime, required: true
@@ -48,7 +42,7 @@ defmodule ZiwoasWeb.SensorsComponents do
     names =
       for sensor <- assigns.sensors,
           reading = assigns.latest[sensor.id],
-          ReadingPresenter.battery_low?(reading),
+          Sensors.battery_low?(reading),
           do: sensor.name
 
     assigns = assign(assigns, :names, Enum.join(names, ", "))
@@ -66,7 +60,7 @@ defmodule ZiwoasWeb.SensorsComponents do
   end
 
   attr :sensor, :map, required: true
-  attr :reading, Reading, default: nil
+  attr :reading, :map, default: nil, doc: "the sensor's newest reading"
   attr :now, DateTime, required: true
 
   def sensor_card(assigns) do
@@ -83,18 +77,18 @@ defmodule ZiwoasWeb.SensorsComponents do
             <%= if @reading do %>
               <ul class="list-unstyled mb-1">
                 <li :if={@reading.temperature}>
-                  <strong class="fs-5 tabular-nums">{de_number(@reading.temperature, precision: 1)}</strong>
+                  <strong class="fs-5 tabular-nums">{number(@reading.temperature, precision: 1)}</strong>
                   °C
                 </li>
                 <li :if={@reading.humidity}>
                   <strong class="fs-5 tabular-nums">{@reading.humidity}</strong> % rH
                 </li>
                 <li :if={@co2? && @reading.co2}>
-                  <strong class="fs-5 tabular-nums">{de_number(@reading.co2)}</strong> ppm
+                  <strong class="fs-5 tabular-nums">{number(@reading.co2)}</strong> ppm
                 </li>
               </ul>
               <div class="small text-body-secondary">
-                {ReadingPresenter.age_label(@reading, @now)}
+                {age_label(@reading, @now)}
               </div>
             <% else %>
               <p class="small text-body-secondary mb-0">Keine Daten</p>
@@ -106,6 +100,16 @@ defmodule ZiwoasWeb.SensorsComponents do
     """
   end
 
+  @spec age_label(map | nil, DateTime.t()) :: String.t()
+  def age_label(reading, now) do
+    case Sensors.age_s(reading, now) do
+      nil -> "—"
+      seconds when seconds < 60 -> "vor #{seconds} s"
+      seconds when seconds < 3600 -> "vor #{div(seconds, 60)} Min"
+      seconds -> "vor #{div(seconds, 3600)} h"
+    end
+  end
+
   attr :sensors, :list, required: true
 
   def charts(assigns) do
@@ -113,7 +117,7 @@ defmodule ZiwoasWeb.SensorsComponents do
       assign(assigns, :co2_sensors, Enum.filter(assigns.sensors, &(&1.type == :meter_pro_co2)))
 
     ~H"""
-    <div id="sensors_chart" phx-hook="SensorsChart" data-url="/sensors/series">
+    <div id="sensors_chart" phx-hook="SensorsChart">
       <.card title="CO₂" subtitle={chart_subtitle("ppm", @co2_sensors)}>
         <div class="chart-frame chart-frame-prominent" id="sensors_co2_chart" phx-update="ignore">
           <canvas data-series="co2"></canvas>
@@ -149,7 +153,36 @@ defmodule ZiwoasWeb.SensorsComponents do
     """
   end
 
-  # A chart of one sensor names it; several have a legend.
+  @spec chart_data([map], [map]) :: %{
+          temperature: [map],
+          humidity: [map],
+          co2: [map],
+          co2_thresholds: [pos_integer]
+        }
+  def chart_data(sensors, readings) do
+    grouped = Enum.group_by(readings, & &1.device_id)
+    co2_sensors = Enum.filter(sensors, &(&1.type == :meter_pro_co2))
+
+    %{
+      temperature: series(grouped, sensors, :temperature),
+      humidity: series(grouped, sensors, :humidity),
+      co2: series(grouped, co2_sensors, :co2),
+      co2_thresholds: [Sensors.co2_warn_ppm(), Sensors.co2_bad_ppm()]
+    }
+  end
+
+  defp series(grouped, sensors, field) do
+    for sensor <- sensors do
+      points =
+        for reading <- Map.get(grouped, sensor.id, []),
+            value = Map.fetch!(reading, field),
+            not is_nil(value),
+            do: [DateTime.to_unix(reading.taken_at, :millisecond), value]
+
+      %{device_id: sensor.id, name: sensor.name, points: points}
+    end
+  end
+
   defp chart_subtitle(unit, [sensor]), do: "#{unit} · #{sensor.name} · letzte 24 h"
   defp chart_subtitle(unit, _sensors), do: "#{unit} · letzte 24 h"
 
@@ -164,19 +197,18 @@ defmodule ZiwoasWeb.SensorsComponents do
   @stitch_scale "1.15"
   @stitch_pitch 11
 
-  @doc "A felt CO₂ gauge: three zones, the needle at `ppm`."
   attr :ppm, :integer, required: true
 
   def co2_gauge(assigns) do
     ppm = assigns.ppm
-    level = ReadingPresenter.co2_level(%Reading{co2: ppm})
+    level = Sensors.co2_level(ppm)
     # Each gauge on a page brings its own defs, so ids must not collide.
     uid = System.unique_integer([:positive])
 
     assigns =
       assign(assigns,
         id: &"co2-gauge-#{&1}-#{uid}",
-        label: "CO₂ #{GermanNumber.format(ppm, unit: "ppm")}, #{@level_labels[level]}",
+        label: "CO₂ #{number(ppm, unit: "ppm")}, #{@level_labels[level]}",
         zones: zones(level),
         stitches: stitches(),
         needle_angle: fixed(share(ppm) * 180),
@@ -282,7 +314,7 @@ defmodule ZiwoasWeb.SensorsComponents do
   end
 
   defp zones(current) do
-    bounds = [@min_ppm, ReadingPresenter.co2_warn_ppm(), ReadingPresenter.co2_bad_ppm(), @max_ppm]
+    bounds = [@min_ppm, Sensors.co2_warn_ppm(), Sensors.co2_bad_ppm(), @max_ppm]
 
     for {{level, _label}, [from, to]} <-
           Enum.zip(@level_labels, Enum.chunk_every(bounds, 2, 1, :discard)) do
@@ -308,7 +340,6 @@ defmodule ZiwoasWeb.SensorsComponents do
       " " <> fixed(@center - @radius * :math.sin(angle))
   end
 
-  # SVG coordinates and angles to a tenth.
   defp fixed(number), do: :erlang.float_to_binary(number * 1.0, decimals: 1)
 
   defp share(ppm),

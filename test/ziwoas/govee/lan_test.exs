@@ -57,7 +57,6 @@ defmodule Ziwoas.Govee.LanTest do
   end
 
   describe "send_datagram/1" do
-    # A UDP socket on localhost stands in for the lamp.
     setup do
       {:ok, lamp} = :gen_udp.open(0, [:binary, ip: {127, 0, 0, 1}, active: true])
       {:ok, port} = :inet.port(lamp)

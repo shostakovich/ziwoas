@@ -1,40 +1,35 @@
 defmodule Ziwoas.Switching.Commander do
-  @moduledoc """
-  The single choke point for switching plugs: publishes the command over the
-  command connection (`Ziwoas.Mqtt.publish/5`) and logs it to `switch_commands`
-  only after the publish went out.
-  """
-  alias Ziwoas.{Mqtt, Repo}
+  @moduledoc false
   alias Ziwoas.Plugs.Plug
+  alias Ziwoas.{Repo, Shelly}
   alias Ziwoas.Switching.Command
 
-  @actions [:on, :off]
+  @type error ::
+          :not_switchable
+          | {:no_driver, atom}
+          | {:unreachable, :offline | :timeout}
+          | {:rejected, {integer | nil, String.t()}}
 
-  @spec switch(Plug.t(), :on | :off, :manual | :schedule, Ziwoas.Config.Mqtt.t()) ::
-          {:ok, Command.t()} | {:error, String.t()}
-  def switch(plug, action, source, mqtt) do
-    unless action in @actions,
-      do: raise(ArgumentError, "action must be one of #{inspect(@actions)}")
-
+  @spec switch(Plug.t(), Command.action(), Command.source()) ::
+          {:ok, Command.t()} | {:error, error}
+  def switch(plug, action, source)
+      when action in [:on, :off] and source in [:manual, :schedule] do
     with :ok <- switchable(plug),
-         :ok <- publish(plug, action, mqtt) do
-      command = %Command{plug_id: plug.id, action: to_string(action), source: to_string(source)}
-      {:ok, Repo.insert!(command)}
+         :ok <- send_switch(plug, action) do
+      {:ok, Repo.insert!(%Command{plug_id: plug.id, action: action, source: source})}
     end
   end
 
   defp switchable(%Plug{switchable: true}), do: :ok
-  defp switchable(plug), do: {:error, "plug '#{plug.id}' is not switchable"}
+  defp switchable(_plug), do: {:error, :not_switchable}
 
-  defp publish(%Plug{driver: :shelly} = plug, action, mqtt) do
-    topic = "#{mqtt.topic_prefix}/#{plug.id}/command/switch:0"
-
-    case Mqtt.publish(Mqtt.command_client_id(), topic, to_string(action)) do
-      :ok -> :ok
-      {:error, reason} -> {:error, "MQTT publish for '#{plug.id}' failed: #{inspect(reason)}"}
+  defp send_switch(%Plug{driver: :shelly} = plug, action) do
+    case Shelly.call(plug.id, "Switch.Set", %{id: 0, on: action == :on}) do
+      {:ok, _result} -> :ok
+      {:error, {:rpc, code, message}} -> {:error, {:rejected, {code, message}}}
+      {:error, reason} -> {:error, {:unreachable, reason}}
     end
   end
 
-  defp publish(plug, _action, _mqtt),
-    do: {:error, "no switch driver for '#{plug.driver}' (plug '#{plug.id}')"}
+  defp send_switch(plug, _action), do: {:error, {:no_driver, plug.driver}}
 end

@@ -1,15 +1,5 @@
 defmodule Ziwoas.FakeModbusServer do
-  @moduledoc """
-  A Modbus TCP server on `:gen_tcp` for tests: answers FC03 reads from a register
-  dump (`%{"address:count" => [word]}`, as the vectors carry it), with exception 02
-  (illegal data address) for anything else; echoes FC06/FC16 writes. `fail:`
-  (`{registers, fail: ["fc:address" | "fc:*"]}`) answers exception 04 to matching
-  requests, as the `solakon_*` vectors' stand-in inverter does.
-
-  Records every read (`requests/1`), every request frame per connection
-  (`frames/1`, hex, in order) and counts connections; `drop_connections/1` closes
-  the open ones (an inverter dropping an idle client).
-  """
+  @moduledoc false
   use GenServer
 
   def start_link({registers, opts}), do: GenServer.start_link(__MODULE__, {registers, opts})
@@ -22,10 +12,8 @@ defmodule Ziwoas.FakeModbusServer do
   def connections(server), do: GenServer.call(server, :connections)
   def drop_connections(server), do: GenServer.call(server, :drop)
 
-  @doc "Request frames as hex, one list per connection in the order they were accepted."
   def frames(server), do: GenServer.call(server, :frames)
 
-  @doc "Waits until `count` connections have been accepted."
   def await_connection(server, count \\ 1, timeout \\ 1_000) do
     cond do
       connections(server) >= count -> :ok

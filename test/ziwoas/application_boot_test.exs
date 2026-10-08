@@ -1,35 +1,59 @@
 defmodule Ziwoas.ApplicationBootTest do
-  # Changes the config path, which is VM-wide.
   use ExUnit.Case, async: false
 
-  import ExUnit.CaptureLog
+  alias Ziwoas.{Config, TestConfigs}
 
-  alias Ziwoas.Config
+  @devices [collector: true, scheduler: true]
 
-  @moduletag :tmp_dir
-
-  setup do
-    previous_path = Application.fetch_env!(:ziwoas, :config_path)
-
-    on_exit(fn ->
-      Application.put_env(:ziwoas, :config_path, previous_path)
-      Config.reset()
-    end)
+  test "the app booted with the configured file" do
+    assert Config.fetch() == Config.load(Config.path())
+    assert %Config{} = Config.get()
   end
 
-  test "a config that fails at boot starts no collector and no scheduler", %{tmp_dir: dir} do
-    Application.put_env(:ziwoas, :config_path, Path.join(dir, "missing.yml"))
-    Config.reset()
+  test "a valid config starts the collector and the scheduler with it, the endpoint last" do
+    config = TestConfigs.load(:test)
 
-    {result, log} = with_log(fn -> Ziwoas.Application.boot_config() end)
-
-    assert result == nil
-    assert log =~ "config: config file not found; no collector, no scheduler"
+    assert Ziwoas.Application.children({:ok, config}, @devices) == [
+             Ziwoas.Repo,
+             {Phoenix.PubSub, name: Ziwoas.PubSub},
+             {Registry, keys: :duplicate, name: Ziwoas.Shelly.Registry},
+             {Ziwoas.Collector, config: config},
+             {Ziwoas.Scheduler, config: config},
+             ZiwoasWeb.Endpoint
+           ]
   end
 
-  test "a readable config is what the collector and the scheduler start from" do
-    config = Config.app_config()
+  test "a config that fails to load still serves pages, but starts no device and no job" do
+    assert Ziwoas.Application.children({:error, "location is required"}, @devices) == [
+             Ziwoas.Repo,
+             {Phoenix.PubSub, name: Ziwoas.PubSub},
+             {Registry, keys: :duplicate, name: Ziwoas.Shelly.Registry},
+             ZiwoasWeb.Endpoint
+           ]
+  end
 
-    assert Ziwoas.Application.boot_config(fn -> config end) == config
+  test "tests start neither collector nor scheduler" do
+    children =
+      Ziwoas.Application.children({:ok, TestConfigs.load(:test)},
+        collector: false,
+        scheduler: false
+      )
+
+    assert length(children) == 4
+  end
+
+  test "fetch answers the load error, get raises it" do
+    TestConfigs.put({:error, "location is required"})
+
+    assert Config.fetch() == {:error, "location is required"}
+    assert_raise Config.Error, "location is required", &Config.get/0
+  end
+
+  test "a config put for a test is the one get answers" do
+    config = TestConfigs.load(:inverter)
+    TestConfigs.put(config)
+
+    assert Config.get() == config
+    assert Config.fetch() == {:ok, config}
   end
 end

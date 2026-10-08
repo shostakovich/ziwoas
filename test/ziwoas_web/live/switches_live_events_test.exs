@@ -1,14 +1,13 @@
 defmodule ZiwoasWeb.SwitchesLiveEventsTest do
-  # The Schalten page's controls: the plug button, the lamp tile and the inline
-  # schedule editor. The broker is TestMqtt; nothing reaches a device.
   use ZiwoasWeb.ConnCase
 
   import Ecto.Query
   import Phoenix.LiveViewTest
 
-  alias Ziwoas.{Clock, Repo, TestClock, TestMqtt}
+  alias Ziwoas.{Clock, FakeShelly, Repo, TestClock}
   alias Ziwoas.Lights.Light
-  alias Ziwoas.Switching.{Command, Rule, Rules}
+  alias Ziwoas.Switching
+  alias Ziwoas.Switching.{Command, Rule}
 
   setup do
     TestClock.freeze("2026-06-15T17:00:00+02:00")
@@ -20,31 +19,21 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
       aenergy_wh: 1.0
     })
 
-    record(:ok)
     :ok
-  end
-
-  defp record(answer) do
-    test = self()
-
-    TestMqtt.record(fn _client, topic, payload ->
-      send(test, {:published, topic, payload})
-      answer
-    end)
   end
 
   defp rules, do: Repo.all(from r in Rule, order_by: [r.at_minute, r.id])
 
   defp a_window(on \\ "18:00", off \\ "23:00", days \\ [1, 2]) do
     {:ok, group_id} =
-      Rules.save_window("fridge", %{on_at_time: on, off_at_time: off, days: days})
+      Switching.save_window("fridge", %{on_at_time: on, off_at_time: off, days: days})
 
     group_id
   end
 
   defp a_single do
     {:ok, rule} =
-      Rules.save_single("fridge", %{at_minute_time: "22:00", action: "off", days: [1]})
+      Switching.save_single("fridge", %{at_minute_time: "22:00", action: :off, days: [1]})
 
     rule
   end
@@ -74,14 +63,25 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
       |> LazyHTML.query("#{form} input[type=checkbox][checked]")
       |> LazyHTML.attribute("value")
 
+  test "the nightly aggregation leaves the page running", %{conn: conn} do
+    view = open_page(conn)
+
+    Ziwoas.Plugs.aggregate("Europe/Berlin", [], today: ~D[2026-06-15])
+
+    assert render(view) =~ "Schalten"
+    assert Process.alive?(view.pid)
+  end
+
   describe "the plug button" do
     test "switches by hand, logs a manual command and redraws the head", %{conn: conn} do
+      FakeShelly.serve("fridge")
       view = open_page(conn)
-      html = view |> element("#sw_head_fridge button[phx-click=switch_plug]") |> render_click()
+      view |> element("#sw_head_fridge button[phx-click=switch_plug]") |> render_click()
+      render_async(view)
 
-      assert_received {:published, "shellies/fridge/command/switch:0", "on"}
-      assert [%Command{action: "on", source: "manual"}] = Repo.all(Command)
-      assert html =~ "An seit 17:00 (manuell)"
+      assert_received {:shelly_rpc, "fridge", "Switch.Set", %{on: true}}
+      assert [%Command{action: :on, source: :manual}] = Repo.all(Command)
+      assert has_element?(view, "#sw_head_fridge .small", "An seit 17:00 (manuell)")
 
       assert has_element?(
                view,
@@ -89,12 +89,34 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
              )
     end
 
-    test "a broker failure is a flash and logs nothing", %{conn: conn} do
-      record({:error, :timeout})
+    test "an unreachable plug is a flash and logs nothing", %{conn: conn} do
       view = open_page(conn)
       view |> element("#sw_head_fridge button[phx-click=switch_plug]") |> render_click()
 
-      assert render(view) =~ "Kühlschrank: Schalten fehlgeschlagen — MQTT-Broker nicht erreichbar"
+      render_async(view)
+
+      assert has_element?(
+               view,
+               "#flash-error",
+               "Kühlschrank: Schalten fehlgeschlagen — Steckdose nicht erreichbar"
+             )
+
+      assert Repo.all(Command) == []
+    end
+
+    test "a plug that rejects the switch is a flash of its own and logs nothing", %{conn: conn} do
+      FakeShelly.serve("fridge", fn _method, _params -> {:error, {:rpc, -103, "busy"}} end)
+      view = open_page(conn)
+      view |> element("#sw_head_fridge button[phx-click=switch_plug]") |> render_click()
+
+      render_async(view)
+
+      assert has_element?(
+               view,
+               "#flash-error",
+               "Kühlschrank: Schalten fehlgeschlagen — Steckdose lehnt ab"
+             )
+
       assert Repo.all(Command) == []
     end
 
@@ -111,37 +133,53 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
           ],
           do: render_hook(view, "switch_plug", params)
 
-      refute_received {:published, _, _}
+      refute_received {:shelly_rpc, _, _, _}
       assert Repo.all(Command) == []
     end
   end
 
   describe "the lamp tile" do
     setup do
+      start_supervised!({Ziwoas.FakeGoveeBridge, test: self()})
       %{light: Repo.insert!(%Light{key: "ABCDEF01", name: "Stehlampe", sku: "H607C"})}
     end
 
     test "turns its lamp", %{conn: conn} do
       view = open_page(conn)
-      html = view |> element("#light_card_ABCDEF01 button.sw-knob") |> render_click()
+      view |> element("#light_card_ABCDEF01 button.sw-knob") |> render_click()
+      render_async(view)
 
-      assert_received {:published, "govees/ABCDEF01/set", ~s({"power":"on"})}
-      assert html =~ "An · Weiß"
+      assert_received {:govee, "ABCDEF01", {:power, true}}
+      assert has_element?(view, "#light_card_ABCDEF01 .small", "An · Weiß")
     end
 
-    test "a broker failure is a flash", %{conn: conn} do
-      record({:error, :closed})
+    test "a lamp the bridge does not take is a flash", %{conn: conn} do
+      stop_supervised!(Ziwoas.FakeGoveeBridge)
       view = open_page(conn)
       view |> element("#light_card_ABCDEF01 button.sw-knob") |> render_click()
+      render_async(view)
 
-      assert render(view) =~ "Lampe nicht erreichbar"
+      assert has_element?(view, "#flash-error", "Lampe nicht erreichbar")
+    end
+
+    @tag :capture_log
+    test "a busy bridge is a flash and the page stays", %{conn: conn} do
+      stop_supervised!(Ziwoas.FakeGoveeBridge)
+      start_supervised!({Ziwoas.FakeGoveeBridge, test: self(), sleep_ms: 1_000})
+      view = open_page(conn)
+      view |> element("#light_card_ABCDEF01 button.sw-knob") |> render_click()
+      refute has_element?(view, "#flash-error")
+      render_async(view)
+
+      assert has_element?(view, "#flash-error", "Lampe nicht erreichbar")
     end
 
     test "an unknown lamp or command does nothing", %{conn: conn} do
       view = open_page(conn)
       render_hook(view, "light_command", %{"light_key" => "nope", "command" => "turn"})
       render_hook(view, "light_command", %{"light_key" => "ABCDEF01", "command" => "explode"})
-      refute_received {:published, _, _}
+      render_async(view)
+      refute_received {:govee, _, _}
     end
   end
 
@@ -181,7 +219,7 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
 
       view |> form(form, window_params("22:00", "06:00", ["", "1"])) |> render_submit()
 
-      assert [%Rule{action: "off", at_minute: 360, days: [2]}, %Rule{action: "on", days: [1]}] =
+      assert [%Rule{action: :off, at_minute: 360, days: [2]}, %Rule{action: :on, days: [1]}] =
                rules()
 
       refute has_element?(view, "#sw_editor_fridge form")
@@ -249,7 +287,7 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
       |> form("#sw_editor_fridge form", rule_params("07:30", "on", ["", "6", "7"]))
       |> render_submit()
 
-      assert [%Rule{action: "on", at_minute: 450, days: [6, 7], group_id: nil, enabled: true}] =
+      assert [%Rule{action: :on, at_minute: 450, days: [6, 7], group_id: nil, enabled: true}] =
                rules()
 
       assert render(view) =~ "Schaltzeit gespeichert."
@@ -340,7 +378,7 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
       refute render(view) =~ "gelöscht"
 
       Repo.update_all(Rule, set: [plug_id: "fridge"])
-      Repo.delete_all(from r in Rule, where: r.action == "off")
+      Repo.delete_all(from r in Rule, where: r.action == :off)
       render_hook(view, "edit_entry", params)
       refute has_element?(view, "form[phx-submit=save_entry]")
     end
@@ -349,7 +387,7 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
   describe "an existing Einzelschaltung" do
     test "is edited in place and stays paused", %{conn: conn} do
       rule = a_single()
-      Rules.set_enabled([rule], false)
+      Switching.set_enabled([rule], false)
       view = open_page(conn)
 
       view |> entry_button(rule.id, "edit_entry") |> render_click()
@@ -358,7 +396,7 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
       |> form("#sw_entry_fridge_#{rule.id} form", rule_params("07:30", "on", ["", "6", "7"]))
       |> render_submit()
 
-      assert [%Rule{action: "on", at_minute: 450, days: [6, 7], enabled: false}] = rules()
+      assert [%Rule{action: :on, at_minute: 450, days: [6, 7], enabled: false}] = rules()
     end
 
     test "pauses, resumes and is deleted", %{conn: conn} do
@@ -377,7 +415,7 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
 
     test "one half of an intact Zeitfenster is not addressable as one", %{conn: conn} do
       a_window()
-      half = Repo.one(from r in Rule, where: r.action == "off")
+      half = Repo.one(from r in Rule, where: r.action == :off)
       view = open_page(conn)
 
       params = %{"plug_id" => "fridge", "kind" => "rule", "id" => to_string(half.id)}
@@ -392,7 +430,7 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
 
     test "the half a group left over is edited and deleted as an Einzelschaltung", %{conn: conn} do
       group = a_window()
-      Repo.delete_all(from r in Rule, where: r.group_id == ^group and r.action == "on")
+      Repo.delete_all(from r in Rule, where: r.group_id == ^group and r.action == :on)
       orphan = Repo.one(Rule)
       view = open_page(conn)
 

@@ -15,7 +15,7 @@ Phoenix 1.8 · LiveView · Ecto + SQLite · Bandit. Erlang/OTP and Elixir are pi
 | `lib/ziwoas_web/` | Router, controllers, LiveViews, components |
 | `config/ziwoas.yml` | **Not in the repo** — device config incl. the plug list. Template: `config/ziwoas.example.yml`, tests use `test/fixtures/ziwoas.test.yml`. Cost items and the electricity price live in the database instead (ADR-0004) |
 | `assets/` | CSS, JS (LiveView hooks in `js/hooks/`) and vendored Chart.js, bundled by the standalone esbuild into `priv/static/assets/` |
-| `priv/repo/migrations/` | Ecto migrations; `Ziwoas.Release` adopts a database the Rails app left behind |
+| `priv/repo/migrations/` | Ecto migrations, recorded in production: add new ones, never edit old ones; a release runs them via `Ziwoas.Release.migrate/0` |
 | `priv/static/` | Images and icons, served as they are |
 | `test/` | ExUnit mirroring `lib/`; `test/support/` holds the cases and the fakes (Modbus, MQTT, clock) |
 
@@ -34,9 +34,9 @@ Real data only exists on the home server (Docker). Local SQLite is not a copy of
 ## Conventions
 
 - **Idiomatic Phoenix**, no compatibility with the former Rails app
-  ([ADR-0007](docs/adr/0007-idiomatic-phoenix-big-bang-cutover.md)); how the app is built:
-  [`docs/architecture.md`](docs/architecture.md). Until the cutover, plan and status are in
-  [`docs/port-plan.md`](docs/port-plan.md) (issue #158).
+  ([ADR-0007](docs/adr/0007-idiomatic-phoenix-big-bang-cutover.md)); how the app is built and
+  its code conventions live in Outline ("ZiWoAS-Architektur", https://outline.rocu.de/doc/mS5HPHX1WJ),
+  not in the repo.
 - **Ecto migrations own the schema**; timestamps are `:utc_datetime_usec` with `inserted_at`.
   Forms are changesets with German messages and `core_components`, interaction is LiveView
   events, client code LiveView hooks in `assets/js/hooks/`.

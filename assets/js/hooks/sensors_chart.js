@@ -1,53 +1,32 @@
 import { renderChart, vizToken, tonesByOrder, timeScale, timeTooltipTitle } from "../lib/chart_theme.js"
 
-const CO2_THRESHOLDS = [
-  { value: 1000, name: "Lüften", tone: "--felt-warning", textTone: "--felt-warning-text" },
-  { value: 1400, name: "Grenzwert", tone: "--felt-danger", textTone: "--felt-danger-text" },
+const CO2_LINES = [
+  { name: "Lüften", tone: "--felt-warning", textTone: "--felt-warning-text" },
+  { name: "Grenzwert", tone: "--felt-danger", textTone: "--felt-danger-text" },
 ]
 // Room for the top threshold's label on a tick a phone's 500-step axis shares (1.400 × 1.1 rounds up to 2.000).
 const CO2_AXIS_TOP = 1500
 const DECIMALS = { "°C": 1, "%": 0, "ppm": 0 }
 // A temperature has no natural zero: 0 °C would flatten the indoor swing.
 const FROM_ZERO = { "°C": false, "%": true, "ppm": true }
-const REFRESH_MS = 900_000
 
-// The Sensoren page's three charts, loaded from data-url: every 15 minutes, when the page
-// comes back into view, and when the LiveView pushes "sensors_updated" after a poll.
 export default {
   mounted() {
     this.charts = {}
-    this.load()
-    this.refreshTimer = setInterval(() => this.load(), REFRESH_MS)
-    this.onVisibility = () => { if (document.visibilityState === "visible") this.load() }
-    document.addEventListener("visibilitychange", this.onVisibility)
-    this.onPageShow = (e) => { if (e.persisted) this.load() }
-    window.addEventListener("pageshow", this.onPageShow)
-    this.handleEvent("sensors_updated", () => this.load())
+    this.handleEvent("sensors_chart:data", (data) => this.renderAll(data))
   },
 
   destroyed() {
-    clearInterval(this.refreshTimer)
-    document.removeEventListener("visibilitychange", this.onVisibility)
-    window.removeEventListener("pageshow", this.onPageShow)
     Object.values(this.charts).forEach((chart) => chart.destroy())
     this.charts = {}
-  },
-
-  async load() {
-    try {
-      const res = await fetch(this.el.dataset.url, { headers: { Accept: "application/json" } })
-      if (!res.ok) return
-      this.renderAll(await res.json())
-    } catch (e) {
-      console.error("sensors chart load failed:", e)
-    }
   },
 
   renderAll(data) {
     const tones = tonesByOrder(data.temperature.map((s) => s.device_id))
     this.render("temperature", data.temperature, tones, "°C")
     this.render("humidity", data.humidity, tones, "%")
-    this.render("co2", data.co2, tones, "ppm", { thresholds: CO2_THRESHOLDS, suggestedMax: CO2_AXIS_TOP })
+    const thresholds = data.co2_thresholds.map((value, i) => ({ ...CO2_LINES[i], value }))
+    this.render("co2", data.co2, tones, "ppm", { thresholds, suggestedMax: CO2_AXIS_TOP })
   },
 
   render(key, series, tones, unit, { thresholds = [], suggestedMax } = {}) {
@@ -91,7 +70,6 @@ function thresholdLine(xBounds, { value, name, tone, textTone }) {
   }
 }
 
-// A single sensor needs no legend: the card's subtitle names its room.
 function chartOptions(unit, xBounds, seriesCount) {
   return {
     responsive: true,

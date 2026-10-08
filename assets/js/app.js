@@ -1,9 +1,8 @@
-// Bundled by esbuild (config :esbuild in config/config.exs): phoenix and phoenix_live_view
-// resolve through NODE_PATH to the Hex packages in deps/, everything else is relative.
-// data-confirm on links, buttons and forms
 import "phoenix_html"
 import { Socket } from "phoenix"
 import { LiveSocket } from "phoenix_live_view"
+
+import { currentLook } from "./lib/look.js"
 
 import EnergyFlow from "./hooks/energy_flow.js"
 import EnergyReport from "./hooks/energy_report.js"
@@ -29,7 +28,9 @@ const hooks = {
   TodayChart,
 }
 
-const liveSocket = new LiveSocket("/live", Socket, { params: { _csrf_token: csrfToken }, hooks })
+// The look rides along on every join, so a page reached by live navigation knows a switched look.
+const params = () => ({ _csrf_token: csrfToken, look: currentLook() })
+const liveSocket = new LiveSocket("/live", Socket, { params, hooks })
 
 liveSocket.connect()
 window.liveSocket = liveSocket

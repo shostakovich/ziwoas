@@ -1,29 +1,20 @@
 import { renderChart, tonesByOrder, timeScale, timeCategoryScale, timeTooltipTitle, formatTime, lineElements } from "../lib/chart_theme.js"
-import { RESYNC_EVENT } from "./live_freshness.js"
 
 // Below this an hour's yield is the inverter's night-time noise, not production.
 const MIN_PRODUCED_KWH = 0.02
 const GAP_THRESHOLD_MS = 120_000
-const REFRESH_MS = 3_600_000
 
-// The dashboard's 24 h charts: loaded from /api/today, refreshed hourly and on a resync;
-// between loads the LiveView pushes "plug_deltas", which extend the power chart in place.
 export default {
   mounted() {
     this.powerChart = null
     this.energyChart = null
     this.datasetIndex = {}
 
-    this.load()
-    this.onResync = () => this.load()
-    document.addEventListener(RESYNC_EVENT, this.onResync)
-    this.refreshTimer = setInterval(() => this.load(), REFRESH_MS)
-    this.handleEvent("plug_deltas", ({ deltas }) => this.applyDeltas(deltas))
+    this.handleEvent("today_chart:data", (data) => this.draw(data))
+    this.handleEvent("today_chart:deltas", ({ deltas }) => this.applyDeltas(deltas))
   },
 
   destroyed() {
-    document.removeEventListener(RESYNC_EVENT, this.onResync)
-    clearInterval(this.refreshTimer)
     this.powerChart?.destroy()
     this.energyChart?.destroy()
   },
@@ -32,28 +23,17 @@ export default {
     return this.el.querySelector(`canvas[data-chart="${name}"]`)
   },
 
-  async load() {
-    try {
-      const response = await fetch("/api/today")
-      if (!response.ok) return
-      const data = await response.json()
-      const tones = tonesByOrder(data.series.filter((s) => s.role === "consumer").map((s) => s.plug_id))
-      this.powerChart = renderChart(this.powerChart, this.canvas("power"), this.powerConfig(data, tones))
-      this.energyChart = renderChart(this.energyChart, this.canvas("energy"), this.energyConfig(data, tones))
-    } catch (e) {
-      console.error("today chart load failed:", e)
-    }
+  draw(data) {
+    const tones = tonesByOrder(data.series.filter((s) => s.role === "consumer").map((s) => s.plug_id))
+    this.powerChart = renderChart(this.powerChart, this.canvas("power"), this.powerConfig(data, tones))
+    this.energyChart = renderChart(this.energyChart, this.canvas("energy"), this.energyConfig(data, tones))
   },
 
   applyDeltas(updates) {
     if (!this.powerChart) return
 
     let changed = false
-    for (const plug of updates) {
-      const result = this.appendDelta(plug)
-      if (result === "reload") return
-      changed ||= result
-    }
+    for (const plug of updates) changed = this.appendDelta(plug) || changed
 
     if (changed) {
       this.replaceTotalConsumption()
@@ -73,8 +53,8 @@ export default {
     if (!last) {
       dataset.data.push({ x, y })
     } else if (x - last.x > GAP_THRESHOLD_MS) {
-      this.load()
-      return "reload"
+      // The plug was silent: a null point breaks the line instead of bridging the gap.
+      dataset.data.push({ x: last.x + 1, y: null }, { x, y })
     } else if (last.x === x) {
       last.y = y
     } else {
@@ -207,7 +187,9 @@ function totalConsumption(datasets) {
 
   const pointsByTs = new Map()
   for (const dataset of consumers) {
-    for (const point of dataset.data) pointsByTs.set(point.x, (pointsByTs.get(point.x) || 0) + point.y)
+    for (const point of dataset.data) {
+      if (point.y !== null) pointsByTs.set(point.x, (pointsByTs.get(point.x) || 0) + point.y)
+    }
   }
 
   return {

@@ -39,5 +39,6 @@ into markup a reader already knows from Bootstrap.
 
 _Note (Phoenix, ADR-0007):_ the stylesheets live in `assets/css/` (`application.css` with the
 `--viz-*` tokens, one file per area), the chart helpers in `assets/js/lib/theme_colors.js` and
-`assets/js/lib/chart_theme.js`; esbuild bundles them. The look cookie is set by `PATCH /look`
-and carried into LiveViews by `ZiwoasWeb.Look`.
+`assets/js/lib/chart_theme.js`; esbuild bundles them. The look toggle switches in the browser
+(`assets/js/lib/look.js` sets `data-look` and the cookie) and tells the LiveView; the server
+reads the cookie through `ZiwoasWeb.Look`.

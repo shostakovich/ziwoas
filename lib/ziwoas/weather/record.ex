@@ -1,12 +1,12 @@
 defmodule Ziwoas.Weather.Record do
-  @moduledoc "One observed or forecast weather data point for a location (`weather_records`)."
+  @moduledoc false
   use Ziwoas.Schema
 
   import Ecto.Changeset
 
   @type t :: %__MODULE__{}
+  @type kind :: :current | :forecast | :historic
 
-  @kinds ~w(current forecast historic)
   @integers ~w(source_id wind_direction cloud_cover relative_humidity visibility
                wind_gust_direction precipitation_probability precipitation_probability_6h)a
   @fields ~w(kind lat lon timestamp precipitation pressure_msl sunshine temperature wind_speed
@@ -18,7 +18,7 @@ defmodule Ziwoas.Weather.Record do
     field :daytime, :string
     field :dew_point, :float
     field :icon, :string
-    field :kind, :string
+    field :kind, Ecto.Enum, values: [:current, :forecast, :historic]
     field :lat, :float
     field :lon, :float
     field :precipitation, :float
@@ -39,10 +39,6 @@ defmodule Ziwoas.Weather.Record do
     timestamps()
   end
 
-  @doc """
-  A record from Bright Sky's values (`Ziwoas.Weather.BrightskyClient`); whole
-  numbers given as floats are rounded.
-  """
   @spec changeset(t, map) :: Ecto.Changeset.t()
   def changeset(record \\ %__MODULE__{}, attrs) do
     attrs =
@@ -54,6 +50,5 @@ defmodule Ziwoas.Weather.Record do
     record
     |> cast(attrs, @fields)
     |> validate_required([:kind, :lat, :lon, :timestamp, :daytime])
-    |> validate_inclusion(:kind, @kinds)
   end
 end

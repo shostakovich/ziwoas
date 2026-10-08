@@ -1,78 +1,100 @@
 defmodule Ziwoas.Lights.Commands do
-  @moduledoc """
-  The lamp commands: coerce the event parameters, send through
-  `Ziwoas.Lights.Commander` and record the optimistic state.
-
-  Results: `:power` (the hero and the tile change),
-  `{:zones, keys, toast}` (those zone buttons change; `toast` is nil, `:clear` or
-  `%{evicted:, added:}`) and `:sent` (fire and forget). Failures:
-  `{:error, :invalid}` for parameters the contract refuses, `{:error, :commander}`
-  when the broker could not be reached.
-  """
+  @moduledoc false
+  import Ecto.Changeset
   import Ecto.Query
 
-  alias Ziwoas.Govee.Types
-  alias Ziwoas.Lights.{Commander, Light, State}
+  alias Ziwoas.Govee.Bridge
+  alias Ziwoas.Lights.{Light, State}
   alias Ziwoas.Repo
 
-  @commands ~w[turn zone brightness color color_temp effect scene zone_undo]
-  # Hardware limit: at most N zones lit at once.
+  @types %{
+    "turn" => %{on: :boolean},
+    "zone" => %{zone: :string, on: :boolean},
+    "zone_undo" => %{victim: :string, added: :string},
+    "brightness" => %{value: :integer},
+    "color" => %{r: :integer, g: :integer, b: :integer},
+    "color_temp" => %{temp_k: :integer},
+    "effect" => %{effect: :string},
+    "scene" => %{scene: :string}
+  }
+
   @max_active_zones %{"H60B0" => 2}
 
-  @type result :: :power | {:zones, [String.t()], nil | :clear | map} | :sent
+  @type result :: :power | {:zones, [String.t()], nil | :clear | map} | {:sent, Bridge.verb()}
 
-  @doc "Whether `name` is a command."
-  def command?(name), do: name in @commands
+  @spec command?(term) :: boolean
+  def command?(name), do: is_map_key(@types, name)
 
-  @spec run(Light.t(), String.t(), map) :: {:ok, result} | {:error, :invalid | :commander}
-  def run(light, "turn", params) do
-    with {:ok, on} <- coerce(Types.bool(params["on"])),
-         :ok <- publish(light, turn_verb(light, on)) do
+  @spec run(Light.t(), String.t(), map) :: {:ok, result} | {:error, :invalid | :unreachable}
+  def run(light, command, params) do
+    with {:ok, values} <- cast_params(light, command, params),
+         do: execute(light, command, values)
+  end
+
+  defp cast_params(light, command, params) when is_map_key(@types, command) do
+    types = @types[command]
+
+    {%{}, types}
+    |> cast(params, Map.keys(types))
+    |> validate_required(Map.keys(types))
+    |> validate(command, light)
+    |> apply_action(:run)
+    |> case do
+      {:ok, values} -> {:ok, values}
+      {:error, _changeset} -> {:error, :invalid}
+    end
+  end
+
+  defp cast_params(_light, _command, _params), do: {:error, :invalid}
+
+  defp validate(changeset, "zone", light),
+    do: validate_inclusion(changeset, :zone, Light.zones(light))
+
+  defp validate(changeset, "zone_undo", light) do
+    changeset
+    |> validate_inclusion(:victim, Light.zones(light))
+    |> validate_inclusion(:added, Light.zones(light))
+  end
+
+  defp validate(changeset, "brightness", _light), do: within(changeset, :value, 1, 100)
+
+  defp validate(changeset, "color", _light),
+    do: Enum.reduce([:r, :g, :b], changeset, &within(&2, &1, 0, 255))
+
+  # The hardware envelope (Floor Lamps reach 2200 K); the lamp's own range clamps later.
+  defp validate(changeset, "color_temp", _light), do: within(changeset, :temp_k, 1500, 9000)
+  defp validate(changeset, _command, _light), do: changeset
+
+  defp within(changeset, field, min, max),
+    do:
+      validate_number(changeset, field, greater_than_or_equal_to: min, less_than_or_equal_to: max)
+
+  defp execute(light, "turn", %{on: on}) do
+    with :ok <- send_verb(light, turn_verb(light, on)) do
       record_state(light.key, on)
       {:ok, :power}
     end
   end
 
-  def run(light, "zone", params) do
-    with {:ok, zone} <- zone_of(light, params["zone"]),
-         {:ok, on} <- coerce(Types.bool(params["on"])) do
-      switch_zone_evicting(light, zone, on)
-    end
-  end
+  defp execute(light, "zone", %{zone: zone, on: on}), do: switch_zone_evicting(light, zone, on)
 
-  def run(light, "zone_undo", params) do
-    with {:ok, victim} <- zone_of(light, params["victim"]),
-         {:ok, added} <- zone_of(light, params["added"]),
-         :ok <- switch_zone(light, victim, true),
+  defp execute(light, "zone_undo", %{victim: victim, added: added}) do
+    with :ok <- switch_zone(light, victim, true),
          :ok <- switch_zone(light, added, false) do
       {:ok, {:zones, [victim, added], :clear}}
     end
   end
 
-  def run(light, "brightness", params) do
-    with {:ok, value} <- ranged(params["value"], 1, 100),
-         do: fire(light, {:brightness, value})
+  defp execute(light, "brightness", %{value: value}), do: fire(light, {:brightness, value})
+  defp execute(light, "color", rgb), do: fire(light, {:color, rgb})
+
+  defp execute(light, "color_temp", %{temp_k: kelvin}) do
+    kelvin = kelvin |> max(Light.color_temp_min_k(light)) |> min(Light.color_temp_max_k(light))
+    fire(light, {:color_temp, kelvin})
   end
 
-  def run(light, "color", params) do
-    with {:ok, r} <- ranged(params["r"], 0, 255),
-         {:ok, g} <- ranged(params["g"], 0, 255),
-         {:ok, b} <- ranged(params["b"], 0, 255),
-         do: fire(light, {:color, %{r: r, g: g, b: b}})
-  end
-
-  # The hardware envelope first (Floor Lamps reach 2200 K), then the lamp's own range.
-  def run(light, "color_temp", params) do
-    with {:ok, kelvin} <- ranged(params["temp_k"], 1500, 9000) do
-      kelvin = kelvin |> max(Light.color_temp_min_k(light)) |> min(Light.color_temp_max_k(light))
-      fire(light, {:color_temp, kelvin})
-    end
-  end
-
-  def run(light, command, params) when command in ["effect", "scene"] do
-    with {:ok, scene} <- coerce(Types.name(params["effect"] || params["scene"])),
-         do: fire(light, {:scene, scene})
-  end
+  defp execute(light, "effect", %{effect: scene}), do: fire(light, {:scene, scene})
+  defp execute(light, "scene", %{scene: scene}), do: fire(light, {:scene, scene})
 
   defp switch_zone_evicting(light, zone, on) do
     evicted = if on, do: evict_for(light, zone)
@@ -85,7 +107,7 @@ defmodule Ziwoas.Lights.Commands do
   end
 
   defp fire(light, verb) do
-    with :ok <- publish(light, verb), do: {:ok, :sent}
+    with :ok <- send_verb(light, verb), do: {:ok, {:sent, verb}}
   end
 
   defp turn_verb(light, on) do
@@ -95,38 +117,21 @@ defmodule Ziwoas.Lights.Commands do
   defp switch_zone(_light, nil, _on), do: :ok
 
   defp switch_zone(light, zone, on) do
-    with :ok <- publish(light, {:zone, zone, on}) do
+    with :ok <- send_verb(light, {:zone, zone, on}) do
       record_zone_state(light.key, zone, on)
       :ok
     end
   end
 
-  defp publish(light, verb) do
-    case Commander.publish(light.key, verb) do
+  defp send_verb(light, verb) do
+    case Bridge.command(light.key, verb) do
       :ok -> :ok
-      {:error, _message} -> {:error, :commander}
+      {:error, _reason} -> {:error, :unreachable}
     end
   end
 
-  # A filled string naming one of the lamp's zones.
-  defp zone_of(light, zone) do
-    if is_binary(zone) and zone in Light.zones(light), do: {:ok, zone}, else: {:error, :invalid}
-  end
-
-  defp ranged(value, min, max) do
-    case Types.integer(value) do
-      {:ok, integer} when integer >= min and integer <= max -> {:ok, integer}
-      _ -> {:error, :invalid}
-    end
-  end
-
-  defp coerce({:ok, value}), do: {:ok, value}
-  defp coerce(:error), do: {:error, :invalid}
-
-  @doc "The lamp's limit of zones lit at once, nil for none."
   def max_active_zones(%Light{sku: sku}), do: Map.get(@max_active_zones, String.upcase(sku || ""))
 
-  # Which lit side zone must go dark so `zone` can come on.
   defp evict_for(light, zone) do
     max = max_active_zones(light) || 0
 
@@ -137,15 +142,12 @@ defmodule Ziwoas.Lights.Commands do
     end
   end
 
-  defp side?(zone), do: match?({_label, "side"}, Light.zone_meta(zone))
+  defp side?(zone), do: Light.zone_role(zone) == :side
 
   defp current_zone_states(key) do
     Repo.one(from s in State, where: s.light_key == ^key, select: s.zone_states) || %{}
   end
 
-  # --- Recorded state ---------------------------------------------------------------
-
-  @doc "Records the lamp's power; the row is created when missing, written when changed."
   def record_state(key, on) do
     (Repo.get_by(State, light_key: key) || %State{light_key: key})
     |> Ecto.Changeset.change(on: on)
@@ -154,7 +156,6 @@ defmodule Ziwoas.Lights.Commands do
     :ok
   end
 
-  @doc "Records one zone's bit, merged into the stored zones."
   def record_zone_state(key, zone, on) do
     state = Repo.get_by(State, light_key: key) || %State{light_key: key}
     zones = state.zone_states || %{}

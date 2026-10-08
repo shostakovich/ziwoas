@@ -5,7 +5,6 @@ defmodule Ziwoas.Trmnl.PushTest do
 
   alias Ziwoas.TestConfigs
   alias Ziwoas.Trmnl.{EnergyPushJob, Push}
-  alias Ziwoas.Trmnl.Push.PayloadTooLargeError
 
   @payload %{merge_variables: %{ts: 1, pv_kwh: 0, stand: "12:00"}}
 
@@ -30,7 +29,7 @@ defmodule Ziwoas.Trmnl.PushTest do
     Req.Test.stub(Push, fn _conn -> flunk("posted") end)
 
     for url <- [nil, ""] do
-      assert Push.run(:energy, url, fn -> flunk("built") end) == :skipped
+      assert Push.run(:energy, url, fn -> flunk("built") end) == {:ok, :skipped}
     end
   end
 
@@ -40,7 +39,7 @@ defmodule Ziwoas.Trmnl.PushTest do
     assert Push.run(:energy, "https://trmnl.com/api/custom_plugins/abc", fn ->
              @payload
            end) ==
-             :ok
+             {:ok, :sent}
 
     assert_received {:posted, "POST", "https://trmnl.com/api/custom_plugins/abc",
                      ["application/json"], body}
@@ -50,14 +49,19 @@ defmodule Ziwoas.Trmnl.PushTest do
            }
   end
 
-  test "a payload over 2 kB raises" do
+  test "a payload over 2 kB is an error, logged and not sent" do
+    Req.Test.stub(Push, fn _conn -> flunk("posted") end)
     huge = %{merge_variables: %{blob: String.duplicate("x", 4000)}}
 
-    assert_raise PayloadTooLargeError,
-                 ~r/TRMNL sensor payload is \d+ B, exceeds 2048 B limit/,
-                 fn ->
-                   Push.run(:sensors, "https://example/", fn -> huge end)
-                 end
+    log =
+      capture_log(fn ->
+        assert {:error, {:payload_too_large, bytes}} =
+                 Push.run(:sensors, "https://example/", fn -> huge end)
+
+        assert bytes > 4000
+      end)
+
+    assert log =~ ~r/TRMNL sensor payload is \d+ B, exceeds 2048 B limit/
   end
 
   test "a failed POST is a warning" do
@@ -65,7 +69,8 @@ defmodule Ziwoas.Trmnl.PushTest do
 
     log =
       capture_log(fn ->
-        assert Push.run(:sensors, "https://example/", fn -> @payload end) == :failed
+        assert {:error, %Req.TransportError{reason: :econnrefused}} =
+                 Push.run(:sensors, "https://example/", fn -> @payload end)
       end)
 
     assert log =~ "TRMNL sensor push errored"
@@ -75,10 +80,14 @@ defmodule Ziwoas.Trmnl.PushTest do
   test "an HTTP error is a warning with the status" do
     stub_trmnl(500)
 
-    assert capture_log(fn ->
-             Push.run(:energy, "https://example/", fn -> @payload end)
-           end) =~
-             "TRMNL push failed: HTTP 500 Internal Server Error"
+    log =
+      capture_log(fn ->
+        assert Push.run(:energy, "https://example/", fn -> @payload end) ==
+                 {:error, {:http_status, 500}}
+      end)
+
+    assert log =~ "TRMNL push failed: HTTP 500"
+    refute log =~ "Internal Server Error"
   end
 
   test "EnergyPushJob pushes the energy widget to its webhook" do
@@ -86,7 +95,7 @@ defmodule Ziwoas.Trmnl.PushTest do
     stub_trmnl()
     config = TestConfigs.plugs("trmnl:\n  energy_webhook_url: https://example.test/energy\n")
 
-    EnergyPushJob.perform(%{config: config})
+    EnergyPushJob.perform(config: config)
 
     assert_received {:posted, "POST", "https://example.test/energy", _, body}
     assert %{"merge_variables" => %{"stand" => "12:00", "pv_kwh" => +0.0}} = JSON.decode!(body)

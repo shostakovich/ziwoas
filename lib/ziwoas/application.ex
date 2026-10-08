@@ -5,49 +5,41 @@ defmodule Ziwoas.Application do
 
   require Logger
 
+  alias Ziwoas.Config
+
+  @collector Application.compile_env(:ziwoas, :collector, true)
+  @scheduler Application.compile_env(:ziwoas, :scheduler, true)
+
   @impl true
   def start(_type, _args) do
-    config = boot_config()
+    loaded = Config.load(Config.path())
+    Config.put(loaded)
 
-    children =
-      [
-        Ziwoas.Repo,
-        {Phoenix.PubSub, name: Ziwoas.PubSub},
-        ZiwoasWeb.Endpoint
-      ] ++ collector(config) ++ scheduler(config)
+    with {:error, message} <- loaded,
+         do: Logger.error("config: #{message}; no collector, no scheduler")
 
-    Supervisor.start_link(children, strategy: :one_for_one, name: Ziwoas.Supervisor)
-  end
-
-  # Device connections; none in tests.
-  defp collector(nil), do: []
-
-  defp collector(config) do
-    if Application.get_env(:ziwoas, :collector, true),
-      do: [{Ziwoas.Collector, config: config}],
-      else: []
+    Supervisor.start_link(children(loaded, collector: @collector, scheduler: @scheduler),
+      strategy: :one_for_one,
+      name: Ziwoas.Supervisor
+    )
   end
 
   @doc false
-  # The config the collector and the scheduler start from. Without a readable config
-  # Phoenix serves pages, but connects to no device and schedules nothing.
-  def boot_config(load \\ &Ziwoas.Config.app_config/0) do
-    load.()
-  rescue
-    error in Ziwoas.Config.Error ->
-      Logger.error("config: #{Exception.message(error)}; no collector, no scheduler")
-      nil
+  def children(loaded, opts) do
+    [
+      Ziwoas.Repo,
+      {Phoenix.PubSub, name: Ziwoas.PubSub},
+      {Registry, keys: :duplicate, name: Ziwoas.Shelly.registry()}
+    ] ++
+      devices(loaded, opts) ++ [ZiwoasWeb.Endpoint]
   end
 
-  defp scheduler(nil), do: []
-
-  defp scheduler(config) do
-    jobs = Application.get_env(:ziwoas, Ziwoas.Scheduler, [])[:jobs] || []
-
-    if Application.get_env(:ziwoas, :scheduler, true) and jobs != [],
-      do: [{Ziwoas.Scheduler, jobs: jobs, zone: config.location.timezone}],
-      else: []
+  defp devices({:ok, config}, opts) do
+    if(opts[:collector], do: [{Ziwoas.Collector, config: config}], else: []) ++
+      if opts[:scheduler], do: [{Ziwoas.Scheduler, config: config}], else: []
   end
+
+  defp devices({:error, _message}, _opts), do: []
 
   @impl true
   def config_change(changed, _new, removed) do

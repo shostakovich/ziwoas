@@ -1,16 +1,9 @@
 defmodule Ziwoas.Govee.DeviceRegistry do
-  @moduledoc """
-  The canonical lamp list, built from the Platform API (id, sku, name, capabilities, scenes) and curated — segment capabilities
-  dropped, zones limited to `zone_keys/0`, scenes reduced to names plus an internal
-  name → `%{id, param_id}` index, Govee's virtual DreamView scene "devices" left
-  out. LAN discovery only contributes the IP. Pure: `build/3` takes the API's raw
-  device list and a scene loader.
-  """
+  @moduledoc false
   require Logger
 
   alias Ziwoas.Govee.Device
 
-  # The zone toggles `Ziwoas.Lights.Light` knows, in its order.
   @zone_keys ~w[bottomLightToggle rippleLightToggle sideLightToggle baseLightToggle
                 pillarLightToggle leftLightToggle rightLightToggle mainLightToggle
                 backgroundLightToggle]
@@ -22,12 +15,10 @@ defmodule Ziwoas.Govee.DeviceRegistry do
 
   def zone_keys, do: @zone_keys
 
-  @doc "A registry; `names` maps a MAC (any separators) to a configured name."
   @spec new(%{String.t() => String.t()}) :: t
   def new(names \\ %{}),
     do: %__MODULE__{names: Map.new(names, fn {mac, name} -> {normalize_mac(mac), name} end)}
 
-  @doc "The key of a MAC: alphanumerics only, upper case."
   def normalize_mac(mac),
     do: mac |> to_string() |> String.replace(~r/[^0-9A-Za-z]/, "") |> String.upcase()
 
@@ -35,11 +26,7 @@ defmodule Ziwoas.Govee.DeviceRegistry do
   def find(%__MODULE__{devices: devices}, key), do: Enum.find(devices, &(&1.key == key))
   def find_by_ip(%__MODULE__{devices: devices}, ip), do: Enum.find(devices, &(&1.ip == ip))
 
-  @doc """
-  Rebuilds every device from the API's device list, keeping a LAN IP found
-  earlier. `scenes` is `fn raw -> {:ok, options} | {:error, message} end`.
-  """
-  @spec refresh(t, [map], (map -> {:ok, [map]} | {:error, String.t()})) :: t
+  @spec refresh(t, [map], (map -> {:ok, [map]} | {:error, term})) :: t
   def refresh(%__MODULE__{} = registry, raw_devices, scenes) do
     built =
       for raw <- raw_devices, device = build(registry, raw, scenes), not is_nil(device) do
@@ -59,7 +46,6 @@ defmodule Ziwoas.Govee.DeviceRegistry do
     %{registry | devices: devices}
   end
 
-  @doc "Records the IP of the device with this MAC (separators ignored)."
   @spec record_lan_ip(t, String.t(), String.t()) :: t
   def record_lan_ip(%__MODULE__{} = registry, mac, ip) do
     key = normalize_mac(mac)
@@ -112,8 +98,11 @@ defmodule Ziwoas.Govee.DeviceRegistry do
       {:ok, options} ->
         Enum.reduce(List.wrap(options), {[], %{}}, &add_scene/2)
 
-      {:error, message} ->
-        Logger.warning("Govee.DeviceRegistry: scenes for #{raw["device"]} failed: #{message}")
+      {:error, reason} ->
+        Logger.warning(
+          "Govee.DeviceRegistry: scenes for #{raw["device"]} failed: #{inspect(reason)}"
+        )
+
         {[], %{}}
     end
   end

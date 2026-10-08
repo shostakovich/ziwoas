@@ -1,23 +1,13 @@
 defmodule ZiwoasWeb.ReportsComponents do
-  @moduledoc """
-  The parts of the Berichte page: range picker, plug ranking, chart cards and
-  the chart payload the `EnergyReport` hook reads.
-  """
+  @moduledoc false
   use ZiwoasWeb, :html
 
-  import ZiwoasWeb.DashboardComponents, only: [tile: 1]
+  alias Ziwoas.Energy.Report
 
-  alias ZiwoasWeb.DashboardComponents
+  @presets [{:last_7, "7 Tage"}, {:last_30, "30 Tage"}]
 
-  alias Ziwoas.EnergyReport
-
-  @presets [{"last_7", "7 Tage"}, {"last_30", "30 Tage"}]
-
-  @doc """
-  Presets as patch links, a custom range as a form that submits `apply_range`
-  to the LiveView. The fields keep what was asked for, else the report's range.
-  """
-  attr :report, EnergyReport, required: true
+  attr :report, Report, required: true
+  attr :preset, :atom, required: true, doc: ":last_7, :last_30 or :custom"
   attr :params, :map, required: true
 
   def range_picker(assigns) do
@@ -30,7 +20,7 @@ defmodule ZiwoasWeb.ReportsComponents do
     assigns =
       assign(assigns,
         presets: @presets,
-        custom: assigns.report.preset not in Enum.map(@presets, &elem(&1, 0)),
+        custom: assigns.preset == :custom,
         form: form
       )
 
@@ -42,8 +32,8 @@ defmodule ZiwoasWeb.ReportsComponents do
       <div class="btn-group" role="group" aria-label="Schnellauswahl">
         <.link
           :for={{preset, label} <- @presets}
-          class={["btn btn-outline-primary flex-fill", @report.preset == preset && "active"]}
-          aria-current={@report.preset == preset && "page"}
+          class={["btn btn-outline-primary flex-fill", @preset == preset && "active"]}
+          aria-current={@preset == preset && "page"}
           patch={~p"/reports?#{[preset: preset]}"}
         ><span><span class="d-none d-sm-inline">Letzte </span>{label}</span></.link>
         <span :if={@custom} class="btn btn-outline-primary flex-fill active" aria-current="true">
@@ -78,20 +68,17 @@ defmodule ZiwoasWeb.ReportsComponents do
 
   @plug_colors for n <- 1..10, do: "var(--viz-#{n})"
 
-  # As on the dashboard's plug bar: consumers by config position, producers in the sun's colour.
   defp plug_color(position), do: Enum.at(@plug_colors, Integer.mod(position || 0, 10))
   defp producer_color, do: "var(--viz-solar)"
 
-  # The dashboard's energy, money and share tiles, without an id.
   defp energy_tile(label, kwh, signed \\ false),
-    do: DashboardComponents.measure(nil, label, kwh, "kWh", 2, signed)
+    do: measure_tile(nil, label, kwh, "kWh", 2, signed)
 
-  defp money_tile(label, eur), do: DashboardComponents.measure(nil, label, eur, "€", 2)
+  defp money_tile(label, eur), do: measure_tile(nil, label, eur, "€", 2)
 
   defp share_tile(label, ratio),
-    do: DashboardComponents.measure(nil, label, (ratio || 0) * 100, "%", 1)
+    do: measure_tile(nil, label, (ratio || 0) * 100, "%", 1)
 
-  @doc "The eight summary tiles."
   attr :summary, :map, required: true
 
   def summary(assigns) do
@@ -116,7 +103,6 @@ defmodule ZiwoasWeb.ReportsComponents do
     """
   end
 
-  @doc "Producers apart, consumers numbered; bars take each plug's dashboard colour (config order, never its rank)."
   attr :producers, :list, required: true
   attr :consumers, :list, required: true
 
@@ -172,7 +158,7 @@ defmodule ZiwoasWeb.ReportsComponents do
           </span>
         </span>
         <span class="col-auto col-sm-3 col-md-2 text-end tabular-nums text-nowrap">
-          {de_number(@row.kwh, precision: 2)} kWh
+          {number(@row.kwh, precision: 2)} kWh
         </span>
       </div>
     </li>
@@ -182,7 +168,6 @@ defmodule ZiwoasWeb.ReportsComponents do
   defp share(kwh, max_kwh) when max_kwh > 0, do: Float.round(kwh * 1.0 / max_kwh * 100, 1)
   defp share(_kwh, _max_kwh), do: 0
 
-  @doc "The switch that overlays weather on a chart (`daily` or `detail`)."
   attr :chart, :string, required: true
 
   def weather_switch(assigns) do
@@ -203,50 +188,11 @@ defmodule ZiwoasWeb.ReportsComponents do
     """
   end
 
-  @doc "The Leistung card's subtitle: resolution and range, the year only when it is not this one."
-  def power_subtitle(%EnergyReport{detail_start_date: from, detail_end_date: to}, today) do
+  def power_subtitle(%Report{start_date: from, end_date: to}, today) do
     resolution = if Date.diff(to, from) > 6, do: "Tagesmittel", else: "5-Min-Werte"
-    day = &Calendar.strftime(&1, if(&1.year == today.year, do: "%d.%m.", else: "%d.%m.%Y"))
+    day = &if(&1.year == today.year, do: day_month(&1), else: date(&1))
     range = if from == to, do: day.(from), else: "#{day.(from)}–#{day.(to)}"
     "Watt · #{resolution} · #{range}"
-  end
-
-  @doc "Whether the chart (`:daily` or `:detail`) carries a weather overlay."
-  def weather?(%EnergyReport{chart_payload: payload}, chart),
-    do: Map.has_key?(Map.fetch!(payload, chart), :weather)
-
-  @doc "The chart payload as JSON for the `payload` island."
-  def payload_json(%EnergyReport{chart_payload: payload}), do: json_escape(payload)
-
-  @doc "Every weather icon's asset path by name, daily icons first (the `weather-assets` island)."
-  def weather_assets(%EnergyReport{chart_payload: payload}) do
-    [payload.daily, payload.detail]
-    |> Enum.flat_map(&get_in(&1, [Access.key(:weather, %{}), Access.key(:icons, [])]))
-    |> Enum.reject(&is_nil/1)
-    |> Enum.reduce([], fn %{asset_name: name}, acc ->
-      if List.keymember?(acc, name, 0), do: acc, else: acc ++ [{name, ~p"/images/#{name}"}]
-    end)
-  end
-
-  def weather_assets_json(assets), do: json_escape(Map.new(assets))
-
-  @doc """
-  A JSON data island for the `EnergyReport` hook, written whole: the HEEx
-  formatter would wrap a `<script>` body in whitespace.
-  """
-  def json_script(name, json) do
-    raw(~s(<script type="application/json" data-island="#{name}">#{json}</script>))
-  end
-
-  # Safe inside <script>: no "</script>" or HTML comment can close it early.
-  defp json_escape(data) do
-    data
-    |> JSON.encode!()
-    |> String.replace("<", "\\u003c")
-    |> String.replace(">", "\\u003e")
-    |> String.replace("&", "\\u0026")
-    |> String.replace(<<0x2028::utf8>>, "\\u2028")
-    |> String.replace(<<0x2029::utf8>>, "\\u2029")
   end
 
   defp presence(value) when is_binary(value), do: if(String.trim(value) != "", do: value)

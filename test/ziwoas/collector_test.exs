@@ -4,14 +4,11 @@ defmodule Ziwoas.CollectorTest do
   import ExUnit.CaptureLog
 
   alias Ziwoas.{Collector, Config}
+  alias Ziwoas.Plugs.Roster
 
   @config Config.from_yaml!("""
           location:
             timezone: Europe/Berlin
-          mqtt:
-            host: broker
-            port: 1883
-            topic_prefix: shellies
           fritz_box:
             host: fritz.box
             user: u
@@ -53,38 +50,31 @@ defmodule Ziwoas.CollectorTest do
 
   test "a full configuration starts every connection and device" do
     assert ids(Collector.children(@config)) == [
-             {Ziwoas.Mqtt, "ziwoas-phoenix-ingest"},
+             Ziwoas.Shelly.Server,
              {Ziwoas.Solakon.Monitor, nil},
-             {Ziwoas.Mqtt, "ziwoas-phoenix-fritz"},
              {Ziwoas.Fritz.Bridge, "washer"},
-             {Ziwoas.Govee.Bridge, nil},
-             {Ziwoas.Mqtt, "ziwoas-phoenix-govee"},
-             {Ziwoas.Mqtt, "ziwoas-phoenix-command"}
+             {Task.Supervisor, nil},
+             {Ziwoas.Govee.Bridge, nil}
            ]
   end
 
-  test "one MQTT connection carries both handlers, subscribed to their union" do
-    [ingest | _] = Collector.children(@bare)
+  test "the Shelly listener serves the configured plugs on the Shelly port" do
+    [listener | _] = Collector.children(@bare)
 
-    assert ingest.id == {Ziwoas.Mqtt, "ziwoas-phoenix-ingest"}
-    {Tortoise311.Connection, :start_link, [opts]} = ingest.start
+    assert listener.id == Ziwoas.Shelly.Server
+    {Ziwoas.Shelly.Server, :start_link, [opts]} = listener.start
 
-    assert opts[:subscriptions] == [
-             {"shellies/+/status/switch:0", 0},
-             {"govees/+/config", 0},
-             {"govees/+/state", 0}
-           ]
-
-    assert {Ziwoas.Collector.MqttRouter,
-            [{Ziwoas.Plugs.ShellyStatusHandler, _}, {Ziwoas.Lights.GoveeSubscriber, _}]} =
-             opts[:handler]
+    assert opts[:port] == Application.fetch_env!(:ziwoas, :shelly_port)
+    assert {Ziwoas.Shelly.Listener, roster: roster} = opts[:plug]
+    assert Roster.ids(roster) == ["bkw"]
   end
 
-  test "without devices only the ingest and the command connection run" do
-    assert ids(Collector.children(@bare)) == [
-             {Ziwoas.Mqtt, "ziwoas-phoenix-ingest"},
-             {Ziwoas.Mqtt, "ziwoas-phoenix-command"}
-           ]
+  test "without devices only the Shelly listener runs" do
+    assert ids(Collector.children(@bare)) == [Ziwoas.Shelly.Server]
+  end
+
+  test "without a Shelly plug there is no listener" do
+    assert Collector.children(%{@bare | plugs: []}) == []
   end
 
   test "the Solakon monitor gets the inverter's address" do
@@ -98,7 +88,7 @@ defmodule Ziwoas.CollectorTest do
       | solakon: %{@config.solakon | monitoring_enabled: false, control_enabled: true}
     }
 
-    log = capture_log(fn -> assert length(Collector.children(config)) == 2 end)
+    log = capture_log(fn -> assert length(Collector.children(config)) == 1 end)
 
     assert log =~ "control_enabled, but monitoring_enabled is off"
   end
@@ -108,7 +98,6 @@ defmodule Ziwoas.CollectorTest do
              Enum.find(Collector.children(@config), &match?({Ziwoas.Fritz.Bridge, _}, &1))
 
     assert opts[:plug].id == "washer"
-    assert opts[:topic_prefix] == "shellies"
     assert %Ziwoas.Fritz.DectClient{host: "fritz.box", user: "u", timeout_s: 2} = opts[:client]
   end
 
@@ -116,7 +105,7 @@ defmodule Ziwoas.CollectorTest do
     log =
       capture_log(fn ->
         config = %{@bare | govee: %{@config.govee | api_key: ""}}
-        assert length(Collector.children(config)) == 2
+        assert length(Collector.children(config)) == 1
       end)
 
     assert log =~ "missing govee.api_key"

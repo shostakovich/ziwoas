@@ -4,7 +4,7 @@ defmodule ZiwoasWeb.EconomicsLiveTest do
   import Phoenix.LiveViewTest
 
   alias Ziwoas.Economics.{CostItem, ElectricityPrice}
-  alias Ziwoas.EnergyReport.DailyEnergySummary
+  alias Ziwoas.Energy.DailySummary
   alias Ziwoas.{Repo, TestClock}
 
   @path "/solakon/wirtschaftlichkeit"
@@ -63,8 +63,8 @@ defmodule ZiwoasWeb.EconomicsLiveTest do
     test "prices self-consumption from the price book, not zero", %{conn: conn} do
       insert_price!("2026-01-01", "0.30")
 
-      Repo.insert!(%DailyEnergySummary{
-        date: "2026-04-01",
+      Repo.insert!(%DailySummary{
+        date: ~D[2026-04-01],
         produced_wh: 5_000.0,
         consumed_wh: 2_000.0,
         self_consumed_wh: 1_000.0
@@ -147,7 +147,6 @@ defmodule ZiwoasWeb.EconomicsLiveTest do
     test "is checked while typing, only on the fields touched", %{conn: conn} do
       {:ok, view, _html} = live(conn, @path)
 
-      # The browser marks the fields not yet touched as `_unused_`.
       params = %{
         "label" => "",
         "_unused_label" => "",
@@ -195,7 +194,7 @@ defmodule ZiwoasWeb.EconomicsLiveTest do
 
       assert texts(html, "#flash-info") == ["Preis ab 01.07.2026 erfasst"]
       assert html =~ "0,1235 €/kWh"
-      assert [%{valid_from: "2026-07-01"} = price] = Repo.all(ElectricityPrice)
+      assert [%{valid_from: ~D[2026-07-01]} = price] = Repo.all(ElectricityPrice)
       assert Decimal.equal?(price.eur_per_kwh, Decimal.new("0.12346"))
     end
 

@@ -8,7 +8,6 @@
 
 .sw-knob-plush { width: 68%; height: 68%; object-fit: contain; pointer-events: none; }
 
-/* A drop shadow, so felt's own patch shadow stays. */
 .sw-lamp-knob {
   --felt-btn-bg: light-dark(color-mix(in oklab, var(--felt-warning) 12%, var(--felt-surface-raised)),
                      color-mix(in oklab, var(--felt-warning) 50%, color-mix(in oklab, var(--felt-light-fixed) 30%, var(--felt-surface-raised))));

@@ -1,43 +1,40 @@
 defmodule Ziwoas.Govee.Bridge do
-  @moduledoc """
-  The lamps' side of the `govees/<key>/{config,state,set}` contract. One process holds the device
-  registry and the state store; the Platform API calls run in tasks so a slow or
-  rate-limited cloud never stalls the LAN path.
-
-    * **Bootstrap** — load the lamps from the Platform API, publish each one's
-      config (retained), discover the LAN; retried every `api_poll_seconds` until
-      some lamp is known.
-    * **LAN** — listen on UDP 4002 (multicast group joined) for scan and
-      `devStatus` replies; every `lan_poll_seconds` re-discover and ask each lamp
-      with an IP for its status. A reading that changes the published state is
-      published (retained); a deviating one asks the API.
-    * **API** — every `api_poll_seconds` the cloud state of each lamp, adopted as
-      the truth.
-    * **Commands** — `govees/+/set` (via `Ziwoas.Govee.CommandHandler` on the
-      `ziwoas-phoenix-govee` connection) go through `Ziwoas.Govee.CommandRouter`;
-      the optimistic state is published at once.
-  """
+  @moduledoc false
   use GenServer
 
   require Logger
 
-  alias Ziwoas.Govee.{CommandRouter, DeviceRegistry, Lan, Messages, PlatformApi, StateStore}
-  alias Ziwoas.Mqtt
+  alias Ziwoas.Govee.{CommandRouter, DeviceRegistry, Lan, PlatformApi, States}
+  alias Ziwoas.Lights
 
-  @client_id "ziwoas-phoenix-govee"
   @listen_backoff_min_ms 1_000
   @listen_backoff_max_ms 60_000
+  @state_fields [:on, :reachable, :brightness, :color, :color_temp_k, :zone_states]
+  @command_timeout_ms Application.compile_env(:ziwoas, :govee_command_timeout_ms, 5_000)
 
-  def client_id, do: @client_id
+  @type verb ::
+          {:power, boolean}
+          | {:brightness, 1..100}
+          | {:color, %{r: 0..255, g: 0..255, b: 0..255}}
+          | {:color_temp, pos_integer}
+          | {:zone, String.t(), boolean}
+          | {:scene, String.t()}
 
   def start_link(opts),
     do: GenServer.start_link(__MODULE__, opts, name: Keyword.get(opts, :name, __MODULE__))
 
-  @doc """
-  Options: `:govee` (`Config.Govee`); for tests `:name`, `:api_req` (Req options),
-  `:listen_port` (default 4002, `false` for none), `:send` (a datagram sender),
-  `:publish` (a function of topic, payload), `:clock` (monotonic seconds).
-  """
+  @spec command(String.t(), verb, GenServer.server()) :: :ok | {:error, term}
+  def command(key, verb, server \\ __MODULE__) do
+    case GenServer.whereis(server) do
+      nil -> {:error, :unavailable}
+      pid -> GenServer.call(pid, {:command, key, verb}, @command_timeout_ms)
+    end
+  catch
+    :exit, reason ->
+      Logger.warning("Govee bridge: #{inspect(verb)} for #{key}: #{inspect(reason)}")
+      {:error, :unavailable}
+  end
+
   @impl true
   def init(opts) do
     govee = Keyword.fetch!(opts, :govee)
@@ -47,10 +44,13 @@ defmodule Ziwoas.Govee.Bridge do
       api: PlatformApi.new(govee.api_key, Keyword.get(opts, :api_req, [])),
       registry:
         DeviceRegistry.new(Map.new(govee.names, fn {mac, %{name: name}} -> {mac, name} end)),
-      store: StateStore.new(govee.pending_window_seconds * 1.0),
+      store: States.new(govee.pending_window_seconds * 1.0),
       clock: Keyword.get(opts, :clock, fn -> System.monotonic_time(:millisecond) / 1000 end),
       send: Keyword.get(opts, :send, &Lan.send_datagram/1),
-      publish: Keyword.get(opts, :publish, &mqtt_publish/2),
+      put_lamp: Keyword.get(opts, :put_lamp, &Lights.put_lamp/1),
+      put_state: Keyword.get(opts, :put_state, &Lights.put_state/2),
+      tasks: Keyword.get(opts, :tasks, Ziwoas.Govee.Tasks),
+      pending: %{},
       socket: nil,
       listen_port: Keyword.get(opts, :listen_port, Lan.listen_port()),
       listen_backoff_ms: @listen_backoff_min_ms,
@@ -64,7 +64,6 @@ defmodule Ziwoas.Govee.Bridge do
     {:ok, listen(state)}
   end
 
-  @doc "The port the LAN listener is bound to (tests)."
   def listen_port(server \\ __MODULE__), do: GenServer.call(server, :listen_port)
 
   @impl true
@@ -73,16 +72,14 @@ defmodule Ziwoas.Govee.Bridge do
   def handle_call(:listen_port, _from, state),
     do: {:reply, elem(:inet.port(state.socket), 1), state}
 
-  @impl true
-  def handle_info(:bootstrap, state) do
-    async(state, :refreshed, fn -> refresh(state) end)
-    {:noreply, state}
+  def handle_call({:command, key, verb}, _from, state) do
+    {reply, state} = run_command(state, key, verb)
+    {:reply, reply, state}
   end
 
-  def handle_info({:refreshed, result}, state) do
-    state = adopt_refresh(state, result)
-    {:noreply, if(state.bootstrapped, do: state, else: bootstrap(state))}
-  end
+  @impl true
+  def handle_info(:bootstrap, state),
+    do: {:noreply, async(state, :refreshed, fn -> refresh(state) end)}
 
   def handle_info(:lan_poll, state) do
     lan(state, :discover)
@@ -99,50 +96,66 @@ defmodule Ziwoas.Govee.Bridge do
   def handle_info(:api_poll, state) do
     Process.send_after(self(), :api_poll, state.govee.api_poll_seconds * 1000)
     devices = DeviceRegistry.all(state.registry)
+    api = state.api
 
-    async(state, :api_states, fn ->
-      Enum.map(devices, &{&1, PlatformApi.state(state.api, &1.sku, &1.api_id)})
-    end)
-
-    {:noreply, state}
+    {:noreply,
+     async(state, :api_states, fn ->
+       {:ok, Enum.map(devices, &{&1, PlatformApi.state(api, &1.sku, &1.api_id)})}
+     end)}
   end
 
-  def handle_info({:api_states, results}, state) do
-    case results do
-      results when is_list(results) ->
-        {:noreply, Enum.reduce(results, state, &apply_api(&2, &1, true))}
-
-      {:error, message} ->
-        Logger.warning("Govee bridge: API poll failed: #{message}")
-        {:noreply, state}
-    end
+  def handle_info({ref, result}, state) when is_map_key(state.pending, ref) do
+    Process.demonitor(ref, [:flush])
+    {tag, pending} = Map.pop(state.pending, ref)
+    {:noreply, finished(%{state | pending: pending}, tag, result)}
   end
 
-  def handle_info({:clarified, result}, state), do: {:noreply, apply_api(state, result, false)}
+  def handle_info({:DOWN, ref, :process, _pid, reason}, state)
+      when is_map_key(state.pending, ref) do
+    {tag, pending} = Map.pop(state.pending, ref)
+    {:noreply, finished(%{state | pending: pending}, tag, {:error, {:exit, reason}})}
+  end
 
   def handle_info(:listen, %{socket: nil} = state), do: {:noreply, listen(state)}
 
   def handle_info({:udp, socket, ip, _port, payload}, %{socket: socket} = state),
     do: {:noreply, handle_datagram(state, payload, ip |> :inet.ntoa() |> List.to_string())}
 
-  def handle_info({:set, key, payload}, state), do: {:noreply, on_set(state, key, payload)}
-
   def handle_info(message, state) do
     Logger.debug("Govee bridge: ignoring #{inspect(message)}")
     {:noreply, state}
   end
 
-  # --- Bootstrap and registry ---------------------------------------------------
+  defp finished(state, :refreshed, result) do
+    state = adopt_refresh(state, result)
+    if state.bootstrapped, do: state, else: bootstrap(state)
+  end
+
+  defp finished(state, :api_states, {:ok, results}),
+    do: Enum.reduce(results, state, &apply_api(&2, &1, true))
+
+  defp finished(state, :api_states, {:error, reason}) do
+    Logger.warning("Govee bridge: API poll failed: #{inspect(reason)}")
+    state
+  end
+
+  defp finished(state, {:clarified, device}, result),
+    do: apply_api(state, {device, result}, false)
+
+  defp finished(state, {:controlled, key, verb}, {:ok, _}), do: record(state, key, verb)
+
+  defp finished(state, {:controlled, key, verb}, {:error, reason}) do
+    Logger.warning("Govee bridge: #{inspect(verb)} for #{key} failed: #{inspect(reason)}")
+    state
+  end
 
   defp refresh(state) do
     scenes = fn raw ->
       PlatformApi.scenes(state.api, to_string(raw["sku"]), to_string(raw["device"]))
     end
 
-    case PlatformApi.devices(state.api) do
-      {:ok, raw} -> {:ok, DeviceRegistry.refresh(state.registry, raw, scenes)}
-      {:error, message} -> {:error, message}
-    end
+    with {:ok, raw} <- PlatformApi.devices(state.api),
+         do: {:ok, DeviceRegistry.refresh(state.registry, raw, scenes)}
   end
 
   # IPs found while the refresh ran win over the snapshot it started from.
@@ -155,47 +168,52 @@ defmodule Ziwoas.Govee.Bridge do
     %{state | registry: registry}
   end
 
-  defp adopt_refresh(state, {:error, message}) do
-    Logger.warning("Govee.DeviceRegistry: refresh failed: #{message}")
+  defp adopt_refresh(state, {:error, reason}) do
+    Logger.warning("Govee.DeviceRegistry: refresh failed: #{inspect(reason)}")
     state
   end
 
   defp bootstrap(state) do
-    devices = DeviceRegistry.all(state.registry)
+    case DeviceRegistry.all(state.registry) do
+      [] ->
+        Logger.warning(
+          "Govee bridge: no devices after refresh; retrying in #{state.govee.api_poll_seconds}s"
+        )
 
-    if devices == [] do
-      Logger.warning(
-        "Govee bridge: no devices after refresh; retrying in #{state.govee.api_poll_seconds}s"
-      )
-
-      Process.send_after(self(), :bootstrap, state.govee.api_poll_seconds * 1000)
-      state
-    else
-      lan(state, :discover)
-
-      published = Enum.map(devices, &announce_device(state, &1))
-
-      if Enum.all?(published, &(&1 == :ok)) do
-        Logger.info("Govee bridge: bootstrapped #{length(devices)} devices")
-        %{state | bootstrapped: true}
-      else
         Process.send_after(self(), :bootstrap, state.govee.api_poll_seconds * 1000)
         state
-      end
+
+      devices ->
+        lan(state, :discover)
+        Enum.each(devices, &announce_device(state, &1))
+        Logger.info("Govee bridge: bootstrapped #{length(devices)} devices")
+        %{state | bootstrapped: true}
     end
   end
 
   defp announce_device(state, device) do
     if device.ip, do: lan(state, {:request_status, device.ip})
-    publish(state, "govees/#{device.key}/config", JSON.encode!(Messages.config_wire(device)))
-  end
 
-  # --- LAN ----------------------------------------------------------------------
+    lamp =
+      Map.take(device, [
+        :key,
+        :name,
+        :sku,
+        :supports_color,
+        :supports_color_temp,
+        :color_temp_min_k,
+        :color_temp_max_k,
+        :zones,
+        :scenes
+      ])
+
+    with {:error, reason} <- state.put_lamp.(lamp),
+         do: Logger.warning("Govee bridge: lamp #{device.key} refused: #{inspect(reason)}")
+  end
 
   defp listen(%{listen_port: false} = state), do: state
 
-  # A port another process holds (a bridge not yet gone) is retried with backoff,
-  # 1 s to 60 s: without its listener the bridge hears no lamp.
+  # A port still held by a bridge not yet gone is retried with backoff.
   defp listen(%{listen_port: port} = state) do
     opts = [
       :binary,
@@ -242,7 +260,7 @@ defmodule Ziwoas.Govee.Bridge do
 
   defp apply_lan(state, device, status) do
     {result, store} =
-      StateStore.apply_telemetry(
+      States.apply_telemetry(
         state.store,
         device.key,
         Lan.telemetry(status),
@@ -251,26 +269,26 @@ defmodule Ziwoas.Govee.Bridge do
       )
 
     state = %{state | store: store}
+    if result.changed, do: report_state(state, device.key, result.published)
 
-    if result.needs_api_clarification,
-      do:
-        async(state, :clarified, fn ->
-          {device, PlatformApi.state(state.api, device.sku, device.api_id)}
-        end)
+    if result.needs_api_clarification do
+      api = state.api
 
-    if result.changed, do: publish_state(state, device.key, result.published)
-    state
+      async(state, {:clarified, device}, fn ->
+        PlatformApi.state(api, device.sku, device.api_id)
+      end)
+    else
+      state
+    end
   end
 
-  # --- API ----------------------------------------------------------------------
-
-  defp apply_api(state, {device, {:ok, map}}, publish?) do
-    case Messages.device_telemetry(map, device.zones) do
+  defp apply_api(state, {device, {:ok, map}}, report?) do
+    case PlatformApi.telemetry(map, device.zones) do
       {:ok, telemetry} ->
         {result, store} =
-          StateStore.apply_telemetry(state.store, device.key, telemetry, :api, state.clock.())
+          States.apply_telemetry(state.store, device.key, telemetry, :api, state.clock.())
 
-        if publish? and result.changed, do: publish_state(state, device.key, result.published)
+        if report? and result.changed, do: report_state(state, device.key, result.published)
         %{state | store: store}
 
       :error ->
@@ -279,96 +297,64 @@ defmodule Ziwoas.Govee.Bridge do
     end
   end
 
-  defp apply_api(state, {device, {:error, message}}, _publish?) do
-    Logger.warning("Govee.Reconciler: api state #{device.key}: #{message}")
+  defp apply_api(state, {device, {:error, reason}}, _report?) do
+    Logger.warning("Govee.Reconciler: api state #{device.key}: #{inspect(reason)}")
     state
   end
 
-  defp apply_api(state, {:error, message}, _publish?) do
-    Logger.warning("Govee.Reconciler: #{message}")
-    state
-  end
-
-  # --- Commands -----------------------------------------------------------------
-
-  defp on_set(state, key, payload) do
-    with {:ok, %{} = verb} <- JSON.decode(payload),
-         {published, store} <-
-           CommandRouter.handle(
-             DeviceRegistry.find(state.registry, key),
-             key,
-             verb,
-             state.store,
-             io(state),
-             state.clock.()
-           ) do
-      if published, do: publish_state(state, key, published)
-      %{state | store: store}
+  defp run_command(state, key, verb) do
+    with %{} = device <- DeviceRegistry.find(state.registry, key) || {:error, :unknown_lamp},
+         {:ok, route} <- CommandRouter.route(device, verb) do
+      dispatch(state, key, verb, route)
     else
-      other ->
-        Logger.warning("Govee bridge: set verb for #{key} failed: #{inspect(other)}")
-        state
+      {:error, reason} = error ->
+        Logger.warning("Govee bridge: #{inspect(verb)} for #{key}: #{inspect(reason)}")
+        {error, state}
     end
-  rescue
-    error ->
-      Logger.warning("Govee bridge: set verb for #{key} failed: #{Exception.message(error)}")
-      state
   end
 
-  defp io(state) do
-    %{
-      lan: fn command -> ok!(lan(state, command)) end,
-      api: fn control -> ok!(PlatformApi.control(state.api, control)) end
-    }
+  defp dispatch(state, key, verb, {:lan, commands}) do
+    sent =
+      Enum.reduce_while(commands, :ok, fn command, :ok ->
+        case lan(state, command) do
+          {:error, reason} -> {:halt, {:error, {:lan, reason}}}
+          _sent -> {:cont, :ok}
+        end
+      end)
+
+    case sent do
+      :ok -> {:ok, record(state, key, verb)}
+      error -> {error, state}
+    end
   end
 
-  defp ok!({:error, reason}), do: raise(RuntimeError, inspect(reason))
-  defp ok!(_), do: :ok
+  defp dispatch(state, key, verb, {:api, control}) do
+    api = state.api
+    {:ok, async(state, {:controlled, key, verb}, fn -> PlatformApi.control(api, control) end)}
+  end
 
-  # --- Effects ------------------------------------------------------------------
+  defp record(state, key, verb) do
+    changes = CommandRouter.changes(verb, States.published(state.store, key))
+    {published, store} = States.record_command(state.store, key, changes, state.clock.())
+    report_state(state, key, published)
+    %{state | store: store}
+  end
 
   defp lan(state, command), do: state.send.(Lan.datagram(command))
 
-  defp publish_state(state, key, published) do
-    case Messages.state(published) do
-      {:ok, message} ->
-        publish(state, "govees/#{key}/state", JSON.encode!(Messages.state_wire(message)))
+  defp report_state(state, key, published) do
+    lamp_state =
+      for {field, value} <- Map.take(published, @state_fields),
+          not is_nil(value),
+          into: %{on: false, reachable: true},
+          do: {field, value}
 
-      :error ->
-        Logger.warning("Govee bridge: state of #{key} does not coerce: #{inspect(published)}")
-    end
+    with {:error, reason} <- state.put_state.(key, lamp_state),
+         do: Logger.error("Govee bridge: state of #{key} not stored: #{inspect(reason)}")
   end
 
-  defp publish(state, topic, payload), do: state.publish.(topic, payload)
-
-  defp mqtt_publish(topic, payload) do
-    case Mqtt.publish(@client_id, topic, payload, retain: true) do
-      :ok ->
-        :ok
-
-      {:error, reason} = error ->
-        Logger.error("Govee bridge: publish #{topic} failed: #{inspect(reason)}")
-        error
-    end
-  end
-
-  # The task always answers, whatever ends it (a raise, an exit of a Req call, a throw).
   defp async(state, tag, fun) do
-    parent = self()
-
-    Task.start(fn ->
-      result =
-        try do
-          fun.()
-        rescue
-          error -> {:error, Exception.message(error)}
-        catch
-          kind, reason -> {:error, "#{kind}: #{inspect(reason)}"}
-        end
-
-      send(parent, {tag, result})
-    end)
-
-    state
+    task = Task.Supervisor.async_nolink(state.tasks, fun)
+    %{state | pending: Map.put(state.pending, task.ref, tag)}
   end
 end

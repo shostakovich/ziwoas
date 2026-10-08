@@ -1,7 +1,6 @@
 /* felt presses an .active button down by 1px, which would misalign a row of choices. */
 .ld-choices .btn.active { transform: none; }
 
-/* A size smaller on the same 20px line, so "Leselicht" clears its seam on a phone. */
 @media (max-width: 575.98px) {
   .ld-zones .btn { font-size: .875rem; line-height: 1.25rem; }
 }
@@ -14,7 +13,6 @@
 .sw-swatch { display: inline-block; width: .8rem; height: .8rem; border-radius: var(--felt-radius-sm);
              border: 1px solid color-mix(in oklab, var(--felt-body-color) 15%, transparent); }
 
-/* A neutral thumb, so it never reads as a colour on the scale. */
 .form-range.ld-range::-webkit-slider-runnable-track { height: .75rem; }
 .form-range.ld-range::-moz-range-track { height: .75rem; }
 .form-range.ld-range::-webkit-slider-thumb { margin-top: -.25rem; background-color: var(--felt-surface-raised); border-color: var(--felt-border-color-strong); }
@@ -24,7 +22,6 @@
   --_thumb-shadow: 0 1px 1px var(--felt-groove-shadow), 0 3px 5px var(--felt-patch-shadow-far);
 }
 
-/* Edged so the white middle doesn't vanish on a light card. */
 .ld-white {
   --ld-kelvin: linear-gradient(to right, var(--felt-warning), color-mix(in oklab, var(--felt-warning) 30%, var(--felt-light-fixed)),
                                var(--felt-light-fixed), color-mix(in oklab, var(--felt-primary) 25%, var(--felt-light-fixed)),
@@ -37,7 +34,6 @@
 .ld-white::-webkit-slider-runnable-track { background-image: var(--ld-kelvin); box-shadow: var(--ld-edge); }
 .ld-white::-moz-range-track { background-image: var(--ld-kelvin); box-shadow: var(--ld-edge); }
 
-/* --at is the preset's share of the range, mapped onto the thumb's travel (thumb 1.25rem wide). */
 .ld-ticks { position: relative; height: .375rem; }
 .ld-tick { position: absolute; top: 0; left: calc(.625rem + (100% - 1.25rem) * var(--at)); width: 2px; height: 100%;
            margin-left: -1px; border-radius: 1px; background-color: var(--felt-border-color-strong); }
@@ -56,7 +52,6 @@
 .ld-swatch-wheel.ld-swatch-custom::before { background-image: radial-gradient(closest-side, var(--ld-custom) 64%, transparent 67%), var(--ld-wheel); }
 .ld-swatch-wheel input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
 
-/* The padding keeps the patches' shadows unclipped; the height cuts through a preview strip, never a name. */
 .ld-scenes {
   max-height: 12.25rem; overflow: hidden auto;
   margin: -.5rem; padding: .5rem .5rem 2rem;

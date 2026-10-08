@@ -1,26 +1,10 @@
 defmodule ZiwoasWeb.DashboardComponents do
-  @moduledoc """
-  The dashboard's parts: hero, tiles, plug bar and the energy flow. The PV page
-  reuses the tile and the energy flow.
-  """
+  @moduledoc false
   use ZiwoasWeb, :html
 
-  alias Ziwoas.{Energy, EnergyFlow, EnergySummary, GermanNumber, LiveState}
-
-  @battery_assets [
-    {"normal", "solakon_battery_normal.webp"},
-    {"discharging", "solakon_battery_normal.webp"},
-    {"charging", "solakon_battery_charging.webp"},
-    {"low", "solakon_battery_low.webp"},
-    {"hot", "solakon_battery_hot.webp"},
-    {"cold", "solakon_battery_cold.webp"},
-    {"fault", "solakon_battery_fault.webp"}
-  ]
-  @default_battery_asset "solakon_battery_normal.webp"
-
-  def default_battery_asset, do: @default_battery_asset
-
-  # --- Hero ------------------------------------------------------------------
+  alias Ziwoas.Energy
+  alias Ziwoas.Energy.{Amount, Balance, LiveState}
+  alias ZiwoasWeb.Components.EnergyFlow
 
   attr :live, LiveState, required: true
   attr :weather_asset, :string, required: true
@@ -34,7 +18,7 @@ defmodule ZiwoasWeb.DashboardComponents do
         pv_watt: pv_watt(assigns.live),
         battery: flow.solakon_online,
         soc: flow.battery_soc_pct,
-        battery_asset: battery_asset(flow.battery_state)
+        battery_asset: EnergyFlow.battery_asset(flow.battery_state)
       )
 
     ~H"""
@@ -45,7 +29,7 @@ defmodule ZiwoasWeb.DashboardComponents do
             <img class="hero-icon" alt={@weather_alt} src={~p"/images/#{@weather_asset}"} />
             <div class="stat">
               <span class="stat-label">PV jetzt</span>
-              <span class="text-nowrap"><span class="display-4">{GermanNumber.format(@pv_watt)}</span>
+              <span class="text-nowrap"><span class="display-4">{number(@pv_watt)}</span>
               <span class="fs-3 fw-semibold">W</span></span>
             </div>
           </div>
@@ -53,7 +37,7 @@ defmodule ZiwoasWeb.DashboardComponents do
             <img class="hero-icon" alt="Batterie" src={~p"/images/#{@battery_asset}"} />
             <div class="stat">
               <span class="stat-label">Batterie</span>
-              <span class="text-nowrap"><span class="display-4">{GermanNumber.format(@soc)}</span>
+              <span class="text-nowrap"><span class="display-4">{number(@soc)}</span>
               <span class="fs-3 fw-semibold">%</span></span>
             </div>
           </div>
@@ -73,71 +57,40 @@ defmodule ZiwoasWeb.DashboardComponents do
     end
   end
 
-  defp battery_asset(state) do
-    case List.keyfind(@battery_assets, state, 0) do
-      {_, asset} -> asset
-      nil -> @default_battery_asset
-    end
-  end
-
-  # --- Tiles -----------------------------------------------------------------
-
-  @doc "A stat tile; values sit at the foot, so a row lines them up."
-  attr :id, :string, default: nil
-  attr :label, :string, required: true
-  attr :number, :string, required: true
-  attr :unit, :string, default: nil
-  attr :caption, :string, default: nil
-
-  def tile(assigns) do
-    ~H"""
-    <div class="col" id={@id}>
-      <div class="card h-100">
-        <div class="card-body p-3 h-100 d-flex flex-column">
-          <div class="stat flex-grow-1">
-            <span class="stat-label">{@label}</span>
-            <span class="stat-value fs-2 mt-auto">{@number}
-            <%= if @unit do %>
-              <span class="fs-5 fw-semibold">{@unit}</span>
-            <% end %></span>
-            <span :if={@caption} class="small text-body-secondary">{@caption}</span>
-          </div>
-        </div>
-      </div>
-    </div>
-    """
-  end
-
-  @doc "The day's tiles, recomputed once a minute."
-  @spec summary_tiles(EnergySummary.t()) :: [map]
+  @spec summary_tiles(Balance.t()) :: [map]
   def summary_tiles(summary) do
     [
-      energy("tile_produced", "Erzeugt heute", Energy.kwh(summary.produced)),
-      energy("tile_consumed", "Verbraucht heute", Energy.kwh(summary.consumed)),
-      measure("tile_savings", "Gespart heute", summary.savings_eur, "€", 2),
+      energy("tile_produced", "Erzeugt heute", Amount.kwh(summary.produced)),
+      energy("tile_consumed", "Verbraucht heute", Amount.kwh(summary.consumed)),
+      measure_tile("tile_savings", "Gespart heute", summary.savings_eur, "€", 2),
       energy(
         "tile_net_today",
         "Bilanz heute",
         (summary.produced.wh - summary.consumed.wh) / 1000.0,
         true
       ),
-      share("tile_autarky", "Autarkie heute", EnergySummary.autarky_ratio(summary)),
+      share("tile_autarky", "Autarkie heute", Energy.autarky_ratio(summary)),
       share(
         "tile_self_consumption",
         "Eigen­verbrauchs­quote",
-        EnergySummary.self_consumption_ratio(summary)
+        Energy.self_consumption_ratio(summary)
       )
     ]
   end
 
-  @doc "The live tiles, replaced with every live beat."
   @spec live_tiles(LiveState.t()) :: [map]
   def live_tiles(%LiveState{energy_flow: flow, plugs: plugs}) do
     any_online = flow.solakon_online or Enum.any?(plugs, & &1.online)
 
     [
-      measure("tile_consumption_now", "Verbrauch jetzt", if(any_online, do: flow.home_w), "W", 0),
-      measure(
+      measure_tile(
+        "tile_consumption_now",
+        "Verbrauch jetzt",
+        if(any_online, do: flow.home_w),
+        "W",
+        0
+      ),
+      measure_tile(
         "tile_netbalance_now",
         "Bilanz jetzt",
         flow.grid_w && -flow.grid_w,
@@ -148,23 +101,10 @@ defmodule ZiwoasWeb.DashboardComponents do
     ]
   end
 
-  defp energy(id, label, kwh, signed \\ false), do: measure(id, label, kwh, "kWh", 2, signed)
+  defp energy(id, label, kwh, signed \\ false),
+    do: measure_tile(id, label, kwh, "kWh", 2, signed)
 
-  defp share(id, label, ratio), do: measure(id, label, (ratio || 0) * 100, "%", 1)
-
-  @doc "A tile for one value: a dash without unit when unknown, a plus on a signed non-negative value."
-  def measure(id, label, value, unit, precision, signed \\ false)
-
-  def measure(id, label, nil, _unit, _precision, _signed),
-    do: %{id: id, label: label, number: "—", unit: nil}
-
-  def measure(id, label, value, unit, precision, signed) do
-    number = GermanNumber.format(value, precision: precision)
-    number = if signed and not (value < 0), do: "+" <> number, else: number
-    %{id: id, label: label, number: number, unit: unit}
-  end
-
-  # --- Plug bar --------------------------------------------------------------
+  defp share(id, label, ratio), do: measure_tile(id, label, (ratio || 0) * 100, "%", 1)
 
   # Colours are keyed by config position, so a plug keeps its colour across renders and charts.
   attr :live, LiveState, required: true
@@ -208,7 +148,7 @@ defmodule ZiwoasWeb.DashboardComponents do
           aria-valuenow={round(bar.width)}
           aria-valuemin="0"
           aria-valuemax="100"
-          title={"#{bar.plug.name} · #{GermanNumber.format(bar.plug.apower_w, unit: "W")}"}
+          title={"#{bar.plug.name} · #{number(bar.plug.apower_w, unit: "W")}"}
         >
           <div class="progress-bar" style={"background-color: #{bar.color}"}></div>
         </div>
@@ -216,7 +156,7 @@ defmodule ZiwoasWeb.DashboardComponents do
       <div class="d-flex justify-content-between align-items-baseline gap-3 mt-2 small text-body-secondary">
         <span>Verbrauch gesamt</span>
         <strong class="text-body tabular-nums" data-role="total">
-          {GermanNumber.format(@total_w, unit: "W")}
+          {number(@total_w, unit: "W")}
         </strong>
       </div>
       <div
@@ -226,7 +166,7 @@ defmodule ZiwoasWeb.DashboardComponents do
       >
         <span>{plug.name}</span>
         <span class="text-body tabular-nums text-nowrap">
-          erzeugt {GermanNumber.format(plug.apower_w && abs(plug.apower_w), unit: "W")}
+          erzeugt {number(plug.apower_w && abs(plug.apower_w), unit: "W")}
         </span>
       </div>
       <ul
@@ -237,7 +177,7 @@ defmodule ZiwoasWeb.DashboardComponents do
           <span class="badge rounded-pill legend-dot" style={"background-color: #{bar.color}"}></span>
           <span class="plug-bar-name">{bar.plug.name}</span>
           <span class="ms-auto text-body-secondary text-nowrap">
-            {GermanNumber.format(bar.plug.apower_w, unit: "W")}
+            {number(bar.plug.apower_w, unit: "W")}
           </span>
         </li>
       </ul>
@@ -245,204 +185,11 @@ defmodule ZiwoasWeb.DashboardComponents do
     """
   end
 
-  # --- Energy flow hook --------------------------------------------------------
-
-  @doc """
-  The attributes that make the card around `energy_flow/1` the `EnergyFlow` hook:
-  its state as `data-state`, which the hook draws into the SVG on every update.
-  """
-  def energy_flow_hook(%LiveState{} = live),
-    do: [
-      id: "energy_flow",
-      "phx-hook": "EnergyFlow",
-      "data-state": EnergyFlow.to_json(live.energy_flow)
-    ]
-
-  # --- Energy flow -------------------------------------------------------------
-
-  @width 400
-  @height 320
-  @radius 40
-  @rings [
-    pv: {200, 80, "--viz-solar"},
-    grid: {58, 170, "--viz-grid"},
-    consumer: {342, 170, "--ef-groove"},
-    battery: {200, 260, "--viz-battery"}
-  ]
-  # Lines start inside their ring, so the dots enter from under it instead of waiting on top.
-  @channels [
-    {"SolarHome", "--viz-solar",
-     "M 209.6,109.5 L 212.4,118 C 219.2,139 246.9,139.1 304,157.6 L 312.5,160.4"},
-    {"SolarGrid", "--viz-solar",
-     "M 190.4,109.5 L 187.6,118 C 180.8,139 153.1,139.1 96,157.6 L 87.5,160.4"},
-    {"SolarBattery", "--viz-solar", "M 200,111 L 200,229"},
-    {"GridHome", "--viz-grid", "M 89,170 L 311,170"},
-    {"GridBattery", "--viz-grid",
-     "M 87.5,179.6 L 96,182.4 C 153.1,200.9 180.8,201 187.6,222 L 190.4,230.5"},
-    {"BatteryHome", "--viz-battery",
-     "M 209.6,230.5 L 212.4,222 C 219.2,201 246.9,200.9 304,182.4 L 312.5,179.6"}
-  ]
-
-  attr :pv_asset, :string, required: true
-  attr :pv_alt, :string, required: true
-  attr :battery_asset, :string, required: true
-
-  def energy_flow(assigns) do
-    assigns =
-      assign(assigns,
-        channels: @channels,
-        rings: @rings,
-        width: @width,
-        height: @height,
-        radius: @radius,
-        consumer: Keyword.fetch!(@rings, :consumer),
-        battery_states:
-          for(
-            {state, asset} <- @battery_assets,
-            do: {"data-battery-state-#{state}", ~p"/images/#{asset}"}
-          )
-      )
-
-    ~H"""
-    <div class="energy-flow">
-      <svg
-        id="energy_flow_svg"
-        phx-update="ignore"
-        viewBox={"0 0 #{@width} #{@height}"}
-        class="d-block w-100 h-auto"
-      >
-        <defs>
-          <clipPath id="ef-clip">
-            <path fill-rule="evenodd" d={clip_path()} />
-          </clipPath>
-        </defs>
-
-        <g
-          fill="none"
-          stroke-width="2.5"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          clip-path="url(#ef-clip)"
-        >
-          <path
-            :for={{key, tone, d} <- @channels}
-            data-ef={"efLine#{key}"}
-            class="ef-link"
-            style={"--ef-tone: var(#{tone})"}
-            d={d}
-          />
-        </g>
-
-        <g clip-path="url(#ef-clip)">
-          <g :for={{key, tone, _d} <- @channels} data-ef={"efDots#{key}"} style={"fill: var(#{tone})"}>
-          </g>
-        </g>
-
-        <g stroke-width="3" fill="none">
-          <circle
-            :for={{name, {cx, cy, stroke}} <- @rings}
-            data-ring={name}
-            cx={cx}
-            cy={cy}
-            r={@radius}
-            style={"stroke: var(#{stroke})"}
-          />
-        </g>
-        <g
-          data-ef="efConsumerRing"
-          transform={"rotate(-90 #{elem(@consumer, 0)} #{elem(@consumer, 1)})"}
-          fill="none"
-          stroke-linecap="butt"
-        >
-        </g>
-
-        <g
-          class="ef-names"
-          text-anchor="middle"
-          font-size="11"
-          style="fill: var(--felt-secondary-color)"
-        >
-          <text x="200" y="22">PV-Anlage</text>
-          <text data-ef="efGridName" x="58" y="224">Stromnetz</text>
-          <text x="342" y="224">Verbraucher</text>
-          <text x="200" y="315">
-            <tspan data-ef="efBatteryName">Batterie</tspan><tspan data-ef="efBatterySoc"></tspan>
-          </text>
-        </g>
-      </svg>
-
-      <.ring name={:pv}>
-        <img class="ef-icon" alt={@pv_alt} src={~p"/images/#{@pv_asset}"} />
-        <span class="ef-value fw-semibold tabular-nums lh-1" data-ef="efPvW">— W</span>
-      </.ring>
-      <.ring name={:grid}>
-        <img class="ef-icon" alt="" src={~p"/images/icon_netz.webp"} />
-        <span class="ef-value fw-semibold tabular-nums lh-1" data-ef="efGridW">— W</span>
-      </.ring>
-      <.ring name={:consumer}>
-        <img class="ef-icon" alt="" src={~p"/images/icon_haus.webp"} />
-        <span class="ef-value fw-semibold tabular-nums lh-1" data-ef="efConsumerW">— W</span>
-      </.ring>
-      <.ring name={:battery}>
-        <img
-          class="ef-icon"
-          alt=""
-          data-ef="efBatteryImage"
-          src={~p"/images/#{@battery_asset}"}
-          {@battery_states}
-        />
-        <span class="ef-value fw-semibold tabular-nums lh-1" data-ef="efBatteryW">— W</span>
-      </.ring>
-    </div>
-    <p class="energy-flow-key text-body-secondary text-center mt-2 mb-0">
-      Verbraucher-Ring: Herkunft des Stroms
-    </p>
-    """
-  end
-
-  attr :name, :atom, required: true
-  slot :inner_block, required: true
-
-  defp ring(assigns) do
-    {cx, cy, _stroke} = Keyword.fetch!(@rings, assigns.name)
-
-    style =
-      [
-        left: percent(cx, @width),
-        top: percent(cy, @height),
-        width: percent(2 * @radius, @width),
-        height: percent(2 * @radius, @height)
-      ]
-      |> Enum.map_join("; ", fn {side, value} -> "#{side}: #{value}" end)
-
-    assigns = assign(assigns, :style, style)
-
-    ~H"""
-    <div class="ef-ring" style={@style} data-ring={@name}>
-      {render_slot(@inner_block)}
-    </div>
-    """
-  end
-
-  defp percent(units, extent), do: css_number(units * 100.0 / extent) <> "%"
-
-  # Three decimals are finer than a pixel; an integral value drops its ".0".
   defp css_number(value) do
     rounded = Float.round(value * 1.0, 3)
 
     if rounded == trunc(rounded),
       do: Integer.to_string(trunc(rounded)),
       else: Float.to_string(rounded)
-  end
-
-  defp clip_path do
-    holes =
-      Enum.map_join(@rings, " ", fn {_name, {cx, cy, _stroke}} ->
-        top = cy - @radius
-        arc = "A #{@radius},#{@radius} 0 1,0"
-        "M #{cx},#{top} #{arc} #{cx},#{cy + @radius} #{arc} #{cx},#{top} Z"
-      end)
-
-    "M 0,0 H #{@width} V #{@height} H 0 Z #{holes}"
   end
 end

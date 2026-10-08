@@ -3,11 +3,6 @@ location:
   lat: 52.52
   lon: 13.405
 
-mqtt:
-  host: localhost
-  port: 1883
-  topic_prefix: shellies
-
 plugs:
   - id: bkw
     name: Balkonkraftwerk

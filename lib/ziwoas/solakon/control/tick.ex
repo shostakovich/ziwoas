@@ -1,21 +1,12 @@
 defmodule Ziwoas.Solakon.Control.Tick do
-  @moduledoc """
-  One pass of the control loop: read the household, decide a target, write it to
-  the inverter through `Ziwoas.Solakon.Monitor`. `Ziwoas.Solakon.MonitorJob` runs
-  it after each reading.
-
-  What the loop remembers is the decision that reached the inverter: only a written
-  target is stored, and a stored decision older than the inverter's 150 s watchdog is
-  not continued. The target is written every tick, which re-arms that watchdog. Three
-  write failures in a row hand control back (`release_control`) and forget it.
-  """
-  alias Ziwoas.Solakon.{Client, Monitor, Reading}
+  @moduledoc false
+  alias Ziwoas.Solakon.{Client, Control, Monitor, Reading}
   alias Ziwoas.Solakon.Control.{LoadReader, Outcome, Policy, State}
 
   @doc "Options: `:monitor` (server), `:offline_after_s`."
   @spec run(Reading.t(), Ziwoas.Plugs.Roster.t(), DateTime.t(), keyword) :: Outcome.t()
   def run(%Reading{} = reading, roster, now, opts \\ []) do
-    control = State.current!()
+    control = Control.state!()
 
     if State.active?(control) do
       load = LoadReader.load_estimate(roster, now, Keyword.take(opts, [:offline_after_s]))
@@ -24,7 +15,7 @@ defmodule Ziwoas.Solakon.Control.Tick do
 
       case apply_control(monitor, decision.target_w) do
         :ok ->
-          control |> State.store!(decision, now) |> State.reset_failures!()
+          control |> Control.store!(decision, now) |> Control.reset_failures!()
           %Outcome{status: :applied, decision: decision, load: load, reading: reading}
 
         {:error, reason} ->
@@ -45,17 +36,15 @@ defmodule Ziwoas.Solakon.Control.Tick do
     end
   end
 
-  # A monitor that is down or stuck counts as a failed write, so control is still
-  # handed back after the third one.
+  # A down or stuck monitor counts as a failed write, so control is still handed back.
   defp apply_control(monitor, target_w) do
     Monitor.apply_control(monitor, target_w, Reading.min_soc_pct())
   catch
     :exit, reason -> {:error, {:monitor_down, reason}}
   end
 
-  # Write failures only: a failed read never reaches the tick.
   defp after_write_failure(control, monitor, reason) do
-    control = State.count_failure!(control)
+    control = Control.count_failure!(control)
     failures = control.consecutive_failures
     error = inspect(reason)
 
@@ -67,7 +56,7 @@ defmodule Ziwoas.Solakon.Control.Tick do
   defp release(control, monitor, failures, error) do
     case release_control(monitor) do
       :ok ->
-        control |> State.clear!() |> State.reset_failures!()
+        control |> Control.clear!() |> Control.reset_failures!()
         %Outcome{status: :released, failures: failures, error: error}
 
       {:error, reason} ->

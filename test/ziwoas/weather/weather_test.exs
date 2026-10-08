@@ -2,7 +2,7 @@ defmodule Ziwoas.WeatherTest do
   use ExUnit.Case, async: true
 
   alias Ziwoas.Weather
-  alias Ziwoas.Weather.{Day, Icon, Record, Segment}
+  alias Ziwoas.Weather.{Day, Record, Segment}
 
   @zone "Europe/Berlin"
 
@@ -13,7 +13,7 @@ defmodule Ziwoas.WeatherTest do
 
   defp record(attrs) do
     struct!(
-      %Record{kind: "forecast", lat: 52.52, lon: 13.405, icon: "clear-day", daytime: "day"},
+      %Record{kind: :forecast, lat: 52.52, lon: 13.405, icon: "clear-day", daytime: "day"},
       attrs
     )
   end
@@ -21,33 +21,33 @@ defmodule Ziwoas.WeatherTest do
   defp day(date, records), do: %Day{date: date, records: records, zone: @zone}
 
   defp segment(records, hours \\ 12..17//1),
-    do: %Segment{label: "Nachmittag", hours: hours, records: records}
+    do: %Segment{label: :afternoon, hours: hours, records: records}
 
-  describe "Icon" do
-    test "maps Bright Sky day, night and neutral icons" do
-      assert Icon.asset_name("clear-day", "day") == "weather_clear_day.webp"
-      assert Icon.asset_name("clear-night", "night") == "weather_clear_night.webp"
-      assert Icon.asset_name("partly-cloudy-day", "day") == "weather_partly_cloudy_day.webp"
-      assert Icon.asset_name("partly-cloudy-night", "night") == "weather_partly_cloudy_night.webp"
-      assert Icon.asset_name("rain", "day") == "weather_rain_day.webp"
-      assert Icon.asset_name("rain", "night") == "weather_rain_night.webp"
+  describe "icons" do
+    test "the base icon drops the daytime suffix; anything unknown is unknown" do
+      assert Weather.base_icon("partly-cloudy-night") == "partly-cloudy"
+      assert Weather.base_icon("rain") == "rain"
+      assert Weather.base_icon("not-real") == "unknown"
+      assert Weather.base_icon(nil) == "unknown"
     end
 
-    test "falls back for unknown icons and normalises the daytime" do
-      assert Icon.asset_name("not-real", "day") == "weather_unknown_day.webp"
-      assert Icon.asset_name(nil, "night") == "weather_unknown_night.webp"
-      assert Icon.asset_name("rain", "morning") == "weather_rain_day.webp"
+    test "the daytime comes from the icon's suffix, else from the sun" do
+      berlin = Ziwoas.Location.new(@zone, lat: 52.52, lon: 13.405)
+      noon = at(~D[2026-05-06], 12)
+      midnight = at(~D[2026-05-06], 0)
+
+      assert Weather.daytime_for("clear-night", noon, berlin) == "night"
+      assert Weather.daytime_for("clear-day", midnight, berlin) == "day"
+      assert Weather.daytime_for("rain", noon, berlin) == "day"
+      assert Weather.daytime_for(nil, midnight, berlin) == "night"
     end
   end
 
   describe "Record" do
-    test "asset name and solar W/m² per period" do
-      assert Weather.asset_name(record(icon: "partly-cloudy-night", daytime: "night")) ==
-               "weather_partly_cloudy_night.webp"
-
-      assert Weather.solar_w_per_m2(record(kind: "current", solar: 0.05)) == 300.0
-      assert Weather.solar_w_per_m2(record(kind: "forecast", solar: 0.3)) == 300.0
-      assert Weather.solar_w_per_m2(record(kind: "historic", solar: 0.3)) == 300.0
+    test "solar W/m² per period" do
+      assert Weather.solar_w_per_m2(record(kind: :current, solar: 0.05)) == 300.0
+      assert Weather.solar_w_per_m2(record(kind: :forecast, solar: 0.3)) == 300.0
+      assert Weather.solar_w_per_m2(record(kind: :historic, solar: 0.3)) == 300.0
       assert Weather.solar_w_per_m2(record(solar: nil)) == nil
     end
   end
@@ -74,24 +74,17 @@ defmodule Ziwoas.WeatherTest do
       assert Day.precip_sum(day(date, [])) === 0
     end
 
-    test "German weekday and DD.MM. labels" do
-      assert Day.weekday_label(day(~D[2026-05-04], [])) == "Montag"
-      assert Day.weekday_label(day(~D[2026-05-03], [])) == "Sonntag"
-      assert Day.date_label(day(~D[2026-05-04], [])) == "04.05."
-      assert Day.date_label(day(~D[2026-03-31], [])) == "31.03."
-    end
-
     test "four segments in display order, by local hour" do
       date = ~D[2026-05-06]
       records = for h <- 0..23, do: record(timestamp: at(date, h), temperature: 10.0 + h)
       segments = Day.segments(day(date, records))
 
-      assert Enum.map(segments, & &1.label) == ~w[Nacht Vormittag Nachmittag Abend]
+      assert Enum.map(segments, & &1.label) == [:night, :morning, :afternoon, :evening]
       assert Enum.map(segments, & &1.hours) == [0..5//1, 6..11//1, 12..17//1, 18..23//1]
       assert Enum.map(segments, &length(&1.records)) == [6, 6, 6, 6]
     end
 
-    test "a 06:00 record is Vormittag, and every segment exists without records" do
+    test "a 06:00 record is morning, and every segment exists without records" do
       date = ~D[2026-05-06]
 
       segments =
@@ -140,7 +133,7 @@ defmodule Ziwoas.WeatherTest do
       refute Segment.all_night?(segment([]))
     end
 
-    test "the dominant daytime and asset come from the most severe record" do
+    test "the dominant daytime comes from the most severe record" do
       s =
         segment([
           record(icon: "clear-day"),
@@ -149,10 +142,6 @@ defmodule Ziwoas.WeatherTest do
         ])
 
       assert Segment.dominant_daytime(s) == "night"
-
-      assert Segment.asset_name(
-               segment([record(icon: "clear-day"), record(icon: "thunderstorm")])
-             ) == "weather_thunderstorm_day.webp"
     end
 
     test "complete with an hour per hour of its range" do

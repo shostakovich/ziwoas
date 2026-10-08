@@ -1,9 +1,5 @@
 defmodule Ziwoas.SunCalendar.SunLines do
-  @moduledoc """
-  Sunrise, sunset and solar noon over a whole year, in local clock hours.
-  On a daylight saving change the previous offset's value comes first, so the
-  line steps by one hour where the clock does instead of ramping across it.
-  """
+  @moduledoc "On a DST change the previous offset's value comes first, so the line steps where the clock does."
   alias Ziwoas.{LocalDay, Location, Sun}
   alias Ziwoas.SunCalendar.Lines
 
@@ -50,8 +46,7 @@ defmodule Ziwoas.SunCalendar.SunLines do
   defp local_hour(time, offset),
     do: Integer.mod(DateTime.to_unix(time) + offset, @seconds_per_day) / @seconds_per_hour
 
-  # Read at local noon: a change happens at night, so both events of the day
-  # already sit on the new offset.
+  # Read at local noon: a clock change happens at night.
   defp utc_offset(location, date) do
     noon = LocalDay.to_instant(NaiveDateTime.new!(date, ~T[12:00:00]), location.timezone)
     noon.utc_offset + noon.std_offset

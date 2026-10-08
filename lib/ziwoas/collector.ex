@@ -1,39 +1,16 @@
 defmodule Ziwoas.Collector do
-  @moduledoc """
-  The device connections as a supervision tree, one child per connection or device:
-
-      Ziwoas.Collector (one_for_one)
-      ├── ziwoas-phoenix-ingest     MQTT: Ziwoas.Collector.MqttRouter with
-      │                             ShellyStatusHandler and GoveeSubscriber
-      ├── Ziwoas.Solakon.Monitor    Modbus TCP (the scheduler's solakon_monitor and
-      │                             solakon_snapshot jobs read through it)
-      ├── ziwoas-phoenix-fritz      MQTT publisher for the Fritz bridges
-      ├── Ziwoas.Fritz.Bridge ×n    one per Fritz!DECT plug
-      ├── Ziwoas.Govee.Bridge       LAN + Platform API
-      ├── ziwoas-phoenix-govee      MQTT: govees/+/set in, state out
-      └── ziwoas-phoenix-command    MQTT publisher: plug switches and lamp commands
-
-  Each child restarts on its own; devices reconnect with backoff inside their
-  process. Tortoise311 stops a connection on some network errors (an unreachable
-  broker host) and comes back a second after its restart, so the restart intensity
-  is high enough that a crash-looping connection never takes the tree — and with it
-  the web endpoint's supervisor — down.
-  """
+  @moduledoc false
   use Supervisor
 
   require Logger
 
-  alias Ziwoas.Collector.MqttRouter
-  alias Ziwoas.{Config, Mqtt}
+  alias Ziwoas.{Config, Shelly}
   alias Ziwoas.Fritz.DectClient
-  alias Ziwoas.Lights.GoveeSubscriber
-  alias Ziwoas.Plugs.ShellyStatusHandler
-
-  @ingest_client_id "ziwoas-phoenix-ingest"
 
   def start_link(opts),
     do: Supervisor.start_link(__MODULE__, opts, name: Keyword.get(opts, :name, __MODULE__))
 
+  # High enough that a crash-looping device never takes the endpoint's supervisor down.
   @impl true
   def init(opts),
     do:
@@ -43,36 +20,17 @@ defmodule Ziwoas.Collector do
         max_seconds: 60
       )
 
-  @doc "The children for a configuration: only what it configures."
   @spec children(Config.t()) :: [Supervisor.child_spec()]
   def children(%Config{} = config),
-    do:
-      mqtt_ingest(config) ++ solakon(config) ++ fritz(config) ++ govee(config) ++ commands(config)
+    do: shelly(config) ++ solakon(config) ++ fritz(config) ++ govee(config)
 
-  defp mqtt_ingest(config) do
-    handlers = [
-      {ShellyStatusHandler, ShellyStatusHandler.new(config)},
-      {GoveeSubscriber, GoveeSubscriber.new()}
-    ]
-
-    [
-      Mqtt.connection_spec(
-        @ingest_client_id,
-        config.mqtt,
-        {MqttRouter, handlers},
-        MqttRouter.subscriptions(handlers)
-      )
-    ]
+  defp shelly(config) do
+    if Enum.any?(config.plugs, &(&1.driver == :shelly)),
+      do: [Shelly.listener_spec(config, shelly_port())],
+      else: []
   end
 
-  defp commands(config),
-    do: [
-      Mqtt.connection_spec(
-        Mqtt.command_client_id(),
-        config.mqtt,
-        {Tortoise311.Handler.Logger, []}
-      )
-    ]
+  defp shelly_port, do: Application.fetch_env!(:ziwoas, :shelly_port)
 
   defp solakon(%Config{solakon: nil}), do: []
 
@@ -104,21 +62,8 @@ defmodule Ziwoas.Collector do
             timeout_s: config.fritz_poll.timeout_seconds
           )
 
-        publisher =
-          Mqtt.connection_spec(
-            Ziwoas.Fritz.Bridge.client_id(),
-            config.mqtt,
-            {Tortoise311.Handler.Logger, []}
-          )
-
-        [publisher] ++
-          for plug <- plugs do
-            {Ziwoas.Fritz.Bridge,
-             plug: plug,
-             client: client,
-             poll: config.fritz_poll,
-             topic_prefix: config.mqtt.topic_prefix}
-          end
+        for plug <- plugs,
+            do: {Ziwoas.Fritz.Bridge, plug: plug, client: client, poll: config.fritz_poll}
     end
   end
 
@@ -129,14 +74,9 @@ defmodule Ziwoas.Collector do
     []
   end
 
-  defp govee(%Config{govee: govee} = config),
+  defp govee(%Config{govee: govee}),
     do: [
-      {Ziwoas.Govee.Bridge, govee: govee},
-      Mqtt.connection_spec(
-        Ziwoas.Govee.Bridge.client_id(),
-        config.mqtt,
-        {Ziwoas.Govee.CommandHandler, [Ziwoas.Govee.Bridge]},
-        ["govees/+/set"]
-      )
+      {Task.Supervisor, name: Ziwoas.Govee.Tasks},
+      {Ziwoas.Govee.Bridge, govee: govee}
     ]
 end

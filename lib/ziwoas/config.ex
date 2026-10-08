@@ -1,14 +1,10 @@
 defmodule Ziwoas.Config do
-  @moduledoc """
-  The device configuration: `config/ziwoas.yml`. Raw YAML is checked and typed
-  into structs at this boundary; nothing downstream sees a map from the file.
+  @moduledoc false
+  use Ecto.Schema
 
-  `app_config/0` reads the file once per path (`:ziwoas, :config_path`, set
-  from `ZIWOAS_CONFIG` in `config/runtime.exs`) and keeps it in
-  `:persistent_term`; `reset/0` forgets it.
-  """
-  require Logger
+  import Ecto.Changeset
 
+  alias Ziwoas.Config.Types
   alias Ziwoas.Location
   alias Ziwoas.Plugs.{Plug, Roster}
 
@@ -16,36 +12,86 @@ defmodule Ziwoas.Config do
     defexception [:message]
   end
 
-  defmodule Mqtt do
-    @moduledoc false
-    defstruct [:host, :port, :topic_prefix]
-
-    @type t :: %__MODULE__{host: String.t(), port: :inet.port_number(), topic_prefix: String.t()}
-  end
-
   defmodule FritzPoll do
     @moduledoc false
-    defstruct [
-      :active_interval_seconds,
-      :idle_interval_seconds,
-      :idle_threshold_w,
-      :timeout_seconds
-    ]
+    use Ecto.Schema
+    import Ecto.Changeset
+    alias Ziwoas.Config.Types
+
+    @intervals [:active_interval_seconds, :idle_interval_seconds, :timeout_seconds]
+
+    @primary_key false
+    embedded_schema do
+      field :active_interval_seconds, Types.Number
+      field :idle_interval_seconds, Types.Number
+      field :idle_threshold_w, Types.Real
+      field :timeout_seconds, Types.Number
+    end
+
+    def changeset(poll, params) do
+      poll
+      |> cast(params, [:idle_threshold_w | @intervals])
+      |> validate_required([:idle_threshold_w | @intervals], message: "is required")
+      |> then(&Enum.reduce(@intervals, &1, fn field, cs -> positive(cs, field) end))
+      |> validate_number(:idle_threshold_w, greater_than_or_equal_to: 0, message: "must be >= 0")
+    end
+
+    defp positive(changeset, field),
+      do: validate_number(changeset, field, greater_than: 0, message: "must be > 0")
   end
 
   defmodule FritzBox do
     @moduledoc false
-    defstruct [:host, :user, :password]
+    use Ecto.Schema
+    import Ecto.Changeset
+    alias Ziwoas.Config.Types
+
+    @primary_key false
+    embedded_schema do
+      field :host, Types.Text
+      field :user, Types.Text
+      field :password, Types.Text, redact: true
+    end
+
+    def changeset(box, params) do
+      box
+      |> cast(params, [:host, :user, :password])
+      |> validate_required([:host, :user, :password], message: "is required")
+    end
   end
 
   defmodule Switchbot do
     @moduledoc false
-    defstruct [:token, :secret]
+    use Ecto.Schema
+    import Ecto.Changeset
+    alias Ziwoas.Config.Types
+
+    @primary_key false
+    embedded_schema do
+      field :token, Types.Text, redact: true
+      field :secret, Types.Text, redact: true
+    end
+
+    def changeset(switchbot, params) do
+      switchbot
+      |> cast(params, [:token, :secret])
+      |> validate_required([:token, :secret], message: "is required")
+    end
   end
 
   defmodule Sensor do
-    @moduledoc "An air sensor: `type` is `:meter_pro_co2` (indoor) or `:outdoor_meter`."
-    defstruct [:id, :name, :type, :room]
+    @moduledoc false
+    use Ecto.Schema
+    import Ecto.Changeset
+    alias Ziwoas.Config.Types
+
+    @primary_key false
+    embedded_schema do
+      field :id, Types.Text
+      field :name, Types.Text
+      field :type, Ecto.Enum, values: [:meter_pro_co2, :outdoor_meter]
+      field :room, Types.Text
+    end
 
     @type t :: %__MODULE__{
             id: String.t(),
@@ -53,40 +99,134 @@ defmodule Ziwoas.Config do
             type: :meter_pro_co2 | :outdoor_meter,
             room: String.t() | nil
           }
+
+    @doc false
+    def changeset(sensor, params) do
+      sensor
+      |> cast(params, [:id, :name, :type, :room], message: &Types.cast_message/2)
+      |> validate_required([:id, :name, :type], message: "is required")
+    end
   end
 
   defmodule Trmnl do
     @moduledoc false
-    defstruct [:energy_webhook_url, :sensors_webhook_url]
+    use Ecto.Schema
+    import Ecto.Changeset
+    alias Ziwoas.Config.Types
+
+    @urls [:energy_webhook_url, :sensors_webhook_url]
+
+    @primary_key false
+    embedded_schema do
+      field :energy_webhook_url, :string
+      field :sensors_webhook_url, :string
+    end
+
+    def changeset(trmnl, params) do
+      trmnl
+      |> cast(params, @urls, message: &Types.cast_message/2)
+      |> validate_known_keys(params)
+    end
+
+    defp validate_known_keys(changeset, params) do
+      case Map.keys(params) -- Enum.map(@urls, &Atom.to_string/1) do
+        [] -> changeset
+        unknown -> add_error(changeset, :base, "trmnl unknown keys: #{Enum.join(unknown, ", ")}")
+      end
+    end
   end
 
   defmodule Solakon do
     @moduledoc false
-    defstruct [:host, :port, :unit_id, :monitoring_enabled, :control_enabled]
+    use Ecto.Schema
+    import Ecto.Changeset
+    alias Ziwoas.Config.Types
+
+    @primary_key false
+    embedded_schema do
+      field :host, Types.Text
+      field :port, Types.Count, default: 502
+      field :unit_id, Types.Count, default: 1
+      field :monitoring_enabled, Types.Flag, default: true
+      field :control_enabled, Types.Flag, default: false
+    end
+
+    def changeset(solakon, params) do
+      solakon
+      |> cast(params, [:host, :port, :unit_id, :monitoring_enabled, :control_enabled])
+      |> validate_required([:host], message: "is required")
+      |> validate_number(:port, greater_than: 0, message: "must be > 0")
+      |> validate_number(:unit_id, greater_than_or_equal_to: 0, message: "must be >= 0")
+    end
   end
 
   defmodule Govee do
     @moduledoc false
-    defstruct [:api_key, :lan_poll_seconds, :api_poll_seconds, :pending_window_seconds, :names]
+    use Ecto.Schema
+    import Ecto.Changeset
+    alias Ziwoas.Config.Types
+
+    @intervals [:lan_poll_seconds, :api_poll_seconds, :pending_window_seconds]
+
+    @primary_key false
+    embedded_schema do
+      field :api_key, Types.Text, redact: true
+      field :lan_poll_seconds, Types.Count, default: 8
+      field :api_poll_seconds, Types.Count, default: 180
+      field :pending_window_seconds, Types.Count, default: 5
+      field :names, :map, default: %{}
+
+      embeds_many :devices, Device, primary_key: false do
+        field :key, Types.Text
+        field :name, Types.Text
+      end
+    end
+
+    def changeset(govee, params) do
+      govee
+      |> cast(params, [:api_key | @intervals])
+      |> then(&Enum.reduce(@intervals, &1, fn field, cs -> positive(cs, field) end))
+      |> cast_embed(:devices,
+        with: &device_changeset/2,
+        invalid_message: "must be a list of mappings"
+      )
+      |> put_names()
+    end
+
+    defp positive(changeset, field),
+      do: validate_number(changeset, field, greater_than: 0, message: "must be > 0")
+
+    defp device_changeset(device, params) do
+      device
+      |> cast(params, [:key, :name])
+      |> validate_required([:key], message: "is required")
+    end
+
+    defp put_names(changeset) do
+      if changeset.valid? do
+        names = Map.new(get_field(changeset, :devices), &{&1.key, %{name: &1.name || ""}})
+        put_change(changeset, :names, names)
+      else
+        changeset
+      end
+    end
   end
 
-  @enforce_keys [:location, :mqtt, :plugs]
-  defstruct [
-    :location,
-    :mqtt,
-    :fritz_poll,
-    :plugs,
-    :fritz_box,
-    :switchbot,
-    :trmnl,
-    :solakon,
-    :govee,
-    sensors: []
-  ]
+  @primary_key false
+  embedded_schema do
+    embeds_one :location, Location
+    embeds_one :fritz_poll, FritzPoll
+    embeds_one :fritz_box, FritzBox
+    embeds_many :plugs, Plug
+    embeds_one :switchbot, Switchbot
+    embeds_many :sensors, Sensor
+    embeds_one :trmnl, Trmnl
+    embeds_one :solakon, Solakon
+    embeds_one :govee, Govee
+  end
 
   @type t :: %__MODULE__{
           location: Location.t(),
-          mqtt: %Mqtt{},
           fritz_poll: %FritzPoll{} | nil,
           plugs: [Plug.t()],
           fritz_box: %FritzBox{} | nil,
@@ -97,57 +237,46 @@ defmodule Ziwoas.Config do
           govee: %Govee{} | nil
         }
 
-  @id_regex ~r/\A[a-z0-9_]+\z/
-  @roles %{"producer" => :producer, "consumer" => :consumer}
-  @drivers %{"shelly" => :shelly, "fritz_dect" => :fritz_dect}
-  @sensor_types %{"meter_pro_co2" => :meter_pro_co2, "outdoor_meter" => :outdoor_meter}
-  @trmnl_keys ~w[energy_webhook_url sensors_webhook_url]
-  @retired %{"timezone" => "location.timezone", "weather" => "location.lat / location.lon"}
-  @obsolete %{
-    "electricity_price_eur_per_kwh" => "the Strompreis list under PV > Wirtschaftlichkeit"
-  }
+  @spec fetch() :: {:ok, t} | {:error, String.t()}
+  def fetch, do: :persistent_term.get(__MODULE__, {:error, "config not loaded"})
 
-  # --- Loading ---------------------------------------------------------------
-
-  @doc "The configuration at the configured path, read once."
-  @spec app_config() :: t
-  def app_config do
-    path = path()
-
-    case :persistent_term.get({__MODULE__, path}, nil) do
-      nil ->
-        config = load!(path)
-        :persistent_term.put({__MODULE__, path}, config)
-        config
-
-      config ->
-        config
+  @spec get() :: t
+  def get do
+    case fetch() do
+      {:ok, config} -> config
+      {:error, message} -> raise Error, message
     end
   end
 
-  @doc "Forgets every cached configuration."
-  @spec reset() :: :ok
-  def reset do
-    for {{__MODULE__, _} = key, _} <- :persistent_term.get(), do: :persistent_term.erase(key)
-    :ok
-  end
+  @spec put({:ok, t} | {:error, String.t()}) :: :ok
+  def put({:ok, %__MODULE__{}} = result), do: :persistent_term.put(__MODULE__, result)
+
+  def put({:error, message} = result) when is_binary(message),
+    do: :persistent_term.put(__MODULE__, result)
 
   @spec path() :: String.t()
   def path, do: Application.fetch_env!(:ziwoas, :config_path)
 
-  @spec load!(String.t()) :: t
-  def load!(path) do
-    if File.regular?(path),
-      do: path |> parse_file() |> build!(),
-      else: error!("config file not found")
-  end
-
-  @doc "Builds a configuration from YAML text (tests)."
-  @spec from_yaml!(String.t()) :: t
-  def from_yaml!(yaml), do: yaml |> parse_string() |> build!()
-
   @spec plug_roster(t) :: Roster.t()
   def plug_roster(%__MODULE__{plugs: plugs}), do: Roster.new(plugs)
+
+  @spec load(String.t()) :: {:ok, t} | {:error, String.t()}
+  def load(path) do
+    if File.regular?(path),
+      do: with({:ok, raw} <- parse_file(path), do: build(raw)),
+      else: {:error, "config file not found: #{path}"}
+  end
+
+  @spec from_yaml(String.t()) :: {:ok, t} | {:error, String.t()}
+  def from_yaml(yaml), do: with({:ok, raw} <- parse_string(yaml), do: build(raw))
+
+  @spec from_yaml!(String.t()) :: t
+  def from_yaml!(yaml) do
+    case from_yaml(yaml) do
+      {:ok, config} -> config
+      {:error, message} -> raise Error, message
+    end
+  end
 
   defp parse_file(path),
     do: parse(fn opts -> :yamerl_constr.file(String.to_charlist(path), opts) end)
@@ -163,422 +292,148 @@ defmodule Ziwoas.Config do
 
   defp parse(fun) do
     case fun.(@yaml_opts) do
-      [document | _] -> document
-      [] -> nil
+      [document | _] -> {:ok, normalize(document)}
+      [] -> {:ok, nil}
     end
   catch
-    {:yamerl_exception, _errors} -> error!("config file is not valid YAML")
+    {:yamerl_exception, _errors} -> {:error, "config file is not valid YAML"}
   end
 
-  defp build!(raw) when is_map(raw) do
-    reject_retired_keys!(raw)
-    warn_obsolete_keys(raw)
+  # YAML's null is `:null`; a key without a value counts as absent.
+  defp normalize(map) when is_map(map),
+    do:
+      for({key, value} <- map, value not in [nil, :null], into: %{}, do: {key, normalize(value)})
 
-    location = build_location(raw["location"])
-    mqtt = build_mqtt(raw["mqtt"])
-    fritz_poll = build_fritz_poll(raw["fritz_poll"])
-    fritz_box = build_fritz_box(raw["fritz_box"])
-    plugs = build_plugs(raw["plugs"])
-    switchbot = build_switchbot(raw["switchbot"])
-    sensors = build_sensors(raw["sensors"])
-    trmnl = build_trmnl(raw["trmnl"])
-    solakon = build_solakon(raw["solakon"])
-    govee = build_govee(raw["govee"])
+  defp normalize(list) when is_list(list), do: Enum.map(list, &normalize/1)
+  defp normalize(value), do: value
 
-    fritz? = Enum.any?(plugs, &(&1.driver == :fritz_dect))
-
-    if fritz? and is_nil(fritz_box),
-      do: error!("fritz_box config required when using driver: fritz_dect")
-
-    if fritz? and is_nil(fritz_poll),
-      do: error!("fritz_poll config required when using driver: fritz_dect")
-
-    %__MODULE__{
-      location: location,
-      mqtt: mqtt,
-      fritz_poll: fritz_poll,
-      plugs: plugs,
-      fritz_box: fritz_box,
-      switchbot: switchbot,
-      sensors: sensors,
-      trmnl: trmnl,
-      solakon: solakon,
-      govee: govee
-    }
-  end
-
-  defp build!(_raw), do: error!("config root must be a mapping")
-
-  # --- Sections ----------------------------------------------------------------
-
-  defp reject_retired_keys!(raw) do
-    for {old, new} <- @retired, Map.has_key?(raw, old), do: error!("'#{old}' has moved to #{new}")
-  end
-
-  defp warn_obsolete_keys(raw) do
-    for {old, new} <- @obsolete, Map.has_key?(raw, old) do
-      Logger.warning("config: '#{old}' is no longer read — it moved to #{new}. Remove the key.")
+  defp build(raw) when is_map(raw) do
+    case apply_action(changeset(raw), :load) do
+      {:ok, config} -> {:ok, config}
+      {:error, changeset} -> {:error, error_message(changeset)}
     end
+  end
 
-    if Map.has_key?(raw, "migration"),
+  defp build(_raw), do: {:error, "config root must be a mapping"}
+
+  defp changeset(raw) do
+    params = raw |> Map.put_new("trmnl", %{}) |> list_govee_devices()
+
+    %__MODULE__{}
+    |> cast(params, [])
+    |> cast_embed(:location,
+      required: true,
+      required_message: "is required",
+      invalid_message: "must be a mapping"
+    )
+    |> cast_embed(:fritz_poll, invalid_message: "must be a mapping")
+    |> cast_embed(:fritz_box, invalid_message: "must be a mapping")
+    |> cast_embed(:plugs, invalid_message: "must be a list of mappings")
+    |> cast_embed(:switchbot, invalid_message: "must be a mapping")
+    |> cast_embed(:sensors,
+      with: &Sensor.changeset/2,
+      invalid_message: "must be a list of mappings"
+    )
+    |> cast_embed(:trmnl, invalid_message: "must be a mapping")
+    |> cast_embed(:solakon, invalid_message: "must be a mapping")
+    |> cast_embed(:govee, invalid_message: "must be a mapping")
+    |> validate_plugs_given(raw)
+    |> validate_unique(:plugs, "plug")
+    |> validate_unique(:sensors, "sensor")
+    |> validate_producer()
+    |> validate_fritz()
+  end
+
+  defp list_govee_devices(%{"govee" => %{"devices" => %{} = device}} = raw),
+    do: put_in(raw, ["govee", "devices"], [device])
+
+  defp list_govee_devices(raw), do: raw
+
+  # Required, but may be empty, which `cast_embed/3`'s `required:` refuses.
+  defp validate_plugs_given(changeset, raw) do
+    if Map.has_key?(raw, "plugs"),
+      do: changeset,
+      else: add_error(changeset, :plugs, "must be a list")
+  end
+
+  defp validate_unique(changeset, field, noun) do
+    changeset
+    |> embedded(field)
+    |> Enum.map(& &1.id)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.frequencies()
+    |> Enum.filter(fn {_id, count} -> count > 1 end)
+    |> Enum.reduce(changeset, fn {id, _}, changeset ->
+      add_error(changeset, :base, "duplicate #{noun} id '#{id}'")
+    end)
+  end
+
+  defp validate_producer(changeset) do
+    roles = changeset |> embedded(:plugs) |> Enum.map(& &1.role)
+
+    if roles != [] and :producer not in roles and nil not in roles,
       do:
-        Logger.warning(
-          "config: the 'migration' block is no longer read — Phoenix runs every task. Remove it."
-        )
+        add_error(changeset, :base, "config must include at least one plug with role: producer"),
+      else: changeset
   end
 
-  defp build_location(h) do
-    h = require_map(h, "location")
-    tz = require_string(h["timezone"], "location.timezone")
-
-    unless valid_zone?(tz),
-      do: error!("location.timezone '#{tz}' is not a valid IANA timezone")
-
-    Location.new(tz, coordinates(h))
+  defp validate_fritz(changeset) do
+    if Enum.any?(embedded(changeset, :plugs), &(&1.driver == :fritz_dect)),
+      do: Enum.reduce([:fritz_box, :fritz_poll], changeset, &require_fritz_section/2),
+      else: changeset
   end
 
-  defp valid_zone?(tz), do: match?({:ok, _}, DateTime.now(tz))
+  defp require_fritz_section(section, changeset) do
+    if get_field(changeset, section),
+      do: changeset,
+      else:
+        add_error(changeset, :base, "#{section} config required when using driver: fritz_dect")
+  end
 
-  defp coordinates(h) do
-    if nil?(h["lat"]) and nil?(h["lon"]) do
-      []
-    else
-      lat = require_coordinate(h["lat"], "location.lat")
-      lon = require_coordinate(h["lon"], "location.lon")
-      unless lat >= -90 and lat <= 90, do: error!("location.lat must be between -90 and 90")
-      unless lon >= -180 and lon <= 180, do: error!("location.lon must be between -180 and 180")
-      [lat: lat, lon: lon]
+  defp embedded(changeset, field) do
+    case get_change(changeset, field) do
+      changesets when is_list(changesets) -> Enum.map(changesets, &apply_changes/1)
+      nil -> []
     end
   end
 
-  defp build_mqtt(h) do
-    if nil?(h), do: error!("mqtt config is required")
-    h = require_map(h, "mqtt")
-
-    %Mqtt{
-      host: require_string(h["host"], "mqtt.host"),
-      port: require_number(to_integer(h["port"]), "mqtt.port"),
-      topic_prefix: require_string(h["topic_prefix"], "mqtt.topic_prefix")
-    }
+  defp error_message(changeset) do
+    changeset
+    |> traverse_errors(&interpolate/1)
+    |> flatten([])
+    |> Enum.join("; ")
   end
 
-  defp build_fritz_poll(h) do
-    if nil?(h) do
-      nil
-    else
-      h = require_map(h, "fritz_poll")
+  defp interpolate({message, opts}) do
+    Regex.replace(~r"%{(\w+)}", message, fn _, key ->
+      opts |> Keyword.get(String.to_existing_atom(key), key) |> to_string()
+    end)
+  end
 
-      %FritzPoll{
-        active_interval_seconds:
-          require_number(h["active_interval_seconds"], "fritz_poll.active_interval_seconds"),
-        idle_interval_seconds:
-          require_number(h["idle_interval_seconds"], "fritz_poll.idle_interval_seconds"),
-        idle_threshold_w:
-          require_number(to_float(h["idle_threshold_w"]), "fritz_poll.idle_threshold_w",
-            allow_zero: true
-          ),
-        timeout_seconds: require_number(h["timeout_seconds"], "fritz_poll.timeout_seconds")
-      }
+  defp flatten(errors, path) when is_map(errors),
+    do: Enum.flat_map(errors, fn {key, value} -> flatten(value, path ++ [key]) end)
+
+  defp flatten(errors, path) when is_list(errors) do
+    errors
+    |> Enum.with_index()
+    |> Enum.flat_map(fn
+      {message, _index} when is_binary(message) -> [line(path, message)]
+      {nested, index} -> flatten(nested, path ++ [index])
+    end)
+  end
+
+  defp line(path, message) do
+    case List.delete(path, :base) do
+      ^path -> render_path(path) <> " " <> message
+      _ -> message
     end
   end
 
-  defp build_fritz_box(h) do
-    if nil?(h) do
-      nil
-    else
-      h = require_map(h, "fritz_box")
-
-      %FritzBox{
-        host: require_string(h["host"], "fritz_box.host"),
-        user: require_string(h["user"], "fritz_box.user"),
-        password: require_string(h["password"], "fritz_box.password")
-      }
-    end
+  defp render_path(path) do
+    Enum.reduce(path, "", fn
+      index, text when is_integer(index) -> text <> "[#{index}]"
+      key, "" -> Atom.to_string(key)
+      key, text -> text <> "." <> Atom.to_string(key)
+    end)
   end
-
-  defp build_plugs(list) when is_list(list) do
-    plugs =
-      list
-      |> Enum.with_index()
-      |> Enum.reduce([], fn {h, i}, built ->
-        [build_plug(h, i, Enum.map(built, & &1.id)) | built]
-      end)
-      |> Enum.reverse()
-
-    if plugs != [] and not Enum.any?(plugs, &(&1.role == :producer)),
-      do: error!("config must include at least one plug with role: producer")
-
-    plugs
-  end
-
-  defp build_plugs(_), do: error!("plugs must be a list")
-
-  defp build_plug(h, i, existing_ids) do
-    unless is_map(h), do: error!("plugs[#{i}] must be a mapping")
-
-    id = plug_id(h, i, existing_ids)
-    role = plug_role(h, i, id)
-    driver = plug_driver(h, id)
-    name = require_string(h["name"], "plugs[#{i}].name")
-    switchable = plug_switchable(h, i, id, role)
-    room = if nil?(h["room"]), do: nil, else: require_string(h["room"], "plugs[#{i}].room")
-    ain = plug_ain(h, i, driver)
-
-    %Plug{
-      id: id,
-      name: name,
-      role: role,
-      driver: driver,
-      ain: ain,
-      room: room,
-      switchable: switchable
-    }
-  end
-
-  defp plug_id(h, i, existing_ids) do
-    id = require_string(h["id"], "plugs[#{i}].id")
-
-    unless Regex.match?(@id_regex, id),
-      do: error!("plug id '#{id}' must match #{Regex.source(@id_regex)}")
-
-    if id in existing_ids, do: error!("duplicate plug id '#{id}'")
-
-    id
-  end
-
-  defp plug_role(h, i, id) do
-    role = Map.get(@roles, require_string(h["role"], "plugs[#{i}].role"))
-    unless role, do: error!("plug '#{id}' role must be one of [:producer, :consumer]")
-    role
-  end
-
-  defp plug_driver(h, id) do
-    driver = Map.get(@drivers, to_text(if nil?(h["driver"]), do: "shelly", else: h["driver"]))
-    unless driver, do: error!("plug '#{id}' driver must be one of [:shelly, :fritz_dect]")
-    driver
-  end
-
-  defp plug_switchable(h, i, id, role) do
-    switchable = Map.get(h, "switchable", false)
-
-    unless is_boolean(switchable), do: error!("plugs[#{i}].switchable must be true or false")
-
-    if switchable and role == :producer,
-      do: error!("plug '#{id}' with role: producer cannot be switchable")
-
-    switchable
-  end
-
-  defp plug_ain(h, i, :shelly) do
-    if present_value?(h["ain"]), do: error!("plugs[#{i}].ain must not be set for driver: shelly")
-    nil
-  end
-
-  defp plug_ain(h, i, :fritz_dect) do
-    ain = h["ain"]
-
-    if nil?(ain) or to_text(ain) == "",
-      do: error!("plugs[#{i}].ain is required for driver: fritz_dect")
-
-    to_text(ain)
-  end
-
-  defp build_switchbot(h) do
-    if nil?(h) do
-      nil
-    else
-      h = require_map(h, "switchbot")
-
-      %Switchbot{
-        token: require_string(h["token"], "switchbot.token"),
-        secret: require_string(h["secret"], "switchbot.secret")
-      }
-    end
-  end
-
-  defp build_sensors(list) do
-    cond do
-      nil?(list) ->
-        []
-
-      is_list(list) ->
-        list |> Enum.with_index() |> Enum.reduce([], &build_sensor/2) |> Enum.reverse()
-
-      true ->
-        error!("sensors must be a list")
-    end
-  end
-
-  defp build_sensor({h, i}, built) do
-    unless is_map(h), do: error!("sensors[#{i}] must be a mapping")
-
-    id = require_string(h["id"], "sensors[#{i}].id")
-    name = require_string(h["name"], "sensors[#{i}].name")
-    type = Map.get(@sensor_types, require_string(h["type"], "sensors[#{i}].type"))
-
-    unless type,
-      do: error!("sensors[#{i}].type must be one of [:meter_pro_co2, :outdoor_meter]")
-
-    if Enum.any?(built, &(&1.id == id)), do: error!("duplicate sensor id '#{id}'")
-    room = if nil?(h["room"]), do: nil, else: require_string(h["room"], "sensors[#{i}].room")
-
-    [%Sensor{id: id, name: name, type: type, room: room} | built]
-  end
-
-  defp build_trmnl(h) do
-    if nil?(h) do
-      %Trmnl{}
-    else
-      h = require_map(h, "trmnl")
-      unknown = Map.keys(h) -- @trmnl_keys
-      if unknown != [], do: error!("trmnl unknown keys: #{Enum.join(unknown, ", ")}")
-
-      %Trmnl{
-        energy_webhook_url: optional_string(h["energy_webhook_url"], "trmnl.energy_webhook_url"),
-        sensors_webhook_url:
-          optional_string(h["sensors_webhook_url"], "trmnl.sensors_webhook_url")
-      }
-    end
-  end
-
-  defp build_solakon(h) do
-    if nil?(h) do
-      nil
-    else
-      h = require_map(h, "solakon")
-
-      %Solakon{
-        host: require_string(h["host"], "solakon.host"),
-        port: require_number(to_integer(default(h["port"], 502)), "solakon.port"),
-        unit_id:
-          require_number(to_integer(default(h["unit_id"], 1)), "solakon.unit_id",
-            allow_zero: true
-          ),
-        # `enabled` is the legacy spelling of `monitoring_enabled`.
-        monitoring_enabled: solakon_boolean(h, "monitoring_enabled", true, "enabled"),
-        control_enabled: solakon_boolean(h, "control_enabled", false, nil)
-      }
-    end
-  end
-
-  defp solakon_boolean(h, key, default, legacy) do
-    cond do
-      Map.has_key?(h, key) -> require_boolean(h[key], "solakon.#{key}")
-      legacy && Map.has_key?(h, legacy) -> require_boolean(h[legacy], "solakon.#{legacy}")
-      true -> default
-    end
-  end
-
-  defp build_govee(h) do
-    if nil?(h) do
-      nil
-    else
-      h = require_map(h, "govee")
-
-      names =
-        h["devices"]
-        |> list()
-        |> Enum.reduce(%{}, fn device, acc ->
-          device = require_map(device, "govee.devices[]")
-          key = require_string(device["key"], "govee.devices[].key")
-          Map.put(acc, key, %{name: to_text(device["name"])})
-        end)
-
-      %Govee{
-        api_key: to_text(h["api_key"]),
-        lan_poll_seconds: govee_seconds(h, "lan_poll_seconds", 8),
-        api_poll_seconds: govee_seconds(h, "api_poll_seconds", 180),
-        pending_window_seconds: govee_seconds(h, "pending_window_seconds", 5),
-        names: names
-      }
-    end
-  end
-
-  defp govee_seconds(h, key, fallback),
-    do: require_number(to_integer(default(h[key], fallback)), "govee.#{key}")
-
-  # --- Checks ------------------------------------------------------------------
-
-  defp require_map(v, key), do: if(is_map(v), do: v, else: error!("#{key} must be a mapping"))
-
-  defp require_string(v, key) do
-    text = if nil?(v), do: "", else: to_text(v)
-    if text == "", do: error!("#{key} is required"), else: text
-  end
-
-  defp optional_string(v, key) do
-    cond do
-      nil?(v) -> nil
-      is_binary(v) -> v
-      true -> error!("#{key} must be a string")
-    end
-  end
-
-  defp require_boolean(v, _key) when is_boolean(v), do: v
-  defp require_boolean(_v, key), do: error!("#{key} must be true or false")
-
-  defp require_number(v, key, opts \\ [])
-
-  defp require_number(v, key, opts) when is_number(v) do
-    too_small = if opts[:allow_zero], do: v < 0, else: v <= 0
-    if too_small, do: error!("#{key} must be > 0"), else: v
-  end
-
-  defp require_number(_v, key, _opts), do: error!("#{key} must be a number")
-
-  defp require_coordinate(v, key) do
-    cond do
-      nil?(v) or v == "" -> error!("#{key} must be a number")
-      is_number(v) -> :erlang.float(v)
-      is_binary(v) -> parse_float(String.trim(v)) || error!("#{key} must be a number")
-      true -> error!("#{key} must be a number")
-    end
-  end
-
-  defp parse_float(text) do
-    case Float.parse(text) do
-      {value, ""} -> value
-      _ -> nil
-    end
-  end
-
-  # --- YAML scalars ------------------------------------------------------------
-
-  defp nil?(v), do: v in [nil, :null]
-  defp default(v, fallback), do: if(nil?(v) or v == false, do: fallback, else: v)
-  defp present_value?(v), do: not nil?(v) and v != false
-
-  defp list(v) do
-    cond do
-      nil?(v) -> []
-      is_list(v) -> v
-      true -> [v]
-    end
-  end
-
-  defp to_text(v) when is_binary(v), do: v
-  defp to_text(v) when is_integer(v), do: Integer.to_string(v)
-  defp to_text(v) when is_float(v), do: Float.to_string(v)
-  defp to_text(v) when is_boolean(v), do: Atom.to_string(v)
-  defp to_text(v) when v in [nil, :null], do: ""
-  defp to_text(v), do: inspect(v)
-
-  # As lenient as the config always was: 8.0 reads as 8, "1883 " as 1883.
-  defp to_integer(v) when is_integer(v), do: v
-  defp to_integer(v) when is_float(v), do: trunc(v)
-
-  defp to_integer(v) when is_binary(v) do
-    case Integer.parse(String.trim(v)) do
-      {value, _rest} -> value
-      :error -> nil
-    end
-  end
-
-  defp to_integer(_v), do: nil
-
-  defp to_float(v) when is_number(v), do: v * 1.0
-  defp to_float(v) when is_binary(v), do: parse_float(String.trim(v))
-  defp to_float(_v), do: nil
-
-  defp error!(message), do: raise(Error, message)
 end

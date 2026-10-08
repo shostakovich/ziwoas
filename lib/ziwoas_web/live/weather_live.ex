@@ -1,28 +1,27 @@
 defmodule ZiwoasWeb.WeatherLive do
-  @moduledoc """
-  The Wetter page. A `{:weather_updated}` on the `weather` PubSub topic (the
-  weather jobs, `Ziwoas.Sensors.PollJob`) reloads it.
-
-  A segment tile of the next days opens that segment's hours below the tiles and
-  closes the day's other segment (`"toggle_segment"`); the choice outlives a reload.
-  """
+  @moduledoc false
   use ZiwoasWeb, :live_view
 
   import ZiwoasWeb.WeatherComponents
 
   alias Ziwoas.{Clock, Config, Sensors, Weather}
 
-  @topic "weather"
+  @segment_indexes %{"0" => 0, "1" => 1, "2" => 2, "3" => 3}
 
   @impl true
   def mount(_params, _session, socket) do
-    if connected?(socket), do: Phoenix.PubSub.subscribe(Ziwoas.PubSub, @topic)
+    if connected?(socket) do
+      Weather.subscribe()
+      Sensors.subscribe()
+    end
+
     {:ok, socket |> assign(page_title: "Wetter", open_segments: %{}) |> load()}
   end
 
   @impl true
-  def handle_event("toggle_segment", %{"day" => day, "index" => index}, socket) do
-    index = String.to_integer(index)
+  def handle_event("toggle_segment", %{"day" => day, "index" => index}, socket)
+      when is_map_key(@segment_indexes, index) and is_binary(day) do
+    index = @segment_indexes[index]
 
     open =
       if socket.assigns.open_segments[day] == index,
@@ -32,14 +31,17 @@ defmodule ZiwoasWeb.WeatherLive do
     {:noreply, assign(socket, :open_segments, open)}
   end
 
+  def handle_event("toggle_segment", _params, socket), do: {:noreply, socket}
+
   @impl true
-  def handle_info({:weather_updated}, socket), do: {:noreply, load(socket)}
+  def handle_info({:synced, _today}, socket), do: {:noreply, load(socket)}
+  def handle_info({:polled, _instant}, socket), do: {:noreply, load(socket)}
 
   @impl true
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} look={@look} current_path={@current_path}>
-      <h1 class="h2 mb-3">Wetter</h1>
+      <.header>Wetter</.header>
 
       <.empty current={@current} today={@today} days={@days} />
       <.current current={@current} sensor={@sensor} />
@@ -50,7 +52,7 @@ defmodule ZiwoasWeb.WeatherLive do
   end
 
   defp load(socket) do
-    config = Config.app_config()
+    config = Config.get()
     zone = config.location.timezone
     now = Clock.now()
 

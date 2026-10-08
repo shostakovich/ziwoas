@@ -1,49 +1,36 @@
 defmodule ZiwoasWeb.SolakonHistoryLive do
-  @moduledoc """
-  The Solakon-Verlauf on its own: one of the ranges 24h, 7d or 30d, anything
-  else reads as 24h. It reloads every minute; a range tab patches `?range=`.
-  """
+  @moduledoc false
   use ZiwoasWeb, :live_view
 
-  import ZiwoasWeb.SolakonComponents
-
-  alias Ziwoas.{Clock, Config}
-  alias Ziwoas.Solakon.History
-  @refresh_ms 60_000
-
-  @doc "The history's minute refresh."
-  def schedule_refresh, do: Process.send_after(self(), :refresh_history, @refresh_ms)
+  alias Ziwoas.Solakon
+  alias ZiwoasWeb.SolakonHistoryComponent
 
   @impl true
   def mount(_params, _session, socket) do
-    if connected?(socket), do: schedule_refresh()
+    if connected?(socket), do: Solakon.subscribe()
 
-    {:ok, assign(socket, :page_title, "Solakon-Verlauf")}
+    {:ok, assign(socket, page_title: "Solakon-Verlauf", range: nil, refresh: 0)}
   end
 
   @impl true
-  def handle_params(params, _uri, socket), do: {:noreply, reload_history(socket, params["range"])}
+  def handle_params(params, _uri, socket), do: {:noreply, assign(socket, :range, params["range"])}
 
   @impl true
-  def handle_info(:refresh_history, socket) do
-    schedule_refresh()
-    {:noreply, reload_history(socket, socket.assigns.history.range)}
-  end
-
-  @doc """
-  Renders the history for `range` afresh (a refresh, or a range patch); the
-  `SolakonHistory` hook redraws its chart in place from the new payload.
-  """
-  def reload_history(socket, range),
-    do: assign(socket, :history, History.payload(range, Clock.now(), zone()))
-
-  defp zone, do: Config.app_config().location.timezone
+  def handle_info({:snapshot, _}, socket), do: {:noreply, update(socket, :refresh, &(&1 + 1))}
+  def handle_info({:reading, _}, socket), do: {:noreply, socket}
 
   @impl true
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} look={@look} current_path={@current_path}>
-      <.history history={@history} path={~p"/solakon/history"} />
+      <.header class="visually-hidden">Solakon-Verlauf</.header>
+      <.live_component
+        module={SolakonHistoryComponent}
+        id="solakon_history"
+        range={@range}
+        page={:history}
+        refresh={@refresh}
+      />
     </Layouts.app>
     """
   end

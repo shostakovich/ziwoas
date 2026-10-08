@@ -1,16 +1,20 @@
 defmodule Ziwoas.Plugs.EnergyDeltasTest do
   use Ziwoas.DataCase
 
+  import Ecto.Query
+
   alias Ziwoas.Plugs.EnergyDeltas
   alias Ziwoas.Repo
 
   @t0 1_700_000_000
 
-  # {plug_id, ts, delta_wh} of every sample in the window, by plug and time.
   defp deltas(plug_ids \\ nil, start_ts \\ @t0, end_ts \\ @t0 + 86_400) do
-    sql = EnergyDeltas.cte(plug_ids) <> "SELECT plug_id, ts, delta_wh FROM deltas ORDER BY 1, 2"
-    %{rows: rows} = Repo.query!(sql, EnergyDeltas.params(plug_ids, start_ts, end_ts))
-    Enum.map(rows, fn [plug_id, ts, delta] -> {plug_id, ts - @t0, delta} end)
+    from(d in subquery(EnergyDeltas.query(start_ts, end_ts, plug_ids)),
+      order_by: [d.plug_id, d.ts],
+      select: {d.plug_id, d.ts, d.delta_wh}
+    )
+    |> Repo.all()
+    |> Enum.map(fn {plug_id, ts, delta} -> {plug_id, ts - @t0, delta} end)
   end
 
   defp counter!(plug_id, readings) do
@@ -54,7 +58,6 @@ defmodule Ziwoas.Plugs.EnergyDeltasTest do
   end
 
   test "a gap in the samples spreads the plausible energy over its length" do
-    # Two hours offline: 30 kWh is 15 kW on average, plausible; 50 kWh is not.
     counter!("heater", [{0, 0.0}, {7200, 30_000.0}])
     counter!("glitch", [{0, 0.0}, {7200, 50_000.0}])
 
@@ -79,12 +82,5 @@ defmodule Ziwoas.Plugs.EnergyDeltasTest do
     assert deltas(["tv"]) == [{"tv", 30, 0}, {"tv", 90, 0}]
     assert length(deltas(["fridge", "tv"])) == 4
     assert deltas([]) == []
-  end
-
-  test "params bind the plug ids before the window" do
-    assert EnergyDeltas.params(["a", "b"], 1, 2) == ["a", "b", 1, 2]
-    assert EnergyDeltas.params(nil, 1, 2) == [1, 2]
-    assert EnergyDeltas.placeholders([]) == "NULL"
-    assert EnergyDeltas.placeholders([1, 2, 3]) == "?, ?, ?"
   end
 end

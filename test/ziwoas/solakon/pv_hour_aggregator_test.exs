@@ -8,7 +8,6 @@ defmodule Ziwoas.Solakon.PvHourAggregatorTest do
 
   @zone "Europe/Berlin"
 
-  # `count` readings spread over the minutes after `start`, alternating between two powers.
   defp readings!(start, count, low, high) do
     for i <- 0..(count - 1) do
       Repo.insert!(%Reading{
@@ -36,7 +35,6 @@ defmodule Ziwoas.Solakon.PvHourAggregatorTest do
   defp hours, do: Repo.all(from h in PvHour, order_by: h.started_at)
 
   test "an hour with enough readings becomes its mean, with the panels' means beside it" do
-    # 10:00 in Berlin (CEST).
     readings!(~U[2026-06-20 08:00:00Z], 30, 100.0, 300.0)
     snapshot!(~U[2026-06-20 08:10:00Z], [100.0, 50.0, 0.0, 10.0])
     snapshot!(~U[2026-06-20 08:40:00Z], [200.0, 70.0, 0.0, 30.0])
@@ -70,7 +68,6 @@ defmodule Ziwoas.Solakon.PvHourAggregatorTest do
   end
 
   test "hours follow the local clock across the spring clock change" do
-    # 2026-03-29 in Berlin: 01:00 CET is 00:00Z, 10:00 CEST is 08:00Z.
     readings!(~U[2026-03-29 00:00:00Z], 20, 50.0, 50.0)
     readings!(~U[2026-03-29 08:00:00Z], 20, 400.0, 400.0)
 
@@ -81,7 +78,6 @@ defmodule Ziwoas.Solakon.PvHourAggregatorTest do
   end
 
   test "hours fall on the local clock also where the offset is not a whole hour" do
-    # 10:00 in Kolkata (UTC+05:30) is 04:30Z.
     readings!(~U[2026-06-20 04:30:00Z], 20, 100.0, 100.0)
 
     PvHourAggregator.aggregate_day("Asia/Kolkata", ~D[2026-06-20])
@@ -111,7 +107,6 @@ defmodule Ziwoas.Solakon.PvHourAggregatorTest do
       readings!(~U[2026-06-21 08:00:00Z], 20, 200.0, 200.0)
       readings!(~U[2026-06-22 08:00:00Z], 20, 300.0, 300.0)
 
-      # A day already aggregated stays as it is.
       Repo.insert!(%PvHour{
         started_at: usec(~U[2026-06-21 09:00:00Z]),
         pv_power_w: 1.0,

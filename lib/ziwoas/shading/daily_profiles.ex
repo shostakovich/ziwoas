@@ -1,8 +1,5 @@
 defmodule Ziwoas.Shading.DailyProfiles do
-  @moduledoc """
-  The mean day of every month: measured PV against what the irradiance and a
-  cloudless sky would have delivered, both scaled by the best hour's ratio.
-  """
+  @moduledoc false
   alias Ziwoas.Shading
   alias Ziwoas.Shading.{ClearSky, Curve, Hour, Profile}
 

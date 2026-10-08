@@ -1,5 +1,4 @@
-// Chart.js needs plain sRGB, but the tokens are light-dark()/color-mix()/oklch() values,
-// so each is painted into a 1×1 canvas and read back.
+// Chart.js needs plain sRGB, so each token is painted into a 1×1 canvas and read back.
 
 const cache = new Map()
 const subscribers = new Set()

@@ -6,7 +6,8 @@ defmodule ZiwoasWeb.SwitchesLiveTest do
   alias Ziwoas.{Clock, Repo, TestClock}
   alias Ziwoas.Lights.{Light, State}
   alias Ziwoas.Plugs
-  alias Ziwoas.Switching.{Rule, Rules}
+  alias Ziwoas.Switching
+  alias Ziwoas.Switching.Rule
 
   @now "2026-06-15T17:00:00+02:00"
 
@@ -57,7 +58,7 @@ defmodule ZiwoasWeb.SwitchesLiveTest do
   end
 
   test "shows the plug's schedule and the two editors' links", %{conn: conn} do
-    Rules.save_window("fridge", %{
+    Switching.save_window("fridge", %{
       on_at_time: "18:00",
       off_at_time: "23:00",
       days: [1, 2, 3, 4, 5]
@@ -77,16 +78,16 @@ defmodule ZiwoasWeb.SwitchesLiveTest do
   test "the summary counts Schaltzeiten, not rows; without any it is bare", %{conn: conn} do
     assert text(page(conn), "#sw_card_fridge summary") == "Schaltzeiten"
 
-    Rules.save_window("fridge", %{on_at_time: "18:00", off_at_time: "23:00", days: [1]})
+    Switching.save_window("fridge", %{on_at_time: "18:00", off_at_time: "23:00", days: [1]})
 
     for at <- ["01:00", "02:00"],
-        do: Rules.save_single("fridge", %{at_minute_time: at, action: "off", days: [1]})
+        do: Switching.save_single("fridge", %{at_minute_time: at, action: :off, days: [1]})
 
     assert text(page(conn), "#sw_card_fridge summary") == "Schaltzeiten (4)"
   end
 
   test "rules of a plug that left ziwoas.yml stay out of sight, not deleted", %{conn: conn} do
-    Repo.insert!(%Rule{plug_id: "gone", action: "off", at_minute: 60, days: [1]})
+    Repo.insert!(%Rule{plug_id: "gone", action: :off, at_minute: 60, days: [1]})
     refute conn |> get(~p"/switches") |> html_response(200) =~ "gone"
     assert Repo.aggregate(Rule, :count) == 1
   end
@@ -124,12 +125,12 @@ defmodule ZiwoasWeb.SwitchesLiveTest do
 
   test "the status line says since when, where from and what comes next", %{conn: conn} do
     insert_sample!("fridge", unix_now() - 10, 5, 1)
-    Rules.save_window("fridge", %{on_at_time: "18:00", off_at_time: "23:00", days: [1]})
+    Switching.save_window("fridge", %{on_at_time: "18:00", off_at_time: "23:00", days: [1]})
 
     Repo.insert!(%Ziwoas.Switching.Command{
       plug_id: "fridge",
-      action: "on",
-      source: "schedule",
+      action: :on,
+      source: :schedule,
       inserted_at: Clock.parse!("2026-06-15T06:00:00+02:00"),
       updated_at: Clock.parse!("2026-06-15T06:00:00+02:00")
     })
@@ -138,13 +139,13 @@ defmodule ZiwoasWeb.SwitchesLiveTest do
              "An seit 06:00 (Zeitplan) · nächste Schaltung: 18:00 → an"
   end
 
-  test "a dashboard beat rebuilds the plug heads", %{conn: conn} do
+  test "a plug update rebuilds the plug heads", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/switches")
     refute render(view) =~ "84 W"
 
     insert_sample!("fridge", unix_now(), 84.4, 1)
     state!(true)
-    send(view.pid, {:dashboard_live, []})
+    Ziwoas.Plugs.notify_live([])
 
     assert render(view) =~ "84 W"
   end
@@ -154,8 +155,28 @@ defmodule ZiwoasWeb.SwitchesLiveTest do
     assert has_element?(view, "#light_card_#{light.key} .small", "An · Weiß")
 
     Repo.update_all(State, set: [on: false])
-    send(view.pid, {:light_updated, light.key})
+    Ziwoas.Lights.notify_updated(light.key)
 
     assert has_element?(view, "#light_card_#{light.key} .small", "Aus")
+  end
+
+  test "a lamp tile navigates to the lamp's page inside the live session", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/switches")
+
+    for selector <- ["a[aria-label='Wohnzimmer Stehlampe Details']", "a.link-secondary"] do
+      assert has_element?(
+               view,
+               "#light_card_ABCDEF01 #{selector}[data-phx-link=redirect][href='/lights/ABCDEF01']"
+             )
+    end
+
+    {:ok, lamp, _html} =
+      view
+      |> element("#light_card_ABCDEF01 a.link-secondary")
+      |> render_click()
+      |> follow_redirect(conn, ~p"/lights/ABCDEF01")
+
+    assert has_element?(lamp, "h1", "Wohnzimmer Stehlampe")
+    assert has_element?(lamp, "header a[data-phx-link=redirect][href='/switches']")
   end
 end

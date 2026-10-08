@@ -1,18 +1,10 @@
 defmodule Ziwoas.Solakon.Reading do
-  @moduledoc """
-  One polled reading of the Solakon inverter (`solakon_readings`): freshness,
-  the battery character and the decoded status.
-  """
+  @moduledoc false
   use Ziwoas.Schema
-
-  import Ecto.Query
-
-  alias Ziwoas.Repo
 
   @min_soc_pct 10
   @resume_soc_pct 11
   @low_soc_pct 20
-  # Thermal de-rating starts here (full output ceiling) and protection ends below it.
   @hot_temp_c 45.0
   @cold_temp_c 5.0
   # De-rating reaches zero: 1 °C below the inverter's own 50 °C curtailment.
@@ -70,10 +62,6 @@ defmodule Ziwoas.Solakon.Reading do
     :eps_power_w
   ]
 
-  @doc """
-  A changeset for a decoded
-  `Ziwoas.Solakon.Client.read_state/1` taken at `taken_at`.
-  """
   @spec from_state(map, DateTime.t()) :: Ecto.Changeset.t()
   def from_state(state, taken_at) do
     attrs =
@@ -96,24 +84,6 @@ defmodule Ziwoas.Solakon.Reading do
     )
   end
 
-  @doc "The newest reading, or nil."
-  @spec newest() :: t | nil
-  def newest, do: Repo.one(from r in __MODULE__, order_by: [desc: r.taken_at], limit: 1)
-
-  @doc "The newest reading taken at or after `now - stale_after_s`, or nil."
-  @spec latest_fresh(DateTime.t(), integer) :: t | nil
-  def latest_fresh(now, stale_after_s \\ @stale_after_s) do
-    since = DateTime.add(now, -stale_after_s)
-
-    Repo.one(
-      from r in __MODULE__,
-        where: r.taken_at >= ^since,
-        order_by: [desc: r.taken_at],
-        limit: 1
-    )
-  end
-
-  # The control's thresholds.
   def soc_below_minimum?(%__MODULE__{battery_soc_pct: soc}), do: soc <= @min_soc_pct
   def soc_at_resume?(%__MODULE__{battery_soc_pct: soc}), do: soc >= @resume_soc_pct
 
@@ -129,14 +99,13 @@ defmodule Ziwoas.Solakon.Reading do
   @spec battery_display_power_w(t) :: float
   def battery_display_power_w(%__MODULE__{battery_power_w: watts}), do: (watts || 0) * 1.0
 
-  @doc "The battery character the UI shows; a fault wins, then thermal, then charge level and flow."
-  @spec battery_state(t) :: String.t()
+  @spec battery_state(t) :: :fault | :hot | :cold | :low | :charging | :discharging | :normal
   def battery_state(%__MODULE__{} = reading) do
     cond do
-      alarmed?(reading) -> "fault"
-      battery_hot?(reading) -> "hot"
-      battery_cold?(reading) -> "cold"
-      battery_low?(reading) -> "low"
+      alarmed?(reading) -> :fault
+      battery_hot?(reading) -> :hot
+      battery_cold?(reading) -> :cold
+      battery_low?(reading) -> :low
       true -> flow_state(battery_display_power_w(reading))
     end
   end
@@ -150,11 +119,7 @@ defmodule Ziwoas.Solakon.Reading do
   defp battery_low?(%__MODULE__{battery_soc_pct: soc}),
     do: not is_nil(soc) and soc <= @low_soc_pct
 
-  defp flow_state(power) when power > @charge_deadband_w, do: "charging"
-  defp flow_state(power) when power < -@charge_deadband_w, do: "discharging"
-  defp flow_state(_power), do: "normal"
-
-  @spec status_messages(t) :: [String.t()]
-  def status_messages(%__MODULE__{} = reading),
-    do: Ziwoas.Solakon.status_messages(reading, [])
+  defp flow_state(power) when power > @charge_deadband_w, do: :charging
+  defp flow_state(power) when power < -@charge_deadband_w, do: :discharging
+  defp flow_state(_power), do: :normal
 end

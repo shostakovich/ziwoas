@@ -76,7 +76,7 @@ defmodule Ziwoas.ShadingTest do
 
       assert [%{first_hour: 7, last_hour: 10}] = map(hours).bins
 
-      paths = [%Shading.Path{label: "21.6.", points: [], dots: []}]
+      paths = [%Shading.Path{day: :summer_solstice, points: [], dots: []}]
       assert map([], 1.0, paths).paths == paths
     end
   end
@@ -276,11 +276,8 @@ defmodule Ziwoas.ShadingTest do
     test "draws the solstices and the equinox, highest at midsummer" do
       [summer, equinox, winter] = paths()
 
-      assert Enum.map([summer, equinox, winter], & &1.label) == [
-               "21.6.",
-               "21.3. / 23.9.",
-               "21.12."
-             ]
+      assert Enum.map([summer, equinox, winter], & &1.day) ==
+               [:summer_solstice, :equinox, :winter_solstice]
 
       assert_in_delta peak(summer), 61.0, 1.0
       assert_in_delta peak(equinox), 37.5, 1.0
@@ -301,7 +298,7 @@ defmodule Ziwoas.ShadingTest do
 
     test "drops a date once the sun stays below the horizon, and everything without coordinates" do
       assert paths(lat: 66.0) |> List.last() |> Map.fetch!(:dots) |> Enum.map(& &1.hour) == [12]
-      assert Enum.map(paths(lat: 67.0), & &1.label) == ["21.6.", "21.3. / 23.9."]
+      assert Enum.map(paths(lat: 67.0), & &1.day) == [:summer_solstice, :equinox]
       assert paths(lat: nil, lon: nil) == []
     end
   end

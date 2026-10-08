@@ -1,6 +1,8 @@
 defmodule Ziwoas.Solakon.PvHour do
-  @moduledoc "Hourly PV power averages (`solakon_pv_hours`). No timestamps columns."
+  @moduledoc false
   use Ziwoas.Schema
+
+  @type t :: %__MODULE__{}
 
   schema "solakon_pv_hours" do
     field :pv1_power_w, :float

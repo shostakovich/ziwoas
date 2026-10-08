@@ -1,16 +1,10 @@
 defmodule ZiwoasWeb.EconomicsLive do
-  @moduledoc """
-  The Wirtschaftlichkeit page: the overview card, the Kostenposten and the
-  Strompreise with their forms. Editing is deliberately absent: with a handful
-  of rows, deleting and re-entering is shorter than a form that has to
-  remember its row.
-  """
+  @moduledoc false
   use ZiwoasWeb, :live_view
 
   import ZiwoasWeb.EconomicsComponents
 
   alias Ziwoas.{Clock, Config, Economics}
-  alias Ziwoas.Economics.{CostItem, ElectricityPrice, Overview}
 
   @impl true
   def mount(_params, _session, socket) do
@@ -24,7 +18,7 @@ defmodule ZiwoasWeb.EconomicsLive do
 
   @impl true
   def handle_event("validate_cost_item", %{"cost_item" => params}, socket) do
-    changeset = Economics.change_cost_item(%CostItem{}, params)
+    changeset = Economics.change_cost_item(params)
     {:noreply, assign(socket, cost_form: to_form(changeset, action: :validate))}
   end
 
@@ -53,7 +47,7 @@ defmodule ZiwoasWeb.EconomicsLive do
   end
 
   def handle_event("validate_price", %{"electricity_price" => params}, socket) do
-    changeset = Economics.change_price(%ElectricityPrice{}, params)
+    changeset = Economics.change_price(params)
     {:noreply, assign(socket, price_form: to_form(changeset, action: :validate))}
   end
 
@@ -62,7 +56,7 @@ defmodule ZiwoasWeb.EconomicsLive do
       {:ok, price} ->
         {:noreply,
          socket
-         |> put_flash(:info, "Preis ab #{day(price.valid_from)} erfasst")
+         |> put_flash(:info, "Preis ab #{date(price.valid_from)} erfasst")
          |> load()
          |> reset_price_form()}
 
@@ -74,7 +68,7 @@ defmodule ZiwoasWeb.EconomicsLive do
   def handle_event("delete_price", %{"id" => id}, socket) do
     socket =
       case Economics.delete_price(id) do
-        {:ok, price} -> put_flash(socket, :info, "Preis ab #{day(price.valid_from)} gelöscht")
+        {:ok, price} -> put_flash(socket, :info, "Preis ab #{date(price.valid_from)} gelöscht")
         {:error, _} -> put_flash(socket, :error, "Preis nicht gefunden")
       end
 
@@ -87,29 +81,25 @@ defmodule ZiwoasWeb.EconomicsLive do
 
     assign(socket,
       today: today,
-      overview: Overview.build(today),
+      overview: Economics.overview(today),
       cost_items: Economics.cost_items(),
       prices: Economics.prices()
     )
   end
 
-  defp reset_cost_form(socket) do
-    item = %CostItem{spent_on: socket.assigns.today}
-    assign(socket, cost_form: to_form(Economics.change_cost_item(item)))
-  end
+  defp reset_cost_form(socket),
+    do: assign(socket, cost_form: to_form(Economics.new_cost_item(socket.assigns.today)))
 
-  defp reset_price_form(socket) do
-    price = %ElectricityPrice{valid_from: Date.to_iso8601(socket.assigns.today)}
-    assign(socket, price_form: to_form(Economics.change_price(price)))
-  end
+  defp reset_price_form(socket),
+    do: assign(socket, price_form: to_form(Economics.new_price(socket.assigns.today)))
 
-  defp today, do: Clock.today(Config.app_config().location.timezone)
+  defp today, do: Clock.today(Config.get().location.timezone)
 
   @impl true
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} look={@look} current_path={@current_path}>
-      <h1 class="h2 mb-3">Wirtschaftlichkeit</h1>
+      <.header>Wirtschaftlichkeit</.header>
 
       <.overview_card result={@overview} title="Stand" link={false} />
 
@@ -129,14 +119,14 @@ defmodule ZiwoasWeb.EconomicsLive do
               <div class="me-auto">
                 <div>{item.label}</div>
                 <div class="small text-body-secondary tabular-nums">
-                  {day(item.spent_on)}
+                  {date(item.spent_on)}
                   <%= if item.note do %>
                     · {item.note}
                   <% end %>
                 </div>
               </div>
               <span class="fw-semibold tabular-nums text-nowrap">
-                {de_number(item.amount_eur, precision: 2, unit: "€")}
+                {eur(item.amount_eur)}
               </span>
               <button
                 type="button"
@@ -152,7 +142,7 @@ defmodule ZiwoasWeb.EconomicsLive do
           <p class="d-flex justify-content-between">
             Summe
             <strong class="tabular-nums">
-              {de_number(@overview.acquisition_cost_eur, precision: 2, unit: "€")}
+              {eur(@overview.acquisition_cost_eur)}
             </strong>
           </p>
         <% else %>
@@ -203,18 +193,18 @@ defmodule ZiwoasWeb.EconomicsLive do
               id={"price-#{price.id}"}
               class="list-group-item economics-row d-flex align-items-center gap-3 px-0"
             >
-              <span class="me-auto tabular-nums">ab {day(price.valid_from)}</span>
+              <span class="me-auto tabular-nums">ab {date(price.valid_from)}</span>
               <span class="fw-semibold tabular-nums text-nowrap">
-                {de_number(price.eur_per_kwh, precision: 4, unit: "€/kWh")}
+                {number(price.eur_per_kwh, precision: 4, unit: "€/kWh")}
               </span>
               <button
                 type="button"
                 class="btn-close"
                 title="Löschen"
-                aria-label={"Preis ab #{day(price.valid_from)} löschen"}
+                aria-label={"Preis ab #{date(price.valid_from)} löschen"}
                 phx-click="delete_price"
                 phx-value-id={price.id}
-                data-confirm={"Preis ab #{day(price.valid_from)} wirklich löschen?"}
+                data-confirm={"Preis ab #{date(price.valid_from)} wirklich löschen?"}
               ></button>
             </li>
           </ul>
@@ -253,7 +243,4 @@ defmodule ZiwoasWeb.EconomicsLive do
     </Layouts.app>
     """
   end
-
-  defp day(%Date{} = date), do: Calendar.strftime(date, "%d.%m.%Y")
-  defp day(iso) when is_binary(iso), do: iso |> Date.from_iso8601!() |> day()
 end

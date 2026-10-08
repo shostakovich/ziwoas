@@ -1,5 +1,5 @@
 defmodule Ziwoas.Plugs.Sample do
-  @moduledoc "One measurement of a plug (`samples`). `ts` is Unix seconds, not a datetime."
+  @moduledoc false
   use Ziwoas.Schema
 
   @primary_key false

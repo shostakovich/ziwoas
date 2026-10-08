@@ -5,7 +5,7 @@
 A project by [zipfelmaus.com](https://zipfelmaus.com).
 
 ZiWoAS is self-hosted energy and home automation: it measures consumption and generation
-through Shelly plugs (MQTT) and Fritz!DECT plugs, reads and controls the Solakon ONE inverter over
+through Shelly and Fritz!DECT plugs, reads and controls the Solakon ONE inverter over
 Modbus TCP, switches plugs on a schedule, controls Govee lamps, collects SwitchBot sensors and the
 weather (Bright Sky) and sends widgets to TRMNL. All in one Phoenix 1.8 app with LiveView and
 SQLite. The UI is in German.
@@ -14,13 +14,13 @@ SQLite. The UI is in German.
 
 - Erlang/OTP and Elixir in the versions from [`.tool-versions`](.tool-versions)
   (e.g. with `asdf` or `mise`). No Node needed.
-- For real devices: an MQTT broker (e.g. Mosquitto), optionally a Fritz!Box, a Solakon ONE,
-  a Govee API key, a SwitchBot token, TRMNL webhooks.
+- For real devices: Shelly Gen2+ plugs, optionally a Fritz!Box, a Solakon ONE, a Govee API key,
+  a SwitchBot token, TRMNL webhooks.
 
 ## Setup and start
 
 ```bash
-cp config/ziwoas.example.yml config/ziwoas.yml   # adjust: location, MQTT, plugs, …
+cp config/ziwoas.example.yml config/ziwoas.yml   # adjust: location, plugs, …
 mix setup                                        # deps, database, esbuild, assets
 mix phx.server                                   # http://localhost:4000
 ```
@@ -68,36 +68,27 @@ mix assets.deploy   # minified and digested, for a release
 Ecto migrations in `priv/repo/migrations/` own the schema. A release (`mix release`) ships two
 scripts:
 
-- `bin/migrate` – adopts an old database if needed and runs all pending migrations.
+- `bin/migrate` – runs all pending migrations.
 - `bin/server` – starts the app with `PHX_SERVER=true`.
 
 In a release, `ZIWOAS_DB`, `ZIWOAS_CONFIG`, `SECRET_KEY_BASE` and `PHX_HOST` are required;
-optional are `PORT` (default 4000), `POOL_SIZE` (5) and `ZIWOAS_ALLOWED_HOSTS` (hosts the browser
-reaches ZiWoAS under, comma-separated; without it: the host that served the page).
+optional are `PORT` (default 4000), `SHELLY_PORT` (4001, the Shellys connect there), `POOL_SIZE`
+(5) and `ZIWOAS_ALLOWED_HOSTS` (hosts the browser reaches ZiWoAS under, comma-separated; without it:
+the host that served the page).
 
-**Container.** The `Dockerfile` builds the release (Debian, uid 1000, port 3000, healthcheck on
-`/up`, `sqlite3` for backups) and runs `bin/migrate`, then `bin/server`; `ZIWOAS_DB` and
-`ZIWOAS_CONFIG` point to `/app/storage` and `/app/config`. `docker-compose.yml` is one service on
-the host network (Govee answers by multicast on UDP 4002) and expects `ZIWOAS_TAG` and
-`SECRET_KEY_BASE`. `.github/workflows/docker.yml` publishes images for `linux/amd64` only under an
-explicit tag, never `latest`. Rehearsal and cutover: [`docs/cutover.md`](docs/cutover.md).
+**Container.** The `Dockerfile` builds the release (Debian, uid 1000, ports 3000 and 3001,
+healthcheck on `/up`, `sqlite3` for backups) and runs `bin/migrate`, then `bin/server`;
+`ZIWOAS_DB` and `ZIWOAS_CONFIG` point to `/app/storage` and `/app/config`. `docker-compose.yml` is
+one service on the host network (Govee answers by multicast on UDP 4002) and expects `ZIWOAS_TAG`
+and `SECRET_KEY_BASE`. `.github/workflows/docker.yml` publishes images for `linux/amd64` only
+under an explicit tag, never `latest`.
 
-**Adopting an old database.** A SQLite file from the former Rails app is adopted once, on the
-first `bin/migrate` (or `mix ecto.migrate` in development): `Ziwoas.Release.adopt_rails_database!/0`
-checks the tables and removes Rails' migration bookkeeping, then the Ecto migrations take over. A
-second run changes nothing. By hand:
-
-```bash
-ZIWOAS_DB=storage/production.sqlite3 mix ziwoas.adopt
-```
-
-Always take a backup first (`sqlite3 … ".backup …"`). The app itself backs up the database every
+Take a backup before a new image migrates (`sqlite3 … ".backup …"`). The app itself backs up the database every
 night into `backup/` next to the database file.
 
 ## Further reading
 
 - [`CONTEXT.md`](CONTEXT.md) – domain vocabulary (Schaltzeit, Flanke, Regelung, Eigenverbrauch, …)
-- [`docs/architecture.md`](docs/architecture.md) – how the app is built
 - [`docs/adr/`](docs/adr/) – architecture decisions
 - [`docs/solakon-modbus-protocol.md`](docs/solakon-modbus-protocol.md) – Modbus registers of the
   Solakon ONE

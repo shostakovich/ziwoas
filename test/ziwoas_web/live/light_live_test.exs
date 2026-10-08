@@ -5,6 +5,7 @@ defmodule ZiwoasWeb.LightLiveTest do
 
   alias Ziwoas.{Lights, Repo}
   alias Ziwoas.Lights.{Light, Snapshot, State}
+  alias ZiwoasWeb.LightsComponents
 
   defp light!(attrs), do: Repo.insert!(struct!(%Light{name: "Lampe"}, attrs))
   defp state!(key, attrs), do: Repo.insert!(struct!(%State{light_key: key}, attrs))
@@ -25,29 +26,38 @@ defmodule ZiwoasWeb.LightLiveTest do
     state!("ABCDEF01", %{on: true, brightness: 60, color_temp_k: 2700})
     doc = page(conn, "ABCDEF01")
 
-    assert LazyHTML.text(LazyHTML.query(doc, "h1")) == "Wohnzimmer Stehlampe"
-    assert count(doc, "#light_detail[phx-hook=LightDetail][data-key=ABCDEF01]") == 1
+    assert doc |> LazyHTML.query("h1.ld-title") |> LazyHTML.text() |> String.trim() ==
+             "Wohnzimmer Stehlampe"
+
+    assert count(doc, "#light_detail[data-key=ABCDEF01]") == 1
     assert count(doc, "#light_power button[aria-pressed]") == 2
-    assert count(doc, "input#light_brightness[type=range][data-light=brightness]") == 1
-    assert count(doc, "output[data-light=brightness-value]") == 1
-    assert count(doc, "input[type=range][data-light=temp][min='2700'][max='6500']") == 1
-    assert count(doc, "output[data-light=temp-value]") == 1
+
+    assert count(
+             doc,
+             "form[phx-change=light_command] input#light_brightness[type=range][name=value][value='60']"
+           ) == 1
+
+    assert LazyHTML.text(LazyHTML.query(doc, "#light_brightness_form output")) =~ "60 %"
+    assert count(doc, "input#light_temp[type=range][name=temp_k][min='2700'][max='6500']") == 1
+    assert LazyHTML.text(LazyHTML.query(doc, "#light_panel_white output")) =~ "2.700 K"
 
     assert doc
-           |> LazyHTML.query("button[role=tab][phx-update=ignore]")
+           |> LazyHTML.query("button[role=tab][phx-click=select_tab]")
            |> LazyHTML.attribute("data-tab") ==
              ~w[white color scenes]
 
-    assert doc
-           |> LazyHTML.query("[role=tabpanel][phx-update=ignore]")
-           |> LazyHTML.attribute("data-tab") ==
+    assert doc |> LazyHTML.query("[role=tabpanel]") |> LazyHTML.attribute("data-tab") ==
              ~w[white color scenes]
+
+    assert doc |> LazyHTML.query("[role=tabpanel][hidden]") |> LazyHTML.attribute("data-tab") ==
+             ~w[color scenes]
 
     assert count(doc, "[role=tabpanel][aria-labelledby=light_tab_white]") == 1
   end
 
   test "show 404s for an unknown key", %{conn: conn} do
     assert_error_sent 404, fn -> get(conn, ~p"/lights/NOPE") end
+    assert_raise Ecto.NoResultsError, fn -> live(conn, ~p"/lights/NOPE") end
   end
 
   test "white slider and presets follow the lamp's Kelvin range", %{conn: conn} do
@@ -61,7 +71,7 @@ defmodule ZiwoasWeb.LightLiveTest do
     state!("ABCDEF09", %{on: true, color_temp_k: 2200})
     doc = page(conn, "ABCDEF09")
 
-    assert count(doc, "input[data-light=temp][min='2200'][max='6500']") == 1
+    assert count(doc, "input#light_temp[min='2200'][max='6500']") == 1
     assert LazyHTML.text(LazyHTML.query(doc, "button[data-temp='2200']")) =~ "Gemütlich"
     assert count(doc, "button.active[aria-pressed=true][data-temp='2200']") == 1
   end
@@ -137,7 +147,7 @@ defmodule ZiwoasWeb.LightLiveTest do
     refute has_element?(view, "#light_power button.active", "An")
 
     Repo.update!(Ecto.Changeset.change(state, on: true))
-    send(view.pid, {:light_updated, "LIVE1"})
+    Lights.notify_updated("LIVE1")
 
     assert has_element?(view, "#light_power button.active", "An")
   end
@@ -154,21 +164,21 @@ defmodule ZiwoasWeb.LightLiveTest do
 
     test "white when a colour temperature is set, else the colour as hex" do
       white = snapshot(%State{on: true, brightness: 60, color_temp_k: 2700})
-      assert Lights.white?(white) and Lights.color_hex(white) == nil
+      assert Lights.white?(white) and LightsComponents.color_hex(white) == nil
 
       colour = snapshot(%State{on: true, color_r: 255, color_g: 107, color_b: 61})
       refute Lights.white?(colour)
-      assert Lights.color_hex(colour) == "#ff6b3d"
+      assert LightsComponents.color_hex(colour) == "#ff6b3d"
       assert Lights.rgb(colour) == {255, 107, 61}
     end
 
-    test "zones come main first with labels and their on bits" do
+    test "zones come main first with their roles and on bits" do
       light = %Light{zones: ~w[rippleLightToggle bottomLightToggle sideLightToggle]}
       state = %State{zone_states: %{"bottomLightToggle" => true, "rippleLightToggle" => false}}
       zones = Lights.zones(%Snapshot{light: light, state: state})
 
       assert Enum.map(zones, & &1.key) == ~w[bottomLightToggle rippleLightToggle sideLightToggle]
-      assert hd(zones).role == "main" and hd(zones).label == "Leselicht"
+      assert Enum.map(zones, & &1.role) == [:main, :side, :side]
       assert Enum.map(zones, & &1.on) == [true, false, false]
       assert Lights.zone_lamp?(%Snapshot{light: light, state: nil})
     end

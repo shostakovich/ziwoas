@@ -1,41 +1,23 @@
 defmodule Ziwoas.Solakon.MonitorJob do
-  @moduledoc """
-  Every 30 seconds: reads the inverter through `Ziwoas.Solakon.Monitor`, stores a
-  `solakon_readings` row, runs the control tick on that reading
-  (`Ziwoas.Solakon.Control.Tick`) while the configuration enables control, and
-  sends `{:solakon_reading, id}` on `solakon`, the beat the dashboard and the PV
-  page follow.
-  """
+  @moduledoc false
   @behaviour Ziwoas.Scheduler.Job
-
-  # Beyond the scheduler's context, tests pass `:config` and `:monitor`. A stored
-  # reading returns `{:ok, reading, control_outcome_or_nil}`.
 
   require Logger
 
-  alias Ziwoas.{Clock, Config, Repo}
-  alias Ziwoas.Scheduler.Job
+  alias Ziwoas.{Clock, Config, Solakon}
   alias Ziwoas.Solakon.Control.{Outcome, Tick}
-  alias Ziwoas.Solakon.{Monitor, Reading}
+  alias Ziwoas.Solakon.Monitor
 
   @impl true
-  def perform(context) do
-    config = Job.config(context)
-    solakon = config.solakon
+  def perform(opts) do
+    config = Keyword.fetch!(opts, :config)
+    monitor = Keyword.get(opts, :monitor, Monitor)
 
-    cond do
-      is_nil(solakon) -> Logger.debug("solakon_monitor: not configured")
-      not solakon.monitoring_enabled -> Logger.info("solakon_monitor: disabled")
-      true -> run(config, Map.get(context, :monitor, Monitor))
-    end
-  end
-
-  defp run(config, monitor) do
     with {:ok, state} <- read(monitor),
          now = Clock.now(),
-         {:ok, reading} <- store(Reading.from_state(state, now)) do
+         {:ok, reading} <- store(state, now) do
       outcome = if config.solakon.control_enabled, do: control(reading, config, monitor, now)
-      Phoenix.PubSub.broadcast(Ziwoas.PubSub, "solakon", {:solakon_reading, reading.id})
+      Solakon.notify_reading(reading)
       {:ok, reading, outcome}
     end
   end
@@ -47,8 +29,8 @@ defmodule Ziwoas.Solakon.MonitorJob do
     end
   end
 
-  defp store(changeset) do
-    with {:error, changeset} = error <- Repo.insert(changeset) do
+  defp store(state, now) do
+    with {:error, changeset} = error <- Solakon.insert_reading(state, now) do
       Logger.warning("solakon_monitor: invalid reading: #{inspect(changeset.errors)}")
       error
     end
