@@ -3,8 +3,11 @@
   "configurations": [
     {
       "name": "phoenix",
-      "runtimeExecutable": "mix",
-      "runtimeArgs": ["phx.server"],
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": [
+        "-c",
+        "for d in \"$HOME\"/.elixir-install/installs/otp/*/bin \"$HOME\"/.elixir-install/installs/elixir/*/bin; do [ -d \"$d\" ] && PATH=\"$d:$PATH\"; done; export PATH; mix ecto.create --quiet && mix ecto.migrate && exec mix phx.server"
+      ],
       "port": 4000,
       "autoPort": true
     }
