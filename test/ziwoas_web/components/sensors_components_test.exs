@@ -9,7 +9,7 @@ defmodule ZiwoasWeb.SensorsComponentsTest do
     do:
       render_component(&SensorsComponents.co2_gauge/1, ppm: ppm)
       |> LazyHTML.from_fragment()
-      |> LazyHTML.query("svg.co2-gauge")
+      |> LazyHTML.query(".co2-gauge")
 
   defp attrs(node, selector, name),
     do: node |> LazyHTML.query(selector) |> LazyHTML.attribute(name)
@@ -20,13 +20,13 @@ defmodule ZiwoasWeb.SensorsComponentsTest do
     String.to_float(angle)
   end
 
-  test "the gauge names the value and its level for screen readers" do
-    svg = gauge(850)
+  defp label(ppm), do: attrs(gauge(ppm), "svg[role=img]", "aria-label")
 
-    assert LazyHTML.attribute(svg, "role") == ["img"]
-    assert LazyHTML.attribute(svg, "aria-label") == ["CO₂ 850 ppm, gut"]
-    assert LazyHTML.attribute(gauge(1200), "aria-label") == ["CO₂ 1.200 ppm, erhöht"]
-    assert LazyHTML.attribute(gauge(1600), "aria-label") == ["CO₂ 1.600 ppm, hoch"]
+  test "the gauge names the value and its level for screen readers, its thread stays silent" do
+    assert label(850) == ["CO₂ 850 ppm, gut"]
+    assert label(1200) == ["CO₂ 1.200 ppm, erhöht"]
+    assert label(1600) == ["CO₂ 1.600 ppm, hoch"]
+    assert attrs(gauge(850), "svg.stitches", "aria-hidden") == ["true"]
   end
 
   test "three zones split the arc at the presenter's thresholds" do
@@ -35,9 +35,9 @@ defmodule ZiwoasWeb.SensorsComponentsTest do
     assert attrs(svg, "path.co2-gauge-zone", "data-level") == ~w[good warn bad]
 
     assert attrs(svg, "path.co2-gauge-zone", "d") == [
-             "M 14.0 60.0 A 46 46 0 0 1 42.4 17.5",
-             "M 42.4 17.5 A 46 46 0 0 1 77.6 17.5",
-             "M 77.6 17.5 A 46 46 0 0 1 106.0 60.0"
+             "M 12.0 52.0 A 40 40 0 0 1 36.7 15.0",
+             "M 36.7 15.0 A 40 40 0 0 1 67.3 15.0",
+             "M 67.3 15.0 A 40 40 0 0 1 92.0 52.0"
            ]
   end
 
@@ -49,18 +49,23 @@ defmodule ZiwoasWeb.SensorsComponentsTest do
     assert lit.(1401) == ["bad"]
   end
 
-  test "felt-css's felt covers each zone, and its stitch runs along the arc" do
-    svg = gauge(850)
+  test "felt-css's felt covers each zone, and its stitch runs along the arc and crosses the hub" do
+    gauge = gauge(850)
 
-    assert attrs(svg, "path.co2-gauge-zone", "d") == attrs(svg, "path.co2-gauge-texture", "d")
-    assert attrs(svg, "pattern image", "href") == ["https://felt-css.rocu.de/img/felt.svg"]
+    assert attrs(gauge, "path.co2-gauge-zone", "d") ==
+             attrs(gauge, "path.co2-gauge-texture.felt-texture", "d")
 
-    seam = svg |> LazyHTML.query("g.co2-gauge-stitches") |> Enum.at(0) |> LazyHTML.query("use")
-    transforms = LazyHTML.attribute(seam, "transform")
+    assert attrs(gauge, "pattern image", "href") == ["https://felt-css.rocu.de/img/felt.svg"]
+    assert attrs(gauge, "pattern", "width") == ["256"]
 
-    assert length(transforms) == 13
-    assert hd(transforms) == "translate(14.3 54.5) rotate(-83.1) scale(1.15)"
-    assert List.last(transforms) == "translate(105.7 54.5) rotate(83.1) scale(1.15)"
+    stitches = attrs(gauge, "svg.stitches.stitches-patch use", "href")
+    assert length(stitches) == 15
+    assert Enum.uniq(stitches) == ["/images/felt_stitch.svg#stitch"]
+
+    transforms = attrs(gauge, "svg.stitches use", "transform")
+    assert hd(transforms) == "rotate(-83.1) translate(0 -40)"
+    assert Enum.at(transforms, 12) == "rotate(83.1) translate(0 -40)"
+    assert Enum.take(transforms, -2) == ["rotate(45) scale(.7)", "rotate(-45) scale(.7)"]
   end
 
   test "two gauges on a page keep their own ids" do
@@ -75,7 +80,7 @@ defmodule ZiwoasWeb.SensorsComponentsTest do
     ids =
       html |> LazyHTML.from_fragment() |> LazyHTML.query("defs [id]") |> LazyHTML.attribute("id")
 
-    assert length(ids) == 5
+    assert length(ids) == 2
     assert ids == Enum.uniq(ids)
 
     references =
@@ -95,6 +100,6 @@ defmodule ZiwoasWeb.SensorsComponentsTest do
   test "values beyond the scale pin the needle to its ends" do
     assert needle_angle(300) == 0.0
     assert needle_angle(5000) == 180.0
-    assert LazyHTML.attribute(gauge(5000), "aria-label") == ["CO₂ 5.000 ppm, hoch"]
+    assert label(5000) == ["CO₂ 5.000 ppm, hoch"]
   end
 end

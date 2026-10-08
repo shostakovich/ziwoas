@@ -76,7 +76,7 @@ defmodule ZiwoasWeb.SwitchesComponents do
         >
           <img
             alt=""
-            class="sw-knob-plush"
+            class="icon sw-knob-plush"
             src={~p"/images/#{"switch_plush_#{if @lit, do: "on", else: "off"}.webp"}"}
           />
         </button>

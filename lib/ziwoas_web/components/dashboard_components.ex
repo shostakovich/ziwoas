@@ -26,7 +26,7 @@ defmodule ZiwoasWeb.DashboardComponents do
       <div class="card-body p-3">
         <div class="row row-cols-2 g-2 align-items-center">
           <div class="col d-flex align-items-center gap-2 gap-sm-3">
-            <img class="hero-icon" alt={@weather_alt} src={~p"/images/#{@weather_asset}"} />
+            <img class="icon hero-icon" alt={@weather_alt} src={~p"/images/#{@weather_asset}"} />
             <div class="stat">
               <span class="stat-label">PV jetzt</span>
               <span class="text-nowrap"><span class="display-4">{number(@pv_watt)}</span>
@@ -34,7 +34,7 @@ defmodule ZiwoasWeb.DashboardComponents do
             </div>
           </div>
           <div class="col d-flex align-items-center gap-2 gap-sm-3" hidden={!@battery}>
-            <img class="hero-icon" alt="Batterie" src={~p"/images/#{@battery_asset}"} />
+            <img class="icon hero-icon" alt="Batterie" src={~p"/images/#{@battery_asset}"} />
             <div class="stat">
               <span class="stat-label">Batterie</span>
               <span class="text-nowrap"><span class="display-4">{number(@soc)}</span>
@@ -138,10 +138,10 @@ defmodule ZiwoasWeb.DashboardComponents do
 
     ~H"""
     <div id="dashboard_plug_bar" class="card card-body mb-3 live-dim">
-      <div class="progress-stacked plug-bar" style="height: 1.5rem">
+      <div class="progress-stacked plug-bar" style="--felt-progress-height: 1.5rem">
         <div
           :for={bar <- @consumers}
-          class="progress h-100"
+          class="progress"
           role="progressbar"
           style={"width: #{css_number(bar.width)}%"}
           aria-label={bar.plug.name}
@@ -174,7 +174,7 @@ defmodule ZiwoasWeb.DashboardComponents do
         aria-label="Legende"
       >
         <li :for={bar <- @consumers} class="col d-flex align-items-center gap-2">
-          <span class="badge rounded-pill legend-dot" style={"background-color: #{bar.color}"}></span>
+          <span class="badge badge-dot flex-shrink-0" style={"--felt-badge-dot-color: #{bar.color}"}></span>
           <span class="plug-bar-name">{bar.plug.name}</span>
           <span class="ms-auto text-body-secondary text-nowrap">
             {number(bar.plug.apower_w, unit: "W")}

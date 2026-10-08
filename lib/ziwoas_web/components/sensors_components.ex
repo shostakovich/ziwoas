@@ -46,7 +46,7 @@ defmodule ZiwoasWeb.SensorsComponents do
       class="alert alert-warning d-flex align-items-center gap-3 mb-3"
       role="alert"
     >
-      <img class="sensor-alert-icon" alt="" src={~p"/images/solakon_battery_low.webp"} />
+      <img class="icon sensor-alert-icon" alt="" src={~p"/images/solakon_battery_low.webp"} />
       <div><strong>Batterie schwach:</strong> {@names}</div>
     </div>
     """
@@ -181,14 +181,13 @@ defmodule ZiwoasWeb.SensorsComponents do
 
   @min_ppm 400
   @max_ppm 2000
-  @center 60
-  @radius 46
+  # In CSS pixels at the cards' 6.5rem, the units felt-css's felt tile and stitch are drawn in.
+  @center 52
+  @radius 40
   @level_labels [good: "gut", warn: "erhöht", bad: "hoch"]
   @felt_texture "https://felt-css.rocu.de/img/felt.svg"
-  # Keeps felt-css's 256 px texture tile and 7 px stitch at the size the cards wear them.
-  @texture_size 295
-  @stitch_scale "1.15"
-  @stitch_pitch 11
+  # felt-css's --felt-stitch-pitch.
+  @stitch_pitch 10
 
   attr :ppm, :integer, required: true
 
@@ -205,104 +204,78 @@ defmodule ZiwoasWeb.SensorsComponents do
         zones: zones(level),
         stitches: stitches(),
         needle_angle: fixed(share(ppm) * 180),
-        texture_size: @texture_size,
         felt_texture: @felt_texture,
+        stitch: "#{~p"/images/felt_stitch.svg"}#stitch",
         center: @center,
-        needle_end: @center - @radius + 8
+        needle_end: @center - @radius + 7
       )
 
     ~H"""
-    <svg class="co2-gauge" viewBox="0 0 120 70" role="img" aria-label={@label}>
-      <defs>
-        <pattern
-          id={@id.("texture")}
-          patternUnits="userSpaceOnUse"
-          width={@texture_size}
-          height={@texture_size}
-        >
-          <image href={@felt_texture} width={@texture_size} height={@texture_size} />
-        </pattern>
-        <pattern
-          id={@id.("thread")}
-          width="1.25"
-          height="4"
-          patternUnits="userSpaceOnUse"
-          patternTransform="rotate(-58)"
-        >
-          <rect width="1.25" height="4" fill="#fafafa" /><rect width=".5" height="4" fill="#e6e6e6" />
-        </pattern>
-        <radialGradient id={@id.("hole")}>
-          <stop offset="0" stop-opacity=".16" /><stop offset="1" stop-opacity="0" />
-        </radialGradient>
-        <g id={@id.("stitch")}>
-          <circle cx="-3.2" r=".9" fill={"url(##{@id.("hole")})"} />
-          <circle cx="3.2" r=".9" fill={"url(##{@id.("hole")})"} />
-          <path
-            d="M-3.5 0C-2.7 -.8 -1.9 -.8 -1.1 -.8H1.1C1.9 -.8 2.7 -.8 3.5 0C2.7 .8 1.9 .8 1.1 .8H-1.1C-1.9 .8 -2.7 .8 -3.5 0Z"
-            fill={"url(##{@id.("thread")})"}
-          />
-          <rect x="-1.7" y="-.3" width="3.4" height=".34" rx=".17" fill="#fff" opacity=".7" />
+    <div class="co2-gauge position-relative">
+      <svg class="d-block w-100 h-auto" viewBox="0 0 104 61" role="img" aria-label={@label}>
+        <defs>
+          <pattern id={@id.("texture")} patternUnits="userSpaceOnUse" width="256" height="256">
+            <image href={@felt_texture} width="256" height="256" />
+          </pattern>
+          <%!-- The region spans the whole drawing: a stroked arc's bounding box leaves out half its width. --%>
+          <filter
+            id={@id.("cut")}
+            filterUnits="userSpaceOnUse"
+            x="-5"
+            y="-5"
+            width="114"
+            height="71"
+            color-interpolation-filters="sRGB"
+          >
+            <feTurbulence
+              type="fractalNoise"
+              baseFrequency="1.04"
+              numOctaves="2"
+              seed="7"
+              result="fibres"
+            />
+            <feDisplacementMap
+              in="SourceGraphic"
+              in2="fibres"
+              scale="1.4"
+              xChannelSelector="R"
+              yChannelSelector="G"
+            />
+            <feDropShadow class="co2-gauge-shadow" dx="0" dy="1" stdDeviation="0.8" />
+          </filter>
+        </defs>
+        <g class="co2-gauge-piece" filter={"url(##{@id.("cut")})"}>
+          <%= for {level, path, current} <- @zones do %>
+            <path class={["co2-gauge-zone", current && "is-current"]} data-level={level} d={path} />
+            <path
+              class="co2-gauge-texture felt-texture"
+              d={path}
+              stroke={"url(##{@id.("texture")})"}
+            />
+          <% end %>
         </g>
-        <%!-- The region spans the whole drawing: a stroked arc's bounding box leaves out half its width. --%>
-        <filter
-          id={@id.("cut")}
-          filterUnits="userSpaceOnUse"
-          x="-5"
-          y="-5"
-          width="130"
-          height="80"
-          color-interpolation-filters="sRGB"
-        >
-          <feTurbulence
-            type="fractalNoise"
-            baseFrequency="0.9"
-            numOctaves="2"
-            seed="7"
-            result="fibres"
+        <g class="co2-gauge-piece" filter={"url(##{@id.("cut")})"}>
+          <g class="co2-gauge-needle" transform={"rotate(#{@needle_angle} #{@center} #{@center})"}>
+            <line x1={@center} y1={@center} x2={@needle_end} y2={@center} />
+          </g>
+          <circle class="co2-gauge-hub" cx={@center} cy={@center} r="5" />
+          <circle
+            class="felt-texture"
+            cx={@center}
+            cy={@center}
+            r="5"
+            fill={"url(##{@id.("texture")})"}
           />
-          <feDisplacementMap
-            in="SourceGraphic"
-            in2="fibres"
-            scale="1.6"
-            xChannelSelector="R"
-            yChannelSelector="G"
-          />
-          <feDropShadow class="co2-gauge-shadow" dx="0" dy="1.2" stdDeviation="0.9" />
-        </filter>
-      </defs>
-      <g class="co2-gauge-piece" filter={"url(##{@id.("cut")})"}>
-        <%= for {level, path, current} <- @zones do %>
-          <path class={["co2-gauge-zone", current && "is-current"]} data-level={level} d={path} />
-          <path class="co2-gauge-texture" d={path} stroke={"url(##{@id.("texture")})"} />
-        <% end %>
-      </g>
-      <g class="co2-gauge-stitches">
-        <use :for={transform <- @stitches} href={"##{@id.("stitch")}"} transform={transform} />
-      </g>
-      <g class="co2-gauge-piece" filter={"url(##{@id.("cut")})"}>
-        <g class="co2-gauge-needle" transform={"rotate(#{@needle_angle} #{@center} #{@center})"}>
-          <line x1={@center} y1={@center} x2={@needle_end} y2={@center} />
         </g>
-        <circle class="co2-gauge-hub" cx={@center} cy={@center} r="6" />
-        <circle
-          class="co2-gauge-texture"
-          cx={@center}
-          cy={@center}
-          r="6"
-          fill={"url(##{@id.("texture")})"}
-        />
-      </g>
-      <g class="co2-gauge-stitches">
-        <use
-          href={"##{@id.("stitch")}"}
-          transform={"translate(#{@center} #{@center}) rotate(45) scale(0.8)"}
-        />
-        <use
-          href={"##{@id.("stitch")}"}
-          transform={"translate(#{@center} #{@center}) rotate(-45) scale(0.8)"}
-        />
-      </g>
-    </svg>
+      </svg>
+      <svg class="stitches stitches-patch" viewBox="0 0 104 61" aria-hidden="true">
+        <g transform={"translate(#{@center} #{@center})"}>
+          <use :for={transform <- @stitches} href={@stitch} transform={transform} />
+          <use href={@stitch} transform="rotate(45) scale(.7)" />
+          <use href={@stitch} transform="rotate(-45) scale(.7)" />
+        </g>
+      </svg>
+    </div>
     """
   end
 
@@ -317,13 +290,10 @@ defmodule ZiwoasWeb.SensorsComponents do
   end
 
   defp stitches do
-    count = floor(:math.pi() * @radius / @stitch_pitch)
+    count = round(:math.pi() * @radius / @stitch_pitch)
 
-    for i <- 0..(count - 1) do
-      at = (i + 0.5) / count
-
-      "translate(#{point(at)}) rotate(#{fixed(at * 180 - 90)}) scale(#{@stitch_scale})"
-    end
+    for i <- 0..(count - 1),
+        do: "rotate(#{fixed((i + 0.5) / count * 180 - 90)}) translate(0 -#{@radius})"
   end
 
   defp point(at) do

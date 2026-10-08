@@ -100,7 +100,7 @@ defmodule ZiwoasWeb.LightsComponents do
             aria-label={"#{@light.name} umschalten"}
             {command(@light.key, "turn", on: not @on)}
           >
-            <img alt="" class="sw-knob-plush" src={~p"/images/#{plush_image(@light, @on)}"} />
+            <img alt="" class="icon sw-knob-plush" src={~p"/images/#{plush_image(@light, @on)}"} />
           </button>
 
           <span :if={@chip} class="badge border tabular-nums">
@@ -168,7 +168,7 @@ defmodule ZiwoasWeb.LightsComponents do
               width="112"
               height="112"
               alt=""
-              class="sw-knob-plush"
+              class="icon sw-knob-plush"
               src={~p"/images/#{plush_image(@light, @on)}"}
             />
           </span>
@@ -186,7 +186,7 @@ defmodule ZiwoasWeb.LightsComponents do
         </div>
         <div :if={@zone_lamp} class="mt-3" role="group" aria-label="Zonen" hidden={not @on}>
           <p class="mb-2 small text-uppercase text-body-secondary" aria-hidden="true">Zonen</p>
-          <div class={"row row-cols-#{@columns} g-2 ld-choices ld-zones"}>
+          <div class={"row row-cols-#{@columns} g-2 ld-zones"}>
             <.zone :for={zone <- @zones} zone={zone} light_key={@light.key} />
           </div>
         </div>
@@ -331,7 +331,7 @@ defmodule ZiwoasWeb.LightsComponents do
           <span>{number(@min_k, unit: "K")} · warm</span>
           <span>{number(@max_k, unit: "K")} · kalt</span>
         </div>
-        <div class="d-flex gap-2 mt-3 ld-choices">
+        <div class="d-flex gap-2 mt-3">
           <button
             :for={{label, preset} <- @presets}
             type="button"
@@ -408,15 +408,24 @@ defmodule ZiwoasWeb.LightsComponents do
               {rgb_values(swatch)}
             />
             <label
-              class="btn btn-icon border ld-swatch"
+              class="btn btn-icon btn-swatch"
               for={"light_color_#{index}"}
-              style={"background-color: #{swatch}"}
+              style={"--felt-swatch-color: #{swatch}"}
             >
               <span class="visually-hidden">Farbe {swatch}</span>
             </label>
           <% end %>
+          <%!-- felt rings a swatch chosen by a checked .btn-check before it; the wheel's own input is the colour picker. --%>
+          <input
+            type="radio"
+            class="btn-check"
+            name="light_color"
+            id="light_color_custom"
+            checked={@custom}
+            hidden
+          />
           <label
-            class={["btn btn-icon border ld-swatch ld-swatch-wheel", @custom && "ld-swatch-custom"]}
+            class={["btn btn-icon btn-swatch ld-swatch-wheel", @custom && "ld-swatch-custom"]}
             title="Weitere Farbe"
             data-light="wheel"
             style={@custom && "--ld-custom: #{@color}"}

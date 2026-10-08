@@ -1,6 +1,3 @@
-/* felt presses an .active button down by 1px, which would misalign a row of choices. */
-.ld-choices .btn.active { transform: none; }
-
 @media (max-width: 575.98px) {
   .ld-zones .btn { font-size: .875rem; line-height: 1.25rem; }
 }
@@ -13,16 +10,13 @@
 .sw-swatch { display: inline-block; width: .8rem; height: .8rem; border-radius: var(--felt-radius-sm);
              border: 1px solid color-mix(in oklab, var(--felt-body-color) 15%, transparent); }
 
+/* Thicker than felt's track, for the kelvin gradient; felt has no size tokens, so its 1.25rem thumb is re-centred here. */
 .form-range.ld-range::-webkit-slider-runnable-track { height: .75rem; }
 .form-range.ld-range::-moz-range-track { height: .75rem; }
-.form-range.ld-range::-webkit-slider-thumb { margin-top: -.25rem; background-color: var(--felt-surface-raised); border-color: var(--felt-border-color-strong); }
-.form-range.ld-range::-moz-range-thumb { background-color: var(--felt-surface-raised); border-color: var(--felt-border-color-strong); }
-/* --_thumb-shadow is felt-css-internal: it has no public thumb-shadow token yet. */
-:where([data-look="felt"]) .form-range.ld-range {
-  --_thumb-shadow: 0 1px 1px var(--felt-groove-shadow), 0 3px 5px var(--felt-patch-shadow-far);
-}
+.form-range.ld-range::-webkit-slider-thumb { margin-top: -.25rem; }
 
 .ld-white {
+  --felt-form-range-thumb-bg: var(--felt-surface-raised);
   --ld-kelvin: linear-gradient(to right, var(--felt-warning), color-mix(in oklab, var(--felt-warning) 30%, var(--felt-light-fixed)),
                                var(--felt-light-fixed), color-mix(in oklab, var(--felt-primary) 25%, var(--felt-light-fixed)),
                                color-mix(in oklab, var(--felt-primary) 50%, var(--felt-light-fixed)));
@@ -42,14 +36,10 @@
 @media (min-width: 576px) {
   .ld-swatches { grid-template-columns: repeat(9, max-content); }
 }
-:is(.btn-check:checked + .ld-swatch, .ld-swatch-custom) {
-  outline: 3px solid light-dark(var(--felt-primary), var(--felt-primary-text)); outline-offset: 2px;
-}
-/* Painted on a layer of its own, so felt still sews its seam on top of the label. */
-.ld-swatch-wheel { --ld-wheel: conic-gradient(in hsl longer hue, hsl(0 90% 60%), hsl(0 90% 60%)); }
-.ld-swatch-wheel::before { content: ""; position: absolute; inset: -1px; border-radius: inherit; pointer-events: none;
-                           background-image: var(--ld-wheel); }
-.ld-swatch-wheel.ld-swatch-custom::before { background-image: radial-gradient(closest-side, var(--ld-custom) 64%, transparent 67%), var(--ld-wheel); }
+/* felt derives the swatch's whole face from --felt-swatch-color: without one it drops the image too. */
+.ld-swatch-wheel { --ld-wheel: conic-gradient(in hsl longer hue, hsl(0 90% 60%), hsl(0 90% 60%));
+                   --felt-swatch-color: hsl(0 90% 60%); --felt-swatch-image: var(--ld-wheel); }
+.ld-swatch-wheel.ld-swatch-custom { --felt-swatch-image: radial-gradient(closest-side, var(--ld-custom) 64%, transparent 67%), var(--ld-wheel); }
 .ld-swatch-wheel input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
 
 .ld-scenes {

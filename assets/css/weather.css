@@ -1,19 +1,8 @@
-.weather-icon {
-  flex-shrink: 0;
-  width: var(--weather-icon-size);
-  height: var(--weather-icon-size);
-  object-fit: contain;
-}
-.weather-icon-sm { --weather-icon-size: 42px; }
-.weather-icon-md { --weather-icon-size: 72px; }
-.weather-icon-lg { --weather-icon-size: 82px; }
+.weather-icon-sm { --felt-icon-size: 42px; }
+.weather-icon-md { --felt-icon-size: 72px; }
+.weather-icon-lg { --felt-icon-size: 82px; }
 
-.weather-icon-inline {
-  width: 1.5em;
-  height: 1.5em;
-  object-fit: contain;
-  vertical-align: -0.45em;
-}
+.weather-icon-inline { --felt-icon-size: 1.5em; vertical-align: -0.45em; }
 
 .weather-day-segments {
   display: grid;
@@ -37,9 +26,6 @@
 @media (min-width: 576px) {
   .weather-day-segments { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
-
-/* felt presses .btn.active down a pixel, which would misalign the chosen tile's rows. */
-.weather-segment.btn.active { transform: none; }
 
 .weather-hour-scroller {
   --hour-fade: 3.5rem;
@@ -79,5 +65,5 @@
 }
 
 @media (max-width: 575.98px) {
-  .weather-icon-lg { --weather-icon-size: 64px; }
+  .weather-icon-lg { --felt-icon-size: 64px; }
 }

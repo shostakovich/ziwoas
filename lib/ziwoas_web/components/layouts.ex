@@ -45,7 +45,7 @@ defmodule ZiwoasWeb.Layouts do
                 aria-current={item.current && "page"}
                 navigate={item.path}
               >
-                <img alt="" class="app-nav-icon" aria-hidden="true" src={~p"/images/#{item.icon}"} />
+                <img alt="" class="icon icon-sm" aria-hidden="true" src={~p"/images/#{item.icon}"} />
                 {item.label}
               </.link>
             </li>
@@ -70,7 +70,7 @@ defmodule ZiwoasWeb.Layouts do
             aria-current={item.current && "page"}
             navigate={item.path}
           >
-            <img alt="" class="app-nav-icon" aria-hidden="true" src={~p"/images/#{item.icon}"} />
+            <img alt="" class="icon" aria-hidden="true" src={~p"/images/#{item.icon}"} />
             <small>{item.label}</small>
           </.link>
         </li>

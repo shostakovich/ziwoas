@@ -679,11 +679,11 @@ defmodule ZiwoasWeb.RoomAirComponents do
       <div class="card-body">
         <h4 class="card-title" id={"#{@room.id}-pm-split"}>Feinstaub nach Größe</h4>
         <p class="card-subtitle">µg/m³ · Anteile an PM10, aktuelle Messung</p>
-        <div class="progress-stacked pm-split mb-2" style="height: 1rem">
+        <div class="progress-stacked pm-split mb-2">
           <div
             :for={bin <- @bins}
             :if={bin.share > 0}
-            class="progress h-100"
+            class="progress"
             role="progressbar"
             style={"width: #{bin.share}%"}
             aria-label={bin.label}
@@ -696,7 +696,7 @@ defmodule ZiwoasWeb.RoomAirComponents do
         </div>
         <ul class="list-unstyled d-flex flex-wrap column-gap-4 row-gap-1 small tabular-nums mb-0">
           <li :for={bin <- @bins} class="d-flex align-items-center gap-2 text-nowrap">
-            <span class="badge rounded-pill legend-dot pm-split-key" data-bin={bin.index}></span>
+            <span class="badge badge-dot flex-shrink-0 pm-split-key" data-bin={bin.index}></span>
             <span>{bin.label}</span>
             <span class="text-body-secondary">
               {number(bin.value, precision: 1)} · {number(bin.share, unit: "%")}

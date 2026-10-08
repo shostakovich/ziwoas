@@ -67,11 +67,10 @@
 .app-brand-name { font-size: clamp(.8rem, 4vw, 1.05rem); font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
 .app-brand-tagline { font-size: .7rem; font-weight: 400; letter-spacing: .02em; white-space: normal; color: var(--felt-secondary-color); }
 
-/* Long fixed labels carry soft hyphens (U+00AD); break-word is the last resort. */
-.stat-label { hyphens: auto; overflow-wrap: break-word; }
+/* felt hyphenates; break-word is the last resort where no dictionary breaks a long compound. */
+.stat-label { overflow-wrap: break-word; }
 
-.app-nav-icon { width: 1.75rem; height: 1.75rem; object-fit: contain; }
-.fixed-bottom .app-nav-icon { width: 1.5rem; height: 1.5rem; }
+.fixed-bottom .icon { --felt-icon-size: 1.5rem; }
 
 .fixed-bottom .nav { gap: 0; }
 .fixed-bottom .nav-item { min-width: 0; }

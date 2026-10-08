@@ -127,7 +127,7 @@ defmodule ZiwoasWeb.DashboardComponentsTest do
     defp color(node, selector),
       do:
         Regex.run(
-          ~r/background-color: (var\(--[\w-]+\))/,
+          ~r/(?:background-color|--felt-badge-dot-color): (var\(--[\w-]+\))/,
           node |> LazyHTML.query(selector) |> attr("style")
         )
         |> List.last()
@@ -223,7 +223,7 @@ defmodule ZiwoasWeb.DashboardComponentsTest do
 
       assert text(
                doc,
-               ".card.h-100 > .card-body.h-100.d-flex.flex-column > .stat.flex-grow-1 > .stat-value.mt-auto"
+               ".card.h-100 > .card-body.d-flex.flex-column > .stat.flex-grow-1 > .stat-value.mt-auto"
              ) == "1 W"
 
       assert text(doc, ".stat-value span.fs-5") == "W"
@@ -349,10 +349,10 @@ defmodule ZiwoasWeb.DashboardComponentsTest do
 
       assert count(doc, "span.ef-value.tabular-nums.fw-semibold") == 4
 
-      assert count(doc, ".ef-ring[data-ring='pv'] > img.ef-icon[src*='icon_sonne'][alt='PV']") ==
+      assert count(doc, ".ef-ring[data-ring='pv'] > img.icon[src*='icon_sonne'][alt='PV']") ==
                1
 
-      battery = "img.ef-icon[data-ef='efBatteryImage'][src*='solakon_battery_normal']"
+      battery = "img.icon[data-ef='efBatteryImage'][src*='solakon_battery_normal']"
 
       assert attrs(doc, battery, "data-battery-state-charging") == [
                "/images/solakon_battery_charging.webp"

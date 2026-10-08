@@ -185,8 +185,12 @@ defmodule ZiwoasWeb.LightLiveEventsTest do
     render_async(view)
 
     assert_received {:govee, "UP1", {:color, %{r: 1, g: 2, b: 3}}}
-    refute has_element?(view, "input[name=light_color][checked]")
-    assert has_element?(view, "label.ld-swatch-custom[data-light=wheel][style*='#010203']")
+    refute has_element?(view, "input[name=light_color][checked]:not(#light_color_custom)")
+
+    assert has_element?(
+             view,
+             "#light_color_custom[checked] + label.ld-swatch-custom[data-light=wheel][style*='#010203']"
+           )
   end
 
   test "the tabs show one panel at a time", %{conn: conn} do

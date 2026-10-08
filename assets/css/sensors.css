@@ -1,28 +1,20 @@
-.sensor-alert-icon {
-  flex-shrink: 0;
-  width: 2.5rem;
-  height: 2.5rem;
-  object-fit: contain;
-}
+.sensor-alert-icon { --felt-icon-size: 2.5rem; }
 
-.co2-gauge { flex-shrink: 0; width: 6.5rem; height: auto; overflow: visible; }
+.co2-gauge { flex-shrink: 0; width: 6.5rem; }
+.co2-gauge > svg { overflow: visible; }
 .co2-gauge-zone,
-.co2-gauge-texture { fill: none; stroke-width: 10; }
+.co2-gauge-texture { fill: none; stroke-width: 9; }
 .co2-gauge-zone[data-level="good"] { --zone: var(--felt-success); }
 .co2-gauge-zone[data-level="warn"] { --zone: oklch(from var(--felt-mustard) 0.76 0.155 calc(h - 7)); }
 .co2-gauge-zone[data-level="bad"]  { --zone: var(--felt-danger); }
 .co2-gauge-zone { stroke: var(--zone); }
 .co2-gauge-zone.is-current,
-.co2-gauge-zone.is-current + .co2-gauge-texture { stroke-width: 17; }
-.co2-gauge-needle line { stroke: var(--felt-body-color); stroke-width: 4.5; stroke-linecap: round; }
+.co2-gauge-zone.is-current + .co2-gauge-texture { stroke-width: 15; }
+.co2-gauge-needle line { stroke: var(--felt-body-color); stroke-width: 4; stroke-linecap: round; }
 .co2-gauge-hub { fill: var(--felt-body-color); }
 .co2-gauge-shadow { flood-color: var(--felt-patch-shadow-near); }
 
 :where(html:not([data-look="felt"])) .co2-gauge-piece { filter: none; }
-:where(html:not([data-look="felt"])) :is(.co2-gauge-texture, .co2-gauge-stitches) { display: none; }
-.co2-gauge-texture { mix-blend-mode: soft-light; }
-circle.co2-gauge-texture { stroke: none; }
-.co2-gauge-stitches { opacity: light-dark(.95, .7); }
 
 .chart-key-line,
 .chart-key-limit,
@@ -47,8 +39,9 @@ circle.co2-gauge-texture { stroke: none; }
 }
 
 /* One hue, from the body colour (fine) to the pure data colour (coarse): every step keeps 3:1 on the card. */
-.pm-split [data-bin],
-.pm-split-key[data-bin] { background-color: color-mix(in oklab, var(--viz-1) var(--bin-mix, 100%), var(--felt-body-color)); }
+[data-bin] { --bin-color: color-mix(in oklab, var(--viz-1) var(--bin-mix, 100%), var(--felt-body-color)); }
+.pm-split [data-bin] { background-color: var(--bin-color); }
+.pm-split-key { --felt-badge-dot-color: var(--bin-color); }
 [data-bin="1"] { --bin-mix: 33%; }
 [data-bin="2"] { --bin-mix: 55%; }
 [data-bin="3"] { --bin-mix: 77%; }

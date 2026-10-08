@@ -21,7 +21,7 @@ defmodule ZiwoasWeb.Components.EnergyFlow do
   @rings [
     pv: {200, 80, "--viz-solar"},
     grid: {58, 170, "--viz-grid"},
-    consumer: {342, 170, "--ef-groove"},
+    consumer: {342, 170, "--felt-track"},
     battery: {200, 260, "--viz-battery"}
   ]
   # Lines start inside their ring, so the dots enter from under it instead of waiting on top.
@@ -157,20 +157,20 @@ defmodule ZiwoasWeb.Components.EnergyFlow do
         </svg>
 
         <.ring name={:pv}>
-          <img class="ef-icon" alt={@pv_alt} src={~p"/images/#{@pv_asset}"} />
+          <img class="icon" alt={@pv_alt} src={~p"/images/#{@pv_asset}"} />
           <span class="ef-value fw-semibold tabular-nums lh-1" data-ef="efPvW">— W</span>
         </.ring>
         <.ring name={:grid}>
-          <img class="ef-icon" alt="" src={~p"/images/icon_netz.webp"} />
+          <img class="icon" alt="" src={~p"/images/icon_netz.webp"} />
           <span class="ef-value fw-semibold tabular-nums lh-1" data-ef="efGridW">— W</span>
         </.ring>
         <.ring name={:consumer}>
-          <img class="ef-icon" alt="" src={~p"/images/icon_haus.webp"} />
+          <img class="icon" alt="" src={~p"/images/icon_haus.webp"} />
           <span class="ef-value fw-semibold tabular-nums lh-1" data-ef="efConsumerW">— W</span>
         </.ring>
         <.ring name={:battery}>
           <img
-            class="ef-icon"
+            class="icon"
             alt=""
             data-ef="efBatteryImage"
             src={~p"/images/#{@battery_asset}"}
