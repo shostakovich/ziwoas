@@ -122,6 +122,42 @@ dropped is offline in the same picture.
 _German UI_: Live-Bild
 _Avoid_: Live data, Snapshot, Live payload, Realtime state
 
+### Room air
+
+**Room reading**:
+The value of one quantity — CO₂, particulate matter, VOC, NOx, temperature, humidity — for a
+room at a point in time. It comes from the room's **lead sensor**, and from the **stand-in
+sensor** for any quantity the lead sensor has no fresh value for. Sensors are recorded one by
+one; the room reading is chosen when it is read, so a room never stores a value of its own.
+_German UI_: Raumwert
+_Avoid_: Sensorwert, Mittelwert (nothing is averaged across sensors)
+
+**Lead sensor**:
+The sensor a room's readings come from first, the one that measures the most quantities. It
+counts for a quantity as long as its newest value for that quantity is fresh.
+_German UI_: Leitsensor
+_Avoid_: Hauptsensor, Primärsensor
+
+**Stand-in sensor**:
+A sensor in the same room that fills in what the lead sensor currently lacks. Its values are
+shown as they are, not corrected towards the lead sensor, and always with their source.
+_German UI_: Ersatzsensor
+_Avoid_: Fallback, Backup-Sensor
+
+**Air verdict**:
+The worst level among a room's CO₂, PM2.5, PM10, VOC and NOx, read as advice on whether to air
+the room. Temperature and humidity don't enter it.
+_German UI_: Lüftungsempfehlung — „Luft gut“, „Bald lüften“, „Jetzt lüften“
+_Avoid_: Luftqualitätsindex, AQI, Ampel (that is the CO₂ display alone)
+
+**Ventilation hint**:
+What airing the room would do right now, judged against the balcony: cool or warm it, when the
+room is warm and outside is cooler or warmer; dry or humidify it, when the room's humidity is
+off and the air outside holds less or more water. Says nothing when nothing is worth saying.
+Separate from the **air verdict**, which says whether the air needs airing at all.
+_German UI_: Lüftungshinweis — „Lüften kühlt“, „Lüften wärmt“, „Lüften trocknet“
+_Avoid_: Lüftungsempfehlung (that is the air verdict), Feuchtehinweis
+
 ### Control
 
 **Control**:

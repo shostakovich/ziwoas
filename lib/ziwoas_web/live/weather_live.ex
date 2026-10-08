@@ -36,6 +36,7 @@ defmodule ZiwoasWeb.WeatherLive do
   @impl true
   def handle_info({:synced, _today}, socket), do: {:noreply, load(socket)}
   def handle_info({:polled, _instant}, socket), do: {:noreply, load(socket)}
+  def handle_info({:reading, _reading}, socket), do: {:noreply, socket}
 
   @impl true
   def render(assigns) do

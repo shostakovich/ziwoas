@@ -5,19 +5,21 @@ defmodule Ziwoas.Sensors.PollJob do
   require Logger
 
   alias Ziwoas.{Clock, Sensors}
+  alias Ziwoas.Config.Sensor
   alias Ziwoas.Sensors.SwitchBotClient
-  alias Ziwoas.Trmnl.{Push, SensorPayload}
+  alias Ziwoas.Trmnl.SensorPushJob
 
   @impl true
   def perform(opts) do
     config = Keyword.fetch!(opts, :config)
     now = Clock.now()
-    Enum.each(config.sensors, &poll(config.switchbot, &1, now))
-    Sensors.notify_polled(now)
 
-    Push.run(:sensors, config.trmnl.sensors_webhook_url, fn ->
-      SensorPayload.build(config, Clock.now())
-    end)
+    for sensor <- config.sensors,
+        Sensor.switchbot?(sensor),
+        do: poll(config.switchbot, sensor, now)
+
+    Sensors.notify_polled(now)
+    SensorPushJob.perform(opts)
   end
 
   defp poll(auth, sensor, now) do

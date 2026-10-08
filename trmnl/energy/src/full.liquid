@@ -1,10 +1,8 @@
 {%- comment -%}
-  Zipfelmaus Energie — TRMNL full layout (800x480).
-  Source of truth: docs/trmnl/full.liquid in the ziwoas repo.
-  Update this file in the repo first, then paste into the TRMNL plugin UI.
-
-  Receives merge_variables: ts, pv_kwh, cons_kwh, bilanz_kwh, autarky, self_use, pv_w[144], cons_w[144].
-  pv_w / cons_w are average watts per 10-min bucket, oldest first.
+  Solar-Ertrag: merge_variables from Ziwoas.Trmnl.EnergyPayload.
+    ts, stand, pv_kwh, cons_kwh, bilanz_kwh, autarky, self_use,
+    pv_w[144], cons_w[144]: mean watts per 10-minute bucket, oldest first.
+  Edit here, preview with `trmnlp serve`, deploy with `trmnlp push`.
 {%- endcomment -%}
 
 <script src="https://trmnl.com/js/highcharts/12.3.0/highcharts.js"></script>
@@ -15,14 +13,14 @@
     <div>
       <span class="label">PV</span>
       <div style="display:flex;align-items:baseline;gap:8px;white-space:nowrap">
-        <span class="value value--xlarge">{{ pv_kwh | replace: ".", "," }}</span>
+        <span class="value value--large">{{ pv_kwh | replace: ".", "," }}</span>
         <span class="label">kWh</span>
       </div>
     </div>
     <div style="text-align:right">
       <span class="label">Bilanz</span>
       <div style="display:flex;align-items:baseline;gap:8px;white-space:nowrap;justify-content:flex-end">
-        <span class="value value--xlarge">
+        <span class="value value--large">
           {%- if bilanz_kwh > 0 -%}+{%- endif -%}
           {{ bilanz_kwh | replace: ".", "," }}
         </span>
@@ -31,9 +29,15 @@
     </div>
   </div>
 
-  <div style="display:flex;gap:18px;font-size:11px;text-transform:uppercase;letter-spacing:.08em;font-weight:700;margin-top:4px">
-    <span><span style="display:inline-block;width:16px;height:3px;background:#000;vertical-align:middle;margin-right:6px"></span>Ertrag</span>
-    <span><span style="display:inline-block;width:16px;height:3px;background:repeating-linear-gradient(90deg,#000 0 4px,transparent 4px 7px);vertical-align:middle;margin-right:6px"></span>Verbrauch</span>
+  <div style="display:flex;gap:18px;margin-top:4px">
+    <span class="label">
+      Ertrag
+      <span style="display:inline-block;width:16px;height:3px;background:#000;vertical-align:middle;margin-left:6px"></span>
+    </span>
+    <span class="label">
+      Verbrauch
+      <span style="display:inline-block;width:16px;height:3px;background:repeating-linear-gradient(90deg,#000 0 4px,transparent 4px 7px);vertical-align:middle;margin-left:6px"></span>
+    </span>
   </div>
 
   <div id="zw-chart" style="flex:1;width:100%;min-height:0;margin-top:2px"></div>
@@ -79,7 +83,6 @@
       chart: {
         type: "spline",
         animation: false,
-        spacing: [4, 4, 0, 4],
         backgroundColor: "transparent"
       },
       title:   { text: null },

@@ -45,6 +45,10 @@
 
   --chart-grid: color-mix(in oklab, var(--felt-border-color) 55%, transparent);
   --chart-halo: color-mix(in oklab, var(--felt-surface) 60%, transparent);
+  --chart-band: light-dark(color-mix(in oklab, var(--felt-success) 16%, transparent),
+                           color-mix(in oklab, var(--felt-success) 28%, transparent));
+  --chart-gap: color-mix(in oklab, var(--felt-secondary-color) 9%, transparent);
+  --chart-stand-in: color-mix(in oklab, var(--felt-secondary-color) 45%, transparent);
 }
 
 :root { --felt-container-max: 1040px; }

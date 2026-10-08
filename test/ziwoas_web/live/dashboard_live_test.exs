@@ -3,7 +3,7 @@ defmodule ZiwoasWeb.DashboardLiveTest do
 
   import Phoenix.LiveViewTest
 
-  alias Ziwoas.{Clock, Plugs, Repo, Solakon, TestClock}
+  alias Ziwoas.{Clock, Plugs, Repo, Sensors, Solakon, TestClock, TestConfigs}
   alias Ziwoas.Plugs.DailyTotal
   alias Ziwoas.Solakon.Reading
   alias Ziwoas.Weather.Record
@@ -256,6 +256,66 @@ defmodule ZiwoasWeb.DashboardLiveTest do
 
       Plugs.notify_live([%{id: "fridge"}])
       assert_push_event(view, "today_chart:deltas", %{deltas: [%{id: "fridge"}]})
+    end
+  end
+
+  describe "the room air tile" do
+    test "shows the first room's air verdict and CO₂, and leads to that room", %{conn: conn} do
+      Repo.insert!(%Sensors.Reading{device_id: "TEST_INDOOR", taken_at: Clock.now(), co2: 1450})
+
+      doc = page(conn)
+
+      assert texts(doc, "#room_air_tile .stat") == [
+               "Wohnzimmer Jetzt lüften CO₂ hoch",
+               "CO₂ 1.450 ppm"
+             ]
+
+      assert texts(doc, "#room_air_tile .room-air-tile-meta") == ["hoch vor\u00A00\u00A0s"]
+
+      assert attrs(doc, "a#room_air_tile", "href") == ["/sensors#room-wohnzimmer"]
+      assert attrs(doc, "a#room_air_tile", "data-phx-link") == ["redirect"]
+      assert count(doc, "a#room_air_tile.bg-danger-subtle") == 1
+      assert "Raumluft" in texts(doc, "h2.h6")
+    end
+
+    test "follows each stored sensor reading, and a silent sensor on the next refresh",
+         %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      assert texts(from(render(view)), "#room_air_tile .stat-value") == [
+               "Keine aktuellen Werte",
+               "—"
+             ]
+
+      {:ok, _reading} = Sensors.create_reading("TEST_INDOOR", Clock.now(), %{co2: 640})
+      assert texts(from(render(view)), "#room_air_tile .stat-value") == ["CO₂ gut", "640 ppm"]
+
+      TestClock.freeze(DateTime.add(Clock.parse!(@now), 31 * 60))
+      send(view.pid, :refresh_room_air)
+
+      assert texts(from(render(view)), "#room_air_tile .stat-value") == [
+               "Keine aktuellen Werte",
+               "—"
+             ]
+    end
+
+    test "shows the SEN66's room, as the TRMNL does, even when another room comes first",
+         %{conn: conn} do
+      TestConfigs.put(
+        TestConfigs.plugs("""
+        sensors:
+          - { id: KCH, name: Küche, type: meter_pro_co2, room: Küche }
+          - { id: SEN, name: Raumluft, type: sen66, room: Wohnzimmer, port: /dev/x }
+        """)
+      )
+
+      assert texts(page(conn), "#room_air_tile .stat-label") == ["Wohnzimmer", "CO₂"]
+    end
+
+    test "stays away without a room that measures CO₂", %{conn: conn} do
+      TestConfigs.put(TestConfigs.plugs())
+
+      assert count(page(conn), "#room_air_tile") == 0
     end
   end
 end

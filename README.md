@@ -80,10 +80,10 @@ the host that served the page).
 healthcheck on `/up`, `sqlite3` for backups) and runs `bin/migrate`, then `bin/server`;
 `ZIWOAS_DB` and `ZIWOAS_CONFIG` point to `/app/storage` and `/app/config`. `docker-compose.yml` is
 one service on the host network (Govee answers by multicast on UDP 4002) and expects
-`SECRET_KEY_BASE`; it runs `latest` unless `ZIWOAS_TAG` names another tag.
-`.github/workflows/docker.yml` publishes `latest` and `sha-<commit>` for `linux/amd64` on every push
-to `main`, after the tests. Update with `docker compose pull && docker compose up -d`; roll back with
-`ZIWOAS_TAG=sha-…`.
+`SECRET_KEY_BASE`; it runs `latest` unless `ZIWOAS_TAG` names another tag, and sees the host's `/dev`
+read-only for the SEN66 (ADR-0009). `.github/workflows/docker.yml` publishes `latest` and
+`sha-<commit>` for `linux/amd64` on every push to `main`, after the tests. Update with
+`docker compose pull && docker compose up -d`; roll back with `ZIWOAS_TAG=sha-…`.
 
 Take a backup before a new image migrates (`sqlite3 … ".backup …"`). The app itself backs up the database every
 night into `backup/` next to the database file.
@@ -94,4 +94,5 @@ night into `backup/` next to the database file.
 - [`docs/adr/`](docs/adr/) – architecture decisions
 - [`docs/solakon-modbus-protocol.md`](docs/solakon-modbus-protocol.md) – Modbus registers of the
   Solakon ONE
-- [`docs/trmnl/`](docs/trmnl/) – Liquid templates of the TRMNL widgets
+- [`trmnl/`](trmnl/) – the TRMNL plugins as trmnlp projects; preview with `trmnlp serve`,
+  deploy with `trmnlp push` (gem `trmnl_preview`)

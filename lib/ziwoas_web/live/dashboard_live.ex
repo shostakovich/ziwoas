@@ -4,14 +4,17 @@ defmodule ZiwoasWeb.DashboardLive do
 
   import ZiwoasWeb.Components.EnergyFlow
   import ZiwoasWeb.DashboardComponents
+  import ZiwoasWeb.RoomAirComponents, only: [dashboard_tile: 1]
 
-  alias Ziwoas.{Clock, Config, Energy, LocalDay, Plugs, Solakon, Weather}
+  alias Ziwoas.{Clock, Config, Energy, LocalDay, Plugs, Sensors, Solakon, Weather}
   alias Ziwoas.Plugs.Measurement
   alias ZiwoasWeb.Charts
   alias ZiwoasWeb.DashboardComponents
 
   @summary_throttle_s 60
   @today_chart_refresh_ms 3_600_000
+  # A silent sensor must not keep a stale verdict on the tile.
+  @room_air_refresh_ms 60_000
 
   @impl true
   def mount(_params, _session, socket) do
@@ -21,12 +24,15 @@ defmodule ZiwoasWeb.DashboardLive do
       socket
       |> assign(page_title: "Dashboard", beat: 0)
       |> assign_summary(config)
+      |> assign_room_air(config)
       |> load_live()
 
     if connected?(socket) do
       Plugs.subscribe()
       Plugs.subscribe(:aggregated)
       Solakon.subscribe()
+      Sensors.subscribe()
+      Process.send_after(self(), :refresh_room_air, @room_air_refresh_ms)
       schedule_midnight(config)
       Process.send_after(self(), :slide_today_chart, @today_chart_refresh_ms)
     end
@@ -48,6 +54,17 @@ defmodule ZiwoasWeb.DashboardLive do
         else: push_event(socket, "today_chart:deltas", %{deltas: deltas})
 
     {:noreply, socket}
+  end
+
+  def handle_info({:reading, %Sensors.Reading{}}, socket),
+    do: {:noreply, assign_room_air(socket, Config.get())}
+
+  def handle_info({:polled, _instant}, socket),
+    do: {:noreply, assign_room_air(socket, Config.get())}
+
+  def handle_info(:refresh_room_air, socket) do
+    Process.send_after(self(), :refresh_room_air, @room_air_refresh_ms)
+    {:noreply, assign_room_air(socket, Config.get())}
   end
 
   def handle_info({:reading, _reading}, socket), do: {:noreply, load_live(socket)}
@@ -89,6 +106,8 @@ defmodule ZiwoasWeb.DashboardLive do
           <.tile {tile(@summary_tiles, "tile_autarky")} />
           <.tile {tile(@summary_tiles, "tile_self_consumption")} />
         </div>
+
+        <.dashboard_tile :if={@room_air} tile={@room_air} />
 
         <.energy_flow
           live={@live}
@@ -133,6 +152,27 @@ defmodule ZiwoasWeb.DashboardLive do
       summary_tiles: DashboardComponents.summary_tiles(Energy.today(config)),
       summary_at: Clock.unix_now()
     )
+  end
+
+  defp assign_room_air(socket, config) do
+    now = Clock.now()
+
+    room_air =
+      with name when is_binary(name) <- Sensors.display_room(config) do
+        reading = Sensors.room_reading(config, name, now)
+
+        %{
+          id:
+            config |> Sensors.rooms() |> ZiwoasWeb.RoomAirComponents.anchors() |> Map.fetch!(name),
+          name: name,
+          reading: reading,
+          quantities: Sensors.room_quantities(config, name),
+          verdict: Sensors.air_verdict(reading),
+          now: now
+        }
+      end
+
+    assign(socket, :room_air, room_air)
   end
 
   defp maybe_refresh_summary(socket) do

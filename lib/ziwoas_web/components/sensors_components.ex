@@ -8,28 +8,21 @@ defmodule ZiwoasWeb.SensorsComponents do
   attr :latest, :map, required: true
   attr :now, DateTime, required: true
 
-  def dashboard(assigns) do
+  def sensor_cards(assigns) do
     ~H"""
-    <%= if @latest == %{} do %>
-      <.card title="Noch keine Sensordaten">
-        <p>Die Sensoransicht erscheint, sobald die SwitchBot-API Daten geliefert hat.</p>
-      </.card>
-    <% else %>
-      <.battery_warning sensors={@sensors} latest={@latest} />
-      <section
-        class={[
-          "row row-cols-1 g-3 mb-3",
-          "row-cols-sm-#{columns(@sensors, 2)}",
-          "row-cols-lg-#{columns(@sensors, 3)}"
-        ]}
-        aria-label="Sensoren"
-      >
-        <div :for={sensor <- @sensors} class="col">
-          <.sensor_card sensor={sensor} reading={@latest[sensor.id]} now={@now} />
-        </div>
-      </section>
-      <.charts sensors={@sensors} />
-    <% end %>
+    <section
+      class={[
+        "row row-cols-1 g-3 mb-3",
+        "row-cols-sm-#{columns(@sensors, 2)}",
+        "row-cols-lg-#{columns(@sensors, 3)}"
+      ]}
+      aria-label="Sensoren"
+    >
+      <div :for={sensor <- @sensors} class="col">
+        <.sensor_card sensor={sensor} reading={@latest[sensor.id]} now={@now} />
+      </div>
+    </section>
+    <.charts sensors={@sensors} />
     """
   end
 
@@ -81,7 +74,7 @@ defmodule ZiwoasWeb.SensorsComponents do
                   °C
                 </li>
                 <li :if={@reading.humidity}>
-                  <strong class="fs-5 tabular-nums">{@reading.humidity}</strong> % rH
+                  <strong class="fs-5 tabular-nums">{number(@reading.humidity)}</strong> % rH
                 </li>
                 <li :if={@co2? && @reading.co2}>
                   <strong class="fs-5 tabular-nums">{number(@reading.co2)}</strong> ppm
@@ -118,7 +111,7 @@ defmodule ZiwoasWeb.SensorsComponents do
 
     ~H"""
     <div id="sensors_chart" phx-hook="SensorsChart">
-      <.card title="CO₂" subtitle={chart_subtitle("ppm", @co2_sensors)}>
+      <.card :if={@co2_sensors != []} title="CO₂" subtitle={chart_subtitle("ppm", @co2_sensors)}>
         <div class="chart-frame chart-frame-prominent" id="sensors_co2_chart" phx-update="ignore">
           <canvas data-series="co2"></canvas>
         </div>
@@ -190,7 +183,7 @@ defmodule ZiwoasWeb.SensorsComponents do
   @max_ppm 2000
   @center 60
   @radius 46
-  @level_labels [good: "gut", warn: "erhöht", bad: "schlecht"]
+  @level_labels [good: "gut", warn: "erhöht", bad: "hoch"]
   @felt_texture "https://felt-css.rocu.de/img/felt.svg"
   # Keeps felt-css's 256 px texture tile and 7 px stitch at the size the cards wear them.
   @texture_size 295

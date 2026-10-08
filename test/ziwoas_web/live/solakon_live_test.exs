@@ -104,7 +104,7 @@ defmodule ZiwoasWeb.SolakonLiveTest do
 
     assert count(doc, "[data-async=loading]") == 3
 
-    refute LazyHTML.to_html(doc) =~ ~r/SOH|EPS|46613|39067|Modbus/
+    refute LazyHTML.text(doc) =~ ~r/SOH|EPS|46613|39067|Modbus/
     assert count(doc, ".ef-ring[data-ring='pv'] > img.ef-icon[src*='icon_sonne'][alt='PV']") == 1
   end
 
@@ -179,7 +179,8 @@ defmodule ZiwoasWeb.SolakonLiveTest do
              ["— %", "97 %", "— W", "51,3 V", "4,20 A", "24,8 °C", "51,2 Ah"]
 
     assert count(doc, ".solakon-balance-row") == 5
-    refute LazyHTML.to_html(doc) =~ ~r/SOH|EPS|Modbus|Register|39067|46613|Fault\d|Alarm \d/
+    # The visible text, not the markup: random tokens (CSRF, session) may contain „EPS“.
+    refute LazyHTML.text(doc) =~ ~r/SOH|EPS|Modbus|Register|39067|46613|Fault\d|Alarm \d/
   end
 
   test "status shows the newest reading's battery character with a short description", %{

@@ -159,6 +159,22 @@ export function tonesByOrder(ids) {
   return new Map(ids.map((id, index) => [ id, vizToken(index) ]))
 }
 
+// A dashed horizontal line across the plot, named at its end instead of in the legend.
+export function thresholdLine(xBounds, { value, name, tone, textTone }) {
+  return {
+    label: name,
+    endLabel: name,
+    endLabelTone: textTone,
+    data: xBounds ? [ { x: xBounds.min, y: value }, { x: xBounds.max, y: value } ] : [],
+    tone,
+    borderDash: [ 4, 4 ],
+    borderWidth: 1.5,
+    pointRadius: 0,
+    fill: false,
+    tension: 0,
+  }
+}
+
 export function lineElements() {
   return { line: { borderWidth: isPhone() ? 0.75 : 1.25 } }
 }
@@ -309,7 +325,7 @@ function endLabelText(chart, dataset, meta) {
   const value = meta.controller.getParsed(meta.data.length - 1)?.y
   const ticks = chart.scales[meta.yAxisID]?.ticks || []
   const onTick = ticks.some((tick) => Math.abs(tick.value - value) <= 1e-9 * Math.max(1, Math.abs(value)))
-  if (onTick || !Number.isFinite(value)) return dataset.endLabel
+  if (dataset.endLabelPlain || onTick || !Number.isFinite(value)) return dataset.endLabel
   const decimals = dataset.decimals ?? scaleConfig(chart, dataset).decimals ?? 0
   return `${formatNumber(value, { decimals })} ${dataset.endLabel}`
 }
@@ -333,6 +349,12 @@ function drawEndLabels(chart) {
     })
     if (spot) {
       taken.push(spot.box)
+      // Opt-in solid plate, for labels that may sit over shading such as a hatch.
+      if (dataset.endLabelBox) {
+        const { left, top, right, bottom } = spot.box
+        ctx.fillStyle = themeColor("--felt-surface")
+        ctx.fillRect(left - 3, top - 1, right - left + 6, bottom - top + 2)
+      }
       ctx.textAlign = spot.textAlign
       ctx.textBaseline = spot.textBaseline
       ctx.lineJoin = "round"

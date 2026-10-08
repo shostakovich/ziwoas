@@ -33,9 +33,9 @@ erl_crash.dump
 .legacy_backup/
 
 .idea
-/.superpowers/*
-/docs/superpowers/
 /.worktrees/
+/trmnl/*/_build/
+/trmnl/*/report/
 
 # Left over from the Rails app.
 /coverage/

@@ -69,6 +69,51 @@ defmodule Ziwoas.Scheduler.JobsTest do
            )
   end
 
+  describe "the TRMNL sensor widget" do
+    @sen66_only """
+    sensors:
+      - { id: SEN, name: Raumluft, type: sen66, room: Wohnzimmer, port: /dev/x }
+    trmnl:
+      sensors_webhook_url: https://s
+    """
+
+    test "is pushed by a job of its own without SwitchBot sensors to poll" do
+      names = names(TestConfigs.plugs(@sen66_only))
+
+      assert :push_trmnl_sensors in names
+      refute :poll_sensors in names
+    end
+
+    test "is pushed by the SwitchBot poll right after it polled, never twice" do
+      names =
+        names(
+          TestConfigs.plugs(
+            "switchbot: { token: t, secret: s }\n" <>
+              String.replace(
+                @sen66_only,
+                "trmnl:",
+                "  - { id: A, name: A, type: meter_pro_co2, room: Wohnzimmer }\ntrmnl:"
+              )
+          )
+        )
+
+      assert :poll_sensors in names
+      refute :push_trmnl_sensors in names
+    end
+
+    test "is not pushed without a webhook URL" do
+      refute :push_trmnl_sensors in names(
+               TestConfigs.plugs(String.replace(@sen66_only, ~r/trmnl:.*/s, ""))
+             )
+    end
+
+    test "a SwitchBot account without SwitchBot sensors polls nothing" do
+      refute :poll_sensors in names(
+               TestConfigs.plugs("switchbot: { token: t, secret: s }\n" <> @sen66_only)
+             )
+    end
+  end
+
   test "the aggregation backs up into the configured directory" do
     [{:aggregate_energy_samples, {:daily, ~T[03:15:00]}, {_module, opts}}] =
       Scheduler.jobs(TestConfigs.plugs())

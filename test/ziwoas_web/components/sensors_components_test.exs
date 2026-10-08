@@ -26,7 +26,7 @@ defmodule ZiwoasWeb.SensorsComponentsTest do
     assert LazyHTML.attribute(svg, "role") == ["img"]
     assert LazyHTML.attribute(svg, "aria-label") == ["CO₂ 850 ppm, gut"]
     assert LazyHTML.attribute(gauge(1200), "aria-label") == ["CO₂ 1.200 ppm, erhöht"]
-    assert LazyHTML.attribute(gauge(1600), "aria-label") == ["CO₂ 1.600 ppm, schlecht"]
+    assert LazyHTML.attribute(gauge(1600), "aria-label") == ["CO₂ 1.600 ppm, hoch"]
   end
 
   test "three zones split the arc at the presenter's thresholds" do
@@ -95,6 +95,6 @@ defmodule ZiwoasWeb.SensorsComponentsTest do
   test "values beyond the scale pin the needle to its ends" do
     assert needle_angle(300) == 0.0
     assert needle_angle(5000) == 180.0
-    assert LazyHTML.attribute(gauge(5000), "aria-label") == ["CO₂ 5.000 ppm, schlecht"]
+    assert LazyHTML.attribute(gauge(5000), "aria-label") == ["CO₂ 5.000 ppm, hoch"]
   end
 end
