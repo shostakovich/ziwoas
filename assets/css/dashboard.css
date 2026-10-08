@@ -1,31 +1,26 @@
-.hero-icon { width: 3rem; height: 3rem; object-fit: contain; flex: none; }
+.hero-icon { --felt-icon-size: 3rem; }
 @media (min-width: 576px) {
-  .hero-icon { width: 5rem; height: 5rem; }
+  .hero-icon { --felt-icon-size: 5rem; }
 }
-
-.legend-dot { width: .75rem; height: .75rem; padding: 0; flex: none; }
 
 .plug-bar > .progress { min-width: .75rem; }
 .plug-bar-name { min-width: 0; hyphens: auto; overflow-wrap: break-word; }
 
 .energy-flow { position: relative; width: 100%; max-width: 34rem; margin-inline: auto; }
 
-/* Not --felt-track for the groove: that stays a cool grey on felt. */
-.energy-flow { --ef-groove: color-mix(in oklab, var(--felt-body-color) 13%, transparent); }
-.energy-flow .ef-link { stroke: var(--ef-groove); transition: stroke 300ms ease-out; }
+.energy-flow .ef-link { stroke: var(--felt-track); transition: stroke 300ms ease-out; }
 .energy-flow .ef-link[data-flowing] { stroke: var(--ef-tone); }
 .energy-flow-key { font-size: .75rem; }
 
 .energy-flow { container-type: inline-size; --ef-unit: calc(100cqi / 400);
-               --ef-icon-size: calc(40 * var(--ef-unit)); --ef-value-size: calc(12 * var(--ef-unit)); }
+               --felt-icon-size: calc(40 * var(--ef-unit)); --ef-value-size: calc(12 * var(--ef-unit)); }
 .ef-ring { position: absolute; translate: -50% -50%; display: flex; flex-direction: column;
            align-items: center; justify-content: center; gap: calc(4 * var(--ef-unit)); }
-.ef-icon { width: var(--ef-icon-size); aspect-ratio: 1; object-fit: contain; }
 .ef-value { font-size: var(--ef-value-size); color: var(--felt-body-color); white-space: nowrap; }
 
 @media (max-width: 575.98px) {
   .energy-flow { width: calc(100% + 2 * var(--felt-space-3)); max-width: none; margin-inline: calc(-1 * var(--felt-space-3));
-                 --ef-icon-size: calc(30 * var(--ef-unit)); --ef-value-size: calc(13.5 * var(--ef-unit)); }
+                 --felt-icon-size: calc(30 * var(--ef-unit)); --ef-value-size: calc(13.5 * var(--ef-unit)); }
   .energy-flow .ef-names { font-size: 14px; }
 }
 

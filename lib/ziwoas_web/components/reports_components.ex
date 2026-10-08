@@ -120,7 +120,7 @@ defmodule ZiwoasWeb.ReportsComponents do
           max_kwh={@max_kwh}
           colour={producer_color()}
         >
-          <img alt="Erzeuger" class="app-nav-icon" src={~p"/images/icon_sonne.webp"} />
+          <img alt="Erzeuger" class="icon icon-sm" src={~p"/images/icon_sonne.webp"} />
         </.ranking_row>
       </ul>
       <ol :if={@consumers != []} class="list-group mb-3 small" aria-label="Rangliste">

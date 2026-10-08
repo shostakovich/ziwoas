@@ -57,7 +57,7 @@ defmodule ZiwoasWeb.WeatherComponents do
         <div class="row g-3 align-items-center">
           <div class="col-12 col-md d-flex align-items-center gap-3">
             <img
-              class="weather-icon weather-icon-lg"
+              class="icon weather-icon-lg"
               width="82"
               height="82"
               alt={icon_label(@current.icon)}
@@ -93,7 +93,8 @@ defmodule ZiwoasWeb.WeatherComponents do
       </div>
       <div class="weather-current-solar card-footer d-flex align-items-baseline gap-2">
         <span class="small fw-semibold text-uppercase text-warning-emphasis">
-          <img class="weather-icon-inline" alt="" src={~p"/images/weather_clear_day.webp"} /> Solar
+          <img class="icon weather-icon-inline" alt="" src={~p"/images/weather_clear_day.webp"} />
+          Solar
         </span>
         <span class="fw-semibold tabular-nums">
           <%= if @current.daytime == "night" do %>
@@ -175,7 +176,7 @@ defmodule ZiwoasWeb.WeatherComponents do
             :if={@peak}
             class="weather-day-peak small fw-semibold text-warning-emphasis tabular-nums text-nowrap"
           >
-            <img class="weather-icon-inline" alt="" src={~p"/images/weather_clear_day.webp"} />
+            <img class="icon weather-icon-inline" alt="" src={~p"/images/weather_clear_day.webp"} />
             Spitze {number(@peak, unit: "W/m²")}
           </div>
         </div>
@@ -205,7 +206,7 @@ defmodule ZiwoasWeb.WeatherComponents do
           >
             <span class="weather-segment-label small">{segment_label(segment)}</span>
             <img
-              class="weather-segment-icon weather-icon weather-icon-md"
+              class="weather-segment-icon icon weather-icon-md"
               width="72"
               height="72"
               loading="lazy"
@@ -258,7 +259,7 @@ defmodule ZiwoasWeb.WeatherComponents do
         {clock(@record.timestamp, @zone)}
       </div>
       <img
-        class="weather-icon weather-icon-sm d-block mx-auto my-2"
+        class="icon weather-icon-sm d-block mx-auto my-2"
         width="42"
         height="42"
         loading="lazy"
@@ -272,7 +273,7 @@ defmodule ZiwoasWeb.WeatherComponents do
       >
         <%= for row <- @rows, cell = hour_cell(@record, row) do %>
           <li class={["weather-hour-#{row}", cell.classes, cell.emphasis && "fw-semibold"]}>
-            <img class="weather-icon-inline" alt={cell.alt} src={~p"/images/#{cell.icon}"} />
+            <img class="icon weather-icon-inline" alt={cell.alt} src={~p"/images/#{cell.icon}"} />
             {cell.text}
           </li>
         <% end %>

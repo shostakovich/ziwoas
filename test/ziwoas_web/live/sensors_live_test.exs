@@ -56,7 +56,7 @@ defmodule ZiwoasWeb.SensorsLiveTest do
                "Leitsensor: Test Wohnzimmer · vor 5 Min"
              ]
 
-      assert attrs(doc, "#room-wohnzimmer svg.co2-gauge", "aria-label") == [
+      assert attrs(doc, "#room-wohnzimmer .co2-gauge svg[role=img]", "aria-label") == [
                "CO₂ 1.200 ppm, erhöht"
              ]
 
@@ -209,7 +209,9 @@ defmodule ZiwoasWeb.SensorsLiveTest do
                "Warnung"
              ]
 
-      assert attrs(doc, "#room-wohnzimmer svg.co2-gauge", "aria-label") == ["CO₂ 900 ppm, gut"]
+      assert attrs(doc, "#room-wohnzimmer .co2-gauge svg[role=img]", "aria-label") == [
+               "CO₂ 900 ppm, gut"
+             ]
 
       assert texts(doc, "#room-wohnzimmer .room-air-hero .stat > span.small") == [
                "vom Ersatzsensor",

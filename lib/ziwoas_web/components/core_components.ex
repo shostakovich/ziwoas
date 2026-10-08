@@ -282,7 +282,7 @@ defmodule ZiwoasWeb.CoreComponents do
     ~H"""
     <div class="col" id={@id} {@rest}>
       <div class="card h-100">
-        <div class="card-body p-3 h-100 d-flex flex-column">
+        <div class="card-body p-3 d-flex flex-column">
           <div class="stat flex-grow-1">
             <span class="stat-label">{if @title != [], do: render_slot(@title), else: @label}</span>
             <span class="stat-value fs-2 mt-auto">{@number}

@@ -121,7 +121,7 @@ defmodule ZiwoasWeb.DashboardLiveTest do
 
     assert count(
              doc,
-             ".ef-ring[data-ring='pv'] > img.ef-icon[src*='weather_cloudy_night'][alt='cloudy']"
+             ".ef-ring[data-ring='pv'] > img.icon[src*='weather_cloudy_night'][alt='cloudy']"
            ) == 1
 
     Repo.delete_all(Record)

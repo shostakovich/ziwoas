@@ -105,7 +105,7 @@ defmodule ZiwoasWeb.SolakonLiveTest do
     assert count(doc, "[data-async=loading]") == 3
 
     refute LazyHTML.text(doc) =~ ~r/SOH|EPS|46613|39067|Modbus/
-    assert count(doc, ".ef-ring[data-ring='pv'] > img.ef-icon[src*='icon_sonne'][alt='PV']") == 1
+    assert count(doc, ".ef-ring[data-ring='pv'] > img.icon[src*='icon_sonne'][alt='PV']") == 1
   end
 
   test "without an inverter configured the auto-regulation is off and cannot be switched", %{
