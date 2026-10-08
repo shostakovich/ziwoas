@@ -270,23 +270,28 @@ defmodule ZiwoasWeb.CoreComponents do
   end
 
   attr :id, :string, default: nil
-  attr :label, :string, required: true
+  attr :label, :string, default: nil
   attr :number, :string, required: true
   attr :unit, :string, default: nil
   attr :caption, :string, default: nil
+  attr :rest, :global
+  slot :title, doc: "the label as markup, in place of `label`"
+  slot :badge, doc: "beside the caption, e.g. a level"
 
   def tile(assigns) do
     ~H"""
-    <div class="col" id={@id}>
+    <div class="col" id={@id} {@rest}>
       <div class="card h-100">
         <div class="card-body p-3 h-100 d-flex flex-column">
           <div class="stat flex-grow-1">
-            <span class="stat-label">{@label}</span>
+            <span class="stat-label">{if @title != [], do: render_slot(@title), else: @label}</span>
             <span class="stat-value fs-2 mt-auto">{@number}
             <%= if @unit do %>
               <span class="fs-5 fw-semibold">{@unit}</span>
             <% end %></span>
-            <span :if={@caption} class="small text-body-secondary">{@caption}</span>
+            <span :if={@badge != [] or @caption} class="small text-body-secondary">
+              {render_slot(@badge)} {@caption}
+            </span>
           </div>
         </div>
       </div>

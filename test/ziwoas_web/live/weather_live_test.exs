@@ -1,6 +1,8 @@
 defmodule ZiwoasWeb.WeatherLiveTest do
   use ZiwoasWeb.ConnCase
 
+  import Phoenix.LiveViewTest
+
   alias Ziwoas.{Clock, Repo, TestClock}
   alias Ziwoas.Sensors.Reading
   alias Ziwoas.Weather.Record
@@ -354,7 +356,7 @@ defmodule ZiwoasWeb.WeatherLiveTest do
       device_id: "TEST_OUTDOOR",
       taken_at: DateTime.add(Clock.now(), -5 * 60),
       temperature: 7.7,
-      humidity: 80,
+      humidity: 80.0,
       battery_pct: 100
     })
 
@@ -368,12 +370,20 @@ defmodule ZiwoasWeb.WeatherLiveTest do
       device_id: "TEST_OUTDOOR",
       taken_at: DateTime.add(Clock.now(), -2 * 3600),
       temperature: 7.7,
-      humidity: 80,
+      humidity: 80.0,
       battery_pct: 100
     })
 
     html = conn |> get(~p"/weather") |> html_response(200)
     assert html =~ "99,9"
     refute html =~ "7,7"
+  end
+
+  test "a stored sensor reading leaves the page as it is", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/weather")
+
+    send(view.pid, {:reading, %Reading{device_id: "TEST_OUTDOOR"}})
+
+    assert render(view) =~ "Wetter"
   end
 end

@@ -9,6 +9,7 @@ import EnergyReport from "./hooks/energy_report.js"
 import HistoryChart from "./hooks/history_chart.js"
 import LightDetail from "./hooks/light_detail.js"
 import LiveFreshness from "./hooks/live_freshness.js"
+import RoomAirChart from "./hooks/room_air_chart.js"
 import SensorsChart from "./hooks/sensors_chart.js"
 import SettingsSheet from "./hooks/settings_sheet.js"
 import SolakonHistory from "./hooks/solakon_history.js"
@@ -22,6 +23,7 @@ const hooks = {
   HistoryChart,
   LightDetail,
   LiveFreshness,
+  RoomAirChart,
   SensorsChart,
   SettingsSheet,
   SolakonHistory,

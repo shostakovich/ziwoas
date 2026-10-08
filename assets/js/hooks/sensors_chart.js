@@ -1,4 +1,4 @@
-import { renderChart, vizToken, tonesByOrder, timeScale, timeTooltipTitle } from "../lib/chart_theme.js"
+import { renderChart, vizToken, tonesByOrder, timeScale, timeTooltipTitle, thresholdLine } from "../lib/chart_theme.js"
 
 const CO2_LINES = [
   { name: "Lüften", tone: "--felt-warning", textTone: "--felt-warning-text" },
@@ -53,21 +53,6 @@ function datasets(series, tones) {
     borderWidth: 2,
     pointRadius: 0,
   }))
-}
-
-function thresholdLine(xBounds, { value, name, tone, textTone }) {
-  return {
-    label: name,
-    endLabel: name,
-    endLabelTone: textTone,
-    data: xBounds ? [ { x: xBounds.min, y: value }, { x: xBounds.max, y: value } ] : [],
-    tone,
-    borderDash: [ 4, 4 ],
-    borderWidth: 1.5,
-    pointRadius: 0,
-    fill: false,
-    tension: 0,
-  }
 }
 
 function chartOptions(unit, xBounds, seriesCount) {

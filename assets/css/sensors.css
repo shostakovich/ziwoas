@@ -22,3 +22,79 @@
 .co2-gauge-texture { mix-blend-mode: soft-light; }
 circle.co2-gauge-texture { stroke: none; }
 .co2-gauge-stitches { opacity: light-dark(.95, .7); }
+
+.chart-key-line,
+.chart-key-limit,
+.chart-key-band,
+.chart-key-gap,
+.chart-key-stand-in {
+  display: inline-block;
+  width: 1.125rem;
+  margin-inline-end: .375rem;
+  vertical-align: middle;
+}
+.chart-key-line { height: 2px; border-radius: 1px; background-color: var(--tone); }
+.chart-key-limit { height: 0; border-top: 1.5px dashed var(--felt-warning); }
+.chart-key-band,
+.chart-key-gap,
+.chart-key-stand-in { height: .75rem; border-radius: 2px; }
+.chart-key-band { background-color: var(--chart-band); }
+.chart-key-gap { background-color: var(--chart-gap); box-shadow: inset 0 0 0 1px var(--chart-grid); }
+.chart-key-stand-in {
+  background-image: repeating-linear-gradient(-45deg, var(--chart-stand-in) 0 1.5px, transparent 1.5px 5px);
+  box-shadow: inset 0 0 0 1px var(--chart-stand-in);
+}
+
+/* One hue, from the body colour (fine) to the pure data colour (coarse): every step keeps 3:1 on the card. */
+.pm-split [data-bin],
+.pm-split-key[data-bin] { background-color: color-mix(in oklab, var(--viz-1) var(--bin-mix, 100%), var(--felt-body-color)); }
+[data-bin="1"] { --bin-mix: 33%; }
+[data-bin="2"] { --bin-mix: 55%; }
+[data-bin="3"] { --bin-mix: 77%; }
+/* On a light card the darkest step would read as black. */
+@media (prefers-color-scheme: light) { [data-bin="1"] { --bin-mix: 46%; } [data-bin="2"] { --bin-mix: 63%; } }
+
+.room-air-sensor + .room-air-sensor { border-top: var(--felt-border-width) solid var(--felt-border-color); padding-top: var(--felt-space-3); }
+@media (min-width: 768px) {
+  .room-air-sensor + .room-air-sensor { border-top: 0; padding-top: 0; border-inline-start: var(--felt-border-width) solid var(--felt-border-color); }
+  .room-air-hero .co2-gauge { width: 7.5rem; }
+  .room-air-hero-column { border-inline-start: var(--felt-border-width) solid var(--felt-border-color); padding-inline-start: var(--felt-space-4); }
+}
+:where([data-look="felt"]) .room-air-hero .card-footer { border-top: 1px dashed var(--felt-border-color-strong); }
+
+.room-air-chevron { flex: none; width: 1.25rem; height: 1.25rem; color: var(--felt-secondary-color); transition: translate 150ms ease-out; }
+:is(.room-air-tile, .room-air-strip-row):is(:hover, :focus-visible) .room-air-chevron { translate: 3px 0; color: var(--felt-body-color); }
+
+.room-air-tile { min-height: 6.5rem; transition: border-color 150ms ease-out; }
+.room-air-tile:is(:hover, :focus-visible) { border-color: var(--felt-border-color-strong); }
+/* Verdict | CO₂; the meta line (level, source, age) under CO₂, under both on phones. */
+.room-air-tile-grid { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: var(--felt-space-3); row-gap: .25rem; }
+.room-air-tile-meta { grid-column: 1 / -1; }
+@media (min-width: 576px) {
+  .room-air-tile-verdict { grid-row: 1 / span 2; }
+  .room-air-tile-meta { grid-column: 2; text-align: end; }
+}
+
+/* One column per field across all rooms (subgrid). Phones: name, verdict and chevron, then CO₂ and the hint. */
+.room-air-strip .list-group { display: grid; grid-template-columns: max-content max-content 1fr auto; }
+.room-air-strip-row {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: subgrid;
+  column-gap: var(--felt-space-3);
+  row-gap: .125rem;
+  align-items: baseline;
+}
+.room-air-strip-verdict { white-space: nowrap; }
+.room-air-strip-co2 { grid-column: 1; grid-row: 2; }
+.room-air-strip-hint { grid-column: 2 / 4; grid-row: 2; }
+.room-air-strip-chevron { grid-column: 4; grid-row: 1 / span 2; align-self: center; }
+@media (min-width: 576px) {
+  .room-air-strip .list-group { grid-template-columns: minmax(7rem, max-content) max-content minmax(5.5rem, max-content) 1fr auto; }
+  .room-air-strip-co2 { grid-column: 3; grid-row: 1; text-align: end; }
+  .room-air-strip-hint { grid-column: 4; grid-row: 1; }
+  .room-air-strip-chevron { grid-column: 5; grid-row: 1; }
+}
+
+/* A plot without a legend keeps its neighbour's top line. */
+.chart-key { min-height: 1lh; }
