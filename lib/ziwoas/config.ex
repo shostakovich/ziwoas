@@ -85,27 +85,41 @@ defmodule Ziwoas.Config do
     import Ecto.Changeset
     alias Ziwoas.Config.Types
 
+    @switchbot_types [:meter_pro_co2, :outdoor_meter]
+
     @primary_key false
     embedded_schema do
       field :id, Types.Text
       field :name, Types.Text
-      field :type, Ecto.Enum, values: [:meter_pro_co2, :outdoor_meter]
+      field :type, Ecto.Enum, values: [:sen66 | @switchbot_types]
       field :room, Types.Text
+      field :port, Types.Text
     end
 
     @type t :: %__MODULE__{
             id: String.t(),
             name: String.t(),
-            type: :meter_pro_co2 | :outdoor_meter,
-            room: String.t() | nil
+            type: :sen66 | :meter_pro_co2 | :outdoor_meter,
+            room: String.t() | nil,
+            port: String.t() | nil
           }
 
     @doc false
     def changeset(sensor, params) do
       sensor
-      |> cast(params, [:id, :name, :type, :room], message: &Types.cast_message/2)
+      |> cast(params, [:id, :name, :type, :room, :port], message: &Types.cast_message/2)
       |> validate_required([:id, :name, :type], message: "is required")
+      |> validate_port()
     end
+
+    defp validate_port(changeset) do
+      if get_field(changeset, :type) == :sen66,
+        do: validate_required(changeset, [:port], message: "is required for type sen66"),
+        else: changeset
+    end
+
+    @spec switchbot?(t) :: boolean
+    def switchbot?(%__MODULE__{type: type}), do: type in @switchbot_types
   end
 
   defmodule Trmnl do

@@ -32,19 +32,28 @@ defmodule Ziwoas.CollectorTest do
             control_enabled: true
           govee:
             api_key: k
+          sensors:
+            - id: "19B8E27966467D7A"
+              name: Raumluft
+              type: sen66
+              port: /dev/serial/by-id/usb-Adafruit-if00
+            - id: "ABCDEF"
+              name: Wohnzimmer
+              type: meter_pro_co2
           """)
 
   @bare %{
     @config
     | solakon: nil,
       govee: nil,
+      sensors: [],
       plugs: Enum.reject(@config.plugs, &(&1.driver == :fritz_dect))
   }
 
   defp ids(children) do
     Enum.map(children, fn
       %{id: id} -> id
-      {module, opts} -> {module, Keyword.get(opts, :plug, %{id: nil}).id}
+      {module, opts} -> {module, (opts[:plug] || opts[:sensor] || %{id: nil}).id}
     end)
   end
 
@@ -54,7 +63,8 @@ defmodule Ziwoas.CollectorTest do
              {Ziwoas.Solakon.Monitor, nil},
              {Ziwoas.Fritz.Bridge, "washer"},
              {Task.Supervisor, nil},
-             {Ziwoas.Govee.Bridge, nil}
+             {Ziwoas.Govee.Bridge, nil},
+             {Ziwoas.Sensors.Sen66, "19B8E27966467D7A"}
            ]
   end
 
@@ -99,6 +109,12 @@ defmodule Ziwoas.CollectorTest do
 
     assert opts[:plug].id == "washer"
     assert %Ziwoas.Fritz.DectClient{host: "fritz.box", user: "u", timeout_s: 2} = opts[:client]
+  end
+
+  test "each SEN66 gets its own reader, SwitchBot sensors none" do
+    readers = for {Ziwoas.Sensors.Sen66, opts} <- Collector.children(@config), do: opts[:sensor]
+
+    assert [%{id: "19B8E27966467D7A", port: "/dev/serial/by-id/usb-Adafruit-if00"}] = readers
   end
 
   test "a Govee config without an API key starts no bridge" do

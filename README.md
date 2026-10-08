@@ -80,8 +80,9 @@ the host that served the page).
 healthcheck on `/up`, `sqlite3` for backups) and runs `bin/migrate`, then `bin/server`;
 `ZIWOAS_DB` and `ZIWOAS_CONFIG` point to `/app/storage` and `/app/config`. `docker-compose.yml` is
 one service on the host network (Govee answers by multicast on UDP 4002) and expects `ZIWOAS_TAG`
-and `SECRET_KEY_BASE`. `.github/workflows/docker.yml` publishes images for `linux/amd64` only
-under an explicit tag, never `latest`.
+and `SECRET_KEY_BASE`; it sees the host's `/dev` read-only for the SEN66 (ADR-0009).
+`.github/workflows/docker.yml` publishes images for `linux/amd64` only under an explicit tag, never
+`latest`.
 
 Take a backup before a new image migrates (`sqlite3 … ".backup …"`). The app itself backs up the database every
 night into `backup/` next to the database file.

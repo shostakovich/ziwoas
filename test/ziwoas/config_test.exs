@@ -214,6 +214,42 @@ defmodule Ziwoas.ConfigTest do
     assert error(@valid <> sensors <> duplicate) =~ ~r/duplicate sensor id/i
   end
 
+  test "a sen66 sensor names its serial port, needs no SwitchBot and is no SwitchBot sensor" do
+    cfg =
+      load(
+        @valid <>
+          """
+          sensors:
+            - id: "19B8E27966467D7A"
+              name: "Raumluft"
+              type: sen66
+              room: "Wohnzimmer"
+              port: /dev/serial/by-id/usb-Adafruit-if00
+            - id: "112233"
+              name: "Balkon"
+              type: outdoor_meter
+          """
+      )
+
+    assert [sen66, outdoor] = cfg.sensors
+
+    assert %{
+             id: "19B8E27966467D7A",
+             type: :sen66,
+             room: "Wohnzimmer",
+             port: "/dev/serial/by-id/usb-Adafruit-if00"
+           } = sen66
+
+    refute Config.Sensor.switchbot?(sen66)
+    assert Config.Sensor.switchbot?(outdoor)
+    assert outdoor.port == nil
+  end
+
+  test "a sen66 sensor without a port is refused" do
+    assert error(@valid <> "sensors:\n  - id: X\n    name: X\n    type: sen66\n") =~
+             "sensors[0].port is required for type sen66"
+  end
+
   test "trmnl urls: both, none, partial; strings only, known keys only" do
     both =
       load(

@@ -22,7 +22,7 @@ defmodule Ziwoas.Collector do
 
   @spec children(Config.t()) :: [Supervisor.child_spec()]
   def children(%Config{} = config),
-    do: shelly(config) ++ solakon(config) ++ fritz(config) ++ govee(config)
+    do: shelly(config) ++ solakon(config) ++ fritz(config) ++ govee(config) ++ sen66(config)
 
   defp shelly(config) do
     if Enum.any?(config.plugs, &(&1.driver == :shelly)),
@@ -79,4 +79,8 @@ defmodule Ziwoas.Collector do
       {Task.Supervisor, name: Ziwoas.Govee.Tasks},
       {Ziwoas.Govee.Bridge, govee: govee}
     ]
+
+  defp sen66(config),
+    do:
+      for(%{type: :sen66} = sensor <- config.sensors, do: {Ziwoas.Sensors.Sen66, sensor: sensor})
 end

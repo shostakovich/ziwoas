@@ -5,6 +5,12 @@ services:
     restart: unless-stopped
     # Govee LAN answers via multicast, which never crosses a Docker bridge network.
     network_mode: host
+    # The SEN66 on USB serial (ADR-0009): the host's /dev read-only, so the by-id link and a
+    # replugged board resolve; the CDC ACM devices allowed; the host's dialout group (gid 20).
+    device_cgroup_rules:
+      - "c 166:* rmw"
+    group_add:
+      - "20"
     environment:
       TZ: Europe/Berlin
       PORT: 3000
@@ -16,3 +22,4 @@ services:
       # Owned by uid 1000.
       - ./storage:/app/storage
       - ./config/ziwoas.yml:/app/config/ziwoas.yml:ro
+      - /dev:/host-dev:ro

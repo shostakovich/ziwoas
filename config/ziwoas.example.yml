@@ -70,9 +70,17 @@ plugs:
 # sensors:
 #   - id: "ABCDEF123456"           # Geräte-ID aus GET /v1.1/devices der SwitchBot-API
 #     name: "Wohnzimmer"
-#     type: meter_pro_co2           # meter_pro_co2 | outdoor_meter
+#     type: meter_pro_co2           # meter_pro_co2 | outdoor_meter | sen66
 #     room: "Wohnzimmer"            # optional
 #
 #   - id: "112233445566"
 #     name: "Balkon"
 #     type: outdoor_meter
+#
+#   # SEN66 an USB (Firmware aus ziwoas-airquality), ohne SwitchBot-Zugang nutzbar.
+#   # Führt im Raum vor dem Meter Pro CO2 (ADR-0009).
+#   - id: "19B8E27966467D7A"       # Seriennummer des SEN66, wie die Firmware sie meldet
+#     name: "Raumluft"
+#     type: sen66
+#     room: "Wohnzimmer"
+#     port: /host-dev/serial/by-id/usb-Adafruit_Feather_RP2040_Adalogger_DF6380824F1E1330-if00   # Host-/dev unter /host-dev
