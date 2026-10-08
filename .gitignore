@@ -33,8 +33,6 @@ erl_crash.dump
 .legacy_backup/
 
 .idea
-/.superpowers/*
-/docs/superpowers/
 /.worktrees/
 
 # Left over from the Rails app.
