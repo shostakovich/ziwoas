@@ -71,10 +71,6 @@ defmodule Ziwoas.Solakon.MonitorJobTest do
     Config.from_yaml!("""
     location:
       timezone: Europe/Berlin
-    mqtt:
-      host: localhost
-      port: 1883
-      topic_prefix: shellies
     plugs: []
     solakon:
       host: 127.0.0.1

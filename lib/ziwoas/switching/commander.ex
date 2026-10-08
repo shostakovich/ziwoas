@@ -1,17 +1,21 @@
 defmodule Ziwoas.Switching.Commander do
   @moduledoc false
-  alias Ziwoas.{Mqtt, Repo}
   alias Ziwoas.Plugs.Plug
+  alias Ziwoas.{Repo, Shelly}
   alias Ziwoas.Switching.Command
 
-  @type error :: :not_switchable | {:no_driver, atom} | {:publish, term}
+  @type error ::
+          :not_switchable
+          | {:no_driver, atom}
+          | {:unreachable, :offline | :timeout}
+          | {:rejected, {integer | nil, String.t()}}
 
-  @spec switch(Plug.t(), Command.action(), Command.source(), Ziwoas.Config.Mqtt.t()) ::
+  @spec switch(Plug.t(), Command.action(), Command.source()) ::
           {:ok, Command.t()} | {:error, error}
-  def switch(plug, action, source, mqtt)
+  def switch(plug, action, source)
       when action in [:on, :off] and source in [:manual, :schedule] do
     with :ok <- switchable(plug),
-         :ok <- publish(plug, action, mqtt) do
+         :ok <- send_switch(plug, action) do
       {:ok, Repo.insert!(%Command{plug_id: plug.id, action: action, source: source})}
     end
   end
@@ -19,14 +23,13 @@ defmodule Ziwoas.Switching.Commander do
   defp switchable(%Plug{switchable: true}), do: :ok
   defp switchable(_plug), do: {:error, :not_switchable}
 
-  defp publish(%Plug{driver: :shelly} = plug, action, mqtt) do
-    topic = "#{mqtt.topic_prefix}/#{plug.id}/command/switch:0"
-
-    case Mqtt.publish(Mqtt.command_client_id(), topic, Atom.to_string(action)) do
-      :ok -> :ok
-      {:error, reason} -> {:error, {:publish, reason}}
+  defp send_switch(%Plug{driver: :shelly} = plug, action) do
+    case Shelly.call(plug.id, "Switch.Set", %{id: 0, on: action == :on}) do
+      {:ok, _result} -> :ok
+      {:error, {:rpc, code, message}} -> {:error, {:rejected, {code, message}}}
+      {:error, reason} -> {:error, {:unreachable, reason}}
     end
   end
 
-  defp publish(plug, _action, _mqtt), do: {:error, {:no_driver, plug.driver}}
+  defp send_switch(plug, _action), do: {:error, {:no_driver, plug.driver}}
 end

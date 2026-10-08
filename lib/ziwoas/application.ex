@@ -26,7 +26,11 @@ defmodule Ziwoas.Application do
 
   @doc false
   def children(loaded, opts) do
-    [Ziwoas.Repo, {Phoenix.PubSub, name: Ziwoas.PubSub}] ++
+    [
+      Ziwoas.Repo,
+      {Phoenix.PubSub, name: Ziwoas.PubSub},
+      {Registry, keys: :duplicate, name: Ziwoas.Shelly.registry()}
+    ] ++
       devices(loaded, opts) ++ [ZiwoasWeb.Endpoint]
   end
 

@@ -6,11 +6,6 @@ location:
   lat: 52.52
   lon: 13.405
 
-mqtt:
-  host: 192.168.1.103
-  port: 1883
-  topic_prefix: shellies
-
 # Solakon One – Regelung über Modbus TCP (ADR-0002).
 # Ohne diesen Block ist die Regelung aus.
 # solakon:
@@ -38,8 +33,6 @@ mqtt:
 #   sensors_webhook_url: https://trmnl.com/api/custom_plugins/<sensors-uuid>
 
 # Govee lights bridge (LAN-first + Platform API). Omit to disable.
-# api_key is your Govee developer key; it lives here in the gitignored
-# ziwoas.yml (like fritz_box.password), not in any other file.
 # govee:
 #   api_key: "your-govee-api-key"
 #   lan_poll_seconds: 8
@@ -50,6 +43,7 @@ mqtt:
 #       name: Uplighter
 #       room: Wohnzimmer
 
+# Shelly: set Settings → Outbound Websocket to ws://<ziwoas host>:<SHELLY_PORT>/shelly/<id>.
 plugs:
   - id: bkw
     name: Balkonkraftwerk

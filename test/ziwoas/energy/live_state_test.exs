@@ -22,7 +22,6 @@ defmodule Ziwoas.Energy.LiveStateTest do
   defp config(opts \\ []) do
     %Config{
       location: Location.new("Europe/Berlin"),
-      mqtt: nil,
       plugs:
         Keyword.get(opts, :plugs, [
           plug("bkw", :producer),

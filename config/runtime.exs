@@ -7,6 +7,8 @@ end
 config :ziwoas, ZiwoasWeb.Endpoint,
   http: [port: String.to_integer(System.get_env("PORT", "4000"))]
 
+config :ziwoas, shelly_port: String.to_integer(System.get_env("SHELLY_PORT", "4001"))
+
 path_env = fn name, example, default ->
   cond do
     path = System.get_env(name) -> path

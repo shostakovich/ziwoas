@@ -8,7 +8,7 @@ defmodule Ziwoas.Plugs.Ingest do
   @broadcast_interval_s 5
   @bucket_s 60
 
-  defstruct [:clock, :broadcast, buckets: %{}, pending: [], last_broadcast_at: 0]
+  defstruct [:clock, :broadcast, buckets: %{}, last: %{}, pending: [], last_broadcast_at: 0]
 
   @type t :: %__MODULE__{}
 
@@ -24,7 +24,6 @@ defmodule Ziwoas.Plugs.Ingest do
           avg_power_w: float,
           output: boolean | nil
         }
-
   @spec new(keyword) :: t
   def new(opts \\ []) do
     %__MODULE__{
@@ -35,19 +34,33 @@ defmodule Ziwoas.Plugs.Ingest do
 
   defp unix_now_f, do: DateTime.to_unix(Clock.now(), :microsecond) / 1_000_000
 
-  @doc "Records the reading at the clock's whole second; a second reading in that second changes nothing."
   @spec record(t, Plug.t(), reading) :: t
   def record(%__MODULE__{} = ingest, %Plug{} = plug, reading) do
     ts = trunc(ingest.clock.())
 
     case Plugs.record_sample(plug.id, ts, reading.apower_w, reading.aenergy_wh) do
       :duplicate ->
-        ingest
+        record_output(ingest, plug, reading.output)
 
       :ok ->
-        if is_boolean(reading.output), do: Plugs.record_output(plug.id, reading.output)
         Logger.debug("Plugs.Ingest: #{plug.id} #{reading.apower_w} W")
+        if is_boolean(reading.output), do: Plugs.record_output(plug.id, reading.output)
         accumulate(ingest, plug, ts, reading)
+    end
+  end
+
+  @spec record_output(t, Plug.t(), boolean | nil) :: t
+  def record_output(%__MODULE__{} = ingest, %Plug{}, nil), do: ingest
+
+  def record_output(%__MODULE__{} = ingest, %Plug{} = plug, output) when is_boolean(output) do
+    Plugs.record_output(plug.id, output)
+
+    case ingest.last[plug.id] do
+      %{output: last} = delta when last != output ->
+        ingest |> put_pending(plug.id, %{delta | output: output}) |> maybe_broadcast()
+
+      _unchanged_or_unknown ->
+        ingest
     end
   end
 
@@ -88,18 +101,29 @@ defmodule Ziwoas.Plugs.Ingest do
         do: List.keyreplace(ingest.pending, id, 0, {id, delta}),
         else: ingest.pending ++ [{id, delta}]
 
-    %{ingest | pending: pending}
+    %{ingest | pending: pending, last: Map.put(ingest.last, id, delta)}
   end
+
+  # A process whose readings may pause must flush/1 while pending?/1, or the last deltas wait.
+  @spec pending?(t) :: boolean
+  def pending?(%__MODULE__{pending: pending}), do: pending != []
+  @spec flush(t) :: t
+  def flush(%__MODULE__{pending: []} = ingest), do: ingest
+  def flush(%__MODULE__{} = ingest), do: broadcast(ingest, ingest.clock.())
+  @spec broadcast_interval_s() :: pos_integer
+  def broadcast_interval_s, do: @broadcast_interval_s
 
   defp maybe_broadcast(ingest) do
     now = ingest.clock.()
 
-    if now - ingest.last_broadcast_at >= @broadcast_interval_s do
-      deltas = Enum.map(ingest.pending, &elem(&1, 1))
-      ingest.broadcast.(deltas)
-      %{ingest | pending: [], last_broadcast_at: now}
-    else
-      ingest
-    end
+    if now - ingest.last_broadcast_at >= @broadcast_interval_s,
+      do: broadcast(ingest, now),
+      else: ingest
+  end
+
+  defp broadcast(ingest, now) do
+    deltas = Enum.map(ingest.pending, &elem(&1, 1))
+    ingest.broadcast.(deltas)
+    %{ingest | pending: [], last_broadcast_at: now}
   end
 end

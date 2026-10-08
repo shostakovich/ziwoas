@@ -25,7 +25,7 @@ defmodule Ziwoas.Switching.ScheduleTickJob do
 
     Enum.flat_map(plugs, fn plug ->
       edge = due_edge(plug.id, Map.get(rules, plug.id, []), now, zone)
-      outcome = edge && dispatch(plug, edge, config.mqtt)
+      outcome = edge && dispatch(plug, edge)
 
       # Every plug advances, or an untouched plug would drag an ancient watermark along.
       if outcome != :failed, do: Switching.advance_tick!(plug.id, now)
@@ -49,8 +49,8 @@ defmodule Ziwoas.Switching.ScheduleTickJob do
     end
   end
 
-  defp dispatch(plug, edge, mqtt) do
-    case Switching.switch(plug, edge.action, :schedule, mqtt) do
+  defp dispatch(plug, edge) do
+    case Switching.switch(plug, edge.action, :schedule) do
       {:ok, _command} ->
         :ok
 

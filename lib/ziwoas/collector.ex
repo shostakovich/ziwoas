@@ -4,52 +4,33 @@ defmodule Ziwoas.Collector do
 
   require Logger
 
-  alias Ziwoas.Collector.MqttRouter
-  alias Ziwoas.{Config, Mqtt}
+  alias Ziwoas.{Config, Shelly}
   alias Ziwoas.Fritz.DectClient
-  alias Ziwoas.Plugs.ShellyStatusHandler
-
-  @ingest_client_id "ziwoas-phoenix-ingest"
 
   def start_link(opts),
     do: Supervisor.start_link(__MODULE__, opts, name: Keyword.get(opts, :name, __MODULE__))
 
+  # High enough that a crash-looping device never takes the endpoint's supervisor down.
   @impl true
   def init(opts),
     do:
       Supervisor.init(children(Keyword.fetch!(opts, :config)),
         strategy: :one_for_one,
-        # Tortoise311 crash-loops on an unreachable broker; that must never take the endpoint down.
         max_restarts: 120,
         max_seconds: 60
       )
 
   @spec children(Config.t()) :: [Supervisor.child_spec()]
   def children(%Config{} = config),
-    do:
-      mqtt_ingest(config) ++ solakon(config) ++ fritz(config) ++ govee(config) ++ commands(config)
+    do: shelly(config) ++ solakon(config) ++ fritz(config) ++ govee(config)
 
-  defp mqtt_ingest(config) do
-    handlers = [{ShellyStatusHandler, ShellyStatusHandler.new(config)}]
-
-    [
-      Mqtt.connection_spec(
-        @ingest_client_id,
-        config.mqtt,
-        {MqttRouter, handlers},
-        MqttRouter.subscriptions(handlers)
-      )
-    ]
+  defp shelly(config) do
+    if Enum.any?(config.plugs, &(&1.driver == :shelly)),
+      do: [Shelly.listener_spec(config, shelly_port())],
+      else: []
   end
 
-  defp commands(config),
-    do: [
-      Mqtt.connection_spec(
-        Mqtt.command_client_id(),
-        config.mqtt,
-        {Tortoise311.Handler.Logger, []}
-      )
-    ]
+  defp shelly_port, do: Application.fetch_env!(:ziwoas, :shelly_port)
 
   defp solakon(%Config{solakon: nil}), do: []
 
