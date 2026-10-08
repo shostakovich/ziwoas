@@ -92,4 +92,5 @@ night into `backup/` next to the database file.
 - [`docs/adr/`](docs/adr/) – architecture decisions
 - [`docs/solakon-modbus-protocol.md`](docs/solakon-modbus-protocol.md) – Modbus registers of the
   Solakon ONE
-- [`docs/trmnl/`](docs/trmnl/) – Liquid templates of the TRMNL widgets
+- [`trmnl/`](trmnl/) – the TRMNL plugins as trmnlp projects; preview with `trmnlp serve`,
+  deploy with `trmnlp push` (gem `trmnl_preview`)

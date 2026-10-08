@@ -34,6 +34,8 @@ erl_crash.dump
 
 .idea
 /.worktrees/
+/trmnl/*/_build/
+/trmnl/*/report/
 
 # Left over from the Rails app.
 /coverage/
