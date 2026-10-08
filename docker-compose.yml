@@ -1,6 +1,6 @@
 services:
   ziwoas:
-    image: ghcr.io/shostakovich/ziwoas:${ZIWOAS_TAG:?set ZIWOAS_TAG, e.g. phoenix-2026-10-07}
+    image: ghcr.io/shostakovich/ziwoas:${ZIWOAS_TAG:-latest}
     container_name: ziwoas
     restart: unless-stopped
     # Govee LAN answers via multicast, which never crosses a Docker bridge network.
