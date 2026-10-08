@@ -3,6 +3,7 @@ defmodule Ziwoas.Scheduler do
   use Supervisor
 
   alias Ziwoas.{Config, Location}
+  alias Ziwoas.Config.Sensor
   alias Ziwoas.Scheduler.{Runner, Schedule}
 
   @type job :: {name :: atom, Schedule.t(), {module, keyword}}
@@ -30,7 +31,8 @@ defmodule Ziwoas.Scheduler do
   def jobs(%Config{} = config) do
     located? = Location.located?(config.location)
     inverter? = match?(%{monitoring_enabled: true}, config.solakon)
-    sensors? = not is_nil(config.switchbot) and config.sensors != []
+    switchbot? = not is_nil(config.switchbot) and Enum.any?(config.sensors, &Sensor.switchbot?/1)
+    sensors_widget? = config.trmnl.sensors_webhook_url not in [nil, ""]
     switchable? = Enum.any?(config.plugs, & &1.switchable)
     energy_widget? = config.trmnl.energy_webhook_url not in [nil, ""]
     backup_dir = Application.get_env(:ziwoas, :backup_dir)
@@ -44,9 +46,12 @@ defmodule Ziwoas.Scheduler do
           {:fetch_weather_forecast, {:every, 3, :hour}, Ziwoas.Weather.ForecastJob, [], located?},
           {:fetch_historic_weather, {:daily, ~T[03:45:00]}, Ziwoas.Weather.HistoricJob, [],
            located?},
-          {:poll_sensors, {:every, 15, :minute}, Ziwoas.Sensors.PollJob, [], sensors?},
+          {:poll_sensors, {:every, 15, :minute}, Ziwoas.Sensors.PollJob, [], switchbot?},
           {:push_trmnl_widget, {:every, 15, :minute}, Ziwoas.Trmnl.EnergyPushJob, [],
            energy_widget?},
+          # The SwitchBot poll pushes the sensor widget itself, right after polling.
+          {:push_trmnl_sensors, {:every, 15, :minute}, Ziwoas.Trmnl.SensorPushJob, [],
+           sensors_widget? and not switchbot?},
           {:schedule_tick, {:every, 1, :minute}, Ziwoas.Switching.ScheduleTickJob, [],
            switchable?},
           {:solakon_monitor, {:every, 30, :second}, Ziwoas.Solakon.MonitorJob, [], inverter?},

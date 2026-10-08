@@ -16,6 +16,7 @@ defmodule Ziwoas.Sensors.PollJobTest do
     - id: A
       name: Wohnzimmer
       type: meter_pro_co2
+      room: Wohnzimmer
     - id: B
       name: Balkon
       type: outdoor_meter
@@ -83,13 +84,34 @@ defmodule Ziwoas.Sensors.PollJobTest do
     assert b.taken_at == a.taken_at
   end
 
-  test "an Integer temperature becomes a Float, a Float humidity a rounded Integer" do
+  test "an Integer temperature becomes a Float, humidity keeps its decimal, battery is rounded" do
     stub_switchbot(fn _id -> %{"temperature" => 21, "humidity" => 52.7, "battery" => 99.4} end)
     stub_trmnl()
 
     PollJob.perform(context())
 
-    assert [%{temperature: 21.0, humidity: 53, battery_pct: 99} | _] = readings()
+    assert [%{temperature: 21.0, humidity: 52.7, battery_pct: 99} | _] = readings()
+  end
+
+  test "a SEN66 is read over its port, not polled" do
+    test = self()
+
+    Req.Test.stub(SwitchBotClient, fn conn ->
+      send(test, {:polled_device, Enum.at(conn.path_info, 2)})
+      Plug.Conn.send_resp(conn, 200, JSON.encode!(%{"statusCode" => 100, "body" => status("B")}))
+    end)
+
+    stub_trmnl()
+
+    sen66 = "  - { id: SEN, name: Raumluft, type: sen66, port: /dev/ttyACM0 }\ntrmnl:"
+    config = TestConfigs.plugs(String.replace(@sensors, "trmnl:", sen66))
+
+    PollJob.perform(config: config, at: Ziwoas.Clock.now())
+
+    assert_received {:polled_device, "A"}
+    assert_received {:polled_device, "B"}
+    refute_received {:polled_device, "SEN"}
+    assert Enum.map(readings(), & &1.device_id) == ["A", "B"]
   end
 
   test "a reading that does not cast is logged and skipped" do
@@ -115,7 +137,7 @@ defmodule Ziwoas.Sensors.PollJobTest do
     assert [%{device_id: "B"}] = readings()
   end
 
-  test "tells the subscribers, then pushes the TRMNL sensor widget" do
+  test "tells the subscribers each reading and the poll, then pushes the TRMNL sensor widget" do
     stub_switchbot(&status/1)
     stub_trmnl()
 
@@ -123,10 +145,15 @@ defmodule Ziwoas.Sensors.PollJobTest do
 
     now = Ziwoas.Clock.now()
 
-    assert {:messages, [{:polled, ^now}, {:pushed, "example.test", "/sensors", body}]} =
-             mailbox()
+    assert {:messages,
+            [
+              {:reading, %Reading{device_id: "A"}},
+              {:reading, %Reading{device_id: "B"}},
+              {:polled, ^now},
+              {:pushed, "example.test", "/sensors", body}
+            ]} = mailbox()
 
-    assert %{"merge_variables" => %{"sensors" => [%{"id" => "A"}, %{"id" => "B"}]}} =
+    assert %{"merge_variables" => %{"room" => "Wohnzimmer", "values" => %{"co2" => 600}}} =
              JSON.decode!(body)
   end
 

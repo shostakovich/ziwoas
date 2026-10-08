@@ -1,0 +1,48 @@
+# trmnlp preview settings. `variables` stand in for the webhook's merge_variables;
+# test/ziwoas/trmnl/preview_variables_test.exs keeps their keys in step with the payload.
+# stand_at is far in the future so local previews never count as stale; the payload sends the push time
+---
+watch:
+  - .trmnlp.yml
+  - src
+
+time_zone: Europe/Berlin
+
+variables:
+  stand: "21:40"
+  stand_at: 4102444800
+  room: "Wohnzimmer"
+  source: "sen66"
+  lead: "sen66"
+  lead_fresh: true
+  lead_off_since: null
+  stand_in_since: null
+  data_until: "21:40"
+  trend_from: "18:45"
+  trend_to: "21:45"
+  verdict: "good"
+  verdict_because: ["co2", "pm2_5", "pm10", "voc", "nox"]
+  values:
+    co2: 780
+    pm2_5: 6.2
+    pm10: 8.5
+    voc: 118
+    nox: 2
+    temperature: 22.1
+    humidity: 51
+  levels:
+    co2: "good"
+    pm2_5: "good"
+    pm10: "good"
+    voc: "good"
+    nox: "good"
+    temperature: "good"
+    humidity: "good"
+  stand_in: []
+  co2_trend: [840, 1120, 1390, 1470, 760, 610, 640, 670, 700, 730, 760, 780]
+  co2_trend_stand_in: []
+  balcony:
+    temperature: 14.2
+    humidity: 78
+    humidity_indoors: 49
+  hint: null

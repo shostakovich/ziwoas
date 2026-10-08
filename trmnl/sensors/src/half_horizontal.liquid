@@ -1,0 +1,295 @@
+{%- comment -%}
+  Raumluft, half horizontal: CO₂ with a small trend, the most notable other value (temperature and
+  humidity as a pair), other notable values in one grey line, then the same footer as full.liquid.
+  merge_variables as in full.liquid. Pixel-font labels write „CO2“, Inter text „CO₂“.
+{%- endcomment -%}
+
+<style>
+  .ra-body { display: grid; grid-template-rows: 104px 69px; grid-template-columns: minmax(0, 1fr); width: 100%; height: 173px; }
+  .ra-main { display: grid; grid-template-columns: 330px minmax(0, 1fr); column-gap: 24px; }
+  .ra-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; height: 24px; }
+  .ra-base { display: flex; align-items: baseline; gap: 6px; height: 54px; white-space: nowrap; }
+  .ra-base .value--xlarge, .ra-base .value--large { line-height: 54px; }
+  .ra-numeral { margin-left: -5px; }
+  .ra-more { height: 26px; padding-top: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ra-chip { padding: 1px 6px; border-radius: 4px; }
+  .ra-chip--line { padding: 1px 8px; line-height: 22px; border-radius: 4px; }
+  .ra-spark { width: 120px; height: 44px; margin-left: auto; align-self: center; }
+  .ra-detail { padding-top: 24px; }
+  .ra-foot { display: grid; grid-template-rows: 29px 24px; margin-top: 8px; padding-top: 6px; border-top: 2px solid currentColor; }
+  .ra-line { display: flex; align-items: center; gap: 16px; white-space: nowrap; min-width: 0; }
+  .ra-line--split { justify-content: space-between; }
+  .ra-line--baseline { align-items: baseline; }
+  .ra-fit { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .ra-keep { flex-shrink: 0; }
+</style>
+
+{%- assign now_at = "now" | date: "%s" | plus: 0 -%}
+{%- assign push_age = 0 -%}
+{%- if stand_at -%}{%- assign push_age = now_at | minus: stand_at -%}{%- endif -%}
+{%- assign stale = false -%}
+{%- if push_age > 1800 -%}{%- assign stale = true -%}{%- endif -%}
+{%- assign fresh = true -%}
+{%- if source == nil or stale -%}{%- assign fresh = false -%}{%- endif -%}
+{%- assign co2 = values.co2 -%}
+{%- if fresh == false -%}{%- assign co2 = nil -%}{%- endif -%}
+{%- assign lead_off = "" -%}
+{%- if lead and lead_fresh == false -%}
+  {%- capture lead_off -%}{% if lead == "switchbot" %}SwitchBot{% else %}SEN66{% endif %}: keine Daten{% if lead_off_since %} seit {{ lead_off_since }}{% endif %}{%- endcapture -%}
+{%- endif -%}
+{%- capture last_push -%}
+  {%- assign push_day = stand_at | plus: trmnl.user.utc_offset | divided_by: 86400 -%}
+  {%- assign today = now_at | plus: trmnl.user.utc_offset | divided_by: 86400 -%}
+  {%- if stand_at and push_day < today -%}
+    {%- assign weekday = push_day | plus: 4 | modulo: 7 -%}
+    {{- "So,Mo,Di,Mi,Do,Fr,Sa" | split: "," | slice: weekday | first }} {% endif -%}{{ stand }}
+{%- endcapture -%}
+
+{%- comment -%} The most notable value besides CO₂: the first bad, else the first warn one {%- endcomment -%}
+{%- assign notable = nil -%}
+{%- assign candidates = "pm2_5,pm10,voc,nox,temperature,humidity" | split: "," -%}
+{%- for q in candidates -%}
+  {%- if notable == nil and levels[q] == "bad" and values[q] != nil -%}{%- assign notable = q -%}{%- endif -%}
+{%- endfor -%}
+{%- for q in candidates -%}
+  {%- if notable == nil and levels[q] == "warn" and values[q] != nil -%}{%- assign notable = q -%}{%- endif -%}
+{%- endfor -%}
+{%- assign pair = false -%}
+{%- if notable == nil or notable == "temperature" or notable == "humidity" -%}{%- assign pair = true -%}{%- endif -%}
+
+{%- comment -%} Everything else worth knowing, one grey line: "+ PM10, VOC erhöht" {%- endcomment -%}
+{%- capture others -%}
+  {%- for rank in (1..2) -%}
+    {%- if rank == 1 -%}{%- assign level = "bad" -%}{%- assign word = "hoch" -%}{%- else -%}{%- assign level = "warn" -%}{%- assign word = "erhöht" -%}{%- endif -%}
+    {%- capture group -%}
+      {%- assign sen_quantities = "pm2_5,pm10,voc,nox" | split: "," -%}
+      {%- for q in sen_quantities -%}
+        {%- if q != notable and levels[q] == level and values[q] != nil -%}
+          {%- case q -%}{%- when "pm2_5" -%}PM2,5|{%- when "pm10" -%}PM10|{%- when "voc" -%}VOC|{%- when "nox" -%}NOx|{%- endcase -%}
+        {%- endif -%}
+      {%- endfor -%}
+    {%- endcapture -%}
+    {%- if group != "" -%}{{ group | split: "|" | join: ", " }} {{ word }}|{%- endif -%}
+  {%- endfor -%}
+{%- endcapture -%}
+{%- comment -%} Temperature and humidity join the line only when no air quantity is elevated, so it never overflows {%- endcomment -%}
+{%- if pair == false and others == "" -%}
+  {%- capture others -%}
+    {%- if levels.temperature == "warn" or levels.temperature == "bad" -%}Temperatur{% if values.temperature < 22 %} zu kühl{% else %} zu warm{% endif %}|{%- endif -%}
+    {%- if levels.humidity == "warn" or levels.humidity == "bad" -%}Feuchte{% if values.humidity < 50 %} zu trocken{% else %} zu feucht{% endif %}|{%- endif -%}
+  {%- endcapture -%}
+{%- endif -%}
+{%- assign others = others | split: "|" | join: " · " -%}
+{%- capture more -%}
+  {{- lead_off -}}
+  {%- if lead_off != "" and others != "" -%}{{ " · " }}{%- endif -%}
+  {%- if others != "" -%}+ {{ others }}{%- endif -%}
+{%- endcapture -%}
+
+<div class="layout">
+  <div class="ra-body">
+    <div class="ra-main">
+      <div>
+        <div class="ra-head">
+          {%- if fresh == false -%}
+            <span class="label text--gray-30">CO2 · ppm</span>
+          {%- else -%}
+            <span class="label">CO2 · ppm{% if stand_in contains "co2" %} · SwitchBot {{ stand_in_since }}{% endif %}</span>
+            {%- case levels.co2 -%}
+              {%- when "bad" -%}<span class="label ra-chip bg--black text--white">hoch</span>
+              {%- when "warn" -%}<span class="label ra-chip bg--gray-30 text--white">erhöht</span>
+              {%- when "good" -%}<span class="label text--gray-30">gut</span>
+            {%- endcase -%}
+          {%- endif -%}
+        </div>
+        <div class="ra-base">
+          {%- if co2 -%}
+            <span class="value value--xlarge value--tnums ra-numeral">{{ co2 }}</span>
+            {%- assign known = co2_trend | compact -%}
+            {%- if known.size > 1 -%}
+              {%- assign line = "" -%}
+              {%- assign stand_in_line = "" -%}
+              {%- assign prev_y = nil -%}
+              {%- for v in co2_trend -%}
+                {%- if v != nil -%}
+                  {%- assign c = v -%}
+                  {%- if c > 1600 -%}{%- assign c = 1600 -%}{%- elsif c < 400 -%}{%- assign c = 400 -%}{%- endif -%}
+                  {%- assign x = forloop.index0 | times: 10.4 | plus: 2 | round: 1 -%}
+                  {%- assign y = 1600 | minus: c | times: 0.0333 | plus: 2 | round: 1 -%}
+                  {%- if prev_y != nil -%}
+                    {%- if co2_trend_stand_in contains forloop.index0 -%}
+                      {%- capture stand_in_line -%}{{ stand_in_line }}<line x1="{{ prev_x }}" y1="{{ prev_y }}" x2="{{ x }}" y2="{{ y }}"/>{%- endcapture -%}
+                    {%- else -%}
+                      {%- capture line -%}{{ line }}<line x1="{{ prev_x }}" y1="{{ prev_y }}" x2="{{ x }}" y2="{{ y }}"/>{%- endcapture -%}
+                    {%- endif -%}
+                  {%- endif -%}
+                  {%- assign prev_x = x -%}
+                  {%- assign prev_y = y -%}
+                  {%- assign last_x = x -%}
+                  {%- assign last_y = y -%}
+                {%- else -%}
+                  {%- assign prev_y = nil -%}
+                {%- endif -%}
+              {%- endfor -%}
+              <svg class="ra-spark" viewBox="0 0 120 44" aria-hidden="true">
+                <line class="text--gray-30" x1="0" x2="120" y1="22" y2="22" stroke="currentColor" stroke-width="1" stroke-dasharray="4 4"/>
+                <g stroke="currentColor" stroke-width="2" stroke-linecap="round">{{ line }}</g>
+                <g stroke="currentColor" stroke-width="2" stroke-dasharray="6 3">{{ stand_in_line }}</g>
+                {%- if co2_trend.last != nil -%}<circle cx="{{ last_x }}" cy="{{ last_y }}" r="3" fill="currentColor"/>{%- endif -%}
+              </svg>
+            {%- endif -%}
+          {%- else -%}
+            <span class="value value--small">Keine aktuellen Daten</span>
+          {%- endif -%}
+        </div>
+      </div>
+
+      <div>
+        {%- if fresh == false -%}
+          <div class="flex flex--col flex--left flex--start ra-detail">
+            {%- unless stale -%}
+              {%- if lead_off != "" -%}<span class="label label--large">{{ lead_off }}</span>{%- endif -%}
+              {%- if stand_in_since -%}<span class="label label--large">SwitchBot: keine Daten seit {{ stand_in_since }}</span>{%- endif -%}
+            {%- else -%}
+              <span class="label label--large text--gray-30">Seit {{ last_push }} keine Übertragung</span>
+            {%- endunless -%}
+          </div>
+        {%- elsif pair -%}
+          <div class="ra-head">
+            <span class="label">Temperatur · Feuchte{% if stand_in contains "temperature" %} · SwitchBot{% endif %}</span>
+            <div class="flex flex--row gap--xsmall">
+              {%- assign pair_quantities = "temperature,humidity" | split: "," -%}
+              {%- for q in pair_quantities -%}
+                {%- assign lv = levels[q] -%}
+                {%- if values[q] != nil and lv == "warn" or values[q] != nil and lv == "bad" -%}
+                  <span class="label ra-chip {% if lv == "bad" %}bg--black{% else %}bg--gray-30{% endif %} text--white">
+                    {%- if q == "temperature" -%}{%- if values[q] < 22 -%}zu kühl{%- else -%}zu warm{%- endif -%}
+                    {%- else -%}{%- if values[q] < 50 -%}zu trocken{%- else -%}zu feucht{%- endif -%}{%- endif -%}
+                  </span>
+                {%- endif -%}
+              {%- endfor -%}
+            </div>
+          </div>
+          <div class="ra-base">
+            <span class="value value--xlarge">&#8203;</span>
+            {%- if values.temperature != nil -%}
+              <span class="value value--large value--tnums">{{ values.temperature | replace: ".", "," | replace: "-", "−" }}</span>
+              <span class="label text--gray-30 mr--4">°C</span>
+            {%- endif -%}
+            {%- if values.humidity != nil -%}
+              <span class="value value--large value--tnums">{{ values.humidity }}</span>
+              <span class="label text--gray-30">%</span>
+            {%- endif -%}
+          </div>
+          <div class="label text--gray-30 ra-more">{{ more }}</div>
+        {%- else -%}
+          {%- assign v = values[notable] -%}
+          {%- assign lv = levels[notable] -%}
+          <div class="ra-head">
+            <span class="label">
+              {%- case notable -%}
+                {%- when "pm2_5" -%}PM2,5
+                {%- when "pm10" -%}PM10
+                {%- when "voc" -%}VOC-Index
+                {%- when "nox" -%}NOx-Index
+              {%- endcase -%}
+            </span>
+            <span class="label ra-chip {% if lv == "bad" %}bg--black{% else %}bg--gray-30{% endif %} text--white">{% if lv == "bad" %}hoch{% else %}erhöht{% endif %}</span>
+          </div>
+          <div class="ra-base">
+            <span class="value value--xlarge">&#8203;</span>
+            <span class="value value--large value--tnums">{{ v | replace: ".", "," }}</span>
+            {%- if notable == "pm2_5" or notable == "pm10" -%}<span class="label text--gray-30">µg/m³</span>{%- endif -%}
+          </div>
+          <div class="label text--gray-30 ra-more">{{ more }}</div>
+        {%- endif -%}
+      </div>
+    </div>
+
+    <div class="ra-foot">
+      {%- capture hint_text -%}
+        {%- if hint contains "cools" -%}kühlt{%- elsif hint contains "warms" -%}wärmt{%- endif -%}
+        {%- if hint contains "cools" or hint contains "warms" -%}
+          {%- if hint contains "dries" or hint contains "humidifies" -%}{{ " und " }}{%- endif -%}
+        {%- endif -%}
+        {%- if hint contains "dries" -%}trocknet{%- elsif hint contains "humidifies" -%}befeuchtet{%- endif -%}
+      {%- endcapture -%}
+      {%- if balcony == nil or stale -%}{%- assign hint_text = "" -%}{%- endif -%}
+      <div class="ra-line ra-line--baseline">
+        {%- if fresh -%}
+          {%- capture names -%}
+            {%- if verdict == "good" -%}
+              {%- if values.co2 != nil -%}CO₂|{%- endif -%}
+              {%- if values.pm2_5 != nil or values.pm10 != nil -%}Feinstaub|{%- endif -%}
+              {%- if values.voc != nil -%}VOC|{%- endif -%}
+              {%- if values.nox != nil -%}NOx|{%- endif -%}
+            {%- else -%}
+              {%- if verdict_because contains "co2" -%}CO₂|{%- endif -%}
+              {%- if verdict_because contains "pm2_5" or verdict_because contains "pm10" -%}Feinstaub|{%- endif -%}
+              {%- if verdict_because contains "voc" -%}VOC|{%- endif -%}
+              {%- if verdict_because contains "nox" -%}NOx|{%- endif -%}
+            {%- endif -%}
+          {%- endcapture -%}
+          {%- assign names = names | split: "|" -%}
+          {%- capture reason -%}
+            {%- if names.size < 4 -%}
+              {%- for n in names -%}
+                {%- if forloop.index > 1 -%}{%- if forloop.last -%}{{ " und " }}{%- else -%}{{ ", " }}{%- endif -%}{%- endif -%}{{ n }}
+              {%- endfor -%}
+            {%- elsif names.size < 13 -%}
+              {{- "Null,Ein,Zwei,Drei,Vier,Fünf,Sechs,Sieben,Acht,Neun,Zehn,Elf,Zwölf" | split: "," | slice: names.size | first }} Werte
+            {%- else -%}
+              {{- names.size }} Werte
+            {%- endif -%}
+          {%- endcapture -%}
+          {%- capture verdict_text -%}
+            {%- case verdict -%}
+              {%- when "bad" -%}{{ reason }} hoch
+              {%- when "warn" -%}{{ reason }} erhöht
+              {%- when "good" -%}{%- if names.size == 4 and values.pm2_5 != nil and values.pm10 != nil -%}Luft gut{%- else -%}{{ reason }} gut{%- endif -%}
+            {%- endcase -%}
+          {%- endcapture -%}
+          {%- comment -%} Width estimate in px: chip 150, separator 40, reason and hint 14 per character.
+            With warn/bad the hint gives way if the row would not fit; the reason is never cut. {%- endcomment -%}
+          {%- if hint_text != "" and verdict != "good" -%}
+            {%- assign hint_width = hint_text | size | plus: 7 | times: 14 -%}
+            {%- assign row_width = verdict_text | size | times: 14 | plus: 206 | plus: hint_width -%}
+            {%- if row_width > 760 -%}{%- assign hint_text = "" -%}{%- endif -%}
+          {%- endif -%}
+          {%- case verdict -%}
+            {%- when "bad" -%}<span class="value value--small ra-chip--line ra-keep bg--black text--white">Jetzt lüften</span>
+            {%- when "warn" -%}<span class="value value--small ra-chip--line ra-keep bg--gray-30 text--white">Bald lüften</span>
+          {%- endcase -%}
+          {%- if reason != "" or verdict == "good" -%}<span class="value value--small ra-keep">{{ verdict_text }}</span>{%- endif -%}
+          {%- if hint_text != "" -%}
+            <span class="value value--small text--gray-30 ra-keep">·</span>
+            <span class="value value--small ra-fit">Lüften {{ hint_text }}</span>
+          {%- endif -%}
+        {%- else -%}
+          <span class="value value--small text--gray-30">Keine Lüftungsempfehlung</span>
+        {%- endif -%}
+      </div>
+      <div class="ra-line ra-line--split">
+        <span class="label label--large text--gray-30 ra-fit">
+          {%- if balcony and stale == false -%}
+            {{- "Balkon " -}}{{ balcony.temperature | replace: ".", "," | replace: "-", "−" }} °C · 
+            {{- " " }}{{ balcony.humidity }} %
+            {%- if values.temperature != nil and balcony.humidity_indoors != nil -%}
+              {%- if hint_text contains "trocknet" or hint_text contains "befeuchtet" -%}
+                {{- " · bei " }}{{ values.temperature | replace: ".", "," | replace: "-", "−" }} °C: {{ balcony.humidity_indoors }} %
+              {%- endif -%}
+            {%- endif -%}
+          {%- else -%}
+            Balkon: keine Daten
+          {%- endif -%}
+        </span>
+        <span class="label label--large value--tnums ra-keep{% unless stale %} text--gray-30{% endunless %}">Stand {{ last_push }}</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="title_bar">
+  <span class="title">Raumluft</span>
+  <span class="instance">{{ room }}{% if fresh %} · {% if source == "switchbot" %}SwitchBot{% else %}SEN66{% endif %}{% endif %}</span>
+</div>
