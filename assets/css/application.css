@@ -1,5 +1,32 @@
 :root {
-  --viz-solar:   light-dark(oklch(from var(--felt-mustard) 0.74 0.15 h), oklch(from var(--felt-mustard) 0.72 0.14 h));
+  --felt-denim:   #17559b;
+  --felt-mustard: #fcc155;
+  --felt-moss:    #4c7727;
+  --felt-tomato:  #c0452f;
+  --felt-petrol:  #1e767f;
+
+  --felt-primary: light-dark(var(--felt-denim),   #1f59a0);
+  --felt-warning: light-dark(var(--felt-mustard), #d98f1c);
+  --felt-success: light-dark(var(--felt-moss),    #487124);
+  --felt-danger:  light-dark(var(--felt-tomato),  #b44029);
+  --felt-info:    light-dark(var(--felt-petrol),  #206f78);
+
+  --felt-primary-emphasis: light-dark(#133d70, #afcdf5);
+  --felt-warning-emphasis: light-dark(#73480d, #f9d28a);
+  --felt-success-emphasis: light-dark(#365121, #b1d995);
+  --felt-danger-emphasis:  light-dark(#7d2a1b, #f3a593);
+  --felt-info-emphasis:    light-dark(#1b4f53, #94d3d6);
+
+  --felt-primary-text: light-dark(var(--felt-primary), #90baf1);
+  --felt-warning-text: light-dark(#774d07, var(--felt-mustard));
+  --felt-success-text: light-dark(#3a6220, #9cc777);
+  --felt-danger-text:  light-dark(#973522, #ef8c76);
+  --felt-info-text:    light-dark(#1f5e63, #6cc3c8);
+  --felt-link-color:   light-dark(var(--felt-primary), #90baf1);
+}
+
+:root {
+  --viz-solar:  light-dark(oklch(from var(--felt-mustard) 0.74 0.15 h), oklch(from var(--felt-mustard) 0.72 0.14 h));
   --viz-battery: light-dark(oklch(from var(--felt-petrol) 0.6 0.11 calc(h - 25)), oklch(from var(--felt-petrol) 0.62 0.11 calc(h - 25)));
   --viz-grid:    light-dark(oklch(from var(--felt-denim) 0.5 0.13 h), oklch(from var(--felt-denim) 0.6 0.13 h));
   --viz-muted:   light-dark(oklch(from var(--felt-taupe) 0.66 0.03 h), oklch(from var(--felt-taupe) 0.6 0.03 h));

@@ -79,10 +79,11 @@ the host that served the page).
 **Container.** The `Dockerfile` builds the release (Debian, uid 1000, ports 3000 and 3001,
 healthcheck on `/up`, `sqlite3` for backups) and runs `bin/migrate`, then `bin/server`;
 `ZIWOAS_DB` and `ZIWOAS_CONFIG` point to `/app/storage` and `/app/config`. `docker-compose.yml` is
-one service on the host network (Govee answers by multicast on UDP 4002) and expects `ZIWOAS_TAG`
-and `SECRET_KEY_BASE`; it sees the host's `/dev` read-only for the SEN66 (ADR-0009).
-`.github/workflows/docker.yml` publishes images for `linux/amd64` only under an explicit tag, never
-`latest`.
+one service on the host network (Govee answers by multicast on UDP 4002) and expects
+`SECRET_KEY_BASE`; it runs `latest` unless `ZIWOAS_TAG` names another tag, and sees the host's `/dev`
+read-only for the SEN66 (ADR-0009). `.github/workflows/docker.yml` publishes `latest` and
+`sha-<commit>` for `linux/amd64` on every push to `main`, after the tests. Update with
+`docker compose pull && docker compose up -d`; roll back with `ZIWOAS_TAG=sha-…`.
 
 Take a backup before a new image migrates (`sqlite3 … ".backup …"`). The app itself backs up the database every
 night into `backup/` next to the database file.

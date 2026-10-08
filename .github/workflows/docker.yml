@@ -1,15 +1,16 @@
 name: Build and publish container
 
-# Publishes only under an explicit tag: a git tag, or one given by hand. Nothing moves
-# `latest`, so the home server runs exactly the tag its compose file names.
+# Every push to main publishes `latest` once the tests pass, plus `sha-<commit>` to roll back to.
+# `latest` moves only for the commit that is still main's head when the image is pushed, so a
+# manual run on another ref or a run overtaken by a newer push publishes just its `sha-` tag.
 on:
   push:
-    tags: ["v*", "phoenix-*"]
+    branches: [main]
   workflow_dispatch:
-    inputs:
-      tag:
-        description: "Image tag, e.g. phoenix-2026-10-07"
-        required: true
+
+concurrency:
+  group: docker-publish
+  cancel-in-progress: false
 
 env:
   REGISTRY: ghcr.io
@@ -72,6 +73,16 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Check that this commit is still the head of main
+        id: head
+        run: |
+          head=$(git ls-remote origin refs/heads/main | cut -f1)
+          if [ "$GITHUB_REF" = refs/heads/main ] && [ "$head" = "$GITHUB_SHA" ]; then
+            echo "latest=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "latest=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v6
@@ -79,8 +90,7 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           flavor: latest=false
           tags: |
-            type=ref,event=tag
-            type=raw,value=${{ inputs.tag }},enable=${{ github.event_name == 'workflow_dispatch' }}
+            type=raw,value=latest,enable=${{ steps.head.outputs.latest }}
             type=sha,prefix=sha-
 
       - name: Build and push
