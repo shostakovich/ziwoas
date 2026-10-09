@@ -55,7 +55,7 @@ defmodule ZiwoasWeb.SensorsComponentsTest do
     assert attrs(gauge, "path.co2-gauge-zone", "d") ==
              attrs(gauge, "path.co2-gauge-texture.felt-texture", "d")
 
-    assert attrs(gauge, "pattern image", "href") == ["https://felt-css.rocu.de/img/felt.svg"]
+    assert attrs(gauge, "pattern image", "href") == ["https://felt-css.rocu.de/img/felt.webp"]
     assert attrs(gauge, "pattern", "width") == ["256"]
 
     stitches = attrs(gauge, "svg.stitches.stitches-patch use", "href")
