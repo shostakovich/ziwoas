@@ -11,6 +11,8 @@ defmodule Ziwoas.Govee.Bridge do
   @listen_backoff_max_ms 60_000
   @state_fields [:on, :reachable, :brightness, :color, :color_temp_k, :zone_states]
   @command_timeout_ms Application.compile_env(:ziwoas, :govee_command_timeout_ms, 5_000)
+  @silent_after_polls 3
+  @watch_poll_ms 2_000
 
   @type verb ::
           {:power, boolean}
@@ -35,6 +37,35 @@ defmodule Ziwoas.Govee.Bridge do
       {:error, :unavailable}
   end
 
+  @doc "Only a lamp once heard on the LAN can fall silent; without a bridge none is."
+  @spec silent?(String.t(), GenServer.server()) :: boolean
+  def silent?(key, server \\ __MODULE__) do
+    case call(server, {:silent?, key}) do
+      {:error, :unavailable} -> false
+      silent -> silent
+    end
+  end
+
+  @doc "The watcher gets `{:lamp_heard, key, telemetry | nil}` for every LAN reply of the lamp."
+  @spec watch(String.t(), GenServer.server(), pid) :: :ok | {:error, :unavailable}
+  def watch(key, server \\ __MODULE__, watcher \\ self()),
+    do: call(server, {:watch, key, watcher})
+
+  @spec unwatch(String.t(), GenServer.server()) :: :ok
+  def unwatch(key, server \\ __MODULE__) do
+    call(server, {:unwatch, key})
+    :ok
+  end
+
+  defp call(server, request) do
+    case GenServer.whereis(server) do
+      nil -> {:error, :unavailable}
+      pid -> GenServer.call(pid, request, @command_timeout_ms)
+    end
+  catch
+    :exit, _reason -> {:error, :unavailable}
+  end
+
   @impl true
   def init(opts) do
     govee = Keyword.fetch!(opts, :govee)
@@ -51,6 +82,10 @@ defmodule Ziwoas.Govee.Bridge do
       put_state: Keyword.get(opts, :put_state, &Lights.put_state/2),
       tasks: Keyword.get(opts, :tasks, Ziwoas.Govee.Tasks),
       pending: %{},
+      heard_at: %{},
+      watchers: %{},
+      watch_poll_ms: Keyword.get(opts, :watch_poll_ms, @watch_poll_ms),
+      watch_polling: false,
       socket: nil,
       listen_port: Keyword.get(opts, :listen_port, Lan.listen_port()),
       listen_backoff_ms: @listen_backoff_min_ms,
@@ -76,6 +111,27 @@ defmodule Ziwoas.Govee.Bridge do
     {reply, state} = run_command(state, key, verb)
     {:reply, reply, state}
   end
+
+  def handle_call({:silent?, key}, _from, state) do
+    silent_after = @silent_after_polls * state.govee.lan_poll_seconds
+
+    silent =
+      case state.heard_at[key] do
+        nil -> false
+        heard_at -> state.clock.() - heard_at > silent_after
+      end
+
+    {:reply, silent, state}
+  end
+
+  def handle_call({:watch, key, watcher}, _from, state) do
+    state = drop_watcher(state, key)
+    ref = Process.monitor(watcher)
+    state = %{state | watchers: Map.put(state.watchers, key, {watcher, ref})}
+    {:reply, :ok, start_watch_poll(state)}
+  end
+
+  def handle_call({:unwatch, key}, _from, state), do: {:reply, :ok, drop_watcher(state, key)}
 
   @impl true
   def handle_info(:bootstrap, state),
@@ -114,6 +170,26 @@ defmodule Ziwoas.Govee.Bridge do
       when is_map_key(state.pending, ref) do
     {tag, pending} = Map.pop(state.pending, ref)
     {:noreply, finished(%{state | pending: pending}, tag, {:error, {:exit, reason}})}
+  end
+
+  def handle_info(:watch_poll, state) when state.watchers == %{},
+    do: {:noreply, %{state | watch_polling: false}}
+
+  def handle_info(:watch_poll, state) do
+    lan(state, :discover)
+
+    for key <- Map.keys(state.watchers),
+        device = DeviceRegistry.find(state.registry, key),
+        device && device.ip,
+        do: lan(state, {:request_status, device.ip})
+
+    Process.send_after(self(), :watch_poll, state.watch_poll_ms)
+    {:noreply, state}
+  end
+
+  def handle_info({:DOWN, ref, :process, _pid, _reason}, state) do
+    watchers = Map.reject(state.watchers, fn {_key, {_watcher, watch}} -> watch == ref end)
+    {:noreply, %{state | watchers: watchers}}
   end
 
   def handle_info(:listen, %{socket: nil} = state), do: {:noreply, listen(state)}
@@ -245,12 +321,20 @@ defmodule Ziwoas.Govee.Bridge do
   defp handle_datagram(state, payload, sender_ip) do
     cond do
       scan = Lan.parse_scan(payload) ->
-        %{state | registry: DeviceRegistry.record_lan_ip(state.registry, scan.mac, scan.ip)}
+        state = %{
+          state
+          | registry: DeviceRegistry.record_lan_ip(state.registry, scan.mac, scan.ip)
+        }
+
+        case DeviceRegistry.find(state.registry, DeviceRegistry.normalize_mac(scan.mac)) do
+          nil -> state
+          device -> heard(state, device.key, nil)
+        end
 
       status = Lan.parse_status(payload) ->
         case DeviceRegistry.find_by_ip(state.registry, sender_ip) do
           nil -> state
-          device -> apply_lan(state, device, status)
+          device -> apply_lan(state, device, Lan.telemetry(status))
         end
 
       true ->
@@ -258,15 +342,38 @@ defmodule Ziwoas.Govee.Bridge do
     end
   end
 
-  defp apply_lan(state, device, status) do
+  defp heard(state, key, telemetry) do
+    case state.watchers[key] do
+      {watcher, _ref} -> send(watcher, {:lamp_heard, key, telemetry})
+      nil -> :ok
+    end
+
+    %{state | heard_at: Map.put(state.heard_at, key, state.clock.())}
+  end
+
+  defp start_watch_poll(%{watch_polling: true} = state), do: state
+
+  defp start_watch_poll(state) do
+    send(self(), :watch_poll)
+    %{state | watch_polling: true}
+  end
+
+  defp drop_watcher(state, key) do
+    case Map.pop(state.watchers, key) do
+      {nil, _watchers} ->
+        state
+
+      {{_watcher, ref}, watchers} ->
+        Process.demonitor(ref, [:flush])
+        %{state | watchers: watchers}
+    end
+  end
+
+  defp apply_lan(state, device, telemetry) do
+    state = heard(state, device.key, telemetry)
+
     {result, store} =
-      States.apply_telemetry(
-        state.store,
-        device.key,
-        Lan.telemetry(status),
-        :lan,
-        state.clock.()
-      )
+      States.apply_telemetry(state.store, device.key, telemetry, :lan, state.clock.())
 
     state = %{state | store: store}
     if result.changed, do: report_state(state, device.key, result.published)

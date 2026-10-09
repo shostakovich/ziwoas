@@ -1,9 +1,10 @@
 defmodule Ziwoas.Lights.CommandsTest do
   use Ziwoas.DataCase
 
-  alias Ziwoas.FakeGoveeBridge
-  alias Ziwoas.Lights.{Commands, Light, State}
-  alias Ziwoas.{Repo, TestClock}
+  import Ziwoas.LampPower
+
+  alias Ziwoas.{FakeGoveeBridge, FakeShelly, Plugs, Repo, TestClock, TestConfigs}
+  alias Ziwoas.Lights.{Commands, Light, PowerUp, State}
 
   setup do
     TestClock.freeze("2026-06-15T18:00:00Z")
@@ -234,6 +235,121 @@ defmodule Ziwoas.Lights.CommandsTest do
                  "victim" => "nope",
                  "added" => "sideLightToggle"
                })
+    end
+  end
+
+  describe "a lamp on a plug" do
+    setup do
+      start_power_up!()
+      %{light: light!(%{key: "FL1", shelly_plug_id: "fridge"})}
+    end
+
+    defp relay!(output), do: Repo.insert!(%Plugs.State{plug_id: "fridge", output: output})
+
+    test "an unpowered lamp switches its plug on and starts", %{light: light} do
+      bridge!()
+      FakeShelly.serve("fridge")
+      relay!(false)
+
+      assert {:ok, {:starting, nil}} = Commands.run(light, "turn", %{"on" => "true"})
+
+      plug_switched_on("fridge")
+      assert_received {:govee_watch, "FL1"}
+      assert sent() == []
+      assert Map.has_key?(PowerUp.starting(), "FL1")
+    end
+
+    test "an unpowered lamp switched off is recorded off and switches no plug", %{light: light} do
+      bridge!()
+      FakeShelly.serve("fridge")
+      relay!(false)
+      Repo.insert!(%State{light_key: "FL1", on: true})
+
+      assert {:ok, :power} = Commands.run(light, "turn", %{"on" => "false"})
+
+      refute_received {:shelly_rpc, _plug, _method, _params}
+      assert sent() == []
+      refute state("FL1").on
+    end
+
+    test "a silent lamp on a live plug starts as well", %{light: light} do
+      start_supervised!({FakeGoveeBridge, test: self(), silent: ["FL1"]})
+      FakeShelly.serve("fridge")
+      relay!(true)
+
+      assert {:ok, {:starting, {:brightness, 40}}} =
+               Commands.run(light, "brightness", %{"value" => "40"})
+
+      plug_switched_on("fridge")
+    end
+
+    test "a silent lamp switched off gets the off at once", %{light: light} do
+      start_supervised!({FakeGoveeBridge, test: self(), silent: ["FL1"]})
+      relay!(true)
+
+      assert {:ok, :power} = Commands.run(light, "turn", %{"on" => "false"})
+      assert sent() == [{"FL1", {:power, false}}]
+    end
+
+    test "a heard lamp on a live plug, or one whose relay is unknown, is switched at once",
+         %{light: light} do
+      bridge!()
+      FakeShelly.serve("fridge")
+      assert {:ok, :power} = Commands.run(light, "turn", %{"on" => "true"})
+
+      relay!(true)
+      assert {:ok, :power} = Commands.run(light, "turn", %{"on" => "true"})
+
+      assert sent() == [{"FL1", {:power, true}}, {"FL1", {:power, true}}]
+      refute_received {:shelly_rpc, _plug, _method, _params}
+    end
+
+    test "a plug that is not switchable powers no lamp", %{light: light} do
+      TestConfigs.put(TestConfigs.plugs())
+      bridge!()
+      FakeShelly.serve("fridge")
+      relay!(false)
+
+      assert {:ok, :power} = Commands.run(light, "turn", %{"on" => "true"})
+      assert sent() == [{"FL1", {:power, true}}]
+      refute_received {:shelly_rpc, _plug, _method, _params}
+    end
+
+    test "an unreachable plug ends the attempt with a failure", %{light: light} do
+      Ziwoas.Lights.subscribe()
+      bridge!()
+      relay!(false)
+
+      assert {:ok, {:starting, nil}} = Commands.run(light, "turn", %{"on" => "true"})
+      assert_receive {:power_up_failed, {"FL1", :plug_unreachable}}
+      assert PowerUp.starting() == %{}
+    end
+
+    test "without a bridge an unpowered lamp is unreachable", %{light: light} do
+      relay!(false)
+      assert {:error, :unreachable} = Commands.run(light, "turn", %{"on" => "true"})
+    end
+
+    test "a command during an attempt joins it and is not sent", %{light: light} do
+      bridge!()
+      FakeShelly.serve("fridge")
+      relay!(false)
+      assert {:ok, {:starting, nil}} = Commands.run(light, "turn", %{"on" => "true"})
+      plug_switched_on("fridge")
+
+      assert {:ok, {:starting, {:brightness, 40}}} =
+               Commands.run(light, "brightness", %{"value" => "40"})
+
+      assert {:ok, {:starting, nil}} = Commands.run(light, "turn", %{"on" => "false"})
+      assert sent() == []
+    end
+
+    test "a command that does not cast is refused before any plug moves", %{light: light} do
+      bridge!()
+      FakeShelly.serve("fridge")
+      relay!(false)
+      assert {:error, :invalid} = Commands.run(light, "brightness", %{"value" => "0"})
+      refute_received {:shelly_rpc, _plug, _method, _params}
     end
   end
 

@@ -245,7 +245,9 @@ defmodule ZiwoasWeb.LightLiveEventsTest do
   end
 
   describe "the settings sheet" do
-    test "opens in place with the name and a plug dropdown", %{conn: conn} do
+    test "opens in place with the name and a dropdown of the switchable Shelly plugs", %{
+      conn: conn
+    } do
       view = open_page(conn)
       open_settings(view)
 
@@ -265,7 +267,7 @@ defmodule ZiwoasWeb.LightLiveEventsTest do
         |> LazyHTML.query("select[name='light[shelly_plug_id]'] option")
         |> Enum.map(&String.trim(LazyHTML.text(&1)))
 
-      assert options == ["— keine —", "Balkonkraftwerk", "Kühlschrank"]
+      assert options == ["— keine —", "Kühlschrank"]
       refute has_element?(view, "input[name='light[supports_color]']")
     end
 
@@ -282,7 +284,8 @@ defmodule ZiwoasWeb.LightLiveEventsTest do
       assert Repo.get_by(Light, key: "UP1").name == "Uplighter"
     end
 
-    test "saves name and plug, closes and says so", %{conn: conn} do
+    test "saves name and plug, closes, says so and shows the plug's power", %{conn: conn} do
+      Repo.insert!(%Ziwoas.Plugs.State{plug_id: "fridge", output: false})
       view = open_page(conn)
       open_settings(view)
 
@@ -294,6 +297,20 @@ defmodule ZiwoasWeb.LightLiveEventsTest do
       refute has_element?(view, "#light_settings dialog")
       assert view |> element("h1") |> render() =~ "Stehlampe"
       assert render(view) =~ "Lampe aktualisiert."
+      assert has_element?(view, "#light_power", "Aus · stromlos")
+    end
+
+    test "refuses a plug that is no lamp plug", %{conn: conn} do
+      view = open_page(conn)
+      open_settings(view)
+
+      html =
+        render_submit(element(view, "#light_form"), %{
+          "light" => %{"name" => "Uplighter", "shelly_plug_id" => "bkw"}
+        })
+
+      assert html =~ "ist keine schaltbare Steckdose"
+      assert Repo.get_by(Light, key: "UP1").shelly_plug_id == nil
     end
 
     test "a refused save clears the flash of the one saved before", %{conn: conn} do

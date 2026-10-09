@@ -60,7 +60,7 @@ Single file: `mix test test/ziwoas/power_series_test.exs`.
 
 ## Agent skills
 
-- **Issue tracker** — GitHub Issues on `shostakovich/zihas` via the `gh` CLI. No infrastructure
+- **Issue tracker** — GitHub Issues on `shostakovich/ziwoas` via the `gh` CLI. No infrastructure
   details (IPs, SSH, Tailscale) in issues, only the functional outcome.
   See [`docs/agents/issue-tracker.md`](docs/agents/issue-tracker.md).
 - **Triage labels** — the five canonical roles (`needs-triage`, `needs-info`, `ready-for-agent`,
