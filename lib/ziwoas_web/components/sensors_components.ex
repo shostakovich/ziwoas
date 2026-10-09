@@ -185,7 +185,7 @@ defmodule ZiwoasWeb.SensorsComponents do
   @center 52
   @radius 40
   @level_labels [good: "gut", warn: "erhöht", bad: "hoch"]
-  @felt_texture "https://felt-css.rocu.de/img/felt.svg"
+  @felt_texture "https://felt-css.rocu.de/img/felt.webp"
   # felt-css's --felt-stitch-pitch.
   @stitch_pitch 10
 
