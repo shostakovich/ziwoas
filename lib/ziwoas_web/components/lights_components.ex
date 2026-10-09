@@ -55,16 +55,19 @@ defmodule ZiwoasWeb.LightsComponents do
   ]
 
   attr :snapshot, Snapshot, required: true
+  attr :now, DateTime, required: true, doc: "what a starting lamp counts its seconds against"
 
   def light_card(assigns) do
     snapshot = assigns.snapshot
-    on = Lights.on?(snapshot)
+    starting = Lights.starting?(snapshot)
+    on = Lights.on?(snapshot) and not starting
 
     assigns =
       assign(assigns,
         light: snapshot.light,
-        on: on,
-        summary: summary(snapshot),
+        lit: Lights.lit?(snapshot),
+        starting: starting,
+        summary: card_summary(snapshot, assigns.now),
         chip:
           on &&
             %{
@@ -83,7 +86,7 @@ defmodule ZiwoasWeb.LightsComponents do
             navigate={~p"/lights/#{@light.key}"}
           >
             <h3 class="card-title h5 mb-1">{@light.name}</h3>
-            <div class="small text-body-secondary">{@summary}</div>
+            <div :for={line <- @summary} class="small text-body-secondary">{line}</div>
           </.link>
           <.link
             class="d-inline-block small link-secondary mt-3"
@@ -96,13 +99,16 @@ defmodule ZiwoasWeb.LightsComponents do
         <div class="d-flex flex-column align-items-center gap-2">
           <button
             type="button"
-            class={["btn btn-light btn-icon sw-knob sw-lamp-knob", not @on && "off"]}
+            class={["btn btn-light btn-icon sw-knob sw-lamp-knob", not @lit && "off"]}
             aria-label={"#{@light.name} umschalten"}
-            {command(@light.key, "turn", on: not @on)}
+            {command(@light.key, "turn", on: not @lit)}
           >
-            <img alt="" class="icon sw-knob-plush" src={~p"/images/#{plush_image(@light, @on)}"} />
+            <img alt="" class="icon sw-knob-plush" src={~p"/images/#{plush_image(@light, @lit)}"} />
           </button>
 
+          <span :if={@starting} class="spinner-border spinner-border-sm text-warning" role="status">
+            <span class="visually-hidden">Startet</span>
+          </span>
           <span :if={@chip} class="badge border tabular-nums">
             <span class="sw-swatch me-1" style={"background-color: #{@chip.swatch}"}></span>{@chip.label}
           </span>
@@ -130,8 +136,18 @@ defmodule ZiwoasWeb.LightsComponents do
   defp hex_byte(value),
     do: value |> Integer.to_string(16) |> String.downcase() |> String.pad_leading(2, "0")
 
+  defp card_summary(snapshot, now) do
+    if Lights.starting?(snapshot),
+      do: [
+        "Startet … #{Lights.starting_for_s(snapshot, now)} s",
+        "Steckdose an, warte auf Lampe"
+      ],
+      else: [summary(snapshot)]
+  end
+
   defp summary(snapshot) do
     cond do
+      Lights.unpowered?(snapshot) -> "Aus · stromlos"
       not Lights.on?(snapshot) -> "Aus"
       Lights.white?(snapshot) -> "An · Weiß"
       true -> "An · Farbe"
@@ -147,7 +163,8 @@ defmodule ZiwoasWeb.LightsComponents do
     assigns =
       assign(assigns,
         light: snapshot.light,
-        on: Lights.on?(snapshot),
+        on: Lights.lit?(snapshot),
+        unpowered: Lights.unpowered?(snapshot) and not Lights.starting?(snapshot),
         zone_lamp: Lights.zone_lamp?(snapshot),
         zones: zones,
         columns: min(length(zones), 3)
@@ -184,6 +201,7 @@ defmodule ZiwoasWeb.LightsComponents do
             </button>
           </div>
         </div>
+        <p :if={@unpowered} class="small text-body-secondary mt-3 mb-0">Aus · stromlos</p>
         <div :if={@zone_lamp} class="mt-3" role="group" aria-label="Zonen" hidden={not @on}>
           <p class="mb-2 small text-uppercase text-body-secondary" aria-hidden="true">Zonen</p>
           <div class={"row row-cols-#{@columns} g-2 ld-zones"}>
@@ -191,6 +209,22 @@ defmodule ZiwoasWeb.LightsComponents do
           </div>
         </div>
       </div>
+    </div>
+    """
+  end
+
+  attr :snapshot, Snapshot, required: true
+
+  def starting_notice(assigns) do
+    ~H"""
+    <div
+      :if={Lights.starting?(@snapshot)}
+      id="light_starting"
+      class="alert alert-warning d-flex align-items-center gap-2 mb-3"
+      role="status"
+    >
+      <span class="spinner-border spinner-border-sm flex-shrink-0" aria-hidden="true"></span>
+      Lampe startet — Einstellungen werden übernommen, sobald sie erreichbar ist.
     </div>
     """
   end

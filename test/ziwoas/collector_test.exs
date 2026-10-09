@@ -64,6 +64,8 @@ defmodule Ziwoas.CollectorTest do
              {Ziwoas.Fritz.Bridge, "washer"},
              {Task.Supervisor, nil},
              {Ziwoas.Govee.Bridge, nil},
+             {Task.Supervisor, nil},
+             {Ziwoas.Lights.PowerUp, nil},
              {Ziwoas.Sensors.Sen66, "19B8E27966467D7A"}
            ]
   end

@@ -77,7 +77,9 @@ defmodule Ziwoas.Collector do
   defp govee(%Config{govee: govee}),
     do: [
       {Task.Supervisor, name: Ziwoas.Govee.Tasks},
-      {Ziwoas.Govee.Bridge, govee: govee}
+      {Ziwoas.Govee.Bridge, govee: govee},
+      {Task.Supervisor, name: Ziwoas.Lights.Tasks},
+      {Ziwoas.Lights.PowerUp, []}
     ]
 
   defp sen66(config),

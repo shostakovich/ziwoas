@@ -2,8 +2,9 @@ defmodule Ziwoas.Lights do
   @moduledoc false
   import Ecto.Query
 
-  alias Ziwoas.{Clock, Repo}
-  alias Ziwoas.Lights.{Commands, Light, State}
+  alias Ziwoas.{Clock, Config, Repo}
+  alias Ziwoas.Lights.{Commands, Light, Power, PowerUp, State}
+  alias Ziwoas.Plugs.Plug
 
   @topic inspect(__MODULE__)
   @key_format ~r/\A[0-9A-Za-z]+\z/
@@ -18,6 +19,13 @@ defmodule Ziwoas.Lights do
   def notify_updated(key) do
     broadcast(@topic, :updated, key)
     broadcast(topic(key), :updated, key)
+    :ok
+  end
+
+  @spec notify_power_up_failed(String.t(), PowerUp.failure()) :: :ok
+  def notify_power_up_failed(key, failure) do
+    broadcast(@topic, :power_up_failed, {key, failure})
+    broadcast(topic(key), :power_up_failed, {key, failure})
     :ok
   end
 
@@ -36,8 +44,15 @@ defmodule Ziwoas.Lights do
   defmodule Snapshot do
     @moduledoc false
     @enforce_keys [:light, :state]
-    defstruct @enforce_keys
-    @type t :: %__MODULE__{light: Light.t(), state: State.t() | nil}
+    defstruct @enforce_keys ++ [unpowered: false, starting_since: nil, starting_on: false]
+
+    @type t :: %__MODULE__{
+            light: Light.t(),
+            state: State.t() | nil,
+            unpowered: boolean,
+            starting_since: DateTime.t() | nil,
+            starting_on: boolean
+          }
   end
 
   @spec get_by_key(String.t()) :: Light.t() | nil
@@ -47,19 +62,38 @@ defmodule Ziwoas.Lights do
   def get_by_key!(key), do: Repo.get_by!(Light, key: key)
 
   @spec snapshots() :: [Snapshot.t()]
-  def snapshots do
-    lights = Repo.all(from l in Light, order_by: l.name)
-    keys = Enum.map(lights, & &1.key)
-    states = Map.new(Repo.all(from s in State, where: s.light_key in ^keys), &{&1.light_key, &1})
-    Enum.map(lights, &%Snapshot{light: &1, state: states[&1.key]})
-  end
+  def snapshots, do: Repo.all(from l in Light, order_by: l.name) |> snapshots_of()
 
   @spec snapshot(Light.t()) :: Snapshot.t()
-  def snapshot(light),
-    do: %Snapshot{light: light, state: Repo.get_by(State, light_key: light.key)}
+  def snapshot(light), do: hd(snapshots_of([light]))
+
+  defp snapshots_of(lights) do
+    keys = Enum.map(lights, & &1.key)
+    states = Map.new(Repo.all(from s in State, where: s.light_key in ^keys), &{&1.light_key, &1})
+    unpowered = Power.unpowered_keys(lights, Config.get().plugs)
+    starting = PowerUp.starting()
+
+    Enum.map(
+      lights,
+      &%Snapshot{
+        light: &1,
+        state: states[&1.key],
+        unpowered: MapSet.member?(unpowered, &1.key),
+        starting_since: starting[&1.key][:since],
+        starting_on: starting[&1.key][:on] == true
+      }
+    )
+  end
+
+  @spec power_up_deadline_s() :: pos_integer
+  defdelegate power_up_deadline_s, to: PowerUp, as: :deadline_s
+
+  @spec lamp_plugs() :: [Plug.t()]
+  def lamp_plugs, do: Enum.filter(Config.get().plugs, &Power.lamp_plug?/1)
 
   @spec change_settings(Light.t(), map) :: Ecto.Changeset.t()
-  def change_settings(light, params \\ %{}), do: Light.settings_changeset(light, params)
+  def change_settings(light, params \\ %{}),
+    do: Light.settings_changeset(light, params, Enum.map(lamp_plugs(), & &1.id))
 
   @spec update_settings(Light.t(), map) :: {:ok, Light.t()} | {:error, Ecto.Changeset.t()}
   def update_settings(light, params), do: light |> change_settings(params) |> Repo.update()
@@ -152,7 +186,29 @@ defmodule Ziwoas.Lights do
   @spec scenes(Light.t()) :: [String.t()]
   def scenes(light), do: Light.firmware_scenes(light)
 
+  def on?(%Snapshot{unpowered: true}), do: false
   def on?(%Snapshot{state: state}), do: state != nil and state.on == true
+
+  def unpowered?(%Snapshot{unpowered: unpowered}), do: unpowered
+
+  @doc "Whether plug deltas report a relay the snapshot does not know yet."
+  @spec power_changed?(Snapshot.t(), [map]) :: boolean
+  def power_changed?(%Snapshot{light: light, unpowered: unpowered}, deltas) do
+    case Power.plug(light, Config.get().plugs) do
+      nil -> false
+      plug -> Enum.any?(deltas, &(&1.id == plug.id and &1[:output] == unpowered))
+    end
+  end
+
+  def starting?(%Snapshot{starting_since: since}), do: since != nil
+
+  @doc "What the lamp shows: the wanted power while it starts, else its own."
+  def lit?(%Snapshot{} = snapshot),
+    do: if(starting?(snapshot), do: snapshot.starting_on, else: on?(snapshot))
+
+  @spec starting_for_s(Snapshot.t(), DateTime.t()) :: non_neg_integer
+  def starting_for_s(%Snapshot{starting_since: since}, now), do: max(DateTime.diff(now, since), 0)
+
   def brightness(%Snapshot{state: state}), do: (state && state.brightness) || 0
   def color_temp_k(%Snapshot{state: state}), do: state && state.color_temp_k
 

@@ -4,7 +4,7 @@ defmodule ZiwoasWeb.LightLive do
 
   import ZiwoasWeb.LightsComponents
 
-  alias Ziwoas.{Config, Lights}
+  alias Ziwoas.{Lights, Plugs}
   alias ZiwoasWeb.LightEvents
 
   @toast_ms 5_000
@@ -13,13 +13,17 @@ defmodule ZiwoasWeb.LightLive do
   def mount(%{"key" => key}, _session, socket) do
     light = Lights.get_by_key!(key)
     snapshot = Lights.snapshot(light)
-    if connected?(socket), do: Lights.subscribe(key)
+
+    if connected?(socket) do
+      Lights.subscribe(key)
+      Plugs.subscribe()
+    end
 
     {:ok,
      assign(socket,
        page_title: light.name,
        light: light,
-       plugs: Config.get().plugs,
+       plugs: Lights.lamp_plugs(),
        tabs: tabs_of(light),
        tab: "white",
        power_snapshot: snapshot,
@@ -41,6 +45,17 @@ defmodule ZiwoasWeb.LightLive do
 
   @impl true
   def handle_info({:updated, _key}, socket), do: {:noreply, refresh_power(socket)}
+
+  def handle_info({:live, deltas}, socket) do
+    if Lights.power_changed?(socket.assigns.power_snapshot, deltas),
+      do: {:noreply, refresh_power(socket)},
+      else: {:noreply, socket}
+  end
+
+  def handle_info({:power_up_failed, {_key, failure}}, socket) do
+    message = LightEvents.power_up_failed_message(socket.assigns.light.name, failure)
+    {:noreply, socket |> put_flash(:error, message) |> refresh_power()}
+  end
 
   def handle_info(:hide_toast, socket),
     do: {:noreply, assign(socket, toast: %{message: nil, undo: nil}, toast_timer: nil)}
@@ -85,6 +100,7 @@ defmodule ZiwoasWeb.LightLive do
         {:noreply,
          socket
          |> assign(light: light, page_title: light.name, settings: nil)
+         |> refresh_power()
          |> put_flash(:info, "Lampe aktualisiert.")}
 
       {:error, changeset} ->
@@ -99,7 +115,7 @@ defmodule ZiwoasWeb.LightLive do
         socket = refresh_power(socket)
         {:noreply, if(toast, do: show_toast(socket, toast_assigns(light, toast)), else: socket)}
 
-      {:ok, _light, :power} ->
+      {:ok, _light, result} when result in [:power, :starting] ->
         {:noreply, refresh_power(socket)}
 
       {:ok, _light, {:sent, verb}} ->
@@ -170,6 +186,7 @@ defmodule ZiwoasWeb.LightLive do
           </:actions>
         </.header>
 
+        <.starting_notice snapshot={@power_snapshot} />
         <.power snapshot={@power_snapshot} />
         <.brightness_panel brightness={@brightness} revert={@revert} />
         <.tabs tabs={@tabs} active={@tab} />

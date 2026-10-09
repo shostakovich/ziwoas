@@ -19,14 +19,22 @@ defmodule ZiwoasWeb.SwitchesLive do
       Lights.subscribe()
     end
 
-    {:ok, socket |> assign(page_title: "Schalten", editors: %{}) |> load()}
+    {:ok, socket |> assign(page_title: "Schalten", editors: %{}, tick: nil) |> load()}
   end
 
   @impl true
   def handle_info({:live, _deltas}, socket), do: {:noreply, load(socket)}
 
-  def handle_info({:updated, _key}, socket),
-    do: {:noreply, assign(socket, :snapshots, Lights.snapshots())}
+  def handle_info({:updated, _key}, socket), do: {:noreply, load_lights(socket)}
+
+  def handle_info({:power_up_failed, {key, failure}}, socket) do
+    name = Enum.find_value(socket.assigns.snapshots, key, &(&1.light.key == key && &1.light.name))
+    message = LightEvents.power_up_failed_message(name, failure)
+    {:noreply, socket |> put_flash(:error, message) |> load_lights()}
+  end
+
+  def handle_info(:tick, socket),
+    do: {:noreply, socket |> assign(now: Clock.now(), tick: nil) |> tick_while_starting()}
 
   @impl true
   def handle_event("switch_plug", %{"plug_id" => plug_id, "state" => state}, socket)
@@ -130,7 +138,7 @@ defmodule ZiwoasWeb.SwitchesLive do
   end
 
   def handle_async(:light_command, {:ok, {:ok, _light, _result}}, socket),
-    do: {:noreply, assign(socket, :snapshots, Lights.snapshots())}
+    do: {:noreply, load_lights(socket)}
 
   def handle_async(:light_command, {:ok, {:error, reason}}, socket)
       when reason in [:not_found, :invalid],
@@ -222,7 +230,7 @@ defmodule ZiwoasWeb.SwitchesLive do
 
         <%= if @snapshots != [] do %>
           <h2 class="h6 text-uppercase text-body-secondary mt-4 mb-2">Lampen</h2>
-          <.light_card :for={snapshot <- @snapshots} snapshot={snapshot} />
+          <.light_card :for={snapshot <- @snapshots} snapshot={snapshot} now={@now} />
         <% end %>
 
         <h2 :if={@rows != []} class="h6 text-uppercase text-body-secondary mt-4 mb-2">Steckdosen</h2>
@@ -237,10 +245,22 @@ defmodule ZiwoasWeb.SwitchesLive do
     zone = config.location.timezone
     plugs = Enum.filter(config.plugs, & &1.switchable)
 
-    assign(socket,
-      zone: zone,
-      rows: Switching.rows(plugs, Clock.now(), zone),
-      snapshots: Lights.snapshots()
-    )
+    socket
+    |> assign(zone: zone, rows: Switching.rows(plugs, Clock.now(), zone))
+    |> load_lights()
   end
+
+  defp load_lights(socket) do
+    socket
+    |> assign(now: Clock.now(), snapshots: Lights.snapshots())
+    |> tick_while_starting()
+  end
+
+  defp tick_while_starting(%{assigns: %{tick: nil, snapshots: snapshots}} = socket) do
+    if Enum.any?(snapshots, &Lights.starting?/1),
+      do: assign(socket, :tick, Process.send_after(self(), :tick, 1_000)),
+      else: socket
+  end
+
+  defp tick_while_starting(socket), do: socket
 end

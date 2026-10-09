@@ -48,10 +48,11 @@ defmodule Ziwoas.Lights.Light do
   def color_temp_max_k(%__MODULE__{color_temp_max_k: kelvin}),
     do: kelvin || elem(@default_kelvin, 1)
 
-  @spec settings_changeset(t, map) :: Ecto.Changeset.t()
-  def settings_changeset(light, params) do
+  @spec settings_changeset(t, map, [String.t()]) :: Ecto.Changeset.t()
+  def settings_changeset(light, params, plug_ids) do
     light
     |> cast(params, [:name, :shelly_plug_id])
     |> validate_required([:name])
+    |> validate_inclusion(:shelly_plug_id, plug_ids, message: "ist keine schaltbare Steckdose")
   end
 end

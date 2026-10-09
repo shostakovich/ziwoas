@@ -6,6 +6,12 @@ defmodule ZiwoasWeb.LightEvents do
 
   def failed_message, do: @failed
 
+  def power_up_failed_message(name, :timeout),
+    do: "#{name} nach #{Lights.power_up_deadline_s()} s nicht erreichbar — Steckdose bleibt an."
+
+  def power_up_failed_message(name, :plug_unreachable),
+    do: "#{name}: Steckdose nicht erreichbar"
+
   @spec run(map) ::
           {:ok, Lights.Light.t(), Lights.Commands.result()}
           | {:error, :not_found | :invalid | :unreachable}
