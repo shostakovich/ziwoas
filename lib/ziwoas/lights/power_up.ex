@@ -9,7 +9,7 @@ defmodule Ziwoas.Lights.PowerUp do
   alias Ziwoas.Lights.{Commands, Light}
   alias Ziwoas.Plugs.Plug
 
-  @deadline_s 60
+  @deadline_s 90
   @retry_ms 5_000
 
   @type command :: {String.t(), map}
