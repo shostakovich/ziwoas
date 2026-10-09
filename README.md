@@ -1,4 +1,4 @@
-<img src="priv/static/icon.png" alt="Zipfelmaus – home automation" width="120">
+<img src="priv/static/images/zipfelmaus.webp" alt="Zipfelmaus – home automation" width="120">
 
 # ZiWoAS – Zipfelmaus Wohnungs Automatisierungs System
 
