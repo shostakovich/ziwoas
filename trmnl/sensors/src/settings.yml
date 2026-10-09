@@ -4,7 +4,7 @@ no_screen_padding: 'no'
 dark_mode: 'no'
 static_data: ''
 polling_verb: get
-framework_version: 3.1.1
+framework_version: 3.4.0
 serverless_language: ''
 refresh_interval_floor:
 polling_url: ''
@@ -31,4 +31,4 @@ oauth_expiry_strategy: ''
 oauth_fixed_expiry_ms: ''
 name: Raumluft
 description:
-refresh_interval: 5
+refresh_interval: 15

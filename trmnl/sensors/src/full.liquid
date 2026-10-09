@@ -3,7 +3,8 @@
     stand: "HH:MM", local time of the push
     stand_at: UTC epoch seconds of the push; older than 30 min at render time shows the stale state;
       a push from an earlier local day shows its weekday („Stand Mo 21:40“)
-    trend_from, trend_to: "HH:MM", local start and end of the trend's quarter hours, the axis labels
+    trend_from, trend_to: "HH:MM", local start and end of the trend's quarter hours; the hour ticks
+      count from trend_from
     room: room name, e.g. "Wohnzimmer"
     source: "sen66" | "switchbot" | null, where CO₂ comes from, else the sensor serving the other
       values; null = nothing fresh
@@ -38,22 +39,24 @@
   .ra-body { display: grid; grid-template-rows: 342px 69px; grid-template-columns: minmax(0, 1fr); width: 100%; height: 411px; }
   .ra-main { display: grid; grid-template-columns: 340px minmax(0, 1fr); column-gap: 24px; }
   .ra-head { display: flex; align-items: center; justify-content: space-between; height: 30px; }
-  .ra-slot { height: 104px; }
-  .ra-numeral { line-height: 104px; margin-left: -8px; }
+  .ra-slot { height: 92px; }
+  .ra-big { display: flex; align-items: baseline; gap: 10px; }
+  .ra-numeral { line-height: 92px; margin-left: -6px; }
+  .ra-unit { position: relative; }
+  .ra-unit-level { position: absolute; left: 0; bottom: 54px; width: max-content; max-width: none; }
   .ra-cells { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-template-rows: repeat(3, 114px); column-gap: 24px; }
   .ra-rule { position: relative; padding-top: 10px; }
   .ra-rule::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: var(--gray-55, #AAAAAA); }
   .ra-rule--bridge::before { right: -24px; }
   .ra-row3 { grid-row: 3; }
   .ra-detail { padding-top: 161px; }
-  .ra-headline { font-size: 30px; line-height: 104px; }
+  .ra-headline { font-size: 30px; line-height: 92px; }
   .ra-note { grid-column: 1 / span 2; grid-row: 1 / span 2; display: flex; flex-direction: column; justify-content: center; gap: 6px; }
   .ra-base { display: flex; align-items: baseline; gap: 6px; height: 60px; }
   .ra-base .value--large { line-height: 60px; }
   .ra-chip { padding: 1px 6px; border-radius: 4px; }
   .ra-chip--line { padding: 1px 8px; line-height: 22px; border-radius: 4px; }
-  .ra-trend { display: block; width: 340px; height: 172px; margin-top: 8px; }
-  .ra-axis { display: flex; justify-content: space-between; padding-left: 44px; height: 20px; margin-top: 2px; }
+  .ra-trend { height: 214px; margin-top: 6px; }
   .ra-foot { display: grid; grid-template-rows: 29px 24px; margin-top: 8px; padding-top: 6px; border-top: 2px solid currentColor; }
   .ra-line { display: flex; align-items: center; gap: 16px; white-space: nowrap; min-width: 0; }
   .ra-line--split { justify-content: space-between; }
@@ -98,19 +101,24 @@
       <div>
         <div class="ra-head">
           {%- if fresh == false -%}
-            <span class="label text--gray-30">CO2 · ppm</span>
+            <span class="label text--gray-30">CO2</span>
           {%- else -%}
-            <span class="label">CO2 · ppm{% if stand_in contains "co2" %} · SwitchBot {{ stand_in_since }}{% endif %}</span>
-            {%- case levels.co2 -%}
-              {%- when "bad" -%}<span class="label ra-chip bg--black text--white">hoch</span>
-              {%- when "warn" -%}<span class="label ra-chip bg--gray-30 text--white">erhöht</span>
-              {%- when "good" -%}<span class="label text--gray-30">gut</span>
-            {%- endcase -%}
+            <span class="label">CO2{% if stand_in contains "co2" %} · SwitchBot {{ stand_in_since }}{% endif %}</span>
           {%- endif -%}
         </div>
         <div class="ra-slot">
           {%- if co2 -%}
-            <span class="value value--xxxlarge value--tnums ra-numeral">{{ co2 }}</span>
+            <div class="ra-big">
+              <span class="value value--xxlarge value--tnums ra-numeral">{{ co2 }}</span>
+              <span class="ra-unit">
+                {%- case levels.co2 -%}
+                  {%- when "bad" -%}<span class="label ra-chip ra-unit-level bg--black text--white">hoch</span>
+                  {%- when "warn" -%}<span class="label ra-chip ra-unit-level bg--gray-30 text--white">erhöht</span>
+                  {%- when "good" -%}<span class="label ra-unit-level text--gray-30">gut</span>
+                {%- endcase -%}
+                <span class="label text--gray-30">ppm</span>
+              </span>
+            </div>
           {%- else -%}
             <div class="value ra-headline">Keine aktuellen Daten</div>
           {%- endif -%}
@@ -120,61 +128,122 @@
         {%- if known.size > 1 -%}
           {%- assign live = true -%}
           {%- if co2 == nil or co2_trend.last == nil -%}{%- assign live = false -%}{%- endif -%}
-          {%- assign area = "" -%}
-          {%- assign line = "" -%}
-          {%- assign stand_in_line = "" -%}
-          {%- assign prev_y = nil -%}
-          {%- for v in co2_trend -%}
-            {%- if v != nil -%}
-              {%- assign c = v -%}
-              {%- if c > 1600 -%}{%- assign c = 1600 -%}{%- elsif c < 400 -%}{%- assign c = 400 -%}{%- endif -%}
-              {%- assign x = forloop.index0 | times: 26.36 | plus: 44 | round: 1 -%}
-              {%- assign y = 1600 | minus: c | times: 0.138333 | plus: 4 | round: 1 -%}
-              {%- if prev_y != nil -%}
-                {%- if live and co2_trend_stand_in contains forloop.index0 -%}
-                  {%- capture stand_in_line -%}{{ stand_in_line }}<line x1="{{ prev_x }}" y1="{{ prev_y }}" x2="{{ x }}" y2="{{ y }}"/>{%- endcapture -%}
-                {%- else -%}
-                  {%- capture area -%}{{ area }}<polygon points="{{ prev_x }},{{ prev_y }} {{ x }},{{ y }} {{ x }},170 {{ prev_x }},170" shape-rendering="crispEdges"/>{%- endcapture -%}
-                  {%- capture line -%}{{ line }}<line x1="{{ prev_x }}" y1="{{ prev_y }}" x2="{{ x }}" y2="{{ y }}"/>{%- endcapture -%}
-                {%- endif -%}
-              {%- elsif co2_trend[forloop.index] == nil -%}
-                {%- capture line -%}{{ line }}<circle cx="{{ x }}" cy="{{ y }}" r="2" fill="currentColor"/>{%- endcapture -%}
-              {%- endif -%}
-              {%- assign prev_x = x -%}
-              {%- assign prev_y = y -%}
-              {%- assign last_x = x -%}
-              {%- assign last_y = y -%}
-            {%- else -%}
-              {%- assign prev_y = nil -%}
-            {%- endif -%}
-          {%- endfor -%}
-          <svg class="ra-trend" viewBox="0 0 340 172" aria-hidden="true">
-            {%- if live -%}<g class="text--gray-55" fill="currentColor">{{ area }}</g>{%- endif -%}
-            <g class="text--gray-30">
-              <g stroke="currentColor" stroke-width="2" stroke-dasharray="4 4">
-                <line x1="44" x2="340" y1="87" y2="87"/>
-                <line x1="44" x2="340" y1="32" y2="32"/>
-              </g>
-              <g fill="currentColor" font-family="NicoClean" font-size="16">
-                <text x="0" y="92">1000</text>
-                <text x="0" y="37">1400</text>
-              </g>
-            </g>
-            <g {% if live %}stroke-width="3"{% else %}class="text--gray-30" stroke-width="2"{% endif %} stroke="currentColor" stroke-linecap="round">{{ line }}</g>
-            {%- if live -%}
-              <g stroke="currentColor" stroke-width="3" stroke-dasharray="8 4">{{ stand_in_line }}</g>
-              <circle cx="{{ last_x }}" cy="{{ last_y }}" r="5" fill="currentColor"/>
-            {%- elsif co2_trend.last == nil and data_until -%}
-              {%- assign end_x = last_x | minus: 20 | round -%}
-              {%- assign end_y = last_y | minus: 9 | round -%}
-              {%- if last_y < 40 -%}{%- assign end_y = last_y | plus: 22 | round -%}{%- endif -%}
-              <g class="text--gray-30"><text x="{{ end_x }}" y="{{ end_y }}" fill="currentColor" font-family="NicoClean" font-size="16">{{ data_until }}</text></g>
-            {%- endif -%}
-          </svg>
-          <div class="ra-axis">
-            <span class="label text--gray-30">{{ trend_from }}</span>
-            <span class="label text--gray-30">{{ trend_to }}</span>
-          </div>
+          {%- assign trend_id = "ra-trend-" | append_random -%}
+          <div id="{{ trend_id }}" class="ra-trend" aria-hidden="true"></div>
+          <script src="https://trmnl.com/js/highcharts/12.3.0/highcharts.js"></script>
+          <script src="https://trmnl.com/js/highcharts/12.3.0/pattern-fill.js"></script>
+          <script>
+            // plugins.js loads as a module, so TRMNLPaint and TRMNLCharts exist only once the DOM is parsed.
+            document.addEventListener("DOMContentLoaded", function () {
+              var el = "{{ trend_id }}";
+              var trend = [{% for v in co2_trend %}{% if v == nil %}null{% else %}{{ v }}{% endif %}{% unless forloop.last %},{% endunless %}{% endfor %}];
+              var live = {{ live }};
+              var standIn = live ? [{{ co2_trend_stand_in | join: "," }}] : [];
+              var endLabel = {% if live == false and co2_trend.last == nil and data_until %}"{{ data_until }}"{% else %}null{% endif %};
+              var from = "{{ trend_from }}".split(":");
+
+              function px(n) { return TRMNLPaint.px(n, { el: el }); }
+              function paint(token) { return TRMNLCharts.paint(token, { el: el }); }
+              function known(i) { return trend[i] !== null && trend[i] !== undefined; }
+
+              // Each point sits in the middle of its quarter hour, so the hour ticks fall between points.
+              var quarter = 15;
+              var firstMinute = Number(from[0]) * 60 + Number(from[1]) + quarter / 2;
+              var lastIndex = trend.length - 1;
+              var hourTicks = [];
+              for (var m = Math.ceil(firstMinute / 60) * 60; m <= firstMinute + lastIndex * quarter; m += 60) {
+                hourTicks.push((m - firstMinute) / quarter);
+              }
+              function hourAt(index) {
+                var hour = Math.round((firstMinute + index * quarter) / 60) % 24;
+                return (hour < 10 ? "0" : "") + hour + ":00";
+              }
+
+              var lastKnown = -1;
+              trend.forEach(function (v, i) { if (v !== null) lastKnown = i; });
+              var points = trend.map(function (v, i) {
+                if (v === null) return { x: i, y: null };
+                var point = { x: i, y: Math.min(1600, Math.max(400, v)) };
+                if (live && i === lastIndex) {
+                  point.marker = { enabled: true, radius: px(5) };
+                } else if (!known(i - 1) && !known(i + 1)) {
+                  point.marker = { enabled: true, radius: px(2) };
+                }
+                if (endLabel && i === lastKnown) {
+                  point.dataLabels = { enabled: true, format: endLabel, y: -px(4) };
+                }
+                return point;
+              });
+
+              // The segment into index i is the stand-in's when i is listed: long-dashed without area.
+              // Highcharts multiplies whole dash units by the line width, so 3,1 at width 3 draws 9/3.
+              var standInDash = "3,1";
+              var zones = [];
+              for (var i = 1; i <= lastIndex; i++) {
+                var dashed = standIn.indexOf(i) >= 0;
+                var current = zones[zones.length - 1];
+                if (!current || current.dashed !== dashed) {
+                  if (current) current.value = i - 1;
+                  zones.push({ dashed: dashed });
+                }
+              }
+              zones = zones.map(function (zone) {
+                return zone.dashed
+                  ? { value: zone.value, dashStyle: standInDash, fillColor: "transparent" }
+                  : { value: zone.value };
+              });
+
+              var label = TRMNLCharts.textStyle("chart-label", { el: el, stroke: "white" });
+              TRMNLCharts.watch(el, function () {
+                return Highcharts.chart(el, TRMNLCharts.merge(TRMNLCharts.options({ el: el }), {
+                  chart: { type: "area", height: px(214), margin: [px(20), px(6), px(24), px(2)], animation: false },
+                  series: [{
+                    animation: false,
+                    data: points,
+                    threshold: null,
+                    color: paint(live ? "black" : "gray-30"),
+                    lineWidth: px(live ? 3 : 2),
+                    fillColor: live ? paint("gray-55") : "transparent",
+                    zoneAxis: "x",
+                    zones: zones,
+                    linecap: "butt",
+                    clip: false,
+                    dataLabels: { style: label, allowOverlap: true }
+                  }],
+                  yAxis: {
+                    min: 400,
+                    max: 1600,
+                    tickPositions: [400, 1000, 1400, 1600],
+                    gridLineWidth: 0,
+                    title: { text: null },
+                    labels: {
+                      align: "left",
+                      x: 0,
+                      y: -px(5),
+                      reserveSpace: false,
+                      // Labels sit inside the plot, so the narrow space left of it must not ellipsize them.
+                      style: TRMNLCharts.merge(label, { textOverflow: "clip", whiteSpace: "nowrap" }),
+                      formatter: function () { return this.value === 1600 ? "1600 ppm" : String(this.value); }
+                    },
+                    plotLines: [1000, 1400].map(function (value) {
+                      return { value: value, color: paint("gray-30"), width: px(2), dashStyle: "2,2", zIndex: 3 };
+                    })
+                  },
+                  xAxis: {
+                    min: 0,
+                    max: lastIndex,
+                    minPadding: 0,
+                    maxPadding: 0,
+                    tickPositions: hourTicks,
+                    lineWidth: 0,
+                    tickWidth: 0,
+                    gridLineWidth: 0,
+                    labels: { y: px(16), style: label, formatter: function () { return hourAt(this.value); } }
+                  }
+                }));
+              });
+            });
+          </script>
         {%- endif -%}
       </div>
 
