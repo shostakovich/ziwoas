@@ -2,8 +2,8 @@ defmodule ZiwoasWeb.StaticAssetsTest do
   use ZiwoasWeb.ConnCase
 
   for path <-
-        ~w[/images/zipfelmaus.webp /images/solakon_battery_normal.webp /images/favicon.png
-           /images/apple-touch-icon.png /robots.txt] do
+        ~w[/images/zipfelmaus.webp /images/solakon_battery_normal.webp /images/favicon.svg
+           /images/favicon.png /images/apple-touch-icon.png /robots.txt] do
     test "serves #{path} from priv/static", %{conn: conn} do
       assert get(conn, unquote(path)).status == 200
     end
