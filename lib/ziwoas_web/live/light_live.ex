@@ -46,12 +46,18 @@ defmodule ZiwoasWeb.LightLive do
     do: {:noreply, assign(socket, toast: %{message: nil, undo: nil}, toast_timer: nil)}
 
   @impl true
-  def handle_event("light_command", params, socket) do
-    params = Map.put(params, "light_key", socket.assigns.light.key)
+  def handle_event("light_command", %{"command" => command} = params, socket) do
+    if Lights.command?(command) do
+      params = Map.put(params, "light_key", socket.assigns.light.key)
 
-    {:noreply,
-     start_async(socket, {:light_command, params["command"]}, fn -> LightEvents.run(params) end)}
+      {:noreply,
+       start_async(socket, {:light_command, command}, fn -> LightEvents.run(params) end)}
+    else
+      {:noreply, socket}
+    end
   end
+
+  def handle_event("light_command", _params, socket), do: {:noreply, socket}
 
   def handle_event("select_tab", %{"tab" => tab}, socket) do
     if List.keymember?(socket.assigns.tabs, tab, 0),
