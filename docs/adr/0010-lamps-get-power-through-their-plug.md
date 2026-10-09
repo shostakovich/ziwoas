@@ -19,7 +19,8 @@ command (#176).
   bridge scans every 2 s instead of every 8. After the first reply the collected commands go
   out, and they are repeated every 5 s until a status reply shows the wanted power, because a
   zone lamp's `powerSwitch` goes through the cloud, which comes up later than the LAN.
-- **60 s deadline** from the command that started the attempt. A lamp never heard gives up with a notice; one
+- **90 s deadline** from the command that started the attempt (a Floor Lamp H607C measured 53–73 s from
+  plug on to its first LAN reply, slowest after a long time without power). A lamp never heard gives up with a notice; one
   that answered got its commands and ends quietly, even if no status confirmed them yet.
 - **Commands during the wait are collected**: the last one per kind wins (colour and white are one
   kind), an off replaces all others, a command after an off turns the lamp on again, and power is
@@ -34,5 +35,5 @@ command (#176).
 - An attempt lives in memory: a restart drops it, and the plug stays on. A restarted bridge is
   watched again on the next 5 s tick.
 - A lamp the LAN never hears (cloud only) is never reachable by this rule; on a plug that is off
-  it times out after 60 s.
+  it times out after 90 s.
 - The plug that powers a lamp keeps its own schedule, which knows nothing of the lamp.
