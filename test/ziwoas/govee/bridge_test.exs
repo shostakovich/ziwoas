@@ -152,6 +152,118 @@ defmodule Ziwoas.Govee.BridgeTest do
     assert_receive {:state, @key, %{zone_states: %{"rippleLightToggle" => true}}}, 1_000
   end
 
+  describe "hearing a lamp" do
+    defp scan(port),
+      do:
+        udp(
+          port,
+          JSON.encode!(%{
+            "msg" => %{"cmd" => "scan", "data" => %{"ip" => "127.0.0.1", "device" => @mac}}
+          })
+        )
+
+    defp flush_datagrams do
+      receive do
+        {:datagram, _datagram} -> flush_datagrams()
+      after
+        50 -> :ok
+      end
+    end
+
+    test "a lamp never heard is not silent; heard, it falls silent after three LAN polls" do
+      now = start_supervised!({Agent, fn -> 0 end})
+
+      bridge =
+        start_bridge!(
+          listen_port: 0,
+          govee: %{@govee | lan_poll_seconds: 8},
+          clock: fn -> Agent.get(now, & &1) end
+        )
+
+      assert_receive {:lamp, _lamp}, 1_000
+      refute Bridge.silent?(@key, bridge)
+
+      scan(Bridge.listen_port(bridge))
+      await(fn -> :sys.get_state(bridge).heard_at[@key] == 0 end, 1_000)
+
+      Agent.update(now, fn _ -> 24 end)
+      refute Bridge.silent?(@key, bridge)
+
+      Agent.update(now, fn _ -> 25 end)
+      assert Bridge.silent?(@key, bridge)
+
+      udp(Bridge.listen_port(bridge), status(%{"onOff" => 1}))
+      await(fn -> not Bridge.silent?(@key, bridge) end, 1_000)
+    end
+
+    test "a watcher hears of every reply, and the bridge scans fast while it watches" do
+      bridge = start_bridge!(listen_port: 0, watch_poll_ms: 10)
+      assert_receive {:lamp, _lamp}, 1_000
+      port = Bridge.listen_port(bridge)
+      scan(port)
+      await(fn -> :sys.get_state(bridge).heard_at[@key] end, 1_000)
+      flush_datagrams()
+
+      assert Bridge.watch(@key, bridge) == :ok
+
+      for _poll <- 1..2 do
+        assert_receive {:datagram, %{host: "239.255.255.250", port: 4001}}, 1_000
+
+        assert_receive {:datagram,
+                        %{host: "127.0.0.1", data: ~s({"msg":{"cmd":"devStatus","data":{}}})}}
+      end
+
+      scan(port)
+      assert_receive {:lamp_heard, @key, nil}, 1_000
+
+      udp(port, status(%{"onOff" => 1, "brightness" => 30}))
+      assert_receive {:lamp_heard, @key, %{on: true, brightness: 30}}, 1_000
+
+      assert Bridge.unwatch(@key, bridge) == :ok
+      flush_datagrams()
+      refute_receive {:datagram, _datagram}, 100
+
+      scan(port)
+      refute_receive {:lamp_heard, _key, _telemetry}, 100
+
+      assert Bridge.watch(@key, bridge) == :ok
+      assert_receive {:datagram, %{host: "239.255.255.250", port: 4001}}, 1_000
+    end
+
+    test "a scan reply from an unknown device is not remembered" do
+      bridge = start_bridge!(listen_port: 0)
+      assert_receive {:lamp, _lamp}, 1_000
+
+      udp(
+        Bridge.listen_port(bridge),
+        JSON.encode!(%{
+          "msg" => %{"cmd" => "scan", "data" => %{"ip" => "127.0.0.9", "device" => "AA:BB"}}
+        })
+      )
+
+      scan(Bridge.listen_port(bridge))
+      await(fn -> :sys.get_state(bridge).heard_at[@key] end, 1_000)
+      assert Map.keys(:sys.get_state(bridge).heard_at) == [@key]
+    end
+
+    test "a watcher that goes away ends its watch" do
+      bridge = start_bridge!(listen_port: false, watch_poll_ms: 10)
+      assert_receive {:lamp, _lamp}, 1_000
+
+      watcher = spawn(fn -> Process.sleep(:infinity) end)
+      assert Bridge.watch(@key, bridge, watcher) == :ok
+      Process.exit(watcher, :kill)
+
+      await(fn -> :sys.get_state(bridge).watchers == %{} end, 1_000)
+    end
+
+    test "without a bridge nothing is silent and nothing can be watched" do
+      refute Bridge.silent?(@key, :no_bridge)
+      assert Bridge.watch(@key, :no_bridge) == {:error, :unavailable}
+      assert Bridge.unwatch(@key, :no_bridge) == :ok
+    end
+  end
+
   test "an unknown lamp or scene is refused; without a bridge it is unavailable" do
     bridge = start_bridge!(listen_port: false)
     assert_receive {:lamp, _lamp}, 1_000
