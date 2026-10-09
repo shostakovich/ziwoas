@@ -82,21 +82,21 @@ defmodule ZiwoasWeb.LampPowerUpTest do
     assert ["An · Weiß" | _] = summary(view)
   end
 
-  test "a lamp that does not answer within 60 s gives up and leaves the plug on",
+  test "a lamp that does not answer within 90 s gives up and leaves the plug on",
        %{conn: conn} do
     FakeShelly.serve("fridge")
     {:ok, view, _html} = live(conn, ~p"/switches")
     tap_lamp(view)
     plug_switched_on()
 
-    later(61)
+    later(91)
     tick("FL1")
     assert_received {:govee_unwatch, "FL1"}
 
     assert has_element?(
              view,
              "#flash-error",
-             "Stehlampe nach 60 s nicht erreichbar — Steckdose bleibt an."
+             "Stehlampe nach 90 s nicht erreichbar — Steckdose bleibt an."
            )
 
     hear(nil)
@@ -121,14 +121,14 @@ defmodule ZiwoasWeb.LampPowerUpTest do
     render_async(view)
     plug_switched_on()
 
-    later(60)
+    later(90)
     tick("FL1")
     assert_received {:govee_unwatch, "FL1"}
 
     assert has_element?(
              view,
              "#flash-error",
-             "Stehlampe nach 60 s nicht erreichbar — Steckdose bleibt an."
+             "Stehlampe nach 90 s nicht erreichbar — Steckdose bleibt an."
            )
 
     refute has_element?(view, "#light_starting")

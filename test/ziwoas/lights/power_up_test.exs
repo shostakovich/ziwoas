@@ -185,9 +185,13 @@ defmodule Ziwoas.Lights.PowerUpTest do
       assert sent() == []
     end
 
-    test "after 60 s a lamp that never answered gives up and says so" do
+    test "after 90 s a lamp that never answered gives up and says so" do
       Lights.subscribe()
-      later(60)
+      later(89)
+      tick()
+      refute_received {:power_up_failed, _failure}
+
+      later(90)
       tick()
 
       assert_received {:power_up_failed, {"FL1", :timeout}}
@@ -198,13 +202,13 @@ defmodule Ziwoas.Lights.PowerUpTest do
       assert sent() == []
     end
 
-    test "after 60 s a lamp that answered sends what is pending and ends without a failure" do
+    test "after 90 s a lamp that answered sends what is pending and ends without a failure" do
       Lights.subscribe()
       hear(nil)
       assert sent() == [{:power, true}]
       PowerUp.queue("FL1", {"brightness", %{value: 60}})
 
-      later(60)
+      later(90)
       tick()
 
       assert sent() == [{:power, true}, {:brightness, 60}]
@@ -243,7 +247,7 @@ defmodule Ziwoas.Lights.PowerUpTest do
              ]
     end
 
-    test "a command the lamp refused stays pending, is sent again, and fails the attempt at 60 s" do
+    test "a command the lamp refused stays pending, is sent again, and fails the attempt at 90 s" do
       Lights.subscribe()
       stop_supervised!(FakeGoveeBridge)
 
@@ -264,7 +268,7 @@ defmodule Ziwoas.Lights.PowerUpTest do
       assert sent() == [{:power, true}, {:brightness, 60}]
       refute_received {:govee_unwatch, "FL1"}
 
-      later(60)
+      later(90)
       tick()
       assert_received {:power_up_failed, {"FL1", :timeout}}
     end
