@@ -158,7 +158,10 @@ defmodule Ziwoas.Lights.PowerUp do
 
       attempt.heard ->
         attempt = if attempt.pending, do: deliver(attempt), else: attempt
-        state |> put_attempt(attempt) |> finish(key)
+
+        if attempt.pending,
+          do: give_up(state, key, :timeout),
+          else: state |> put_attempt(attempt) |> finish(key)
 
       true ->
         give_up(state, key, :timeout)
@@ -181,11 +184,14 @@ defmodule Ziwoas.Lights.PowerUp do
   defp kind({name, _values}), do: name
 
   defp deliver(attempt) do
-    attempt.commands
-    |> Enum.sort_by(&(kind(&1) != "turn"))
-    |> Enum.each(fn {name, values} -> Commands.deliver(attempt.light, name, values) end)
+    failed =
+      attempt.commands
+      |> Enum.sort_by(&(kind(&1) != "turn"))
+      |> Enum.reject(fn {name, values} ->
+        match?({:ok, _result}, Commands.deliver(attempt.light, name, values))
+      end)
 
-    %{attempt | pending: false}
+    %{attempt | pending: failed != []}
   end
 
   defp arrived?(_attempt, nil), do: false

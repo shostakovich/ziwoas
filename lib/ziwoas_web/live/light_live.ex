@@ -115,8 +115,11 @@ defmodule ZiwoasWeb.LightLive do
         socket = refresh_power(socket)
         {:noreply, if(toast, do: show_toast(socket, toast_assigns(light, toast)), else: socket)}
 
-      {:ok, _light, result} when result in [:power, :starting] ->
+      {:ok, _light, :power} ->
         {:noreply, refresh_power(socket)}
+
+      {:ok, _light, {:starting, verb}} ->
+        {:noreply, socket |> refresh_power() |> keep(verb)}
 
       {:ok, _light, {:sent, verb}} ->
         {:noreply, socket |> assign(:revert, nil) |> keep(verb)}

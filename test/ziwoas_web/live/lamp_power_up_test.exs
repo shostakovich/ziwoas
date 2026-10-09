@@ -164,6 +164,8 @@ defmodule ZiwoasWeb.LampPowerUpTest do
       render_async(view)
     end
 
+    assert has_element?(view, "#light_brightness[value='60']")
+
     plug_switched_on()
     hear(nil)
     assert sent() == [{"FL1", {:power, true}}, {"FL1", {:brightness, 60}}]

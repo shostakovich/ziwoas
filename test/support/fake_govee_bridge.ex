@@ -24,7 +24,8 @@ defmodule Ziwoas.FakeGoveeBridge do
   def handle_call({:command, key, verb}, _from, state) do
     send(state.test, {:govee, key, verb})
     Process.sleep(state.sleep_ms)
-    {:reply, state.answer, state}
+    answer = if is_function(state.answer, 1), do: state.answer.(verb), else: state.answer
+    {:reply, answer, state}
   end
 
   def handle_call({:silent?, key}, _from, state), do: {:reply, key in state.silent, state}

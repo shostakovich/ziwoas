@@ -21,7 +21,10 @@ defmodule Ziwoas.Lights.Commands do
   @max_active_zones %{"H60B0" => 2}
 
   @type result ::
-          :power | :starting | {:zones, [String.t()], nil | :clear | map} | {:sent, Bridge.verb()}
+          :power
+          | {:starting, Bridge.verb() | nil}
+          | {:zones, [String.t()], nil | :clear | map}
+          | {:sent, Bridge.verb()}
 
   @spec command?(term) :: boolean
   def command?(name), do: is_map_key(@types, name)
@@ -30,7 +33,7 @@ defmodule Ziwoas.Lights.Commands do
   def run(light, command, params) do
     with {:ok, values} <- cast_params(light, command, params) do
       case PowerUp.queue(light.key, {command, values}) do
-        :queued -> {:ok, :starting}
+        :queued -> {:ok, {:starting, verb(light, command, values)}}
         :idle -> run_powered(light, command, values)
       end
     end
@@ -42,7 +45,7 @@ defmodule Ziwoas.Lights.Commands do
     case Power.of(light, Config.get().plugs) do
       {:unpowered, _plug} when off -> record_off(light)
       {:silent, _plug} when off -> deliver(light, command, values)
-      {_unpowered_or_silent, plug} -> power_up(light, plug, {command, values})
+      {_unpowered_or_silent, plug} -> power_up(light, plug, command, values)
       :powered -> deliver(light, command, values)
     end
   end
@@ -55,9 +58,9 @@ defmodule Ziwoas.Lights.Commands do
     {:ok, :power}
   end
 
-  defp power_up(light, plug, command) do
-    case PowerUp.begin(light, plug, command) do
-      :ok -> {:ok, :starting}
+  defp power_up(light, plug, command, values) do
+    case PowerUp.begin(light, plug, {command, values}) do
+      :ok -> {:ok, {:starting, verb(light, command, values)}}
       {:error, :unavailable} -> {:error, :unreachable}
     end
   end
@@ -118,16 +121,23 @@ defmodule Ziwoas.Lights.Commands do
     end
   end
 
-  def deliver(light, "brightness", %{value: value}), do: fire(light, {:brightness, value})
-  def deliver(light, "color", rgb), do: fire(light, {:color, rgb})
-
-  def deliver(light, "color_temp", %{temp_k: kelvin}) do
-    kelvin = kelvin |> max(Light.color_temp_min_k(light)) |> min(Light.color_temp_max_k(light))
-    fire(light, {:color_temp, kelvin})
+  def deliver(light, command, values) do
+    verb = verb(light, command, values)
+    with :ok <- send_verb(light, verb), do: {:ok, {:sent, verb}}
   end
 
-  def deliver(light, "effect", %{effect: scene}), do: fire(light, {:scene, scene})
-  def deliver(light, "scene", %{scene: scene}), do: fire(light, {:scene, scene})
+  defp verb(_light, "brightness", %{value: value}), do: {:brightness, value}
+  defp verb(_light, "color", rgb), do: {:color, rgb}
+
+  defp verb(light, "color_temp", %{temp_k: kelvin}),
+    do:
+      {:color_temp,
+       kelvin |> max(Light.color_temp_min_k(light)) |> min(Light.color_temp_max_k(light))}
+
+  defp verb(_light, command, values) when command in ["effect", "scene"],
+    do: {:scene, values[:effect] || values[:scene]}
+
+  defp verb(_light, _command, _values), do: nil
 
   defp switch_zone_evicting(light, zone, on) do
     evicted = if on, do: evict_for(light, zone)
@@ -137,10 +147,6 @@ defmodule Ziwoas.Lights.Commands do
       toast = if evicted, do: %{evicted: evicted, added: zone}
       {:ok, {:zones, Enum.reject([zone, evicted], &is_nil/1), toast}}
     end
-  end
-
-  defp fire(light, verb) do
-    with :ok <- send_verb(light, verb), do: {:ok, {:sent, verb}}
   end
 
   defp turn_verb(light, on) do

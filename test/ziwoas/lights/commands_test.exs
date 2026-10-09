@@ -251,7 +251,7 @@ defmodule Ziwoas.Lights.CommandsTest do
       FakeShelly.serve("fridge")
       relay!(false)
 
-      assert {:ok, :starting} = Commands.run(light, "turn", %{"on" => "true"})
+      assert {:ok, {:starting, nil}} = Commands.run(light, "turn", %{"on" => "true"})
 
       plug_switched_on("fridge")
       assert_received {:govee_watch, "FL1"}
@@ -277,7 +277,9 @@ defmodule Ziwoas.Lights.CommandsTest do
       FakeShelly.serve("fridge")
       relay!(true)
 
-      assert {:ok, :starting} = Commands.run(light, "brightness", %{"value" => "40"})
+      assert {:ok, {:starting, {:brightness, 40}}} =
+               Commands.run(light, "brightness", %{"value" => "40"})
+
       plug_switched_on("fridge")
     end
 
@@ -318,7 +320,7 @@ defmodule Ziwoas.Lights.CommandsTest do
       bridge!()
       relay!(false)
 
-      assert {:ok, :starting} = Commands.run(light, "turn", %{"on" => "true"})
+      assert {:ok, {:starting, nil}} = Commands.run(light, "turn", %{"on" => "true"})
       assert_receive {:power_up_failed, {"FL1", :plug_unreachable}}
       assert PowerUp.starting() == %{}
     end
@@ -332,11 +334,13 @@ defmodule Ziwoas.Lights.CommandsTest do
       bridge!()
       FakeShelly.serve("fridge")
       relay!(false)
-      assert {:ok, :starting} = Commands.run(light, "turn", %{"on" => "true"})
+      assert {:ok, {:starting, nil}} = Commands.run(light, "turn", %{"on" => "true"})
       plug_switched_on("fridge")
 
-      assert {:ok, :starting} = Commands.run(light, "brightness", %{"value" => "40"})
-      assert {:ok, :starting} = Commands.run(light, "turn", %{"on" => "false"})
+      assert {:ok, {:starting, {:brightness, 40}}} =
+               Commands.run(light, "brightness", %{"value" => "40"})
+
+      assert {:ok, {:starting, nil}} = Commands.run(light, "turn", %{"on" => "false"})
       assert sent() == []
     end
 

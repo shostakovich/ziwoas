@@ -243,6 +243,32 @@ defmodule Ziwoas.Lights.PowerUpTest do
              ]
     end
 
+    test "a command the lamp refused stays pending, is sent again, and fails the attempt at 60 s" do
+      Lights.subscribe()
+      stop_supervised!(FakeGoveeBridge)
+
+      refuse_brightness = fn
+        {:brightness, _value} -> {:error, :unknown_lamp}
+        _verb -> :ok
+      end
+
+      start_supervised!({FakeGoveeBridge, test: self(), answer: refuse_brightness})
+      later(5)
+      tick()
+      PowerUp.queue("FL1", {"brightness", %{value: 60}})
+
+      hear(nil)
+      assert sent() == [{:power, true}, {:brightness, 60}]
+
+      hear(%{on: true})
+      assert sent() == [{:power, true}, {:brightness, 60}]
+      refute_received {:govee_unwatch, "FL1"}
+
+      later(60)
+      tick()
+      assert_received {:power_up_failed, {"FL1", :timeout}}
+    end
+
     test "off replaces everything; a command after it switches the lamp on again" do
       PowerUp.queue("FL1", {"brightness", %{value: 60}})
       PowerUp.queue("FL1", off())
