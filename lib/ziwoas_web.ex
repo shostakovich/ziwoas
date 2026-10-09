@@ -1,8 +1,7 @@
 defmodule ZiwoasWeb do
   @moduledoc false
 
-  def static_paths,
-    do: ~w(assets images favicon.png apple-touch-icon.png icon.png icon.svg robots.txt)
+  def static_paths, do: ~w(assets images robots.txt)
 
   def router do
     quote do
