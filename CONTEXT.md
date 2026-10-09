@@ -59,6 +59,13 @@ missing entirely. It switches nothing but stays around and comes back to life as
 the plug returns.
 _German UI_: Verwaist
 
+**Unpowered**:
+State of a lamp whose plug's relay is off: it cannot hear any command. Commanding it switches
+the plug on and waits for the lamp to answer before the command goes out; the plug is never
+switched off on the lamp's behalf (ADR-0010).
+_German UI_: Stromlos
+_Avoid_: Offline (that is a plug's state), Aus (the lamp may be set on), Unreachable
+
 ### Measuring
 
 **Measurement**:
