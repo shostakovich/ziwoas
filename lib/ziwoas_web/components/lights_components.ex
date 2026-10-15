@@ -258,7 +258,12 @@ defmodule ZiwoasWeb.LightsComponents do
     assigns = assign(assigns, :fill, share(assigns.brightness, 1, 100) * 100)
 
     ~H"""
-    <form id="light_brightness_form" class="card mb-3" phx-change="light_command">
+    <form
+      id="light_brightness_form"
+      class="card mb-3"
+      phx-change="light_command"
+      phx-auto-recover="ignore"
+    >
       <div class="card-body">
         <input type="hidden" name="command" value="brightness" />
         <div class="d-flex gap-1 mb-2 small text-uppercase text-body-secondary">
@@ -333,6 +338,7 @@ defmodule ZiwoasWeb.LightsComponents do
       data-tab="white"
       hidden={@hidden}
       phx-change="light_command"
+      phx-auto-recover="ignore"
     >
       <div class="card-body">
         <input type="hidden" name="command" value="color_temp" />

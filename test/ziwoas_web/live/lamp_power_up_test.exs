@@ -199,6 +199,28 @@ defmodule ZiwoasWeb.LampPowerUpTest do
     plug_switched_on()
   end
 
+  test "a rejoin replays no lamp form, so it neither sends a command nor powers the plug",
+       %{conn: conn} do
+    FakeShelly.serve("fridge")
+    {:ok, view, _html} = live(conn, ~p"/lights/FL1")
+
+    for id <- recovered_forms(view), do: view |> form("##{id}") |> render_change()
+    render_async(view)
+
+    refute_receive {:shelly_rpc, "fridge", "Switch.Set", _params}, 100
+    assert sent() == []
+    assert plug_commands() == []
+  end
+
+  # The forms LiveView's client sends again, with their values, when the page rejoins.
+  defp recovered_forms(view) do
+    view
+    |> render()
+    |> LazyHTML.from_fragment()
+    |> LazyHTML.query("form[id][phx-change]:not([phx-auto-recover=ignore])")
+    |> LazyHTML.attribute("id")
+  end
+
   test "the detail page follows its plug's relay", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/lights/FL1")
     assert has_element?(view, "#light_power", "Aus · stromlos")
