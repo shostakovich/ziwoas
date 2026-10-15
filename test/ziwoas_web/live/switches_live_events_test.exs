@@ -306,6 +306,18 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
       view |> element("#sw_editor_fridge button", "Abbrechen") |> render_click()
       refute has_element?(view, "#sw_editor_fridge form")
     end
+
+    test "focus moves into the editor and back to the button that opened it", %{conn: conn} do
+      view = open_page(conn)
+      assert has_element?(view, "#sw_page[phx-hook=FocusReturn]")
+      new_entry(view, "+ Einzelschaltung")
+      assert has_element?(view, "#sw_fridge_new_form[phx-mounted*=focus_first]")
+
+      view |> element("#sw_editor_fridge button", "Abbrechen") |> render_click()
+
+      assert_push_event(view, "focus_return", %{ids: ["sw_new_rule_fridge"]})
+      assert has_element?(view, "button#sw_new_rule_fridge", "+ Einzelschaltung")
+    end
   end
 
   describe "a new Einzelschaltung" do
@@ -400,6 +412,21 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
       view |> entry_button(group, "delete_entry") |> render_click()
       assert rules() == []
       assert render(view) =~ "Zeitfenster gelöscht."
+    end
+
+    test "a closed editor hands focus back to its edit button", %{conn: conn} do
+      group = a_window()
+      view = open_page(conn)
+      view |> entry_button(group, "edit_entry") |> render_click()
+      assert has_element?(view, "#sw_fridge_#{group}_form[phx-mounted*=focus_first]")
+
+      view
+      |> form("#sw_entry_fridge_#{group} form", window_params("19:00", "23:00", ["", "1"]))
+      |> render_submit()
+
+      edit = "sw_entry_fridge_#{group}_edit"
+      assert_push_event(view, "focus_return", %{ids: [^edit, "sw_new_window_fridge"]})
+      assert has_element?(view, "button##{edit}[phx-click=edit_entry]")
     end
 
     test "a group that left this plug or lost a half is no Zeitfenster here", %{conn: conn} do

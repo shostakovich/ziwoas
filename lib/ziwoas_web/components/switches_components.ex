@@ -129,6 +129,7 @@ defmodule ZiwoasWeb.SwitchesComponents do
       </div>
       <div class="d-flex flex-wrap gap-2 mt-2">
         <.button
+          id={opener_id(@plug.id, :window)}
           type="button"
           variant="outline-secondary"
           size="sm"
@@ -140,6 +141,7 @@ defmodule ZiwoasWeb.SwitchesComponents do
           + Zeitfenster
         </.button>
         <.button
+          id={opener_id(@plug.id, :rule)}
           type="button"
           variant="outline-secondary"
           size="sm"
@@ -158,19 +160,28 @@ defmodule ZiwoasWeb.SwitchesComponents do
   defp editing?(%{id: id}, entry) when not is_nil(id), do: id == to_string(Schedule.id(entry))
   defp editing?(_editor, _entry), do: false
 
+  defp opener_id(plug_id, kind), do: "sw_new_#{kind}_#{plug_id}"
+
+  @doc "Where focus goes once `editor` closes: the button that opened it, else + Zeitfenster."
+  @spec focus_return(String.t(), map) :: [String.t()]
+  def focus_return(plug_id, %{id: nil, kind: kind}), do: [opener_id(plug_id, kind)]
+
+  def focus_return(plug_id, %{id: id}),
+    do: ["#{entry_dom_id(plug_id, id)}_edit", opener_id(plug_id, :window)]
+
   attr :plug, :any, required: true
   attr :editor, :map, required: true
 
   def entry_editor(assigns) do
     ~H"""
-    <div id={entry_dom_id(@plug, @editor.id || "new")}>
+    <div id={entry_dom_id(@plug.id, @editor.id || "new")}>
       <.window_form :if={@editor.kind == :window} plug={@plug} form={@editor.form} key={@editor.id} />
       <.single_form :if={@editor.kind == :rule} plug={@plug} form={@editor.form} key={@editor.id} />
     </div>
     """
   end
 
-  defp entry_dom_id(plug, id), do: "sw_entry_#{plug.id}_#{id}"
+  defp entry_dom_id(plug_id, id), do: "sw_entry_#{plug_id}_#{id}"
 
   attr :entry, :any, required: true
   attr :plug, :any, required: true
@@ -181,9 +192,12 @@ defmodule ZiwoasWeb.SwitchesComponents do
     enabled = Schedule.enabled?(entry)
     noun = if window, do: "Zeitfenster", else: "Schaltzeit"
 
+    id = to_string(Schedule.id(entry))
+
     assigns =
       assign(assigns,
-        id: to_string(Schedule.id(entry)),
+        id: id,
+        dom_id: entry_dom_id(assigns.plug.id, id),
         kind: if(window, do: "window", else: "rule"),
         enabled: enabled,
         noun: noun,
@@ -192,10 +206,7 @@ defmodule ZiwoasWeb.SwitchesComponents do
       )
 
     ~H"""
-    <div
-      class="d-flex align-items-center flex-wrap gap-1 py-1 border-top"
-      id={entry_dom_id(@plug, @id)}
-    >
+    <div class="d-flex align-items-center flex-wrap gap-1 py-1 border-top" id={@dom_id}>
       <span class={@pill_class}>
         {entry_label(@entry)}
         <span :if={@direction} class="fw-bold ms-1">{@direction}</span>
@@ -213,6 +224,7 @@ defmodule ZiwoasWeb.SwitchesComponents do
         <.ui_icon name={if @enabled, do: :pause, else: :play} />
       </button>
       <button
+        id={"#{@dom_id}_edit"}
         type="button"
         class="btn btn-icon btn-sm"
         aria-label={"#{@noun} bearbeiten"}
@@ -286,6 +298,7 @@ defmodule ZiwoasWeb.SwitchesComponents do
       for={@form}
       id={"#{@prefix}_form"}
       class="bg-body border rounded p-2 p-sm-3 mt-2 vstack gap-3"
+      phx-mounted={JS.focus_first()}
       phx-change="validate_entry"
       phx-submit="save_entry"
     >
@@ -330,6 +343,7 @@ defmodule ZiwoasWeb.SwitchesComponents do
       for={@form}
       id={"#{@prefix}_form"}
       class="bg-body border rounded p-2 p-sm-3 mt-2 vstack gap-3"
+      phx-mounted={JS.focus_first()}
       phx-change="validate_entry"
       phx-submit="save_entry"
     >

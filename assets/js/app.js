@@ -6,6 +6,7 @@ import { currentLook } from "./lib/look.js"
 
 import EnergyFlow from "./hooks/energy_flow.js"
 import EnergyReport from "./hooks/energy_report.js"
+import FocusReturn from "./hooks/focus_return.js"
 import HistoryChart from "./hooks/history_chart.js"
 import LightDetail from "./hooks/light_detail.js"
 import LiveFreshness from "./hooks/live_freshness.js"
@@ -20,6 +21,7 @@ const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute
 const hooks = {
   EnergyFlow,
   EnergyReport,
+  FocusReturn,
   HistoryChart,
   LightDetail,
   LiveFreshness,

@@ -224,7 +224,17 @@ defmodule ZiwoasWeb.SwitchesLive do
   defp put_editor(socket, plug_id, editor),
     do: update(socket, :editors, &Map.put(&1, plug_id, editor))
 
-  defp close_editor(socket, plug_id), do: update(socket, :editors, &Map.delete(&1, plug_id))
+  defp close_editor(socket, plug_id) do
+    case socket.assigns.editors[plug_id] do
+      nil ->
+        socket
+
+      editor ->
+        socket
+        |> update(:editors, &Map.delete(&1, plug_id))
+        |> push_event("focus_return", %{ids: focus_return(plug_id, editor)})
+    end
+  end
 
   defp plug(socket, plug_id),
     do: Enum.find_value(socket.assigns.rows, &(&1.plug.id == plug_id && &1.plug))
@@ -235,7 +245,7 @@ defmodule ZiwoasWeb.SwitchesLive do
     <Layouts.app flash={@flash} look={@look} current_path={@current_path}>
       <.header>Schalten</.header>
 
-      <div>
+      <div id="sw_page" phx-hook="FocusReturn">
         <section :if={@rows == []} class="card card-body mb-3">
           <h2 class="card-title h5">Keine schaltbaren Steckdosen</h2>
           <p class="text-body-secondary mb-0">
