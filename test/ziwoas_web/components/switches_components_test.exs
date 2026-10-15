@@ -131,7 +131,11 @@ defmodule ZiwoasWeb.SwitchesComponentsTest do
       %Row{
         plug: @plug,
         entries: [],
-        state: %State{plug_id: "fridge", output: Keyword.get(opts, :on, true), updated_at: now},
+        state: %State{
+          plug_id: "fridge",
+          output: Keyword.get(opts, :on, true),
+          updated_at: opts[:changed]
+        },
         last_command: opts[:command],
         next_edge: opts[:edge],
         watt: nil,
@@ -172,10 +176,14 @@ defmodule ZiwoasWeb.SwitchesComponentsTest do
                "An seit 18:00 (Zeitplan) · nächste Schaltung: 23:00 → aus"
 
       assert line(row(on: false, edge: edge(:on, 6, 30))) == "Aus · nächste Schaltung: 06:30 → an"
-      assert line(row(on: false, command: command(:on, :manual))) == "Aus · kein Zeitplan"
 
-      assert line(row(on: true, command: %{command(:off, :manual) | inserted_at: at(17, 0)})) ==
-               "An · kein Zeitplan"
+      assert line(row(on: false, command: command(:on, :manual), changed: at(18, 30))) ==
+               "Aus seit 18:30 · kein Zeitplan"
+    end
+
+    test "a state report newer than the command dates since without a source" do
+      assert line(row(on: true, command: command(:on, :manual), changed: at(18, 40))) ==
+               "An seit 18:40 · kein Zeitplan"
     end
 
     test "the next switching time names its day when it is not today" do

@@ -472,15 +472,14 @@ defmodule ZiwoasWeb.SwitchesComponents do
     if Row.offline?(row) do
       offline_line(row)
     else
-      on = Row.on?(row)
-      word = if on, do: "An", else: "Aus"
-      command = row.last_command
+      word = if Row.on?(row), do: "An", else: "Aus"
 
       first =
-        if command && command.action == :on == on,
-          do:
-            "#{word} seit #{clock(command.inserted_at, zone)} (#{@source_label[command.source]})",
-          else: word
+        case Row.since(row) do
+          nil -> word
+          {time, nil} -> "#{word} seit #{clock(time, zone)}"
+          {time, source} -> "#{word} seit #{clock(time, zone)} (#{@source_label[source]})"
+        end
 
       Enum.join([first, schedule_part(row, zone)], " · ")
     end
