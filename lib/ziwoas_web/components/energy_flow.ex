@@ -4,47 +4,46 @@ defmodule ZiwoasWeb.Components.EnergyFlow do
 
   alias Ziwoas.Energy.{Flow, LiveState}
 
-  @battery_assets [
-    {:normal, "solakon_battery_normal.webp"},
-    {:discharging, "solakon_battery_normal.webp"},
-    {:charging, "solakon_battery_charging.webp"},
-    {:low, "solakon_battery_low.webp"},
-    {:hot, "solakon_battery_hot.webp"},
-    {:cold, "solakon_battery_cold.webp"},
-    {:fault, "solakon_battery_fault.webp"}
+  @battery_plush [
+    normal: {"battery", "Batterie"},
+    discharging: {"battery", "Batterie"},
+    charging: {"battery-charging", "Batterie lädt"},
+    low: {"battery-low", "Batterie fast leer"},
+    hot: {"battery-hot", "Batterie zu warm"},
+    cold: {"battery-cold", "Batterie zu kalt"},
+    fault: {"battery-warning", "Batteriefehler"}
   ]
-  @default_battery_asset "solakon_battery_normal.webp"
 
   @width 400
   @height 320
   @radius 40
   @rings [
-    pv: {200, 80, "--viz-solar"},
-    grid: {58, 170, "--viz-grid"},
-    consumer: {342, 170, "--felt-track"},
-    battery: {200, 260, "--viz-battery"}
+    pv: {200, 80, "stroke-solar"},
+    grid: {58, 170, "stroke-grid"},
+    consumer: {342, 170, "stroke-base-content/15"},
+    battery: {200, 260, "stroke-battery"}
   ]
   # Lines start inside their ring, so the dots enter from under it instead of waiting on top.
   @channels [
-    {"SolarHome", "--viz-solar",
+    {"SolarHome", "data-flowing:stroke-solar", "fill-solar",
      "M 209.6,109.5 L 212.4,118 C 219.2,139 246.9,139.1 304,157.6 L 312.5,160.4"},
-    {"SolarGrid", "--viz-solar",
+    {"SolarGrid", "data-flowing:stroke-solar", "fill-solar",
      "M 190.4,109.5 L 187.6,118 C 180.8,139 153.1,139.1 96,157.6 L 87.5,160.4"},
-    {"SolarBattery", "--viz-solar", "M 200,111 L 200,229"},
-    {"GridHome", "--viz-grid", "M 89,170 L 311,170"},
-    {"GridBattery", "--viz-grid",
+    {"SolarBattery", "data-flowing:stroke-solar", "fill-solar", "M 200,111 L 200,229"},
+    {"GridHome", "data-flowing:stroke-grid", "fill-grid", "M 89,170 L 311,170"},
+    {"GridBattery", "data-flowing:stroke-grid", "fill-grid",
      "M 87.5,179.6 L 96,182.4 C 153.1,200.9 180.8,201 187.6,222 L 190.4,230.5"},
-    {"BatteryHome", "--viz-battery",
+    {"BatteryHome", "data-flowing:stroke-battery", "fill-battery",
      "M 209.6,230.5 L 212.4,222 C 219.2,201 246.9,200.9 304,182.4 L 312.5,179.6"}
   ]
 
-  @spec battery_asset(atom | nil) :: String.t()
-  def battery_asset(state) do
-    case List.keyfind(@battery_assets, state, 0) do
-      {_, asset} -> asset
-      nil -> @default_battery_asset
-    end
-  end
+  @spec battery_plush(atom | nil) :: String.t()
+  def battery_plush(state), do: state |> battery() |> elem(0)
+
+  @spec battery_alt(atom | nil) :: String.t()
+  def battery_alt(state), do: state |> battery() |> elem(1)
+
+  defp battery(state), do: Keyword.get(@battery_plush, state, @battery_plush[:normal])
 
   @spec state_json(Flow.t()) :: String.t()
   def state_json(%Flow{} = flow) do
@@ -55,8 +54,6 @@ defmodule ZiwoasWeb.Components.EnergyFlow do
   end
 
   attr :live, LiveState, required: true
-  attr :pv_asset, :string, required: true
-  attr :pv_alt, :string, required: true
   attr :class, :any, default: nil
 
   def energy_flow(assigns) do
@@ -69,28 +66,25 @@ defmodule ZiwoasWeb.Components.EnergyFlow do
         height: @height,
         radius: @radius,
         consumer: Keyword.fetch!(@rings, :consumer),
-        battery_asset: @default_battery_asset,
-        battery_states:
-          for(
-            {state, asset} <- @battery_assets,
-            do: {"data-battery-state-#{state}", ~p"/images/#{asset}"}
-          )
+        flow: assigns.live.energy_flow
       )
 
     ~H"""
     <.card
       id="energy_flow"
       title="Energiefluss"
-      class={["energy-flow-card", @class]}
+      subtitle="Der Ring am Verbrauch zeigt, woher der Strom kommt."
+      class={@class}
       phx-hook="EnergyFlow"
       data-state={@state}
     >
-      <div class="energy-flow">
+      <div class="energy-flow @container relative m-auto w-full max-w-136 max-sm:-mx-4 max-sm:w-auto">
         <svg
           id="energy_flow_svg"
           phx-update="ignore"
           viewBox={"0 0 #{@width} #{@height}"}
-          class="d-block w-100 h-auto"
+          class="block h-auto w-full"
+          aria-hidden="true"
         >
           <defs>
             <clipPath id="ef-clip">
@@ -106,20 +100,15 @@ defmodule ZiwoasWeb.Components.EnergyFlow do
             clip-path="url(#ef-clip)"
           >
             <path
-              :for={{key, tone, d} <- @channels}
+              :for={{key, flowing, _dots, d} <- @channels}
               data-ef={"efLine#{key}"}
-              class="ef-link"
-              style={"--ef-tone: var(#{tone})"}
+              class={["stroke-base-content/7 transition-colors duration-300", flowing]}
               d={d}
             />
           </g>
 
           <g clip-path="url(#ef-clip)">
-            <g
-              :for={{key, tone, _d} <- @channels}
-              data-ef={"efDots#{key}"}
-              style={"fill: var(#{tone})"}
-            >
+            <g :for={{key, _flowing, dots, _d} <- @channels} data-ef={"efDots#{key}"} class={dots}>
             </g>
           </g>
 
@@ -130,7 +119,7 @@ defmodule ZiwoasWeb.Components.EnergyFlow do
               cx={cx}
               cy={cy}
               r={@radius}
-              style={"stroke: var(#{stroke})"}
+              class={stroke}
             />
           </g>
           <g
@@ -140,75 +129,88 @@ defmodule ZiwoasWeb.Components.EnergyFlow do
             stroke-linecap="butt"
           >
           </g>
-
-          <g
-            class="ef-names"
-            text-anchor="middle"
-            font-size="11"
-            style="fill: var(--felt-secondary-color)"
-          >
-            <text x="200" y="22">PV-Anlage</text>
-            <text data-ef="efGridName" x="58" y="224">Stromnetz</text>
-            <text x="342" y="224">Verbraucher</text>
-            <text x="200" y="315">
-              <tspan data-ef="efBatteryName">Batterie</tspan><tspan data-ef="efBatterySoc"></tspan>
-            </text>
-          </g>
         </svg>
 
-        <.ring name={:pv}>
-          <img class="icon" alt={@pv_alt} src={~p"/images/#{@pv_asset}"} />
-          <span class="ef-value fw-semibold tabular-nums lh-1" data-ef="efPvW">— W</span>
-        </.ring>
-        <.ring name={:grid}>
-          <img class="icon" alt="" src={~p"/images/icon_netz.webp"} />
-          <span class="ef-value fw-semibold tabular-nums lh-1" data-ef="efGridW">— W</span>
-        </.ring>
-        <.ring name={:consumer}>
-          <img class="icon" alt="" src={~p"/images/icon_haus.webp"} />
-          <span class="ef-value fw-semibold tabular-nums lh-1" data-ef="efConsumerW">— W</span>
-        </.ring>
-        <.ring name={:battery}>
-          <img
-            class="icon"
-            alt=""
-            data-ef="efBatteryImage"
-            src={~p"/images/#{@battery_asset}"}
-            {@battery_states}
-          />
-          <span class="ef-value fw-semibold tabular-nums lh-1" data-ef="efBatteryW">— W</span>
-        </.ring>
+        <.ring name={:pv} label="PV-Anlage" watts={pv_watts(@flow)} plush="sun" />
+        <.ring
+          name={:grid}
+          label={direction(@flow.grid_w, "Netzbezug", "Überschuss", "Stromnetz")}
+          watts={magnitude(@flow.grid_w)}
+          plush="utility-pole"
+        />
+        <.ring name={:consumer} label="Verbrauch" watts={@flow.home_w} plush="household" />
+        <.ring
+          name={:battery}
+          label={battery_label(@flow)}
+          watts={magnitude(@flow.battery_w)}
+          plush={battery_plush(@flow.battery_state)}
+        />
       </div>
-      <p class="energy-flow-key text-body-secondary text-center mt-2 mb-0">
-        Verbraucher-Ring: Herkunft des Stroms
-      </p>
     </.card>
     """
   end
 
   attr :name, :atom, required: true
-  slot :inner_block, required: true
+  attr :label, :string, required: true
+  attr :watts, :any, required: true
+  attr :plush, :string, required: true
+  attr :alt, :string, default: ""
 
   defp ring(assigns) do
     {cx, cy, _stroke} = Keyword.fetch!(@rings, assigns.name)
+    label_cy = if assigns.name == :pv, do: cy - @radius - 20, else: cy + @radius + 14
 
-    style =
-      [
-        left: percent(cx, @width),
-        top: percent(cy, @height),
-        width: percent(2 * @radius, @width),
-        height: percent(2 * @radius, @height)
-      ]
-      |> Enum.map_join("; ", fn {side, value} -> "#{side}: #{value}" end)
-
-    assigns = assign(assigns, :style, style)
+    assigns =
+      assign(assigns,
+        ring_style:
+          style(
+            left: percent(cx, @width),
+            top: percent(cy, @height),
+            width: percent(2 * @radius, @width),
+            height: percent(2 * @radius, @height)
+          ),
+        label_style: style(left: percent(cx, @width), top: percent(label_cy, @height))
+      )
 
     ~H"""
-    <div class="ef-ring" style={@style} data-ring={@name}>
-      {render_slot(@inner_block)}
+    <div class="ef-ring" style={@ring_style} data-ring={@name}>
+      <.plush name={@plush} alt={@alt} class="size-[calc(38*var(--ef-unit))]" />
+      <span class="ef-value font-semibold leading-none whitespace-nowrap tabular-nums">
+        {number(@watts, unit: "W")}
+      </span>
     </div>
+    <p
+      class="ef-name leading-tight whitespace-nowrap text-base-content/70"
+      style={@label_style}
+      data-name={@name}
+    >
+      {@label}
+    </p>
     """
   end
+
+  # Below this a reading is noise, not a direction.
+  @idle_w 1
+
+  defp pv_watts(%Flow{solakon_online: true, solar_w: watts}), do: max(watts || 0, 0)
+  defp pv_watts(%Flow{}), do: nil
+
+  defp magnitude(nil), do: nil
+  defp magnitude(watts), do: abs(watts)
+
+  defp direction(watts, _positive, _negative, idle) when is_nil(watts) or abs(watts) < @idle_w,
+    do: idle
+
+  defp direction(watts, positive, _negative, _idle) when watts > 0, do: positive
+  defp direction(_watts, _positive, negative, _idle), do: negative
+
+  defp battery_label(%Flow{battery_w: watts, battery_soc_pct: soc}) do
+    name = direction(watts, "Batterie lädt", "Batterie entlädt", "Batterie")
+    if soc, do: join_meta([name, number(soc, unit: "%")]), else: name
+  end
+
+  defp style(properties),
+    do: Enum.map_join(properties, "; ", fn {property, value} -> "#{property}: #{value}" end)
 
   defp percent(units, extent), do: css_number(units * 100.0 / extent) <> "%"
 

@@ -1,58 +1,44 @@
-import { renderChart, vizToken, tonesByOrder, timeCategoryScale, localMidnight, isPhone, snugTop, lineElements } from "../lib/chart_theme.js"
+import { renderChart, AREA_ALPHA, timeCategoryScale, localMidnight, isPhone, snugTop, lineElements } from "../lib/chart_theme.js"
+import { consumerSeries } from "../lib/consumer_series.js"
 
 const DAILY_ICONS_PADDING = 44
 const DETAIL_ICONS_PADDING = 38
+const IRRADIANCE_DASH = [ 4, 3 ]
 
 export default {
   mounted() {
-    this.charts = {}
+    this.chart = null
     this.imageCache = {}
+    this.card = this.el.closest("section")
     this.onChange = (event) => {
-      const toggle = event.target.closest("[data-weather-toggle]")
-      if (toggle) this.toggleWeather(toggle.dataset.weatherToggle, toggle.checked)
+      if (event.target.matches("[data-weather-toggle]")) this.toggleWeather(event.target.checked)
     }
-    this.el.addEventListener("change", this.onChange)
-    this.handleEvent("energy_report:data", (payload) => this.load(payload))
+    this.card?.addEventListener("change", this.onChange)
+    this.load()
+  },
+
+  updated() {
+    this.load()
   },
 
   destroyed() {
     this.gone = true
-    this.el.removeEventListener("change", this.onChange)
-    Object.values(this.charts).forEach((chart) => chart.destroy())
-    this.charts = {}
+    this.card?.removeEventListener("change", this.onChange)
+    this.chart?.destroy()
   },
 
-  canvas(name) {
-    return this.el.querySelector(`canvas[data-chart="${name}"]`)
+  weatherEnabled() {
+    return !!this.card?.querySelector("[data-weather-toggle]")?.checked
   },
 
-  weatherEnabled(name) {
-    const toggle = this.el.querySelector(`[data-weather-toggle="${name}"]`)
-    return !toggle || toggle.checked
-  },
-
-  async load(payload) {
+  async load() {
+    const payload = JSON.parse(this.el.dataset.payload)
     this.payload = payload
-    this.consumerTones = tonesByOrder((payload.daily?.consumer_series || []).map((series) => series.plug_id))
     await this.preloadIcons(payload.weather_assets || {})
     if (this.gone || this.payload !== payload) return
 
-    this.draw("daily", this.dailyConfig())
-    this.draw("ratios", this.ratiosConfig())
-    this.draw("detail", this.detailConfig())
-  },
-
-  draw(name, config) {
-    const canvas = this.canvas(name)
-    if (!canvas) {
-      this.charts[name]?.destroy()
-      delete this.charts[name]
-      return
-    }
-    // A new payload may bring a new canvas, when the report was empty before.
-    const chart = this.charts[name]?.canvas === canvas ? this.charts[name] : null
-    if (!chart) this.charts[name]?.destroy()
-    this.charts[name] = renderChart(chart, canvas, config)
+    const config = { daily: () => this.dailyConfig(payload), detail: () => this.detailConfig(payload), ratios: () => ratiosConfig(payload) }
+    this.chart = renderChart(this.chart, this.el.querySelector("canvas"), config[this.el.dataset.chart]())
   },
 
   preloadIcons(assets) {
@@ -65,8 +51,8 @@ export default {
     })))
   },
 
-  toggleWeather(name, visible) {
-    const chart = this.charts[name]
+  toggleWeather(visible) {
+    const chart = this.chart
     if (!chart) return
     chart.data.datasets.forEach((dataset, index) => {
       if (dataset._isSolar) chart.setDatasetVisibility(index, visible)
@@ -105,15 +91,14 @@ export default {
     }
   },
 
-  dailyConfig() {
-    const daily = this.payload.daily || {}
-    const enabled = this.weatherEnabled("daily")
-    const consumerDatasets = this.consumerBarDatasets(daily.consumer_series || [], { top: 5 })
+  dailyConfig(daily) {
+    const enabled = this.weatherEnabled()
+    const consumers = daily.consumer_series || []
     const datasets = [
-      { label: "Ertrag", data: daily.produced_kwh || [], tone: "--viz-solar", stack: "produced" },
-      ...(consumerDatasets.length > 0 ? consumerDatasets : [
-        { label: "Verbrauch", data: daily.consumed_kwh || [], tone: "--viz-total", stack: "consumed" },
-      ]),
+      { label: "Ertrag", data: daily.produced_kwh || [], tone: "--color-solar", stack: "produced" },
+      ...(consumers.length > 0
+        ? consumerSeries(consumers, (series) => series.data || [], daily.consumer_order).map((series) => ({ ...series, stack: "consumed" }))
+        : [ { label: "Verbrauch", data: daily.consumed_kwh || [], tone: "--color-consumption", stack: "consumed" } ]),
     ]
 
     const w = daily.weather
@@ -132,10 +117,11 @@ export default {
     if (w && Array.isArray(w.solar_kwh_per_m2)) {
       datasets.push({
         type: "line",
-        label: "Sonnenstrahlung",
+        label: "Einstrahlung",
         data: w.solar_kwh_per_m2,
         yAxisID: "ySolar",
-        tone: "--felt-warning-emphasis",
+        tone: "--color-solar",
+        borderDash: IRRADIANCE_DASH,
         pointRadius: 3,
         tension: 0.2,
         spanGaps: true,
@@ -143,15 +129,7 @@ export default {
         hidden: !enabled,
         _isSolar: true,
       })
-      scales.ySolar = {
-        position: "right",
-        beginAtZero: true,
-        grid: { drawOnChartArea: false },
-        title: { display: true, text: "kWh/m²" },
-        unit: "kWh/m²",
-        decimals: 2,
-        display: enabled,
-      }
+      scales.ySolar = solarScale("kWh/m²", enabled, { decimals: 2 })
     }
 
     const icons = hasIcons
@@ -165,7 +143,7 @@ export default {
         responsive: true,
         maintainAspectRatio: false,
         scales,
-        plugins: { legend: { position: "bottom" } },
+        plugins: { legend: { display: false } },
         animation: false,
         _weatherIcons: { enabled, icons, size: 32, gap: 8, paddingOn: DAILY_ICONS_PADDING },
       },
@@ -173,53 +151,23 @@ export default {
     }
   },
 
-  ratiosConfig() {
-    const ratios = (this.payload.daily || {}).ratios || []
-    const labels = ratios.map((r) => {
-      const [, m, d] = r.date.split("-")
-      return `${d}.${m}.`
-    })
-
-    return {
-      type: "bar",
-      data: {
-        labels,
-        datasets: [
-          { label: "Autarkie", data: ratios.map((r) => r.autarky_pct), tone: "--viz-2" },
-          { label: "Eigenverbrauch", data: ratios.map((r) => r.self_consumption_pct), tone: "--viz-solar" },
-        ],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        scales: {
-          x: timeCategoryScale(ratios.map((r) => localMidnight(r.date))),
-          y: { min: 0, max: 100, unit: "%" },
-        },
-        plugins: { legend: { position: "bottom" } },
-        animation: false,
-      },
-    }
-  },
-
-  detailConfig() {
-    const detail = this.payload.detail || {}
-    return detail.chart_type === "bar" ? this.dailyPowerBarConfig(detail) : this.powerLineConfig(detail)
+  detailConfig(detail) {
+    return detail.chart_type === "bar" ? dailyPowerBarConfig(detail) : this.powerLineConfig(detail)
   },
 
   powerLineConfig(detail) {
-    const enabled = this.weatherEnabled("detail")
+    const enabled = this.weatherEnabled()
     const datasets = (detail.series || []).map((series) => {
       const producer = series.role === "producer"
       return {
         label: series.name,
         data: series.data,
-        tone: producer ? "--viz-solar" : this.consumerTone(series),
+        tone: producer ? "--color-solar" : undefined,
         fill: producer,
-        fillAlpha: producer ? 0.12 : undefined,
+        fillAlpha: producer ? AREA_ALPHA : undefined,
         tension: 0.2,
         pointRadius: 0,
-        hidden: series.role === "consumer",
+        hidden: !producer,
       }
     })
     const total = totalConsumption(detail.series || [])
@@ -231,31 +179,24 @@ export default {
     const scales = {
       x: { ...timeAxis, ticks: { ...timeAxis.ticks, padding: hasIcons && enabled ? DETAIL_ICONS_PADDING : 0 }, afterFit: trimXScale },
       // A phone's few value ticks would leave a third of the plot empty.
-      y: { beginAtZero: true, unit: "W", ...(isPhone() ? snugTop(datasets.flatMap((dataset) => dataset.data || [])) : {}) },
+      y: { beginAtZero: true, unit: "W", ...(isPhone() ? snugTop(datasets.flatMap((dataset) => dataset.data || []), 3) : {}) },
     }
 
     if (w && Array.isArray(w.solar_w_per_m2)) {
       datasets.push({
-        label: "Sonnenstrahlung",
+        label: "Einstrahlung",
         data: w.solar_w_per_m2,
         yAxisID: "ySolar",
-        tone: "--felt-warning-emphasis",
-        fillAlpha: 0.18,
+        tone: "--color-solar",
+        borderDash: IRRADIANCE_DASH,
         stepped: "before",
-        fill: true,
+        fill: false,
         pointRadius: 0,
         spanGaps: true,
         hidden: !enabled,
         _isSolar: true,
       })
-      scales.ySolar = {
-        position: "right",
-        beginAtZero: true,
-        grid: { drawOnChartArea: false },
-        title: { display: true, text: "W/m²" },
-        unit: "W/m²",
-        display: enabled,
-      }
+      scales.ySolar = solarScale("W/m²", enabled)
     }
 
     return {
@@ -266,63 +207,80 @@ export default {
         maintainAspectRatio: false,
         elements: lineElements(),
         scales,
-        plugins: { legend: { position: "bottom" } },
+        plugins: { legend: { display: false } },
         animation: false,
         _weatherIcons: { enabled, icons: hasIcons ? w.icons : [], size: 28, gap: 8, paddingOn: DETAIL_ICONS_PADDING },
       },
       plugins: [ this.weatherIconsPlugin() ],
     }
   },
+}
 
-  dailyPowerBarConfig(detail) {
-    const producers = (detail.series || [])
-      .filter((series) => series.role === "producer")
-      .map((series) => ({ label: series.name, data: series.data || [], tone: "--viz-solar", stack: "produced" }))
-    const consumers = this.consumerBarDatasets((detail.series || []).filter((series) => series.role === "consumer"))
+function solarScale(unit, display, extra = {}) {
+  return { position: "right", beginAtZero: true, grid: { drawOnChartArea: false }, unit, display, ...extra }
+}
 
-    return {
-      type: "bar",
-      data: { labels: detail.labels || [], datasets: [ ...producers, ...consumers ] },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        scales: {
-          x: { stacked: true, ...timeCategoryScale(detail.times || []) },
-          y: { stacked: true, beginAtZero: true, unit: "W" },
+function ratiosConfig({ ratios }) {
+  const labels = ratios.map((r) => {
+    const [ , m, d ] = r.date.split("-")
+    return `${d}.${m}.`
+  })
+
+  return {
+    type: "bar",
+    data: {
+      labels,
+      datasets: [
+        { label: "Autarkie", data: ratios.map((r) => r.autarky_pct), tone: "--color-chart-3", order: 1 },
+        {
+          type: "line",
+          label: "Eigenverbrauchsquote",
+          data: ratios.map((r) => r.self_consumption_pct),
+          tone: "--color-solar",
+          order: 0,
+          borderWidth: 2,
+          pointRadius: 3.5,
+          pointHoverRadius: 5,
+          tension: 0,
+          clip: false,
         },
-        plugins: { legend: { position: "bottom" } },
-        animation: false,
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        x: timeCategoryScale(ratios.map((r) => localMidnight(r.date))),
+        y: { min: 0, max: 100, unit: "%", decimals: 1 },
       },
-    }
-  },
+      plugins: { legend: { display: false } },
+      animation: false,
+    },
+  }
+}
 
-  consumerTone(series) {
-    return this.consumerTones.get(series.plug_id) ?? vizToken(this.consumerTones.size)
-  },
+function dailyPowerBarConfig(detail) {
+  const series = detail.series || []
+  const producers = series
+    .filter((row) => row.role === "producer")
+    .map((row) => ({ label: row.name, data: row.data || [], tone: "--color-solar", stack: "produced" }))
+  const consumers = consumerSeries(series.filter((row) => row.role === "consumer"), (row) => row.data || [], detail.consumer_order)
+    .map((row) => ({ ...row, stack: "consumed" }))
 
-  consumerBarDatasets(series, { top } = {}) {
-    const rows = series.map((row) => ({
-      ...row,
-      total: (row.data || []).reduce((sum, value) => sum + Number(value || 0), 0),
-    })).sort((a, b) => b.total - a.total)
-
-    const limit = top || rows.length
-    const datasets = rows.slice(0, limit).map((row) => ({
-      label: row.name, data: row.data || [], tone: this.consumerTone(row), stack: "consumed",
-    }))
-
-    const rest = rows.slice(limit)
-    if (rest.length > 0) {
-      const length = Math.max(...rest.map((row) => (row.data || []).length))
-      datasets.push({
-        label: "Weitere Verbraucher",
-        data: Array.from({ length }, (_, index) => +rest.reduce((sum, row) => sum + Number(row.data?.[index] || 0), 0).toFixed(3)),
-        tone: "--viz-muted",
-        stack: "consumed",
-      })
-    }
-    return datasets
-  },
+  return {
+    type: "bar",
+    data: { labels: detail.labels || [], datasets: [ ...producers, ...consumers ] },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      scales: {
+        x: { stacked: true, ...timeCategoryScale(detail.times || []) },
+        y: { stacked: true, beginAtZero: true, unit: "W" },
+      },
+      plugins: { legend: { display: false } },
+      animation: false,
+    },
+  }
 }
 
 // The icons' gap below the axis is padding, not axis height.
@@ -343,7 +301,7 @@ function totalConsumption(series) {
   return {
     label: "Gesamtverbrauch",
     data: Array.from({ length }, (_, index) => consumers.reduce((sum, row) => sum + Number(row.data?.[index] || 0), 0)),
-    tone: "--viz-total",
+    tone: "--color-chart-total",
     fill: false,
     tension: 0.2,
     pointRadius: 0,

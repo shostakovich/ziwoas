@@ -24,9 +24,11 @@ defmodule ZiwoasWeb.WeatherIconTest do
     assert WeatherIcon.asset_name("rain", "morning") == "weather_rain_day.webp"
   end
 
-  test "a record's and a segment's image" do
-    assert WeatherIcon.asset_name(record(icon: "partly-cloudy-night", daytime: "night")) ==
-             "weather_partly_cloudy_night.webp"
+  test "a record's and a segment's plush" do
+    assert WeatherIcon.plush_name(record(icon: "partly-cloudy-night", daytime: "night")) ==
+             "weather-partly-cloudy-night"
+
+    assert WeatherIcon.plush_name("not-real", "morning") == "weather-unknown-day"
 
     segment = %Segment{
       label: :afternoon,
@@ -34,22 +36,33 @@ defmodule ZiwoasWeb.WeatherIconTest do
       records: [record(icon: "clear-day"), record(icon: "thunderstorm")]
     }
 
-    assert WeatherIcon.asset_name(segment) == "weather_thunderstorm_day.webp"
+    assert WeatherIcon.plush_name(segment) == "weather-thunderstorm-day"
+    assert WeatherIcon.plush_name(segment) in ZiwoasWeb.Plush.names()
+
+    foggy_dawn = [record(icon: "fog", daytime: "night"), record(icon: "fog", daytime: "night")]
+    morning = %Segment{segment | records: foggy_dawn ++ List.duplicate(record(icon: "cloudy"), 4)}
+    assert WeatherIcon.plush_name(morning) == "weather-fog-day"
+
+    sunset = [
+      record(icon: "partly-cloudy-day")
+      | List.duplicate(record(icon: "partly-cloudy-night", daytime: "night"), 5)
+    ]
+
+    assert WeatherIcon.plush_name(%Segment{segment | records: sunset}) ==
+             "weather-partly-cloudy-night"
+  end
+
+  test "the current weather's plush is night by the record or once the sun is down" do
+    assert WeatherIcon.current_plush_name(record(icon: "cloudy"), true) == "weather-cloudy-day"
+    assert WeatherIcon.current_plush_name(record(icon: "cloudy"), false) == "weather-cloudy-night"
+
+    assert WeatherIcon.current_plush_name(record(icon: "cloudy", daytime: "night"), true) ==
+             "weather-cloudy-night"
   end
 
   test "German names, Wetter for anything unknown" do
     assert WeatherIcon.label("partly-cloudy-night") == "teils bewölkt"
     assert WeatherIcon.label("bogus") == "Wetter"
     assert WeatherIcon.label(nil) == "Wetter"
-  end
-
-  test "the dashboard hero: the sun until the first sync, then the current icon" do
-    assert WeatherIcon.dashboard(nil) == {"icon_sonne.webp", "Sonne"}
-
-    assert WeatherIcon.dashboard(record(icon: "rain", daytime: "night")) ==
-             {"weather_rain_night.webp", "rain"}
-
-    assert WeatherIcon.dashboard(record(icon: "  ")) == {"weather_unknown_day.webp", "Sonne"}
-    assert WeatherIcon.dashboard(record(icon: nil)) == {"weather_unknown_day.webp", "Sonne"}
   end
 end

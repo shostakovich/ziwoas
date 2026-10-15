@@ -2,17 +2,30 @@ defmodule ZiwoasWeb.LightsComponents do
   @moduledoc false
   use ZiwoasWeb, :html
 
+  import ZiwoasWeb.ErrorSummary, only: [error_summary: 1]
+  import ZiwoasWeb.SwitchesComponents, only: [knob: 1]
+
   alias Ziwoas.Lights
   alias Ziwoas.Lights.Snapshot
 
-  @swatches ~w[#ff4d4d #ff7a3d #ffd43b #43d97f #22b8cf #4d7cff #7c5cff #ff6bd6]
+  @swatches [
+    {"#ff4d4d", "Rot"},
+    {"#ff7a3d", "Orange"},
+    {"#ffd43b", "Gelb"},
+    {"#43d97f", "Grün"},
+    {"#22b8cf", "Türkis"},
+    {"#4d7cff", "Blau"},
+    {"#7c5cff", "Violett"},
+    {"#ff6bd6", "Pink"}
+  ]
+  @swatch_colors Enum.map(@swatches, &elem(&1, 0))
   @preset_max_k 5400
 
   @plush_types %{
-    "H60B0" => "uplighter",
-    "H607C" => "floorlamp",
-    "H6038" => "sconce",
-    "H60A6" => "ceiling"
+    "H60B0" => "lamp-uplighter",
+    "H607C" => "lamp-floor",
+    "H6038" => "lamp-sconce",
+    "H60A6" => "lamp-ceiling"
   }
 
   @zone_labels %{
@@ -26,6 +39,8 @@ defmodule ZiwoasWeb.LightsComponents do
     "mainLightToggle" => "Hauptlampe",
     "backgroundLightToggle" => "Ring"
   }
+
+  @zone_columns %{1 => "grid-cols-1", 2 => "grid-cols-2"}
 
   @palettes [
     {~r/aurora|nordlicht|northern/u,
@@ -56,6 +71,7 @@ defmodule ZiwoasWeb.LightsComponents do
 
   attr :snapshot, Snapshot, required: true
   attr :now, DateTime, required: true, doc: "what a starting lamp counts its seconds against"
+  attr :pending, :boolean, default: false, doc: "a command for the lamp is running"
 
   def light_card(assigns) do
     snapshot = assigns.snapshot
@@ -68,59 +84,70 @@ defmodule ZiwoasWeb.LightsComponents do
         lit: Lights.lit?(snapshot),
         starting: starting,
         summary: card_summary(snapshot, assigns.now),
-        chip:
-          on &&
-            %{
-              swatch: color_hex(snapshot) || "#ffd9a0",
-              label: number(Lights.brightness(snapshot), unit: "%")
-            }
+        brightness: on && Lights.brightness(snapshot),
+        color: on && not Lights.white?(snapshot) && color_hex(snapshot)
       )
 
     ~H"""
-    <div class="card mb-3" id={"light_card_#{@light.key}"} data-light-key={@light.key}>
-      <div class="card-body d-flex align-items-start gap-3">
-        <div class="flex-grow-1">
-          <.link
-            class="d-block text-reset text-decoration-none"
-            aria-label={"#{@light.name} Details"}
-            navigate={~p"/lights/#{@light.key}"}
+    <.card
+      id={"light_card_#{@light.key}"}
+      data-light-key={@light.key}
+      as="article"
+      class="max-sm:[--card-p:1rem] has-[a:focus-visible]:outline-2 has-[a:focus-visible]:outline-offset-2 has-[a:focus-visible]:outline-primary"
+    >
+      <div class="flex items-start gap-4">
+        <div class="min-w-0 flex-1 self-center">
+          <h3 class="card-title block">
+            <.link
+              navigate={~p"/lights/#{@light.key}"}
+              class="after:absolute after:inset-0 focus-visible:outline-none"
+            >
+              {@light.name}
+            </.link><.icon
+              name="chevron-right"
+              class="ms-1 inline-block align-[-0.125em] text-base-content/70"
+            />
+          </h3>
+          <p
+            :for={{line, index} <- Enum.with_index(@summary)}
+            class="mt-1 flex items-center gap-2 text-sm text-base-content/70"
+            data-status
           >
-            <h3 class="card-title h5 mb-1">{@light.name}</h3>
-            <div :for={line <- @summary} class="small text-body-secondary">{line}</div>
-          </.link>
-          <.link
-            class="d-inline-block small link-secondary mt-3"
-            navigate={~p"/lights/#{@light.key}"}
-          >
-            Anpassen ›
-          </.link>
+            <span
+              :if={@starting and index == 0}
+              class="loading loading-spinner loading-xs motion-reduce:hidden"
+              aria-hidden="true"
+            ></span>
+            {line}
+          </p>
         </div>
-
-        <div class="d-flex flex-column align-items-center gap-2">
-          <button
-            type="button"
-            class={["btn btn-light btn-icon sw-knob sw-lamp-knob", not @lit && "off"]}
-            aria-label={"#{@light.name} umschalten"}
-            {command(@light.key, "turn", on: not @lit)}
-          >
-            <img alt="" class="icon sw-knob-plush" src={~p"/images/#{plush_image(@light, @lit)}"} />
-          </button>
-
-          <span :if={@starting} class="spinner-border spinner-border-sm text-warning" role="status">
-            <span class="visually-hidden">Startet</span>
-          </span>
-          <span :if={@chip} class="badge border tabular-nums">
-            <span class="sw-swatch me-1" style={"background-color: #{@chip.swatch}"}></span>{@chip.label}
-          </span>
-        </div>
+        <.knob
+          tone={:lamp}
+          on={@lit}
+          plush={plush_name(@light, @lit)}
+          label={@light.name}
+          busy={@pending}
+          class="z-10"
+          {command(@light.key, "turn", on: not @lit)}
+        >
+          <:readout :if={@brightness}>
+            <.badge style={:plain} class="tabular-nums" data-brightness>
+              <span
+                class={["ld-swatch-dot", !@color && "ld-swatch-dot-white"]}
+                style={@color && "background-color: #{@color}"}
+                aria-hidden="true"
+              ></span>{number(@brightness, unit: "%")}
+            </.badge>
+          </:readout>
+        </.knob>
       </div>
-    </div>
+    </.card>
     """
   end
 
-  defp plush_image(light, on) do
-    type = Map.get(@plush_types, String.upcase(light.sku || ""), "generic")
-    "lamp_#{type}_#{if on, do: "on", else: "off"}.webp"
+  defp plush_name(light, on) do
+    name = Map.get(@plush_types, String.upcase(light.sku || ""), "lamp")
+    if on, do: name, else: name <> "-off"
   end
 
   @spec color_hex(Snapshot.t()) :: String.t() | nil
@@ -147,10 +174,10 @@ defmodule ZiwoasWeb.LightsComponents do
 
   defp summary(snapshot) do
     cond do
-      Lights.unpowered?(snapshot) -> "Aus · stromlos"
+      Lights.unpowered?(snapshot) -> join_meta(["Aus", "stromlos"])
       not Lights.on?(snapshot) -> "Aus"
-      Lights.white?(snapshot) -> "An · Weiß"
-      true -> "An · Farbe"
+      Lights.white?(snapshot) -> join_meta(["An", "Weiß"])
+      true -> join_meta(["An", "Farbe"])
     end
   end
 
@@ -167,46 +194,40 @@ defmodule ZiwoasWeb.LightsComponents do
         unpowered: Lights.unpowered?(snapshot) and not Lights.starting?(snapshot),
         zone_lamp: Lights.zone_lamp?(snapshot),
         zones: zones,
-        columns: min(length(zones), 3)
+        columns: Map.get(@zone_columns, length(zones), "grid-cols-3")
       )
 
     ~H"""
-    <div id="light_power" class="card mb-3">
-      <div class="card-body">
-        <div class="d-flex align-items-center gap-3">
-          <span
-            class={[
-              "btn btn-light btn-icon sw-knob sw-lamp-knob sw-lamp-hero pe-none flex-shrink-0",
-              not @on && "off"
-            ]}
-            aria-hidden="true"
-          >
-            <img
-              width="112"
-              height="112"
-              alt=""
-              class="icon sw-knob-plush"
-              src={~p"/images/#{plush_image(@light, @on)}"}
-            />
-          </span>
-          <div class="btn-group flex-grow-1" role="group" aria-label="Lampe">
-            <button
-              :for={{label, value} <- [{"An", true}, {"Aus", false}]}
-              type="button"
-              aria-pressed={to_string(@on == value)}
-              class={["btn btn-outline-primary", @on == value && "active"]}
-              {command(@light.key, "turn", on: value)}
-            >
-              {label}
-            </button>
-          </div>
+    <div id="light_power" class="flex flex-col gap-6">
+      <div class="flex items-center gap-4 sm:gap-6">
+        <span class="sw-knob sw-knob-lamp sw-knob-hero" data-on={to_string(@on)} aria-hidden="true">
+          <.plush name={plush_name(@light, @on)} size={:xxl} class="sw-knob-plush" />
+        </span>
+        <div class="flex min-w-0 flex-1 flex-col gap-2">
+          <.segmented
+            mode={:button}
+            id="light_power_switch"
+            label="Lampe"
+            value={to_string(@on)}
+            block
+            phx-click="turn"
+            options={[{"An", "true"}, {"Aus", "false"}]}
+          />
+          <p :if={@unpowered} class="text-sm text-base-content/70" data-status>
+            {join_meta(["Aus", "stromlos"])}
+          </p>
         </div>
-        <p :if={@unpowered} class="small text-body-secondary mt-3 mb-0">Aus · stromlos</p>
-        <div :if={@zone_lamp} class="mt-3" role="group" aria-label="Zonen" hidden={not @on}>
-          <p class="mb-2 small text-uppercase text-body-secondary" aria-hidden="true">Zonen</p>
-          <div class={"row row-cols-#{@columns} g-2 ld-zones"}>
-            <.zone :for={zone <- @zones} zone={zone} light_key={@light.key} />
-          </div>
+      </div>
+      <div
+        :if={@zone_lamp}
+        id="light_zones"
+        role="group"
+        aria-labelledby="light_zones_label"
+        hidden={not @on}
+      >
+        <p id="light_zones_label" class="mb-2 text-sm font-medium">Zonen</p>
+        <div class={["grid gap-2", @columns]}>
+          <.zone :for={zone <- @zones} zone={zone} light_key={@light.key} />
         </div>
       </div>
     </div>
@@ -214,18 +235,13 @@ defmodule ZiwoasWeb.LightsComponents do
   end
 
   attr :snapshot, Snapshot, required: true
+  attr :class, :any, default: nil
 
   def starting_notice(assigns) do
     ~H"""
-    <div
-      :if={Lights.starting?(@snapshot)}
-      id="light_starting"
-      class="alert alert-warning d-flex align-items-center gap-2 mb-3"
-      role="status"
-    >
-      <span class="spinner-border spinner-border-sm flex-shrink-0" aria-hidden="true"></span>
+    <.alert :if={Lights.starting?(@snapshot)} id="light_starting" tone={:info} busy class={@class}>
       Lampe startet — Einstellungen werden übernommen, sobald sie erreichbar ist.
-    </div>
+    </.alert>
     """
   end
 
@@ -234,77 +250,81 @@ defmodule ZiwoasWeb.LightsComponents do
 
   def zone(assigns) do
     ~H"""
-    <div class="col">
-      <button
-        type="button"
-        id={"zone_#{@zone.key}"}
-        class={["btn btn-outline-primary w-100 px-2", @zone.on && "active"]}
-        aria-pressed={to_string(@zone.on)}
-        aria-label={"#{zone_label(@zone.key)} an/aus"}
-        {command(@light_key, "zone", zone: @zone.key, on: not @zone.on)}
-      >
-        {zone_label(@zone.key)}
-      </button>
-    </div>
+    <button
+      type="button"
+      id={"zone_#{@zone.key}"}
+      class="btn ld-zone min-w-0 px-3"
+      aria-pressed={to_string(@zone.on)}
+      {command(@light_key, "zone", zone: @zone.key, on: not @zone.on)}
+    >
+      <.icon name={if @zone.on, do: "circle-check", else: "circle"} class="shrink-0" />
+      <span class="truncate">{zone_label(@zone.key)}</span>
+    </button>
     """
   end
 
   defp zone_label(key), do: Map.fetch!(@zone_labels, key)
 
   attr :brightness, :integer, required: true
+  attr :on, :boolean, required: true, doc: "lit; off or unpowered keeps the level, inactive"
   attr :revert, :integer, default: nil, doc: "set anew to put a focused thumb back"
 
   def brightness_panel(assigns) do
-    assigns = assign(assigns, :fill, share(assigns.brightness, 1, 100) * 100)
-
     ~H"""
-    <form id="light_brightness_form" class="card mb-3" phx-change="light_command">
-      <div class="card-body">
-        <input type="hidden" name="command" value="brightness" />
-        <div class="d-flex gap-1 mb-2 small text-uppercase text-body-secondary">
-          <label for="light_brightness">Helligkeit</label><span aria-hidden="true">·</span>
-          <output for="light_brightness" class="text-body tabular-nums">
+    <form id="light_brightness_form" phx-change="light_command" phx-auto-recover="ignore">
+      <.section_heading id="light_brightness_label">
+        Helligkeit
+        <:actions>
+          <output for="light_brightness" class="text-sm tabular-nums">
             {number(@brightness, unit: "%")}
           </output>
-        </div>
+        </:actions>
+      </.section_heading>
+      <input type="hidden" name="command" value="brightness" />
+      <div class="flex items-center gap-3">
+        <.icon name="sun-dim" class="size-5 shrink-0 text-base-content/70" />
         <input
-          class="form-range ld-range"
+          class="range ld-range ld-brightness"
           type="range"
           id="light_brightness"
           name="value"
           min="1"
           max="100"
           value={@brightness}
-          style={"--felt-form-range-fill: #{@fill}%"}
+          data-on={to_string(@on)}
+          aria-labelledby="light_brightness_label"
           phx-patch-focused={@revert}
           phx-debounce="250"
         />
+        <.icon name="sun" class="size-5 shrink-0 text-base-content/70" />
       </div>
     </form>
     """
   end
 
-  attr :tabs, :list, required: true, doc: "`[{key, label}]`"
+  attr :panels, :list, required: true, doc: "`[{label, value}]`"
   attr :active, :string, required: true
+  slot :inner_block, required: true
 
-  def tabs(assigns) do
+  def light_panels(assigns) do
     ~H"""
-    <div class="nav nav-pills nav-fill mb-3" role="tablist" aria-label="Lichtart">
-      <button
-        :for={{key, label} <- @tabs}
-        type="button"
-        class={["nav-link", @active == key && "active"]}
-        role="tab"
-        id={"light_tab_#{key}"}
-        aria-controls={"light_panel_#{key}"}
-        aria-selected={to_string(@active == key)}
-        data-tab={key}
-        phx-click="select_tab"
-        phx-value-tab={key}
-      >
-        {label}
-      </button>
-    </div>
+    <section aria-labelledby="light_panels_label">
+      <.section_heading id="light_panels_label">
+        Licht
+        <:actions>
+          <.segmented
+            mode={:button}
+            id="light_panel_switch"
+            label="Lichtart"
+            value={@active}
+            size={:sm}
+            phx-click="show_panel"
+            options={@panels}
+          />
+        </:actions>
+      </.section_heading>
+      {render_slot(@inner_block)}
+    </section>
     """
   end
 
@@ -315,35 +335,35 @@ defmodule ZiwoasWeb.LightsComponents do
 
   def white_panel(assigns) do
     {min_k, max_k} = Lights.color_temp_range(assigns.light)
+    presets = presets(min_k, max_k)
 
     assigns =
       assign(assigns,
         min_k: min_k,
         max_k: max_k,
         slider: assigns.kelvin || min_k,
-        presets: presets(min_k, max_k)
+        presets: presets,
+        ticks: for({_label, k} <- presets, do: {k, share(k, min_k, max_k)})
       )
 
     ~H"""
     <form
-      class="card mb-3"
       id="light_panel_white"
-      role="tabpanel"
-      aria-labelledby="light_tab_white"
-      data-tab="white"
+      data-panel="white"
+      aria-label="Weiß"
+      class="flex flex-col gap-6"
       hidden={@hidden}
       phx-change="light_command"
+      phx-auto-recover="ignore"
     >
-      <div class="card-body">
-        <input type="hidden" name="command" value="color_temp" />
-        <div class="d-flex gap-1 mb-2 small text-uppercase text-body-secondary">
-          <label for="light_temp">Lichtfarbe</label><span aria-hidden="true">·</span>
-          <output for="light_temp" class="text-body tabular-nums">
-            {number(@slider, unit: "K")}
-          </output>
+      <input type="hidden" name="command" value="color_temp" />
+      <div>
+        <div class="mb-2 flex items-baseline justify-between gap-2 text-sm">
+          <label for="light_temp" class="font-medium">Farbtemperatur</label>
+          <output for="light_temp" class="tabular-nums">{number(@slider, unit: "K")}</output>
         </div>
         <input
-          class="form-range ld-range ld-white"
+          class="range ld-range ld-kelvin"
           type="range"
           id="light_temp"
           name="temp_k"
@@ -355,31 +375,30 @@ defmodule ZiwoasWeb.LightsComponents do
           phx-debounce="250"
         />
         <div class="ld-ticks" aria-hidden="true">
+          <span :for={{_k, at} <- @ticks} class="ld-tick" style={"--at: #{at}"}></span>
+        </div>
+        <div class="ld-tick-labels mt-1 flex justify-between gap-2 text-xs text-base-content/70 tabular-nums">
+          <span class="flex flex-col">{number(@min_k, unit: "K")}<span>warm</span></span>
           <span
-            :for={{_label, preset} <- @presets}
-            class="ld-tick"
-            style={"--at: #{share(preset, @min_k, @max_k)}"}
-          ></span>
-        </div>
-        <div class="d-flex justify-content-between small text-body-secondary mt-1">
-          <span>{number(@min_k, unit: "K")} · warm</span>
-          <span>{number(@max_k, unit: "K")} · kalt</span>
-        </div>
-        <div class="d-flex gap-2 mt-3">
-          <button
-            :for={{label, preset} <- @presets}
-            type="button"
-            class={["btn btn-sm btn-outline-primary flex-fill", @kelvin == preset && "active"]}
-            aria-pressed={to_string(@kelvin == preset)}
-            data-temp={preset}
-            phx-click="light_command"
-            phx-value-command="color_temp"
-            phx-value-temp_k={preset}
+            :for={{k, at} <- Enum.filter(@ticks, &labelled_tick?/1)}
+            class="ld-tick-label"
+            style={"--at: #{at}"}
+            data-tick
           >
-            {label}
-          </button>
+            {number(k, unit: "K")}
+          </span>
+          <span class="flex flex-col text-end">{number(@max_k, unit: "K")}<span>kalt</span></span>
         </div>
       </div>
+      <.segmented
+        mode={:button}
+        id="light_presets"
+        label="Voreinstellungen"
+        value={@kelvin}
+        block
+        phx-click="color_temp_preset"
+        options={@presets}
+      />
     </form>
     """
   end
@@ -400,81 +419,62 @@ defmodule ZiwoasWeb.LightsComponents do
     if span > 0, do: Float.round((value - min) / span, 4), else: 0
   end
 
+  # Nearer an end, a label would run into the end's own label on a phone.
+  defp labelled_tick?({_k, at}), do: at > 0.2 and at < 0.8
+
   attr :color, :string, default: nil, doc: "the colour last set as `#rrggbb`, nil for white"
+  attr :revert, :integer, default: nil, doc: "set anew to put a focused swatch back"
   attr :zone_lamp, :boolean, default: false
   attr :hidden, :boolean, default: false
 
   def color_panel(assigns) do
-    custom = not is_nil(assigns.color) and assigns.color not in @swatches
-
     assigns =
       assign(assigns,
         swatches: Enum.with_index(@swatches),
-        custom: custom,
+        custom: not is_nil(assigns.color) and assigns.color not in @swatch_colors,
         label: if(assigns.zone_lamp, do: "Farbe · Welle + Seite", else: "Farbe")
       )
 
     ~H"""
-    <div
-      class="card mb-3"
-      id="light_panel_color"
-      role="tabpanel"
-      aria-labelledby="light_tab_color"
-      data-tab="color"
-      hidden={@hidden}
-    >
-      <div class="card-body">
-        <p class="d-block mb-2 small text-uppercase text-body-secondary" id="light_color_label">
-          {@label}
-        </p>
-        <div class="ld-swatches" role="radiogroup" aria-labelledby="light_color_label">
-          <%= for {swatch, index} <- @swatches do %>
-            <input
-              type="radio"
-              class="btn-check"
-              name="light_color"
-              id={"light_color_#{index}"}
-              autocomplete="off"
-              checked={@color == swatch}
-              data-color={swatch}
-              phx-click="light_command"
-              phx-value-command="color"
-              {rgb_values(swatch)}
-            />
-            <label
-              class="btn btn-icon btn-swatch"
-              for={"light_color_#{index}"}
-              style={"--felt-swatch-color: #{swatch}"}
-            >
-              <span class="visually-hidden">Farbe {swatch}</span>
-            </label>
-          <% end %>
-          <%!-- felt rings a swatch chosen by a checked .btn-check before it; the wheel's own input is the colour picker. --%>
+    <fieldset id="light_panel_color" data-panel="color" hidden={@hidden}>
+      <legend class="mb-3 text-sm font-medium">{@label}</legend>
+      <div class="ld-swatches">
+        <label
+          :for={{{swatch, name}, index} <- @swatches}
+          class="ld-swatch"
+          style={"--ld-swatch: #{swatch}"}
+        >
           <input
             type="radio"
-            class="btn-check"
+            class="sr-only"
             name="light_color"
-            id="light_color_custom"
-            checked={@custom}
-            hidden
+            id={"light_color_#{index}"}
+            checked={@color == swatch}
+            data-color={swatch}
+            phx-patch-focused={@revert}
+            phx-click="light_command"
+            phx-value-command="color"
+            {rgb_values(swatch)}
           />
-          <label
-            class={["btn btn-icon btn-swatch ld-swatch-wheel", @custom && "ld-swatch-custom"]}
-            title="Weitere Farbe"
-            data-light="wheel"
-            style={@custom && "--ld-custom: #{@color}"}
-          >
-            <span class="visually-hidden">Weitere Farbe</span>
-            <input
-              type="color"
-              id="light_color_wheel"
-              phx-hook="LightDetail"
-              value={@color || "#ff7a3d"}
-            />
-          </label>
-        </div>
+          <span class="sr-only">{name}</span>
+        </label>
+        <label
+          class={["ld-swatch ld-swatch-wheel", @custom && "ld-swatch-custom"]}
+          title="Weitere Farbe"
+          data-light="wheel"
+          data-custom={@custom && @color}
+          style={@custom && "--ld-custom: #{@color}"}
+        >
+          <input
+            type="color"
+            id="light_color_wheel"
+            aria-label="Weitere Farbe"
+            phx-hook="LightDetail"
+            value={@color || "#ff7a3d"}
+          />
+        </label>
       </div>
-    </div>
+    </fieldset>
     """
   end
 
@@ -495,36 +495,23 @@ defmodule ZiwoasWeb.LightsComponents do
     assigns = assign(assigns, :scenes, Lights.scenes(assigns.light))
 
     ~H"""
-    <div
-      class="card mb-3"
-      id="light_panel_scenes"
-      role="tabpanel"
-      aria-labelledby="light_tab_scenes"
-      data-tab="scenes"
-      hidden={@hidden}
-    >
-      <div class="card-body">
-        <%= if @scenes != [] do %>
-          <p class="d-block mb-2 small text-uppercase text-body-secondary">Govee-Szenen</p>
-          <div class="ld-scenes">
-            <div class="row row-cols-2 row-cols-sm-3 g-2">
-              <div :for={scene <- @scenes} class="col">
-                <button
-                  type="button"
-                  class="btn btn-light d-flex flex-column align-items-stretch w-100 p-0 overflow-hidden"
-                  {command(@light.key, "effect", effect: scene)}
-                >
-                  <span class="ld-scene-preview" style={"background-image: #{scene_gradient(scene)}"}></span>
-                  <span class="small text-start text-truncate px-2 py-1">{scene}</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        <% else %>
-          <p class="d-block mb-2 small text-uppercase text-body-secondary">Szenen</p>
-          <p class="small text-body-secondary mb-0">Diese Lampe meldet keine Govee-Szenen.</p>
-        <% end %>
-      </div>
+    <div id="light_panel_scenes" data-panel="scenes" hidden={@hidden}>
+      <%= if @scenes != [] do %>
+        <p id="light_scenes_label" class="mb-3 text-sm font-medium">Govee-Szenen</p>
+        <.list class="ld-scenes" aria-labelledby="light_scenes_label">
+          <.list_row
+            :for={scene <- @scenes}
+            title={scene}
+            on_click={JS.push("light_command", value: %{command: "effect", effect: scene})}
+          >
+            <:leading>
+              <span class="ld-scene-preview" style={"background-image: #{scene_gradient(scene)}"}></span>
+            </:leading>
+          </.list_row>
+        </.list>
+      <% else %>
+        <.empty_state title="Keine Szenen">Diese Lampe meldet keine Govee-Szenen.</.empty_state>
+      <% end %>
     </div>
     """
   end
@@ -548,25 +535,33 @@ defmodule ZiwoasWeb.LightsComponents do
   attr :message, :string, default: nil
   attr :undo, :map, default: nil, doc: "`%{light_key:, victim:, added:}`"
 
-  # Stays .show: visibility is the hidden attribute's job (LightLive hides it after 5 s).
   def toast(assigns) do
     ~H"""
-    <div
-      id="light_toast"
-      class="toast show"
-      role="status"
-      aria-live="polite"
-      hidden={is_nil(@message)}
-    >
-      <div :if={@message} class="toast-body d-flex align-items-center gap-2">
-        <span>{@message}</span>
-        <button
-          type="button"
-          class="btn btn-sm btn-link fw-bold ms-auto"
+    <div class="ld-toast-region" role="status" aria-live="polite">
+      <div
+        :if={@message}
+        id="light_toast"
+        class="ld-toast flex items-center gap-3 rounded-box border border-base-content/10 bg-popover py-2 ps-4 pe-2 text-sm shadow-lg"
+      >
+        <span class="min-w-0 flex-1">{@message}</span>
+        <.button
+          size={:sm}
+          variant={:ghost}
+          icon="undo-2"
+          class="shrink-0"
           {command(@undo.light_key, "zone_undo", victim: @undo.victim, added: @undo.added)}
         >
           Rückgängig
-        </button>
+        </.button>
+        <.button
+          size={:sm}
+          variant={:ghost}
+          icon="x"
+          icon_only
+          label="Schließen"
+          class="shrink-0"
+          phx-click="hide_toast"
+        />
       </div>
     </div>
     """
@@ -593,37 +588,20 @@ defmodule ZiwoasWeb.LightsComponents do
     ] ++ values
   end
 
-  attr :form, Phoenix.HTML.Form, required: true
+  attr :form, Phoenix.HTML.Form, default: nil, doc: "kept after closing, so the exit shows it"
+  attr :open, :boolean, required: true
   attr :plugs, :list, required: true
 
-  @doc "The browser owns the dialog's `open`, so a patch from `validate_settings` keeps it open."
   def settings_sheet(assigns) do
     ~H"""
-    <dialog
-      class="modal"
-      closedby="any"
-      aria-labelledby="light_settings_title"
-      id="light_settings_dialog"
-      phx-hook="SettingsSheet"
-      phx-mounted={JS.ignore_attributes(["open"])}
+    <.modal
+      id="light_settings"
+      title="Einstellungen"
+      show={@open}
+      on_cancel={JS.push("close_settings")}
     >
-      <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h1 class="modal-title fs-5" id="light_settings_title">Einstellungen</h1>
-            <button
-              type="button"
-              class="btn-close"
-              aria-label="Schließen"
-              data-dismiss="dialog"
-            ></button>
-          </div>
-          <div class="modal-body">
-            <.light_form form={@form} plugs={@plugs} />
-          </div>
-        </div>
-      </div>
-    </dialog>
+      <.light_form :if={@form} form={@form} plugs={@plugs} />
+    </.modal>
     """
   end
 
@@ -634,20 +612,29 @@ defmodule ZiwoasWeb.LightsComponents do
     assigns = assign(assigns, :options, Enum.map(assigns.plugs, &{&1.name, &1.id}))
 
     ~H"""
-    <.form for={@form} id="light_form" phx-change="validate_settings" phx-submit="save_settings">
+    <.form
+      for={@form}
+      id="light_form"
+      phx-hook="Setzkasten.Components.Forms.FocusInvalid"
+      phx-change="validate_settings"
+      phx-submit="save_settings"
+    >
+      <.error_summary id="light_form_errors" form={@form} class="mb-2" />
       <.input field={@form[:name]} label="Name" />
       <.input
         field={@form[:shelly_plug_id]}
         type="select"
-        label="Shelly-Plug"
+        label="Steckdose"
         options={@options}
-        prompt="— keine —"
-        wrapper_class="mb-4"
+        prompt="Keine"
+        help="Die Steckdose, an der die Lampe hängt. Ist sie aus, wird sie für den nächsten Befehl eingeschaltet."
       />
-      <div class="d-flex justify-content-end gap-2">
-        <.button type="button" variant="outline-secondary" data-dismiss="dialog">Abbrechen</.button>
-        <.button>Speichern</.button>
-      </div>
+      <.action_bar>
+        <.button id="light_settings_cancel" phx-click={hide_modal("light_settings")}>
+          Abbrechen
+        </.button>
+        <.button type="submit" variant={:primary} phx-disable-with="Speichert …">Speichern</.button>
+      </.action_bar>
     </.form>
     """
   end

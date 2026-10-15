@@ -1,26 +1,118 @@
-.sw-knob { width: 88px; height: 88px; border-style: solid; border-width: 4px;
-           border-color: var(--felt-success); --felt-btn-bg: var(--felt-success-subtle); background-color: var(--felt-btn-bg); }
-.sw-knob.off { border-color: var(--felt-border-color-strong); --felt-btn-bg: var(--felt-surface-raised); }
+/* The off ring is the field border, 3:1 on the card; in dark the plate lifts a step as neutral controls do. */
+.sw-knob {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 4.5rem;
+  height: 4.5rem;
+  border: 4px solid color-mix(in oklab, var(--color-base-content) 50%, transparent);
+  border-radius: 9999px;
+  background-color: var(--color-base-200);
+  cursor: pointer;
+  transition-property: background-color, border-color, box-shadow, scale;
+  transition-duration: var(--setzkasten-duration);
+  transition-timing-function: var(--setzkasten-ease-out);
 
-.sw-knob-plush { --felt-icon-size: 68%; pointer-events: none; }
+  @variant sm {
+    width: 5.5rem;
+    height: 5.5rem;
+  }
+  @variant dark {
+    background-color: var(--color-base-300);
+  }
+}
+.sw-knob:where(button:hover:not(:disabled)) {
+  border-color: color-mix(in oklab, var(--color-base-content) 70%, transparent);
+}
+.sw-knob:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 3px;
+}
+.sw-knob:disabled {
+  cursor: not-allowed;
+}
+.sw-knob[aria-busy="true"] {
+  cursor: progress;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .sw-knob:where(button:active:not(:disabled)) {
+    scale: 0.96;
+    transition-duration: var(--setzkasten-duration-press);
+  }
+}
 
-.sw-lamp-knob {
-  --felt-btn-bg: light-dark(color-mix(in oklab, var(--felt-warning) 12%, var(--felt-surface-raised)),
-                     color-mix(in oklab, var(--felt-warning) 50%, color-mix(in oklab, var(--felt-light-fixed) 30%, var(--felt-surface-raised))));
-  border-color: var(--felt-warning);
-  filter: drop-shadow(0 0 8px color-mix(in oklab, var(--felt-warning) 55%, transparent));
+.sw-knob:is([aria-pressed="true"], [data-on="true"]) {
+  border-color: var(--color-success);
+  background-color: color-mix(in oklab, var(--color-success) 12%, var(--color-base-100));
+  box-shadow: 0 0 0.875rem color-mix(in oklab, var(--color-success) 35%, transparent);
+
+  @variant dark {
+    background-color: color-mix(in oklab, var(--color-success) 22%, var(--color-base-200));
+  }
 }
-.sw-lamp-knob.off {
-  --felt-btn-bg: light-dark(var(--felt-surface-raised), color-mix(in oklab, var(--felt-light-fixed) 28%, var(--felt-surface-raised)));
-  border-color: var(--felt-border-color-strong);
-  filter: none;
+
+.sw-knob-lamp:is([aria-pressed="true"], [data-on="true"]) {
+  border-color: var(--color-warning);
+  background-color: color-mix(in oklab, var(--color-warning) 22%, var(--color-base-100));
+  box-shadow: 0 0 1.25rem color-mix(in oklab, var(--color-warning) 55%, transparent);
+
+  @variant dark {
+    background-color: color-mix(in oklab, var(--color-warning) 30%, var(--color-base-200));
+    background-image: radial-gradient(
+      circle at 50% 42%,
+      color-mix(in oklab, var(--color-warning) 75%, transparent),
+      transparent 72%
+    );
+  }
 }
-.sw-lamp-knob::before {
-  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
-  background-image: radial-gradient(circle at 50% 42%,
-    light-dark(transparent, color-mix(in oklab, var(--felt-light-fixed) 80%, var(--felt-warning))) 0, transparent 72%);
+
+.sw-knob-plush {
+  width: 68%;
+  height: 68%;
+  pointer-events: none;
 }
-.sw-lamp-knob.off::before { content: none; }
-.sw-lamp-knob .sw-knob-plush { position: relative; --felt-icon-size: 80%; }
-.sw-lamp-knob.off .sw-knob-plush { filter: grayscale(.35); }
-.sw-lamp-hero { width: 112px; height: 112px; }
+.sw-knob-lamp .sw-knob-plush {
+  width: 80%;
+  height: 80%;
+}
+.sw-knob-lamp:not([aria-pressed="true"], [data-on="true"]) .sw-knob-plush {
+  filter: grayscale(0.35);
+}
+
+.sw-knob-pending {
+  position: absolute;
+  top: -0.25rem;
+  inset-inline-end: -0.25rem;
+  display: grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 9999px;
+  background-color: var(--color-base-100);
+  color: color-mix(in oklab, var(--color-base-content) 70%, transparent);
+  border: 1px solid color-mix(in oklab, var(--color-base-content) 10%, transparent);
+}
+
+.sw-knob-hero {
+  width: 7rem;
+  height: 7rem;
+  cursor: default;
+}
+
+/* The room below holds half a badge-sm, so cards with and without a readout are as tall. */
+.sw-knob-wrap {
+  position: relative;
+  flex-shrink: 0;
+  padding-bottom: 0.625rem;
+}
+.sw-knob-readout {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  translate: -50% 0;
+  pointer-events: none;
+}
+.sw-knob-readout .badge {
+  background-color: var(--color-base-100);
+}

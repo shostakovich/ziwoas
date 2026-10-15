@@ -26,8 +26,13 @@ defmodule ZiwoasWeb.LightLiveTest do
     state!("ABCDEF01", %{on: true, brightness: 60, color_temp_k: 2700})
     doc = page(conn, "ABCDEF01")
 
-    assert doc |> LazyHTML.query("h1.ld-title") |> LazyHTML.text() |> String.trim() ==
+    assert doc |> LazyHTML.query("#light_detail h1") |> LazyHTML.text() |> String.trim() ==
              "Wohnzimmer Stehlampe"
+
+    assert count(doc, "#light_detail header a[href='/switches']") == 1
+
+    assert doc |> LazyHTML.query("#app-shell-nav a[aria-current=page]") |> LazyHTML.text() =~
+             "Schalten"
 
     assert count(doc, "#light_detail[data-key=ABCDEF01]") == 1
     assert count(doc, "#light_power button[aria-pressed]") == 2
@@ -42,17 +47,27 @@ defmodule ZiwoasWeb.LightLiveTest do
     assert LazyHTML.text(LazyHTML.query(doc, "#light_panel_white output")) =~ "2.700 K"
 
     assert doc
-           |> LazyHTML.query("button[role=tab][phx-click=select_tab]")
-           |> LazyHTML.attribute("data-tab") ==
+           |> LazyHTML.query("#light_panel_switch button[phx-click=show_panel]")
+           |> LazyHTML.attribute("phx-value-value") ==
              ~w[white color scenes]
 
-    assert doc |> LazyHTML.query("[role=tabpanel]") |> LazyHTML.attribute("data-tab") ==
+    assert doc |> LazyHTML.query("[data-panel]") |> LazyHTML.attribute("data-panel") ==
              ~w[white color scenes]
 
-    assert doc |> LazyHTML.query("[role=tabpanel][hidden]") |> LazyHTML.attribute("data-tab") ==
+    assert doc |> LazyHTML.query("[data-panel][hidden]") |> LazyHTML.attribute("data-panel") ==
              ~w[color scenes]
 
-    assert count(doc, "[role=tabpanel][aria-labelledby=light_tab_white]") == 1
+    assert count(doc, "#light_panel_switch button[phx-value-value=white][aria-pressed=true]") ==
+             1
+  end
+
+  test "a lamp in colour opens on the colour panel", %{conn: conn} do
+    light!(%{key: "C1", supports_color: true})
+    state!("C1", %{on: true, brightness: 80, color_r: 255, color_g: 107, color_b: 61})
+    doc = page(conn, "C1")
+
+    assert doc |> LazyHTML.query("[data-panel]:not([hidden])") |> LazyHTML.attribute("data-panel") ==
+             ["color"]
   end
 
   test "show 404s for an unknown key", %{conn: conn} do
@@ -72,19 +87,38 @@ defmodule ZiwoasWeb.LightLiveTest do
     doc = page(conn, "ABCDEF09")
 
     assert count(doc, "input#light_temp[min='2200'][max='6500']") == 1
-    assert LazyHTML.text(LazyHTML.query(doc, "button[data-temp='2200']")) =~ "Gemütlich"
-    assert count(doc, "button.active[aria-pressed=true][data-temp='2200']") == 1
+
+    assert LazyHTML.text(LazyHTML.query(doc, "#light_presets button[phx-value-value='2200']")) =~
+             "Gemütlich"
+
+    assert count(doc, "#light_presets button[aria-pressed=true][phx-value-value='2200']") == 1
+
+    assert doc
+           |> LazyHTML.query("#light_panel_white [data-tick]")
+           |> Enum.map(&LazyHTML.text/1)
+           |> Enum.map(&String.trim/1) ==
+             ["3.800 K", "5.400 K"],
+           "the presets between the ends are labelled on the scale"
   end
 
   test "no colour tab without colour support; colour swatches carry their param", %{conn: conn} do
     light!(%{key: "ABCDEF02", supports_color: false, supports_color_temp: true})
-    assert count(page(conn, "ABCDEF02"), "button[role=tab][data-tab=color]") == 0
+
+    assert count(page(conn, "ABCDEF02"), "#light_panel_switch button[phx-value-value=color]") ==
+             0
 
     light!(%{key: "ABCDEF03", supports_color: true})
     state!("ABCDEF03", %{on: true, brightness: 80, color_r: 255, color_g: 107, color_b: 61})
     doc = page(conn, "ABCDEF03")
-    assert count(doc, "input[type=radio][data-color^='#']") == 8
-    assert count(doc, "label[data-light=wheel] input[type=color]") == 1
+    assert count(doc, "fieldset#light_panel_color input[type=radio][data-color^='#']") == 8
+
+    assert doc
+           |> LazyHTML.query("fieldset#light_panel_color label.ld-swatch")
+           |> Enum.map(&String.trim(LazyHTML.text(&1)))
+           |> Enum.take(3) == ["Rot", "Orange", "Gelb"]
+
+    assert count(doc, "label[data-light=wheel] input[type=color][aria-label='Weitere Farbe']") ==
+             1
   end
 
   test "scenes: a button per firmware scene, or a hint", %{conn: conn} do
@@ -92,12 +126,12 @@ defmodule ZiwoasWeb.LightLiveTest do
     doc = page(conn, "ABCDEF05")
 
     assert doc
-           |> LazyHTML.query("button[phx-value-command=effect]")
-           |> LazyHTML.attribute("phx-value-effect") == ["Forest", "Aurora"]
+           |> LazyHTML.query("#light_panel_scenes li button")
+           |> Enum.map(&String.trim(LazyHTML.text(&1))) == ["Forest", "Aurora"]
 
     light!(%{key: "ABCDEF06", firmware_scenes: []})
 
-    assert LazyHTML.text(LazyHTML.query(page(conn, "ABCDEF06"), "[data-tab=scenes] p.mb-0")) ==
+    assert LazyHTML.text(LazyHTML.query(page(conn, "ABCDEF06"), "#light_panel_scenes")) =~
              "Diese Lampe meldet keine Govee-Szenen."
   end
 
@@ -115,41 +149,39 @@ defmodule ZiwoasWeb.LightLiveTest do
 
     doc = page(conn, "UP1")
 
-    assert count(doc, "#light_power [aria-label=Zonen] .row-cols-3 > .col > button[id^=zone_]") ==
-             3
-
-    assert count(doc, "[aria-label=Zonen][hidden]") == 1
-    assert count(doc, "button[role=tab][data-tab=zones]") == 0
+    assert count(doc, "#light_power #light_zones[role=group] button[id^=zone_]") == 3
+    assert count(doc, "#light_zones[hidden]") == 1
 
     state!("UP1", %{on: true, zone_states: %{"sideLightToggle" => true}})
     doc = page(conn, "UP1")
-    assert count(doc, "[aria-label=Zonen]:not([hidden])") == 1
-    assert count(doc, "button#zone_sideLightToggle.active[aria-pressed=true]") == 1
-    assert count(doc, "button#zone_sideLightToggle[phx-value-on=false]") == 1
-    assert count(doc, "button#zone_bottomLightToggle:not(.active)[aria-pressed=false]") == 1
+    assert count(doc, "#light_zones:not([hidden])") == 1
+    assert count(doc, "button#zone_sideLightToggle[aria-pressed=true][phx-value-on=false]") == 1
+    assert count(doc, "button#zone_bottomLightToggle[aria-pressed=false]") == 1
   end
 
   test "a simple lamp renders no zone buttons; the gear opens the sheet", %{conn: conn} do
     light!(%{key: "S1", supports_color: true})
     doc = page(conn, "S1")
 
-    assert count(doc, "[aria-label=Zonen]") == 0
+    assert count(doc, "#light_zones") == 0
 
     assert count(doc, "button[aria-label=Einstellungen][phx-click=open_settings]") == 1
-    assert count(doc, "#light_settings") == 1
-    assert count(doc, "#light_settings dialog") == 0
+    assert count(doc, "dialog#light_settings[data-show=false]") == 1
+    assert count(doc, "#light_form") == 0
   end
 
   test "a lamp update re-renders the power hero", %{conn: conn} do
     light!(%{key: "LIVE1", name: "Lampe"})
-    state = state!("LIVE1", %{on: false})
+    state = state!("LIVE1", %{on: false, brightness: 40})
     {:ok, view, _html} = live(conn, ~p"/lights/LIVE1")
-    refute has_element?(view, "#light_power button.active", "An")
+    refute has_element?(view, "#light_power button[aria-pressed=true]", "An")
+    assert has_element?(view, "input#light_brightness[value='40'][data-on=false]")
 
     Repo.update!(Ecto.Changeset.change(state, on: true))
     Lights.notify_updated("LIVE1")
 
-    assert has_element?(view, "#light_power button.active", "An")
+    assert has_element?(view, "#light_power button[aria-pressed=true]", "An")
+    assert has_element?(view, "input#light_brightness[data-on=true]")
   end
 
   describe "snapshots" do

@@ -1,0 +1,51 @@
+@layer base {
+  /* The felt hues pass 4.5:1 as text, so the inks reuse them (honey aside); at 25 % they tint alerts grey. */
+  :where(:root),
+  :root:has(input.theme-controller[value="zipfel-light"]:checked),
+  [data-theme="zipfel-light"] {
+    --color-primary: oklch(45.08% 0.129 254.78);
+    --color-primary-content: oklch(100.00% 0 0);
+    --color-info: oklch(52.02% 0.080 205.22);
+    --color-info-content: oklch(100.00% 0 0);
+    --color-success: oklch(51.99% 0.120 133.18);
+    --color-success-content: oklch(100.00% 0 0);
+    --color-warning: oklch(84.49% 0.140 79.84);
+    --color-warning-content: oklch(26.94% 0.060 60.30);
+    --color-error: oklch(55.75% 0.162 32.37);
+    --color-error-content: oklch(100.00% 0 0);
+    --color-success-ink: var(--color-success);
+    --color-error-ink: var(--color-error);
+    --color-info-ink: var(--color-info);
+    --setzkasten-alert-tint: 14%;
+  }
+
+  /* daisyUI draws text, focus and checked marks with the fill, so dark fills stay light (4.5:1 on base-200). */
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme]) {
+      --color-primary: oklch(70.00% 0.145 256.00);
+      --color-primary-content: oklch(22.00% 0.060 256.00);
+      --color-info: oklch(72.00% 0.105 205.00);
+      --color-info-content: oklch(25.00% 0.042 205.00);
+      --color-success: oklch(72.00% 0.150 133.00);
+      --color-success-content: oklch(25.00% 0.060 133.00);
+      --color-warning: oklch(70.85% 0.146 70.91);
+      --color-warning-content: oklch(26.00% 0.059 60.77);
+      --color-error: oklch(71.00% 0.160 33.00);
+      --color-error-content: oklch(22.00% 0.070 33.00);
+    }
+  }
+
+  :root:has(input.theme-controller[value="zipfel-dark"]:checked),
+  [data-theme="zipfel-dark"] {
+    --color-primary: oklch(70.00% 0.145 256.00);
+    --color-primary-content: oklch(22.00% 0.060 256.00);
+    --color-info: oklch(72.00% 0.105 205.00);
+    --color-info-content: oklch(25.00% 0.042 205.00);
+    --color-success: oklch(72.00% 0.150 133.00);
+    --color-success-content: oklch(25.00% 0.060 133.00);
+    --color-warning: oklch(70.85% 0.146 70.91);
+    --color-warning-content: oklch(26.00% 0.059 60.77);
+    --color-error: oklch(71.00% 0.160 33.00);
+    --color-error-content: oklch(22.00% 0.070 33.00);
+  }
+}

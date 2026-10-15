@@ -47,10 +47,10 @@ defmodule ZiwoasWeb.WeatherComponentsTest do
 
   test "the rain cell prefers the amount over the chance of rain, from 30 %" do
     assert W.hour_cell(hour(precipitation: 1.2, precipitation_probability: 90), :rain) ==
-             %Cell{text: "1,2", icon: "weather_rain_day.webp", alt: "Regen in mm"}
+             %Cell{text: "1,2", icon: "weather-rain-day", alt: "Regen in mm"}
 
     assert W.hour_cell(hour(precipitation: 0.0, precipitation_probability: 30), :rain) ==
-             %Cell{text: "30 %", icon: "weather_rain_day.webp", alt: "Regenwahrscheinlichkeit"}
+             %Cell{text: "30 %", icon: "weather-rain-day", alt: "Regenwahrscheinlichkeit"}
 
     assert W.hour_cell(hour(precipitation_probability: 80), :rain).text == "80 %"
     assert W.hour_cell(hour(precipitation: 0.0, precipitation_probability: 29), :rain) == nil
@@ -61,15 +61,16 @@ defmodule ZiwoasWeb.WeatherComponentsTest do
     assert W.hour_cell(hour(), :wind) == nil
 
     assert W.hour_cell(hour(wind_speed: 0.0), :wind) ==
-             %Cell{text: "0", icon: "weather_wind_day.webp", alt: "Wind in km/h"}
+             %Cell{text: "0", icon: "wind", lucide: true, alt: "Wind in km/h"}
 
     assert W.hour_cell(hour(wind_speed: 20.4), :wind) ==
              %Cell{
                text: "20",
-               icon: "weather_wind_day.webp",
+               icon: "wind",
+               lucide: true,
                alt: "Wind in km/h",
                emphasis: true,
-               classes: "text-body"
+               classes: "text-base-content"
              }
   end
 
@@ -79,9 +80,9 @@ defmodule ZiwoasWeb.WeatherComponentsTest do
     assert W.hour_cell(hour(daytime: "day"), :solar) ==
              %Cell{
                text: "—",
-               icon: "weather_clear_day.webp",
+               icon: "weather-clear-day",
                alt: "Sonne in W/m²",
-               classes: "text-warning-emphasis"
+               classes: "text-warning-ink"
              }
 
     assert %Cell{text: "400", emphasis: true} =
@@ -124,17 +125,22 @@ defmodule ZiwoasWeb.WeatherComponentsTest do
         hour(daytime: "night", temperature: 11.6, solar: 0.1)
       ])
 
-    assert W.segment_cell(tile, :temp) == %Cell{text: "−2 – 12°", emphasis: true, classes: "fs-5"}
-    assert W.segment_cell(tile, :rain) == %Cell{text: "0,3 mm", classes: "small fw-normal"}
-
-    assert W.segment_cell(tile, :solar) ==
-             %Cell{text: "200 W/m²", classes: "small text-warning-emphasis"}
+    assert %Cell{text: "−2 bis 12°", emphasis: true} = W.segment_cell(tile, :temp)
+    assert %Cell{text: "0,3 mm", emphasis: false} = W.segment_cell(tile, :rain)
+    assert %Cell{text: "200 W/m²", emphasis: false} = W.segment_cell(tile, :solar)
 
     assert W.segment_cell(tile, :wind) == nil
 
     for row <- [:temp, :rain, :solar], do: assert(W.segment_cell(segment([]), row) == nil)
     assert W.segment_cell(segment([hour(daytime: "day")]), :solar) == nil
     assert W.segment_cell(segment([hour(solar: 0.2)]), :solar) == nil
+  end
+
+  test "a range reads as one value when both ends round alike, with bis after a minus" do
+    assert W.temp_range(6.2, 16.4) == "6–16"
+    assert W.temp_range(8.6, 9.4) == "9"
+    assert W.temp_range(-2.4, 11.6) == "−2 bis 12"
+    assert W.temp_range(nil, nil) == "—"
   end
 
   test "strong wind from 20 km/h, strong sun from 400 W/m²" do

@@ -3,12 +3,23 @@ defmodule Ziwoas.Plugs do
   import Ecto.Query
 
   alias Ziwoas.Clock
-  alias Ziwoas.Plugs.{Aggregator, DailyTotal, EnergyDeltas, Measurement, Sample, Sample5min}
+
+  alias Ziwoas.Plugs.{
+    Aggregator,
+    DailyTotal,
+    EnergyDeltas,
+    Measurement,
+    Roster,
+    Sample,
+    Sample5min
+  }
+
   alias Ziwoas.Plugs.State
   alias Ziwoas.Repo
 
   @topic inspect(__MODULE__)
   @aggregated_topic @topic <> ":aggregated"
+  @rank_days 30
 
   @spec subscribe() :: :ok | {:error, term}
   def subscribe, do: Phoenix.PubSub.subscribe(Ziwoas.PubSub, @topic)
@@ -175,6 +186,43 @@ defmodule Ziwoas.Plugs do
     from(d in DailyTotal, where: d.date >= ^first and d.date <= ^last, order_by: d.date)
     |> where_plugs(plug_ids)
     |> Repo.all()
+  end
+
+  @doc """
+  The consumers' ids by their energy in the #{@rank_days} days up to the newest aggregated day
+  before `today`, most first, so the order changes once a night, with the aggregation. Ties keep
+  config order; consumers without a daily total in the window follow, in config order.
+  """
+  @spec consumer_rank(Roster.t() | [Ziwoas.Plugs.Plug.t()], Date.t()) :: [String.t()]
+  def consumer_rank(plugs, %Date{} = today) do
+    ids = plugs |> Roster.new() |> Roster.consumer_ids()
+    last = rank_end(today)
+
+    wh_by_plug =
+      last
+      |> Date.add(1 - @rank_days)
+      |> daily_totals(last, ids)
+      |> Enum.group_by(& &1.plug_id, &(&1.energy_wh || 0.0))
+      |> Map.new(fn {plug_id, whs} -> {plug_id, Enum.sum(whs)} end)
+
+    ids
+    |> Enum.with_index()
+    |> Enum.sort_by(fn {id, index} ->
+      case wh_by_plug do
+        %{^id => wh} -> {0, -wh, index}
+        %{} -> {1, 0, index}
+      end
+    end)
+    |> Enum.map(&elem(&1, 0))
+  end
+
+  defp rank_end(today) do
+    yesterday = Date.add(today, -1)
+
+    case daily_total_range() do
+      %Date.Range{last: last} -> Enum.min([last, yesterday], Date)
+      nil -> yesterday
+    end
   end
 
   defp where_plugs(query, nil), do: query

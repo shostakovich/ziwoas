@@ -3,8 +3,8 @@
 #
 # Brings a remote container to the point where `mix format --check-formatted`,
 # `mix compile --warnings-as-errors` and `mix test` run unattended: Erlang/OTP and
-# Elixir from .tool-versions on PATH, Hex deps fetched and compiled, the esbuild
-# binary installed and a device config in place.
+# Elixir from .tool-versions on PATH, Hex and git deps fetched and compiled, the
+# Tailwind and esbuild binaries installed and a device config in place.
 set -euo pipefail
 
 [ "${CLAUDE_CODE_REMOTE:-}" = "true" ] || exit 0
@@ -67,11 +67,11 @@ echo "== Fetching and compiling deps =="
 mix deps.get > /dev/null
 MIX_ENV=test mix deps.compile > /dev/null
 
-# The esbuild binary comes from the npm registry; without it only `mix assets.*`
-# fails, so a blocked download warns instead of stopping the session setup.
+# Tailwind comes from GitHub releases, esbuild from the npm registry; without them only
+# `mix assets.*` fails, so a blocked download warns instead of stopping the session setup.
 if grep -q '"assets.setup"' mix.exs; then
-  echo "== Installing esbuild =="
-  mix assets.setup > /dev/null || echo "WARNING: esbuild could not be installed; mix assets.* is unavailable this session." >&2
+  echo "== Installing Tailwind and esbuild =="
+  mix assets.setup > /dev/null || echo "WARNING: Tailwind or esbuild could not be installed; mix assets.* is unavailable this session." >&2
 fi
 
 echo "== Setup complete =="

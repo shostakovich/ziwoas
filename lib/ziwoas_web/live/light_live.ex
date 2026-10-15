@@ -7,8 +7,6 @@ defmodule ZiwoasWeb.LightLive do
   alias Ziwoas.{Lights, Plugs}
   alias ZiwoasWeb.LightEvents
 
-  @toast_ms 5_000
-
   @impl true
   def mount(%{"key" => key}, _session, socket) do
     light = Lights.get_by_key!(key)
@@ -19,28 +17,29 @@ defmodule ZiwoasWeb.LightLive do
       Plugs.subscribe()
     end
 
+    values = lamp_values(snapshot)
+
     {:ok,
-     assign(socket,
+     socket
+     |> assign(values)
+     |> assign(
        page_title: light.name,
        light: light,
        plugs: Lights.lamp_plugs(),
-       tabs: tabs_of(light),
-       tab: "white",
+       panels: panels_of(light),
+       panel: if(values.color && light.supports_color, do: "color", else: "white"),
        power_snapshot: snapshot,
-       brightness: max(Lights.brightness(snapshot), 1),
-       kelvin: Lights.color_temp_k(snapshot),
-       color: if(Lights.white?(snapshot), do: nil, else: color_hex(snapshot)),
        revert: nil,
-       toast: %{message: nil, undo: nil},
-       toast_timer: nil,
-       settings: nil
+       toast: toast_assigns(light, :clear),
+       settings: nil,
+       settings_open: false
      )}
   end
 
-  defp tabs_of(light) do
-    [{"white", "Weiß"}] ++
-      if(light.supports_color, do: [{"color", "Farbe"}], else: []) ++
-      [{"scenes", "Szenen"}]
+  defp panels_of(light) do
+    [{"Weiß", "white"}] ++
+      if(light.supports_color, do: [{"Farbe", "color"}], else: []) ++
+      [{"Szenen", "scenes"}]
   end
 
   @impl true
@@ -57,35 +56,30 @@ defmodule ZiwoasWeb.LightLive do
     {:noreply, socket |> put_flash(:error, message) |> refresh_power()}
   end
 
-  def handle_info(:hide_toast, socket),
-    do: {:noreply, assign(socket, toast: %{message: nil, undo: nil}, toast_timer: nil)}
-
   @impl true
-  def handle_event("light_command", %{"command" => command} = params, socket) do
-    if Lights.command?(command) do
-      params = Map.put(params, "light_key", socket.assigns.light.key)
+  def handle_event("light_command", params, socket), do: {:noreply, command(socket, params)}
 
-      {:noreply,
-       start_async(socket, {:light_command, command}, fn -> LightEvents.run(params) end)}
-    else
-      {:noreply, socket}
-    end
-  end
+  def handle_event("turn", %{"value" => on}, socket),
+    do: {:noreply, command(socket, %{"command" => "turn", "on" => on})}
 
-  def handle_event("light_command", _params, socket), do: {:noreply, socket}
+  def handle_event("color_temp_preset", %{"value" => kelvin}, socket),
+    do: {:noreply, command(socket, %{"command" => "color_temp", "temp_k" => kelvin})}
 
-  def handle_event("select_tab", %{"tab" => tab}, socket) do
-    if List.keymember?(socket.assigns.tabs, tab, 0),
-      do: {:noreply, assign(socket, :tab, tab)},
+  def handle_event("hide_toast", _params, socket), do: {:noreply, hide_toast(socket)}
+
+  def handle_event("show_panel", %{"value" => panel}, socket) do
+    if List.keymember?(socket.assigns.panels, panel, 1),
+      do: {:noreply, assign(socket, :panel, panel)},
       else: {:noreply, socket}
   end
 
-  def handle_event("open_settings", _params, socket),
-    do:
-      {:noreply, assign(socket, :settings, to_form(Lights.change_settings(socket.assigns.light)))}
+  def handle_event("open_settings", _params, socket) do
+    form = to_form(Lights.change_settings(socket.assigns.light))
+    {:noreply, assign(socket, settings: form, settings_open: true)}
+  end
 
   def handle_event("close_settings", _params, socket),
-    do: {:noreply, assign(socket, :settings, nil)}
+    do: {:noreply, assign(socket, :settings_open, false)}
 
   def handle_event("validate_settings", %{"light" => params}, socket) do
     changeset =
@@ -99,21 +93,40 @@ defmodule ZiwoasWeb.LightLive do
       {:ok, light} ->
         {:noreply,
          socket
-         |> assign(light: light, page_title: light.name, settings: nil)
+         |> assign(light: light, page_title: light.name, settings_open: false)
          |> refresh_power()
          |> put_flash(:info, "Lampe aktualisiert.")}
 
       {:error, changeset} ->
-        {:noreply, socket |> clear_flash() |> assign(:settings, to_form(changeset))}
+        {:noreply,
+         socket
+         |> clear_flash()
+         |> assign(:settings, to_form(changeset))}
     end
   end
+
+  defp command(socket, %{"command" => command} = params) do
+    if Lights.command?(command) do
+      params = Map.put(params, "light_key", socket.assigns.light.key)
+
+      socket
+      |> hide_toast()
+      |> start_async({:light_command, command}, fn -> LightEvents.run(params) end)
+    else
+      socket
+    end
+  end
+
+  defp command(socket, _params), do: socket
 
   @impl true
   def handle_async({:light_command, _command}, {:ok, result}, socket) do
     case result do
       {:ok, light, {:zones, _keys, toast}} ->
         socket = refresh_power(socket)
-        {:noreply, if(toast, do: show_toast(socket, toast_assigns(light, toast)), else: socket)}
+
+        {:noreply,
+         if(toast, do: assign(socket, :toast, toast_assigns(light, toast)), else: socket)}
 
       {:ok, _light, :power} ->
         {:noreply, refresh_power(socket)}
@@ -135,7 +148,7 @@ defmodule ZiwoasWeb.LightLive do
   def handle_async({:light_command, _command}, {:exit, _reason}, socket),
     do: {:noreply, failed(socket)}
 
-  # The thumbs moved on the client; a new `revert` sends them back.
+  # The thumbs and swatches moved on the client; a new `revert` sends them back.
   defp failed(socket) do
     socket
     |> put_flash(:error, LightEvents.failed_message())
@@ -143,73 +156,81 @@ defmodule ZiwoasWeb.LightLive do
   end
 
   defp keep(socket, {:brightness, value}), do: assign(socket, :brightness, value)
-  defp keep(socket, {:color_temp, kelvin}), do: assign(socket, :kelvin, kelvin)
-  defp keep(socket, {:color, rgb}), do: assign(socket, :color, hex(rgb))
+  defp keep(socket, {:color_temp, kelvin}), do: assign(socket, kelvin: kelvin, color: nil)
+  defp keep(socket, {:color, rgb}), do: assign(socket, color: hex(rgb), kelvin: nil)
   defp keep(socket, _verb), do: socket
 
-  defp refresh_power(socket),
-    do: assign(socket, :power_snapshot, Lights.snapshot(socket.assigns.light))
+  # Only what the lamp reported anew moves the controls, so a value just set stays until then.
+  defp refresh_power(socket) do
+    snapshot = Lights.snapshot(socket.assigns.light)
+    known = lamp_values(socket.assigns.power_snapshot)
+    reported = snapshot |> lamp_values() |> Map.reject(fn {key, value} -> known[key] == value end)
 
-  defp show_toast(socket, toast) do
-    if timer = socket.assigns.toast_timer, do: Process.cancel_timer(timer)
-    assign(socket, toast: toast, toast_timer: Process.send_after(self(), :hide_toast, @toast_ms))
+    socket |> assign(:power_snapshot, snapshot) |> assign(reported)
   end
+
+  defp lamp_values(snapshot) do
+    kelvin = Lights.color_temp_k(snapshot)
+
+    %{
+      brightness: max(Lights.brightness(snapshot), 1),
+      kelvin: if(kelvin && kelvin > 0, do: kelvin),
+      color: if(not Lights.white?(snapshot), do: color_hex(snapshot))
+    }
+  end
+
+  defp hide_toast(socket), do: assign(socket, :toast, toast_assigns(socket.assigns.light, :clear))
 
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} look={@look} current_path={@current_path}>
+    <Layouts.app flash={@flash} current_path={@current_path}>
       <div id="light_detail" data-key={@light.key}>
-        <.header title_class="ld-title">
-          <:leading>
-            <.link
-              class="btn btn-icon btn-light flex-shrink-0"
-              aria-label="Zurück"
-              navigate={~p"/switches"}
-            >
-              ←
-            </.link>
-          </:leading>
+        <.header back={~p"/switches"} back_label="Schalten">
           {@light.name}
           <:actions>
             <button
               type="button"
-              class="btn btn-icon flex-shrink-0"
+              id="light_settings_open"
+              class="btn btn-square"
               aria-label="Einstellungen"
+              aria-haspopup="dialog"
               phx-click="open_settings"
             >
-              <img
-                width="28"
-                height="28"
-                alt=""
-                aria-hidden="true"
-                src={~p"/images/settings_plush.webp"}
-              />
+              <.plush name="settings" size={:md} />
             </button>
           </:actions>
         </.header>
+        <.starting_notice snapshot={@power_snapshot} class="mb-6" />
 
-        <.starting_notice snapshot={@power_snapshot} />
-        <.power snapshot={@power_snapshot} />
-        <.brightness_panel brightness={@brightness} revert={@revert} />
-        <.tabs tabs={@tabs} active={@tab} />
+        <div class="flex flex-col gap-8">
+          <.power snapshot={@power_snapshot} />
+          <.brightness_panel
+            brightness={@brightness}
+            on={Lights.lit?(@power_snapshot)}
+            revert={@revert}
+          />
 
-        <.white_panel light={@light} kelvin={@kelvin} revert={@revert} hidden={@tab != "white"} />
-        <.color_panel
-          :if={@light.supports_color}
-          color={@color}
-          zone_lamp={Lights.zone_lamp?(@power_snapshot)}
-          hidden={@tab != "color"}
-        />
-        <.scenes light={@light} hidden={@tab != "scenes"} />
-
-        <div class="toast-container ld-toast-container">
-          <.toast message={@toast.message} undo={@toast.undo} />
+          <.light_panels panels={@panels} active={@panel}>
+            <.white_panel
+              light={@light}
+              kelvin={@kelvin}
+              revert={@revert}
+              hidden={@panel != "white"}
+            />
+            <.color_panel
+              :if={@light.supports_color}
+              color={@color}
+              revert={@revert}
+              zone_lamp={Lights.zone_lamp?(@power_snapshot)}
+              hidden={@panel != "color"}
+            />
+            <.scenes light={@light} hidden={@panel != "scenes"} />
+          </.light_panels>
         </div>
 
-        <div id="light_settings">
-          <.settings_sheet :if={@settings} form={@settings} plugs={@plugs} />
-        </div>
+        <.toast message={@toast.message} undo={@toast.undo} />
+        <.settings_sheet form={@settings} open={@settings_open} plugs={@plugs} />
       </div>
     </Layouts.app>
     """

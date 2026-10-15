@@ -1,145 +1,135 @@
-.sun-charts {
-  --ramp-amber-0: color-mix(in oklab, var(--viz-solar) 14%, transparent);
-  --ramp-amber-1: var(--viz-solar);
-  --ramp-amber-2: var(--felt-warning-emphasis);
-  --ramp-blue-0: color-mix(in oklab, var(--viz-grid) 12%, transparent);
-  --ramp-blue-1: var(--viz-grid);
-  --ramp-blue-2: var(--felt-primary-emphasis);
-  --ramp-grey-0: color-mix(in oklab, var(--felt-body-color) 6%, transparent);
-  --ramp-grey-1: color-mix(in oklab, var(--felt-body-color) 85%, var(--felt-surface));
-  --ramp-low: var(--viz-grid);
-  --ramp-neutral: color-mix(in oklab, var(--felt-body-color) 19%, var(--felt-surface));
-  --ramp-high: var(--viz-solar);
-  --nodata: color-mix(in oklab, var(--felt-surface-sunk) 55%, transparent);
-  /* Amber on the amber ramp vanishes in the dark. */
-  --sun-line: light-dark(var(--felt-warning-text), var(--felt-body-color));
-}
+/* The PV page's server-drawn charts; layered, so a frame's `hidden`/`sm:block` beat `display: block`. */
+@layer components {
+  .sun-charts {
+    --ramp-amber-0: color-mix(in oklab, var(--color-solar-fill) 14%, transparent);
+    --ramp-amber-1: var(--color-solar-fill);
+    --ramp-amber-2: var(--color-solar);
+    --ramp-blue-0: color-mix(in oklab, var(--color-grid-fill) 12%, transparent);
+    --ramp-blue-1: var(--color-grid-fill);
+    --ramp-blue-2: color-mix(in oklab, var(--color-grid) 60%, var(--color-base-content));
+    --ramp-grey-0: var(--color-base-200);
+    --ramp-grey-1: color-mix(in oklab, var(--color-base-content) 60%, var(--color-base-100));
+    --ramp-low: var(--color-grid);
+    --ramp-neutral: color-mix(in oklab, var(--color-base-content) 19%, var(--color-base-100));
+    --ramp-high: var(--color-solar-fill);
+    --nodata: var(--color-chart-gap);
+    --sun-line: var(--color-solar);
+    --chart-text: color-mix(in oklab, var(--color-base-content) 70%, transparent);
+    --chart-axis: color-mix(in oklab, var(--color-base-content) 25%, transparent);
+  }
 
-.sun-charts svg {
-  display: block;
-  width: 100%;
-  height: auto;
-  font-family: inherit;
-}
-.sun-charts { --chart-text: 9.5px; }
-.sun-charts .multiple { --chart-text: 11.5px; }
-.sun-charts .panel-chart-narrow { --chart-text: 13px; }
-@media (max-width: 575.98px) {
-  .sun-charts { --chart-text: 26px; }
-  .sun-charts .multiple { --chart-text: 21px; }
-}
-@media (min-width: 576px) and (max-width: 767.98px) {
-  .sun-charts { --chart-text: 17px; }
-  .sun-charts .multiple { --chart-text: 15px; }
-}
-@media (min-width: 768px) and (max-width: 991.98px) {
-  .sun-charts { --chart-text: 13px; }
-}
-.sun-charts svg text { fill: var(--felt-secondary-color); font-size: var(--chart-text); }
-.sun-charts svg :is(line, polyline) { vector-effect: non-scaling-stroke; }
-.sun-charts svg .grid line { stroke: var(--chart-grid); stroke-width: 1px; }
-.sun-charts svg .axis { stroke: var(--felt-border-color); stroke-width: 1px; }
-.sun-charts svg text.zero { dominant-baseline: alphabetic; }
-.sun-charts svg .bars path { fill: var(--viz-solar); }
-.sun-charts svg .hits rect { fill: transparent; }
-/* Copies in <use> match only selectors that stay inside the copy: name no ancestor outside it. */
-.cells .nodata { fill: var(--nodata); }
-polyline:is(.sun, .sun-halo) {
-  fill: none;
-  stroke: var(--sun-line);
-  stroke-width: 1.7px;
-  stroke-linejoin: round;
-  stroke-linecap: round;
-  vector-effect: non-scaling-stroke;
-}
-polyline.sun-halo { stroke: var(--chart-halo); stroke-width: 5px; }
-polyline.noon { stroke-width: 1.3px; stroke-dasharray: 2 4; }
-.sun-charts .seam { --tone: var(--felt-secondary-color); }
-.sun-charts svg .seam { stroke: var(--tone); stroke-width: 1.3px; stroke-dasharray: 3 3; }
-.sun-charts .label-sparse { display: none; }
+  /* The viewBox scales the text with the drawing: each step keeps it at 12px or a little more. */
+  .sun-figure { container-type: inline-size; }
+  .sun-figure svg {
+    --chart-v: 720;
+    --chart-k: calc(12 / 864);
+    display: block;
+    width: 100%;
+    height: auto;
+    font-family: inherit;
+  }
+  @container (width < 864px) { .sun-figure svg { --chart-k: calc(12 / 720); } }
+  @container (width < 720px) { .sun-figure svg { --chart-k: calc(12 / 600); } }
+  @container (width < 600px) { .sun-figure svg { --chart-k: calc(12 / 500); } }
+  @container (width < 500px) { .sun-figure svg { --chart-k: calc(12 / 420); } }
+  @container (width < 420px) { .sun-figure svg { --chart-k: calc(12 / 360); } }
+  @container (width < 360px) { .sun-figure svg { --chart-k: calc(12 / 300); } }
+  @container (width < 300px) { .sun-figure svg { --chart-k: calc(12 / 270); } }
+  @container (width < 270px) { .sun-figure svg { --chart-k: calc(12 / 230); } }
+  @container (width < 230px) { .sun-figure svg { --chart-k: calc(12 / 200); } }
+  @container (width < 200px) { .sun-figure svg { --chart-k: calc(12 / 170); } }
+  @container (width < 170px) { .sun-figure svg { --chart-k: calc(12 / 145); } }
+  @container (width < 145px) { .sun-figure svg { --chart-k: calc(12 / 125); } }
+  .sun-figure .panel-chart-narrow { --chart-v: 360; }
+  .multiple .sun-figure svg { --chart-v: 300; }
 
-.sun-charts .legend-ramp,
-.sun-charts .legend-box {
-  display: inline-block;
-  width: 96px;
-  height: 10px;
-  border: 1px solid var(--felt-border-color);
-  border-radius: var(--felt-radius-sm);
-}
-.sun-charts .legend-box { width: 10px; border-radius: 2px; }
-.sun-charts .legend-box.nodata { background-color: var(--nodata); }
-.sun-charts .legend-line {
-  display: inline-block;
-  width: 18px;
-  border-top: 2px solid var(--tone, var(--sun-line));
-}
-.sun-charts .legend-line.noon { border-top-style: dotted; }
-.sun-charts .legend-line.seam { border-top-style: dashed; }
+  .sun-charts svg text {
+    fill: var(--chart-text);
+    font-size: calc(var(--chart-v) * var(--chart-k) * 1px);
+  }
+  .sun-charts svg :is(line, polyline) { vector-effect: non-scaling-stroke; }
+  .sun-charts svg .grid line { stroke: var(--color-chart-gridline); stroke-width: 1px; }
+  .sun-charts svg .axis { stroke: var(--chart-axis); stroke-width: 1px; }
+  .sun-charts svg text.zero { dominant-baseline: alphabetic; }
+  .sun-charts svg .bars path { stroke-width: 1px; }
+  .sun-charts svg .hits rect { fill: transparent; }
+  /* Copies in <use> match only selectors that stay inside the copy: name no ancestor outside it. */
+  .cells .nodata { fill: var(--nodata); }
+  polyline:is(.sun, .sun-halo) {
+    fill: none;
+    stroke: var(--sun-line);
+    stroke-width: 1.7px;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+    vector-effect: non-scaling-stroke;
+  }
+  polyline.sun-halo { stroke: var(--color-chart-halo); stroke-width: 5px; }
+  polyline.noon { stroke-width: 1.3px; stroke-dasharray: 4 3; }
+  .sun-charts svg .seam { stroke: var(--color-chart-muted); stroke-width: 1px; stroke-dasharray: 3 3; }
 
-.shading .measured { --tone: var(--viz-solar); }
-.shading .expected { --tone: var(--viz-1); }
-.shading .theory { --tone: var(--felt-secondary-color); }
-.shading .pv1 { --tone: var(--viz-1); }
-.shading .pv2 { --tone: var(--viz-4); }
-.shading .pv3 { --tone: var(--viz-2); }
-.shading .pv4 { --tone: var(--viz-3); }
+  @media (width < 40rem) {
+    .sun-charts .label-dense { display: none; }
+    polyline.sun-halo { stroke-width: 3px; }
+  }
+  @media (width >= 40rem) {
+    .sun-charts .label-sparse { display: none; }
+  }
 
-.shading svg .fields rect { stroke: none; }
-.shading svg .dot { fill: var(--felt-secondary-color); stroke: var(--felt-surface); stroke-width: 2; }
-.shading svg .path-label,
-.shading svg .dot-label,
-.shading svg .direct-labels text,
-.shading svg .unit {
-  paint-order: stroke;
-  stroke: var(--chart-halo);
-  stroke-width: 0.28em;
-  stroke-linejoin: round;
-}
-.shading svg .path-label,
-.shading svg .direct-labels text { font-weight: 600; }
-.shading svg .direct-labels text { fill: var(--tone); }
-.shading svg .curve {
-  fill: none;
-  stroke: var(--tone);
-  stroke-width: 2.2px;
-  stroke-linejoin: round;
-  stroke-linecap: round;
-}
-.shading .multiple svg .curve { stroke-width: 1.7px; }
-.shading svg .expected { stroke-dasharray: 3.5 3; }
-.shading .multiple svg .theory { stroke-width: 1px; stroke-dasharray: 1 2.5; }
-.shading svg .measured-area { fill: var(--viz-solar); fill-opacity: 0.18; }
-.shading svg .leaders line { stroke: var(--felt-secondary-color); stroke-width: 0.75px; }
-.shading .legend-line.expected { border-top-style: dashed; }
-.shading .legend-line.theory { border-top-style: dotted; }
+  .sun-charts .legend-ramp,
+  .sun-charts .legend-nodata {
+    display: inline-block;
+    height: 10px;
+    border: 1px solid var(--chart-axis);
+    border-radius: var(--radius-selector);
+  }
+  .sun-charts .legend-ramp { width: 96px; }
+  .sun-charts .legend-nodata { width: 10px; border-radius: 2px; background-color: var(--nodata); }
+  @media (width < 40rem) {
+    .sun-charts .legend-ramp { width: 64px; }
+  }
 
-@media (max-width: 575.98px) {
-  .sun-charts .label-dense { display: none; }
-  .sun-charts .label-sparse { display: block; }
-  .sun-charts .legend-ramp { width: 64px; }
-  polyline.sun-halo { stroke-width: 3px; }
-  .shading svg .dot { r: 7px; stroke-width: 3; }
-}
-@media (max-width: 991.98px) {
-  .shading .multiple:nth-child(even) .value-labels { display: none; }
-}
+  .shading .measured { --tone: var(--color-solar); }
+  .shading .expected { --tone: var(--color-chart-1); }
+  .shading .theory { --tone: color-mix(in oklab, var(--color-base-content) 70%, transparent); }
 
-.solakon-details > summary {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--felt-space-1);
-  cursor: pointer;
-  list-style: none;
-}
-.solakon-details > summary::-webkit-details-marker { display: none; }
-.solakon-details > summary::after { content: "›"; transition: rotate .15s; }
-.solakon-details[open] > summary::after { rotate: 90deg; }
-.solakon-details > summary:hover { color: var(--felt-body-color); }
+  .shading svg .fields rect { stroke: none; }
+  .shading svg .dot {
+    fill: var(--sun-line);
+    stroke: var(--color-base-100);
+    stroke-width: 2;
+    r: calc(var(--chart-v) * var(--chart-k) * 0.3px);
+  }
+  .shading svg .path-label,
+  .shading svg .dot-label,
+  .shading svg .direct-labels text {
+    paint-order: stroke;
+    stroke: var(--color-chart-halo);
+    stroke-width: 0.28em;
+    stroke-linejoin: round;
+  }
+  .shading svg .path-label,
+  .shading svg .direct-labels text { font-weight: 600; }
+  .shading svg .path-label,
+  .shading svg .dot-label { fill: var(--color-base-content); }
+  .shading svg .direct-labels text { fill: var(--tone); }
+  .shading svg .curve {
+    fill: none;
+    stroke: var(--tone);
+    stroke-width: 2.2px;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+  }
+  .shading .multiple svg .curve { stroke-width: 1.7px; }
+  .shading svg .expected { stroke-dasharray: 4 3; }
+  .shading .multiple svg .theory { stroke-width: 1px; }
+  .shading svg .measured-area { fill: var(--color-solar-fill); fill-opacity: 0.28; }
+  .shading .multiple.partial :is(.curve, .measured-area) { opacity: 0.5; }
+  .shading svg .leaders line { stroke: var(--chart-axis); stroke-width: 1px; }
 
-/* felt's switch is a checkbox; on a <button role="switch"> aria-checked stands in for :checked. */
-.form-switch button.form-check-input { padding: 0; }
-.form-switch button.form-check-input[aria-checked="true"] {
-  background-color: var(--_check-fill);
-  border-color: var(--_check-fill);
-  background-position: calc(100% - 1px) center;
+  @media (width < 40rem) {
+    .shading .multiple .value-labels { display: none; }
+  }
+  @media (width < 64rem) {
+    .shading .multiple:nth-child(even) .value-labels { display: none; }
+  }
 }

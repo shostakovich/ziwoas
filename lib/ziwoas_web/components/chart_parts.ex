@@ -2,7 +2,7 @@ defmodule ZiwoasWeb.Components.ChartParts do
   @moduledoc false
   use ZiwoasWeb, :html
 
-  @frame_classes %{wide: "d-none d-sm-block", narrow: "d-sm-none"}
+  @frame_classes %{wide: "hidden sm:block", narrow: "sm:hidden"}
 
   @spec frame_classes(:wide | :narrow) :: String.t()
   def frame_classes(frame), do: Map.fetch!(@frame_classes, frame)
@@ -10,25 +10,34 @@ defmodule ZiwoasWeb.Components.ChartParts do
   @spec tooltips?(:wide | :narrow) :: boolean
   def tooltips?(frame), do: frame == :wide
 
-  attr :class, :string, required: true
+  attr :class, :any, default: nil
   slot :inner_block, required: true
 
-  def legend_list(assigns) do
+  def keys(assigns) do
     ~H"""
-    <ul class={[
-      "legend list-unstyled d-flex flex-wrap align-items-center column-gap-3 row-gap-1 small text-body-secondary",
-      @class
-    ]}>
+    <div class={["flex flex-wrap items-center gap-x-4 gap-y-1", @class]}>
       {render_slot(@inner_block)}
-    </ul>
+    </div>
     """
   end
 
-  slot :inner_block, required: true
+  attr :gradient, :string, required: true
+  attr :from, :string, required: true
+  attr :to, :string, required: true
 
-  def legend_item(assigns) do
+  def ramp_key(assigns) do
     ~H"""
-    <li class="legend-item d-inline-flex align-items-center gap-2">{render_slot(@inner_block)}</li>
+    <p class="flex items-center gap-1.5 text-xs tabular-nums" data-key="ramp">
+      {@from}<span class="legend-ramp" style={"background: #{@gradient}"}></span>{@to}
+    </p>
+    """
+  end
+
+  def nodata_key(assigns) do
+    ~H"""
+    <p class="flex items-center gap-1.5 text-xs" data-key="nodata">
+      <span class="legend-nodata" aria-hidden="true"></span>keine Daten
+    </p>
     """
   end
 

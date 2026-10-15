@@ -2,105 +2,113 @@ defmodule ZiwoasWeb.SwitchesComponents do
   @moduledoc false
   use ZiwoasWeb, :html
 
+  import ZiwoasWeb.ErrorSummary, only: [error_summary: 1]
+
   alias Ziwoas.Switching.{Row, Schedule}
 
   @day_abbr [{1, "Mo"}, {2, "Di"}, {3, "Mi"}, {4, "Do"}, {5, "Fr"}, {6, "Sa"}, {7, "So"}]
+  @day_names ~w[Montag Dienstag Mittwoch Donnerstag Freitag Samstag Sonntag]
   @source_label %{manual: "manuell", schedule: "Zeitplan"}
 
-  # Drawn in the text colour: emoji render as boxes or in their own colours, depending on the device.
-  @ui_icons %{
-    play: "M5 3.2v9.6a.6.6 0 0 0 .9.5l7.6-4.8a.6.6 0 0 0 0-1L5.9 2.7a.6.6 0 0 0-.9.5z",
-    pause: "M4 3h3v10H4zm5 0h3v10H9z",
-    edit:
-      "M11.1 1.9a1.3 1.3 0 0 1 1.8 0l1.2 1.2a1.3 1.3 0 0 1 0 1.8L6 13l-3.6.9a.4.4 0 0 1-.5-.5L2.8 9.8z",
-    delete:
-      "M6 1.5h4l.5 1H14V4H2V2.5h3.5zM3.2 5h9.6l-.7 8.6a1.5 1.5 0 0 1-1.5 1.4H5.4a1.5 1.5 0 0 1-1.5-1.4z"
-  }
+  attr :on, :boolean, required: true
+  attr :plush, :string, required: true
+  attr :label, :string, required: true, doc: "the device's name; `aria-pressed` says the state"
+  attr :tone, :atom, default: :plug, values: [:plug, :lamp]
+  attr :busy, :boolean, default: false, doc: "its command is still running"
+  attr :class, :any, default: nil
+  attr :rest, :global, include: ~w(disabled)
+  slot :readout, doc: "a badge on the knob's lower edge, e.g. the power"
+
+  def knob(assigns) do
+    ~H"""
+    <div class={["sw-knob-wrap", @class]}>
+      <button
+        type="button"
+        class={["sw-knob", @tone == :lamp && "sw-knob-lamp"]}
+        aria-label={@label}
+        aria-pressed={to_string(@on)}
+        aria-busy={@busy && "true"}
+        {@rest}
+      >
+        <.plush name={@plush} class="sw-knob-plush" />
+        <span :if={@busy} class="sw-knob-pending" aria-hidden="true">
+          <span class="loading loading-spinner loading-xs motion-reduce:hidden"></span>
+          <.icon name="ellipsis" class="size-4 motion-safe:hidden" />
+        </span>
+      </button>
+      <div :if={@readout != []} class="sw-knob-readout">{render_slot(@readout)}</div>
+    </div>
+    """
+  end
 
   attr :row, Row, required: true
   attr :zone, :string, required: true
+  attr :pending, :boolean, default: false, doc: "a switch command is running"
 
   attr :editor, :map,
     default: nil,
     doc: "the open editor: `%{kind: :window | :rule, id: nil | entry id, form: form}`"
 
   def plug_card(assigns) do
-    ~H"""
-    <div
-      class={["card mb-3", Row.offline?(@row) && "opacity-75"]}
-      id={"sw_card_#{@row.plug.id}"}
-      data-plug-id={@row.plug.id}
-    >
-      <div class="card-body">
-        <.head row={@row} zone={@zone} />
-        <%!-- The browser owns `open`: a LiveView patch must not fold the list back up. --%>
-        <details class="mt-2" phx-mounted={JS.ignore_attributes(["open"])}>
-          <.summary row={@row} />
-          <.entries plug={@row.plug} entries={@row.entries} editor={@editor} />
-        </details>
-      </div>
-    </div>
-    """
-  end
-
-  attr :row, Row, required: true
-  attr :zone, :string, required: true
-
-  def head(assigns) do
     row = assigns.row
+    offline = Row.offline?(row)
     on = Row.on?(row)
+    count = Row.rule_count(row)
 
     assigns =
       assign(assigns,
+        plug: row.plug,
         on: on,
-        lit: on and not Row.offline?(row),
-        offline: Row.offline?(row),
-        status: status_line(row, assigns.zone)
+        lit: on and not offline,
+        offline: offline,
+        status: status_line(row, assigns.zone),
+        count: if(count > 0, do: count)
       )
 
     ~H"""
-    <div class="d-flex align-items-start gap-3" id={"sw_head_#{@row.plug.id}"}>
-      <div class="flex-grow-1">
-        <h3 class="card-title h5 mb-1">{@row.plug.name}</h3>
-        <div class="small text-body-secondary">{@status}</div>
-      </div>
-      <div class="d-flex flex-column align-items-center gap-2">
-        <button
-          type="button"
-          class={["btn btn-light btn-icon sw-knob", not @lit && "off"]}
-          aria-label={"#{@row.plug.name} #{if @on, do: "ausschalten", else: "einschalten"}"}
+    <.card
+      id={"sw_card_#{@plug.id}"}
+      data-plug-id={@plug.id}
+      as="article"
+      class="max-sm:[--card-p:1rem]"
+    >
+      <div class="flex items-start gap-4" id={"sw_head_#{@plug.id}"}>
+        <div class="min-w-0 flex-1 self-center">
+          <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <h3 class="card-title">{@plug.name}</h3>
+            <.badge :if={@offline} tone={:warning}>Offline</.badge>
+          </div>
+          <p class="mt-1 text-sm text-base-content/70" data-status>{@status}</p>
+        </div>
+        <.knob
+          on={@lit}
+          plush={if @lit, do: "shelly-plug", else: "shelly-plug-off"}
+          label={@plug.name}
           disabled={@offline}
+          busy={@pending}
           phx-click="switch_plug"
-          phx-value-plug_id={@row.plug.id}
+          phx-value-plug_id={@plug.id}
           phx-value-state={if @on, do: "off", else: "on"}
         >
-          <img
-            alt=""
-            class="icon sw-knob-plush"
-            src={~p"/images/#{"switch_plush_#{if @lit, do: "on", else: "off"}.webp"}"}
-          />
-        </button>
-        <span :if={@lit} class="badge border tabular-nums">
-          <span class="text-warning me-1" aria-hidden="true">⚡</span>{number(@row.watt || 0)} W
-        </span>
+          <:readout :if={@lit}>
+            <.badge icon="zap" class="tabular-nums" data-watt>
+              {number(@row.watt || 0, unit: "W")}
+            </.badge>
+          </:readout>
+        </.knob>
       </div>
-    </div>
+      <.disclosure
+        id={"sw_schedule_#{@plug.id}"}
+        variant={:button}
+        icon="clock"
+        summary="Schaltzeiten"
+        count={@count}
+        class="sm:mt-2"
+      >
+        <.entries plug={@plug} entries={@row.entries} editor={@editor} />
+      </.disclosure>
+    </.card>
     """
-  end
-
-  attr :row, Row, required: true
-
-  def summary(assigns) do
-    ~H"""
-    <summary class="small text-body-secondary py-1">Schaltzeiten{count(@row)}</summary>
-    """
-  end
-
-  defp count(row) do
-    case Row.rule_count(row) do
-      0 -> ""
-      count -> " (#{count})"
-    end
   end
 
   attr :plug, :any, required: true
@@ -110,38 +118,39 @@ defmodule ZiwoasWeb.SwitchesComponents do
   def entries(assigns) do
     ~H"""
     <div id={"sw_rules_#{@plug.id}"}>
-      <%= for entry <- @entries do %>
-        <%= if editing?(@editor, entry) do %>
-          <.entry_editor plug={@plug} editor={@editor} />
-        <% else %>
-          <.schedule_entry entry={entry} plug={@plug} />
+      <.list
+        :if={@entries != []}
+        flush
+        class="-mx-[var(--card-p,1.5rem)] border-t border-base-content/10 [&>.list-row]:px-[var(--card-p,1.5rem)]"
+      >
+        <%= for entry <- @entries do %>
+          <.entry_editor :if={editing?(@editor, entry)} plug={@plug} editor={@editor} as="li" />
+          <.schedule_entry :if={not editing?(@editor, entry)} entry={entry} plug={@plug} />
         <% end %>
-      <% end %>
+      </.list>
       <div id={"sw_editor_#{@plug.id}"}>
         <.entry_editor :if={@editor && is_nil(@editor.id)} plug={@plug} editor={@editor} />
       </div>
-      <div class="d-flex flex-wrap gap-2 mt-2">
+      <div class="-mx-[var(--card-p,1.5rem)] flex flex-wrap gap-2 border-t border-base-content/10 px-[var(--card-p,1.5rem)] pt-4">
         <.button
-          type="button"
-          variant="outline-secondary"
-          size="sm"
-          class="btn-pill"
+          id={opener_id(@plug.id, :window)}
+          size={:sm}
+          icon="plus"
           phx-click="new_entry"
           phx-value-plug_id={@plug.id}
           phx-value-kind="window"
         >
-          + Zeitfenster
+          Zeitfenster
         </.button>
         <.button
-          type="button"
-          variant="outline-secondary"
-          size="sm"
-          class="btn-pill"
+          id={opener_id(@plug.id, :rule)}
+          size={:sm}
+          icon="plus"
           phx-click="new_entry"
           phx-value-plug_id={@plug.id}
           phx-value-kind="rule"
         >
-          + Einzelschaltung
+          Einzelschaltung
         </.button>
       </div>
     </div>
@@ -151,19 +160,41 @@ defmodule ZiwoasWeb.SwitchesComponents do
   defp editing?(%{id: id}, entry) when not is_nil(id), do: id == to_string(Schedule.id(entry))
   defp editing?(_editor, _entry), do: false
 
+  defp opener_id(plug_id, kind), do: "sw_new_#{kind}_#{plug_id}"
+
+  @doc "Where focus goes once `editor` closes: the row's actions, else the button that opens it."
+  @spec focus_return(String.t(), map) :: [String.t()]
+  def focus_return(plug_id, %{id: nil, kind: kind}), do: [opener_id(plug_id, kind)]
+
+  def focus_return(plug_id, %{id: id}) do
+    row = entry_dom_id(plug_id, id)
+    ["#{row}_edit", "#{row}-menu-toggle", opener_id(plug_id, :window)]
+  end
+
   attr :plug, :any, required: true
   attr :editor, :map, required: true
+  attr :as, :string, default: "div"
 
   def entry_editor(assigns) do
     ~H"""
-    <div id={entry_dom_id(@plug, @editor.id || "new")}>
+    <.dynamic_tag
+      tag_name={@as}
+      id={entry_dom_id(@plug.id, @editor.id || "new")}
+      class={[
+        "py-4",
+        if(@as == "li",
+          do: "border-b border-base-content/10 px-[var(--card-p,1.5rem)] last:border-b-0",
+          else: "-mx-[var(--card-p,1.5rem)] border-t border-base-content/10 px-[var(--card-p,1.5rem)]"
+        )
+      ]}
+    >
       <.window_form :if={@editor.kind == :window} plug={@plug} form={@editor.form} key={@editor.id} />
       <.single_form :if={@editor.kind == :rule} plug={@plug} form={@editor.form} key={@editor.id} />
-    </div>
+    </.dynamic_tag>
     """
   end
 
-  defp entry_dom_id(plug, id), do: "sw_entry_#{plug.id}_#{id}"
+  defp entry_dom_id(plug_id, id), do: "sw_entry_#{plug_id}_#{id}"
 
   attr :entry, :any, required: true
   attr :plug, :any, required: true
@@ -171,142 +202,97 @@ defmodule ZiwoasWeb.SwitchesComponents do
   def schedule_entry(assigns) do
     entry = assigns.entry
     window = Schedule.window?(entry)
+    id = to_string(Schedule.id(entry))
     enabled = Schedule.enabled?(entry)
-    noun = if window, do: "Zeitfenster", else: "Schaltzeit"
+    target = %{plug_id: assigns.plug.id, kind: if(window, do: "window", else: "rule"), id: id}
 
     assigns =
       assign(assigns,
-        id: to_string(Schedule.id(entry)),
-        kind: if(window, do: "window", else: "rule"),
+        dom_id: entry_dom_id(assigns.plug.id, id),
         enabled: enabled,
-        noun: noun,
-        pill_class: pill_class(window, enabled),
-        direction: if(window, do: nil, else: direction(entry.rule.action))
+        meta:
+          if(window,
+            do: "Zeitfenster",
+            else: join_meta(["Einzelschaltung", direction(entry.rule.action)])
+          ),
+        noun: if(window, do: "Zeitfenster", else: "Schaltzeit"),
+        toggle: JS.push("set_enabled", value: Map.put(target, :enabled, to_string(not enabled))),
+        edit: JS.push("edit_entry", value: target),
+        delete: JS.push("delete_entry", value: target)
       )
 
     ~H"""
-    <div
-      class="d-flex align-items-center flex-wrap gap-1 py-1 border-top"
-      id={entry_dom_id(@plug, @id)}
-    >
-      <span class={@pill_class}>
-        {entry_label(@entry)}
-        <span :if={@direction} class="fw-bold ms-1">{@direction}</span>
-      </span>
-      <button
-        type="button"
-        class="btn btn-icon btn-sm ms-auto"
-        aria-label={"#{@noun} #{if @enabled, do: "pausieren", else: "aktivieren"}"}
-        phx-click="set_enabled"
-        phx-value-plug_id={@plug.id}
-        phx-value-kind={@kind}
-        phx-value-id={@id}
-        phx-value-enabled={to_string(not @enabled)}
-      >
-        <.ui_icon name={if @enabled, do: :pause, else: :play} />
-      </button>
-      <button
-        type="button"
-        class="btn btn-icon btn-sm"
-        aria-label={"#{@noun} bearbeiten"}
-        phx-click="edit_entry"
-        phx-value-plug_id={@plug.id}
-        phx-value-kind={@kind}
-        phx-value-id={@id}
-      >
-        <.ui_icon name={:edit} />
-      </button>
-      <button
-        type="button"
-        class="btn btn-icon btn-sm"
-        aria-label={"#{@noun} löschen"}
-        data-confirm={"#{@noun} wirklich löschen?"}
-        phx-click="delete_entry"
-        phx-value-plug_id={@plug.id}
-        phx-value-kind={@kind}
-        phx-value-id={@id}
-      >
-        <.ui_icon name={:delete} />
-      </button>
-    </div>
+    <.list_row id={@dom_id} title={entry_label(@entry)} data-enabled={to_string(@enabled)}>
+      <:meta>{@meta}</:meta>
+      <:trailing :if={not @enabled}>
+        <.badge>Pausiert</.badge>
+      </:trailing>
+      <:action
+        id={"#{@dom_id}_toggle"}
+        label={if @enabled, do: "Pausieren", else: "Fortsetzen"}
+        icon={if @enabled, do: "pause", else: "play"}
+        on_click={@toggle}
+      />
+      <:action id={"#{@dom_id}_edit"} label="Bearbeiten" icon="pencil" on_click={@edit} />
+      <:action
+        id={"#{@dom_id}_delete"}
+        label="Löschen"
+        icon="trash-2"
+        danger
+        confirm={"#{@noun} löschen?"}
+        on_click={@delete}
+      />
+    </.list_row>
     """
   end
 
-  defp pill_class(window, enabled) do
-    tone =
-      cond do
-        not enabled -> "text-body-secondary text-decoration-line-through"
-        window -> "bg-primary-subtle text-primary-emphasis"
-        true -> "border-primary text-primary-emphasis"
-      end
-
-    Enum.join(
-      ["badge rounded-pill fw-normal"] ++ if(window, do: [], else: ["border"]) ++ [tone],
-      " "
-    )
-  end
-
-  defp direction(:on), do: "→ an"
-  defp direction(_action), do: "→ aus"
-
-  attr :name, :atom, required: true
-
-  def ui_icon(assigns) do
-    assigns = assign(assigns, :d, Map.fetch!(@ui_icons, assigns.name))
-
-    ~H"""
-    <svg
-      viewBox="0 0 16 16"
-      width="16"
-      height="16"
-      fill="currentColor"
-      aria-hidden="true"
-      focusable="false"
-      data-icon={@name}
-    ><path d={@d} /></svg>
-    """
-  end
+  defp direction(:on), do: "schaltet ein"
+  defp direction(_action), do: "schaltet aus"
 
   attr :plug, :any, required: true
   attr :form, Phoenix.HTML.Form, required: true
   attr :key, :string, default: nil, doc: "the group id of a stored Zeitfenster"
 
   def window_form(assigns) do
-    assigns = assign(assigns, :prefix, "sw_#{assigns.plug.id}_#{assigns.key || "new"}")
+    assigns = assign(assigns, :prefix, editor_prefix(assigns.plug.id, assigns.key))
 
     ~H"""
     <.form
       for={@form}
       id={"#{@prefix}_form"}
-      class="bg-body border rounded p-2 p-sm-3 mt-2 vstack gap-3"
+      phx-hook="Setzkasten.Components.Forms.FocusInvalid"
+      phx-mounted={JS.focus_first()}
+      class="flex flex-col gap-2"
+      aria-labelledby={"#{@prefix}_title"}
       phx-change="validate_entry"
       phx-submit="save_entry"
     >
+      <p id={"#{@prefix}_title"} class="font-semibold">
+        {if @key, do: "Zeitfenster bearbeiten", else: "Neues Zeitfenster"}
+      </p>
+      <.error_summary id={"#{@prefix}_errors"} form={@form} />
       <input type="hidden" name="plug_id" value={@plug.id} />
-      <div class="row g-2">
-        <div class="col">
-          <.input
-            field={@form[:on_at_time]}
-            id={"#{@prefix}_on_at_time"}
-            type="time"
-            label="Einschalten um"
-            class="form-control-sm tabular-nums"
-            wrapper_class=""
-          />
-        </div>
-        <div class="col">
-          <.input
-            field={@form[:off_at_time]}
-            id={"#{@prefix}_off_at_time"}
-            type="time"
-            label="Ausschalten um"
-            class="form-control-sm tabular-nums"
-            wrapper_class=""
-          />
-        </div>
+      <div class="grid grid-cols-2 gap-4">
+        <.input
+          field={@form[:on_at_time]}
+          id={"#{@prefix}_on_at_time"}
+          type="time"
+          label="Einschalten um"
+          class="tabular-nums"
+        />
+        <.input
+          field={@form[:off_at_time]}
+          id={"#{@prefix}_off_at_time"}
+          type="time"
+          label="Ausschalten um"
+          class="tabular-nums"
+        />
       </div>
-      <.weekdays field={@form[:days]} id_prefix={"#{@prefix}_day"} />
-      <.editor_actions plug={@plug} hint="Über Mitternacht? Einfach 22:00–06:00 eintragen." />
+      <.weekdays field={@form[:days]} id={"#{@prefix}_days"} />
+      <p class="text-sm text-base-content/70">
+        Über Mitternacht? Einfach <span class="whitespace-nowrap">22:00–06:00</span> eintragen.
+      </p>
+      <.editor_actions plug={@plug} />
     </.form>
     """
   end
@@ -316,120 +302,77 @@ defmodule ZiwoasWeb.SwitchesComponents do
   attr :key, :string, default: nil, doc: "the id of a stored Einzelschaltung"
 
   def single_form(assigns) do
-    assigns = assign(assigns, :prefix, "sw_#{assigns.plug.id}_#{assigns.key || "new"}")
+    assigns = assign(assigns, :prefix, editor_prefix(assigns.plug.id, assigns.key))
 
     ~H"""
     <.form
       for={@form}
       id={"#{@prefix}_form"}
-      class="bg-body border rounded p-2 p-sm-3 mt-2 vstack gap-3"
+      phx-hook="Setzkasten.Components.Forms.FocusInvalid"
+      phx-mounted={JS.focus_first()}
+      class="flex flex-col gap-2"
+      aria-labelledby={"#{@prefix}_title"}
       phx-change="validate_entry"
       phx-submit="save_entry"
     >
+      <p id={"#{@prefix}_title"} class="font-semibold">
+        {if @key, do: "Einzelschaltung bearbeiten", else: "Neue Einzelschaltung"}
+      </p>
+      <.error_summary id={"#{@prefix}_errors"} form={@form} />
       <input type="hidden" name="plug_id" value={@plug.id} />
-      <div class="d-flex flex-wrap align-items-end gap-2">
+      <div class="grid grid-cols-2 gap-4">
         <.input
           field={@form[:at_minute_time]}
           id={"#{@prefix}_at_minute_time"}
           type="time"
           label="Uhrzeit"
-          class="form-control-sm tabular-nums"
-          wrapper_class=""
+          class="tabular-nums"
         />
-        <.action_choice field={@form[:action]} id_prefix={"#{@prefix}_action"} />
+        <.segmented
+          mode={:radio}
+          id={"#{@prefix}_action"}
+          field={@form[:action]}
+          label="Richtung"
+          block
+          options={[{"An", "on"}, {"Aus", "off"}]}
+        />
       </div>
-      <.weekdays field={@form[:days]} id_prefix={"#{@prefix}_day"} />
-      <.editor_actions plug={@plug} hint="Bleibt aus, bis etwas anderes einschaltet." />
+      <.weekdays field={@form[:days]} id={"#{@prefix}_days"} />
+      <p class="text-sm text-base-content/70">Bleibt aus, bis etwas anderes einschaltet.</p>
+      <.editor_actions plug={@plug} />
     </.form>
     """
   end
 
-  attr :field, Phoenix.HTML.FormField, required: true
-  attr :id_prefix, :string, required: true
-
-  defp action_choice(assigns) do
-    assigns =
-      assign(assigns, value: to_string(assigns.field.value), errors: errors(assigns.field))
-
-    ~H"""
-    <div>
-      <div class="btn-group btn-group-sm" role="group" aria-label="Richtung">
-        <%= for {value, label} <- [{"on", "an"}, {"off", "aus"}] do %>
-          <input
-            id={"#{@id_prefix}_#{value}"}
-            class="btn-check"
-            autocomplete="off"
-            type="radio"
-            value={value}
-            name={@field.name}
-            checked={@value == value}
-          />
-          <label class="btn btn-outline-primary" for={"#{@id_prefix}_#{value}"}>{label}</label>
-        <% end %>
-      </div>
-      <.error :for={message <- @errors}>{message}</.error>
-    </div>
-    """
-  end
+  @spec editor_prefix(String.t(), String.t() | nil) :: String.t()
+  def editor_prefix(plug_id, key), do: "sw_#{plug_id}_#{key || "new"}"
 
   attr :field, Phoenix.HTML.FormField, required: true
-  attr :id_prefix, :string, required: true
+  attr :id, :string, required: true
 
   def weekdays(assigns) do
     assigns =
       assign(assigns,
-        day_abbr: @day_abbr,
-        checked: assigns.field.value |> List.wrap() |> Enum.map(&to_string/1),
-        errors: errors(assigns.field)
+        options:
+          for(
+            {{number, abbr}, name} <- Enum.zip(@day_abbr, @day_names),
+            do: %{label: abbr, long_label: name, value: number}
+          )
       )
 
     ~H"""
-    <div>
-      <%!-- The blank value goes first, so unticking every day still sends the key. --%>
-      <input type="hidden" name={@field.name <> "[]"} value="" />
-      <div class="btn-group btn-group-sm w-100" role="group" aria-label="Wochentage">
-        <%= for {number, label} <- @day_abbr do %>
-          <input
-            type="checkbox"
-            name={@field.name <> "[]"}
-            id={"#{@id_prefix}_#{number}"}
-            value={number}
-            class="btn-check"
-            autocomplete="off"
-            checked={to_string(number) in @checked}
-          />
-          <label class="btn btn-outline-primary px-1" for={"#{@id_prefix}_#{number}"}>{label}</label>
-        <% end %>
-      </div>
-      <.error :for={message <- @errors}>{message}</.error>
-    </div>
+    <.segmented mode={:checkbox} id={@id} field={@field} label="Wochentage" block options={@options} />
     """
   end
 
-  defp errors(field) do
-    if Phoenix.Component.used_input?(field),
-      do: Enum.map(field.errors, &translate_error/1),
-      else: []
-  end
-
   attr :plug, :any, required: true
-  attr :hint, :string, required: true
 
   defp editor_actions(assigns) do
     ~H"""
-    <div class="d-flex flex-wrap align-items-center gap-2">
-      <.button size="sm">Speichern</.button>
-      <.button
-        type="button"
-        variant="outline-secondary"
-        size="sm"
-        phx-click="close_editor"
-        phx-value-plug_id={@plug.id}
-      >
-        Abbrechen
-      </.button>
-      <span class="small text-body-secondary">{@hint}</span>
-    </div>
+    <.action_bar>
+      <.button phx-click="close_editor" phx-value-plug_id={@plug.id}>Abbrechen</.button>
+      <.button type="submit" variant={:primary} phx-disable-with="Speichert …">Speichern</.button>
+    </.action_bar>
     """
   end
 
@@ -471,26 +414,58 @@ defmodule ZiwoasWeb.SwitchesComponents do
     if Row.offline?(row) do
       offline_line(row)
     else
-      on = Row.on?(row)
-      word = if on, do: "An", else: "Aus"
-      command = row.last_command
+      word = if Row.on?(row), do: "An", else: "Aus"
 
       first =
-        if command && command.action == :on == on,
-          do:
-            "#{word} seit #{clock(command.inserted_at, zone)} (#{@source_label[command.source]})",
-          else: word
+        case Row.since(row) do
+          nil ->
+            word
 
-      Enum.join([first, schedule_part(row, zone)], " · ")
+          {time, nil} ->
+            "#{word} seit #{since(time, row.now, zone)}"
+
+          {time, source} ->
+            "#{word} seit #{since(time, row.now, zone)} (#{@source_label[source]})"
+        end
+
+      join_meta([first, schedule_part(row, zone)])
     end
   end
 
   defp offline_line(%Row{last_seen_ts: nil}), do: "Noch keine Statusmeldung"
   defp offline_line(row), do: "Keine Statusmeldung seit #{round(Row.age(row) / 60)} min"
 
-  defp schedule_part(%Row{next_edge: nil}, _zone), do: "kein Zeitplan"
+  defp since(time, now, zone) do
+    day = local_date(time, zone)
 
-  defp schedule_part(%Row{next_edge: edge}, zone),
+    case Date.diff(local_date(now, zone), day) do
+      0 -> clock(time, zone)
+      1 -> "gestern #{clock(time, zone)}"
+      _days -> "#{day_month(day)} #{clock(time, zone)}"
+    end
+  end
+
+  defp upcoming(time, now, zone) do
+    day = local_date(time, zone)
+
+    case Date.diff(day, local_date(now, zone)) do
+      0 -> "um #{clock(time, zone)}"
+      1 -> "morgen um #{clock(time, zone)}"
+      _days -> "#{Enum.at(@day_names, Date.day_of_week(day) - 1)} um #{clock(time, zone)}"
+    end
+  end
+
+  defp local_date(time, zone), do: time |> DateTime.shift_zone!(zone) |> DateTime.to_date()
+
+  defp schedule_part(%Row{next_edge: nil, entries: entries}, _zone) do
+    cond do
+      entries == [] -> "kein Zeitplan"
+      not Enum.any?(entries, &Schedule.enabled?/1) -> "Zeitplan pausiert"
+      true -> nil
+    end
+  end
+
+  defp schedule_part(%Row{next_edge: edge, now: now}, zone),
     do:
-      "nächste Schaltung: #{clock(edge.at, zone)} → #{if edge.action == :on, do: "an", else: "aus"}"
+      "schaltet #{upcoming(edge.at, now, zone)} #{if edge.action == :on, do: "ein", else: "aus"}"
 end

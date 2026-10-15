@@ -3,7 +3,7 @@ defmodule ZiwoasWeb.SwitchesLiveTest do
 
   import Phoenix.LiveViewTest
 
-  alias Ziwoas.{Clock, Repo, TestClock}
+  alias Ziwoas.{Clock, Repo, TestClock, TestConfigs}
   alias Ziwoas.Lights.{Light, State}
   alias Ziwoas.Plugs
   alias Ziwoas.Switching
@@ -25,7 +25,10 @@ defmodule ZiwoasWeb.SwitchesLiveTest do
   defp count(doc, selector), do: doc |> LazyHTML.query(selector) |> Enum.count()
 
   defp text(doc, selector),
-    do: doc |> LazyHTML.query(selector) |> LazyHTML.text() |> String.trim()
+    do: doc |> LazyHTML.query(selector) |> LazyHTML.text() |> plain()
+
+  defp plain(text),
+    do: text |> String.replace(["\u2060", "\u00A0"], " ") |> String.split() |> Enum.join(" ")
 
   defp unix_now, do: Clock.parse!(@now) |> DateTime.to_unix()
 
@@ -35,15 +38,17 @@ defmodule ZiwoasWeb.SwitchesLiveTest do
   test "lamp tile links to the detail page and exposes a toggle knob", %{conn: conn} do
     doc = page(conn)
 
+    assert text(doc, "#light_card_ABCDEF01 a[href='/lights/ABCDEF01']") ==
+             "Wohnzimmer Stehlampe"
+
     assert count(
              doc,
-             "#light_card_ABCDEF01 a[aria-label='Wohnzimmer Stehlampe Details'][href='/lights/ABCDEF01']"
+             "#light_card_ABCDEF01 button[aria-label='Wohnzimmer Stehlampe'][aria-pressed=true]"
            ) == 1
 
-    assert count(doc, ".card[data-light-key=ABCDEF01] button.sw-knob") == 1
-    assert text(doc, "#light_card_ABCDEF01 .small.text-body-secondary") == "An · Weiß"
-    assert text(doc, "#light_card_ABCDEF01 span.badge") == "60 %"
-    assert count(doc, "button.sw-lamp-knob img.sw-knob-plush[src*='lamp_floorlamp_']") == 1
+    assert text(doc, "#light_card_ABCDEF01 [data-status]") == "An · Weiß"
+    assert text(doc, "#light_card_ABCDEF01 [data-brightness]") == "60 %"
+    assert count(doc, "#light_card_ABCDEF01 button img[src*='lamp_floorlamp_on']") == 1
 
     assert count(
              doc,
@@ -66,24 +71,25 @@ defmodule ZiwoasWeb.SwitchesLiveTest do
 
     doc = page(conn)
 
-    assert LazyHTML.text(LazyHTML.query(doc, "#sw_card_fridge .badge.rounded-pill")) =~
-             "Mo–Fr · 18:00–23:00"
+    assert text(doc, "#sw_card_fridge li[id^=sw_entry_fridge_]") =~ "Mo–Fr · 18:00–23:00"
 
     assert doc
            |> LazyHTML.query("#sw_card_fridge button[phx-click=new_entry]")
            |> Enum.map(&String.trim(LazyHTML.text(&1))) ==
-             ["+ Zeitfenster", "+ Einzelschaltung"]
+             ["Zeitfenster", "Einzelschaltung"]
   end
 
   test "the summary counts Schaltzeiten, not rows; without any it is bare", %{conn: conn} do
-    assert text(page(conn), "#sw_card_fridge summary") == "Schaltzeiten"
+    doc = page(conn)
+    assert text(doc, "#sw_schedule_fridge > summary") == "Schaltzeiten"
+    assert count(doc, "#sw_schedule_fridge > summary > span") == 0
 
     Switching.save_window("fridge", %{on_at_time: "18:00", off_at_time: "23:00", days: [1]})
 
     for at <- ["01:00", "02:00"],
         do: Switching.save_single("fridge", %{at_minute_time: at, action: :off, days: [1]})
 
-    assert text(page(conn), "#sw_card_fridge summary") == "Schaltzeiten (4)"
+    assert text(page(conn), "#sw_schedule_fridge > summary > span") == "4"
   end
 
   test "rules of a plug that left ziwoas.yml stay out of sight, not deleted", %{conn: conn} do
@@ -99,44 +105,62 @@ defmodule ZiwoasWeb.SwitchesLiveTest do
 
     assert count(
              doc,
-             "#sw_head_fridge button.btn.btn-light.btn-icon.sw-knob:not(.off)[aria-label='Kühlschrank ausschalten'] img[src*='switch_plush_on']"
+             "#sw_head_fridge button[aria-label='Kühlschrank'][aria-pressed=true][phx-value-state=off] img[src*='switch_plush_on']"
            ) == 1
 
-    assert text(doc, "#sw_head_fridge .badge") =~ "84 W"
-    assert count(doc, "#sw_card_fridge.opacity-75") == 0
+    assert text(doc, "#sw_head_fridge [data-watt]") == "84 W"
+    refute text(doc, "#sw_head_fridge") =~ "Offline"
   end
 
   test "the watt chip groups thousands the German way", %{conn: conn} do
     insert_sample!("fridge", unix_now(), 1980.2, 1)
     state!(true)
-    assert text(page(conn), "#sw_head_fridge .badge") == "⚡1.980 W"
+    assert text(page(conn), "#sw_head_fridge [data-watt]") == "1.980 W"
   end
 
-  test "a silent plug is dimmed, its knob disabled and without watts", %{conn: conn} do
+  test "a silent plug is marked offline, its knob disabled and without watts", %{conn: conn} do
     doc = page(conn)
-    assert count(doc, "#sw_card_fridge.card.opacity-75") == 1
+    assert text(doc, "#sw_head_fridge .badge") == "Offline"
 
-    assert count(doc, "#sw_head_fridge button.sw-knob.off[disabled] img[src*='switch_plush_off']") ==
-             1
+    assert count(
+             doc,
+             "#sw_head_fridge button[aria-pressed=false][disabled] img[src*='switch_plush_off']"
+           ) == 1
 
-    assert count(doc, "#sw_head_fridge .badge") == 0
-    assert text(doc, "#sw_head_fridge .small.text-body-secondary") == "Noch keine Statusmeldung"
+    assert count(doc, "#sw_head_fridge [data-watt]") == 0
+    assert text(doc, "#sw_head_fridge [data-status]") == "Noch keine Statusmeldung"
   end
 
   test "the status line says since when, where from and what comes next", %{conn: conn} do
     insert_sample!("fridge", unix_now() - 10, 5, 1)
-    Switching.save_window("fridge", %{on_at_time: "18:00", off_at_time: "23:00", days: [1]})
+    Switching.save_window("fridge", %{on_at_time: "06:00", off_at_time: "18:00", days: [1]})
 
     Repo.insert!(%Ziwoas.Switching.Command{
       plug_id: "fridge",
       action: :on,
-      source: :schedule,
-      inserted_at: Clock.parse!("2026-06-15T06:00:00+02:00"),
-      updated_at: Clock.parse!("2026-06-15T06:00:00+02:00")
+      source: :manual,
+      inserted_at: Clock.parse!("2026-06-14T22:00:00+02:00"),
+      updated_at: Clock.parse!("2026-06-14T22:00:00+02:00")
     })
 
-    assert text(page(conn), "#sw_head_fridge .small.text-body-secondary") ==
-             "An seit 06:00 (Zeitplan) · nächste Schaltung: 18:00 → an"
+    assert text(page(conn), "#sw_head_fridge [data-status]") ==
+             "An seit gestern 22:00 (manuell) · schaltet um 18:00 aus"
+  end
+
+  test "an edge that keeps the state gives way to the one that switches", %{conn: conn} do
+    insert_sample!("fridge", unix_now() - 10, 5, 1)
+    Switching.save_window("fridge", %{on_at_time: "18:00", off_at_time: "22:00", days: [1]})
+
+    Repo.insert!(%Ziwoas.Switching.Command{
+      plug_id: "fridge",
+      action: :on,
+      source: :manual,
+      inserted_at: Clock.parse!("2026-06-15T14:00:00+02:00"),
+      updated_at: Clock.parse!("2026-06-15T14:00:00+02:00")
+    })
+
+    assert text(page(conn), "#sw_head_fridge [data-status]") ==
+             "An seit 14:00 (manuell) · schaltet um 22:00 aus"
   end
 
   test "a plug update rebuilds the plug heads", %{conn: conn} do
@@ -152,31 +176,39 @@ defmodule ZiwoasWeb.SwitchesLiveTest do
 
   test "a lamp update re-renders the lamp tiles", %{conn: conn, light: light} do
     {:ok, view, _html} = live(conn, ~p"/switches")
-    assert has_element?(view, "#light_card_#{light.key} .small", "An · Weiß")
+    assert has_element?(view, "#light_card_#{light.key} [data-status]", ~r/An\W+Weiß/u)
 
     Repo.update_all(State, set: [on: false])
     Ziwoas.Lights.notify_updated(light.key)
 
-    assert has_element?(view, "#light_card_#{light.key} .small", "Aus")
+    assert has_element?(view, "#light_card_#{light.key} [data-status]", "Aus")
   end
 
   test "a lamp tile navigates to the lamp's page inside the live session", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/switches")
 
-    for selector <- ["a[aria-label='Wohnzimmer Stehlampe Details']", "a.link-secondary"] do
-      assert has_element?(
-               view,
-               "#light_card_ABCDEF01 #{selector}[data-phx-link=redirect][href='/lights/ABCDEF01']"
-             )
-    end
+    assert has_element?(
+             view,
+             "#light_card_ABCDEF01 a[data-phx-link=redirect][href='/lights/ABCDEF01']"
+           )
 
     {:ok, lamp, _html} =
       view
-      |> element("#light_card_ABCDEF01 a.link-secondary")
+      |> element("#light_card_ABCDEF01 a")
       |> render_click()
       |> follow_redirect(conn, ~p"/lights/ABCDEF01")
 
     assert has_element?(lamp, "h1", "Wohnzimmer Stehlampe")
     assert has_element?(lamp, "header a[data-phx-link=redirect][href='/switches']")
+  end
+
+  test "without switchable plugs the plug section says how to get one", %{conn: conn} do
+    TestConfigs.put(TestConfigs.plugs())
+    doc = page(conn)
+
+    assert text(doc, "#sw_plugs") =~ "Keine schaltbaren Steckdosen"
+    assert text(doc, "#sw_plugs") =~ "switchable: true"
+    assert count(doc, "#sw_plugs article") == 0
+    assert count(doc, "#sw_lamps article") == 1
   end
 end

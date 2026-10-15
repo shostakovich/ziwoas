@@ -1,56 +1,227 @@
-@media (max-width: 575.98px) {
-  .ld-zones .btn { font-size: .875rem; line-height: 1.25rem; }
+.ld-range,
+.ld-ticks,
+.ld-tick-labels {
+  --ld-thumb: 1.75rem;
+}
+@media (pointer: coarse) {
+  .ld-range,
+  .ld-ticks,
+  .ld-tick-labels {
+    --ld-thumb: 2.75rem;
+  }
 }
 
-.ld-title { text-wrap: balance; }
-@media (max-width: 575.98px) {
-  .ld-title { font-size: 1.125rem; }
+.ld-range {
+  --range-thumb-size: var(--ld-thumb);
+  --range-thumb: var(--color-base-100);
+  --ld-edge: inset 0 0 0 1px color-mix(in oklab, var(--color-base-content) 50%, transparent);
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  border-radius: 9999px;
+}
+.ld-range:focus-visible {
+  outline-color: var(--color-primary);
+}
+.ld-range::-webkit-slider-runnable-track {
+  border-radius: 9999px;
+  box-shadow: var(--ld-edge);
+}
+.ld-range::-moz-range-track {
+  border-radius: 9999px;
+  box-shadow: var(--ld-edge);
+}
+.ld-range::-webkit-slider-thumb {
+  border-radius: 9999px;
+  border-color: var(--ld-ring);
+}
+.ld-range::-moz-range-thumb {
+  border-radius: 9999px;
+  border-color: var(--ld-ring);
 }
 
-.sw-swatch { display: inline-block; width: .8rem; height: .8rem; border-radius: var(--felt-radius-sm);
-             border: 1px solid color-mix(in oklab, var(--felt-body-color) 15%, transparent); }
-
-/* Thicker than felt's track, for the kelvin gradient; felt has no size tokens, so its 1.25rem thumb is re-centred here. */
-.form-range.ld-range::-webkit-slider-runnable-track { height: .75rem; }
-.form-range.ld-range::-moz-range-track { height: .75rem; }
-.form-range.ld-range::-webkit-slider-thumb { margin-top: -.25rem; }
-
-.ld-white {
-  --felt-form-range-thumb-bg: var(--felt-surface-raised);
-  --ld-kelvin: linear-gradient(to right, var(--felt-warning), color-mix(in oklab, var(--felt-warning) 30%, var(--felt-light-fixed)),
-                               var(--felt-light-fixed), color-mix(in oklab, var(--felt-primary) 25%, var(--felt-light-fixed)),
-                               color-mix(in oklab, var(--felt-primary) 50%, var(--felt-light-fixed)));
-  --ld-edge: inset 0 0 0 1px color-mix(in oklab, var(--felt-body-color) 18%, transparent);
+.ld-brightness {
+  --ld-ring: var(--color-warning-ink);
+  color: var(--color-warning);
 }
-:where([data-look="felt"]) .ld-white {
-  --ld-edge: inset 0 0 0 1px color-mix(in oklab, var(--felt-body-color) 18%, transparent), inset 0 1px 3px var(--felt-groove-shadow);
+/* As the off knob: the remembered level stays, in neutral. */
+.ld-brightness[data-on="false"] {
+  --ld-ring: color-mix(in oklab, var(--color-base-content) 50%, var(--color-base-100));
+  color: color-mix(in oklab, var(--color-base-content) 30%, var(--color-base-100));
 }
-.ld-white::-webkit-slider-runnable-track { background-image: var(--ld-kelvin); box-shadow: var(--ld-edge); }
-.ld-white::-moz-range-track { background-image: var(--ld-kelvin); box-shadow: var(--ld-edge); }
 
-.ld-ticks { position: relative; height: .375rem; }
-.ld-tick { position: absolute; top: 0; left: calc(.625rem + (100% - 1.25rem) * var(--at)); width: 2px; height: 100%;
-           margin-left: -1px; border-radius: 1px; background-color: var(--felt-border-color-strong); }
-
-.ld-swatches { display: grid; grid-template-columns: repeat(5, max-content); gap: var(--felt-space-2); }
-@media (min-width: 576px) {
-  .ld-swatches { grid-template-columns: repeat(9, max-content); }
+/* neutral-content is near white in both themes: the track shows light, not a surface. */
+.ld-kelvin {
+  --range-fill: 0;
+  --range-bg: transparent;
+  --ld-ring: color-mix(in oklab, var(--color-base-content) 70%, var(--color-base-100));
+  --ld-kelvin: linear-gradient(
+    to right,
+    var(--color-warning),
+    color-mix(in oklab, var(--color-warning) 30%, var(--color-neutral-content)),
+    var(--color-neutral-content),
+    color-mix(in oklab, var(--color-primary) 25%, var(--color-neutral-content)),
+    color-mix(in oklab, var(--color-primary) 50%, var(--color-neutral-content))
+  );
 }
-/* felt derives the swatch's whole face from --felt-swatch-color: without one it drops the image too. */
-.ld-swatch-wheel { --ld-wheel: conic-gradient(in hsl longer hue, hsl(0 90% 60%), hsl(0 90% 60%));
-                   --felt-swatch-color: hsl(0 90% 60%); --felt-swatch-image: var(--ld-wheel); }
-.ld-swatch-wheel.ld-swatch-custom { --felt-swatch-image: radial-gradient(closest-side, var(--ld-custom) 64%, transparent 67%), var(--ld-wheel); }
-.ld-swatch-wheel input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.ld-kelvin::-webkit-slider-runnable-track {
+  background-image: var(--ld-kelvin);
+}
+.ld-kelvin::-moz-range-track {
+  background-image: var(--ld-kelvin);
+}
+
+.ld-ticks {
+  position: relative;
+  height: 0.375rem;
+  margin-top: 0.25rem;
+}
+.ld-tick,
+.ld-tick-label {
+  position: absolute;
+  top: 0;
+  left: calc(var(--ld-thumb) / 2 + (100% - var(--ld-thumb)) * var(--at));
+}
+.ld-tick {
+  width: 2px;
+  height: 100%;
+  margin-left: -1px;
+  border-radius: 1px;
+  background-color: color-mix(in oklab, var(--color-base-content) 50%, transparent);
+}
+.ld-tick-labels {
+  position: relative;
+}
+.ld-tick-label {
+  translate: -50% 0;
+  white-space: nowrap;
+}
+
+.ld-zone {
+  --btn-color: var(--color-base-100);
+  --btn-border: color-mix(in oklab, var(--color-base-content) 50%, transparent);
+  font-weight: 500;
+}
+.ld-zone .lucide {
+  color: color-mix(in oklab, var(--color-base-content) 70%, transparent);
+}
+.ld-zone[aria-pressed="true"] {
+  --btn-color: var(--color-row-selected);
+  --btn-border: var(--color-primary);
+}
+.ld-zone[aria-pressed="true"] .lucide {
+  color: var(--color-primary);
+}
+
+.ld-swatches {
+  display: grid;
+  grid-template-columns: repeat(5, 2.75rem);
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+@media (width >= 40rem) {
+  .ld-swatches {
+    grid-template-columns: repeat(9, 2.75rem);
+    justify-content: start;
+  }
+}
+.ld-swatch {
+  --ld-edge: inset 0 0 0 1px color-mix(in oklab, var(--color-base-content) 15%, transparent);
+  --ld-ring: 0 0 0 3px var(--color-base-100), 0 0 0 5px var(--color-base-content);
+  position: relative;
+  display: block;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 9999px;
+  background: var(--ld-swatch);
+  box-shadow: var(--ld-edge);
+  cursor: pointer;
+  transition: box-shadow var(--setzkasten-duration) var(--setzkasten-ease-out);
+}
+.ld-swatch:is(:has(:checked), .ld-swatch-custom) {
+  box-shadow: var(--ld-edge), var(--ld-ring);
+}
+.ld-swatch:has(:focus-visible) {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 7px;
+}
+.ld-swatch-wheel {
+  --ld-wheel: conic-gradient(in hsl longer hue, hsl(0 90% 60%), hsl(0 90% 60%));
+  background: var(--ld-wheel);
+}
+.ld-swatch-custom {
+  background:
+    radial-gradient(
+      closest-side,
+      var(--ld-custom) 58%,
+      var(--color-base-100) 60% 68%,
+      transparent 70%
+    ),
+    var(--ld-wheel);
+}
+.ld-swatch-wheel input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.ld-swatch-dot {
+  display: inline-block;
+  width: 0.625rem;
+  height: 0.625rem;
+  margin-inline-end: 0.375rem;
+  border-radius: 9999px;
+  vertical-align: -1px;
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-base-content) 20%, transparent);
+}
+.ld-swatch-dot-white {
+  background-color: color-mix(in oklab, var(--color-warning) 45%, var(--color-neutral-content));
+}
 
 .ld-scenes {
-  max-height: 12.25rem; overflow: hidden auto;
-  margin: -.5rem; padding: .5rem .5rem 2rem;
-  mask-image: linear-gradient(to bottom, black calc(100% - 2rem), transparent);
+  max-height: 18.5rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
-.ld-scene-preview { display: block; height: 2.75rem; }
+.ld-scene-preview {
+  display: block;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: var(--radius-field);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-base-content) 10%, transparent);
+}
 
-.ld-toast-container { position: fixed; inset-inline: 0; bottom: var(--felt-space-3); margin-inline: auto;
-                      padding-inline: var(--felt-space-3); }
-@media (max-width: 991.98px) {
-  .ld-toast-container { bottom: calc(var(--tabbar-height) + .875rem); }
+.ld-toast-region {
+  position: fixed;
+  z-index: 40;
+  inset-inline: 1rem;
+  bottom: calc(max(var(--setzkasten-dock-offset, 0px), env(safe-area-inset-bottom)) + 1rem);
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+.ld-toast {
+  width: 100%;
+  max-width: 24rem;
+  pointer-events: auto;
+  animation: ld-fade-in var(--setzkasten-duration) var(--setzkasten-ease-out);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .ld-toast {
+    animation-name: ld-toast-in;
+  }
+}
+@keyframes ld-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes ld-toast-in {
+  from {
+    opacity: 0;
+    translate: 0 0.5rem;
+  }
 }

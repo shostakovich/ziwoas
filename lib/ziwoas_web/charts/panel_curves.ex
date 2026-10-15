@@ -4,7 +4,7 @@ defmodule ZiwoasWeb.Charts.PanelCurves do
 
   alias Ziwoas.Shading
   alias Ziwoas.Shading.Curve
-  alias ZiwoasWeb.Charts.{Plot, Text}
+  alias ZiwoasWeb.Charts.{Plot, Series, Text}
 
   @frames [
     %{
@@ -12,6 +12,7 @@ defmodule ZiwoasWeb.Charts.PanelCurves do
       width: 720,
       height: 220,
       hour_step: 2,
+      max_steps: 5,
       named: true,
       margins: [top: 12, right: 88, bottom: 28, left: 40]
     },
@@ -20,22 +21,37 @@ defmodule ZiwoasWeb.Charts.PanelCurves do
       width: 360,
       height: 240,
       hour_step: 3,
+      max_steps: 3,
       named: false,
       margins: [top: 12, right: 12, bottom: 24, left: 36]
     }
   ]
   @nice_steps_w [25, 50, 100, 200, 250, 500]
-  @max_steps 5
   @label_gap 20
   @label_offset 12
   @leader_gap 3
   @label_margin 10
   @value_label_gap 5
-  @unit_gap 3
   @hour_label_gap 5
 
-  @spec legend(Shading.Panels.t()) :: [{atom, String.t()}]
-  def legend(panels), do: for(curve <- panels.curves, do: {curve.key, Text.panel_name(curve.key)})
+  # Amber reads as "the PV" on this page, so no single panel takes it.
+  @semantic [:solar]
+
+  @spec legend(Shading.Panels.t()) :: [
+          %{key: atom, label: String.t(), color: pos_integer, tone: String.t()}
+        ]
+  def legend(panels) do
+    free = Series.free(@semantic)
+
+    for {curve, position} <- Enum.with_index(panels.curves) do
+      %{
+        key: curve.key,
+        label: Text.panel_name(curve.key),
+        color: Enum.at(free, position),
+        tone: Series.color(position, @semantic)
+      }
+    end
+  end
 
   @spec period(Shading.Panels.t()) :: String.t() | nil
   def period(%Shading.Panels{since: nil}), do: nil
@@ -47,12 +63,13 @@ defmodule ZiwoasWeb.Charts.PanelCurves do
   def charts(panels) do
     curves = panels.curves
     hours = Plot.extent(Shading.hours(panels))
-    scale = Plot.nice_scale(Shading.max(panels), @nice_steps_w, @max_steps)
-    grid_values = Enum.to_list(0..scale.top//scale.step)
     hour_values = Plot.domain_values(hours)
     values = Map.new(curves, &{&1.key, Map.new(&1.points)})
 
     for frame <- @frames do
+      scale = Plot.nice_scale(Shading.max(panels), @nice_steps_w, frame.max_steps)
+      grid_values = Enum.to_list(0..scale.top//scale.step)
+
       plot =
         Plot.new(
           width: frame.width,
@@ -70,11 +87,6 @@ defmodule ZiwoasWeb.Charts.PanelCurves do
         labels: if(frame.named, do: end_labels(plot, curves), else: []),
         grid_lines: Plot.grid_lines(plot, grid_values),
         value_labels: Plot.value_labels(plot, grid_values, @value_label_gap),
-        unit_label: %Plot.Label{
-          x: Plot.left(plot) - @value_label_gap + @unit_gap,
-          y: Plot.top(plot),
-          text: "W"
-        },
         hour_labels:
           for tick <-
                 Plot.x_ticks(plot, Enum.filter(hour_values, &(rem(&1, frame.hour_step) == 0))) do

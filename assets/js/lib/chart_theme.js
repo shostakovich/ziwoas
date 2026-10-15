@@ -2,14 +2,15 @@ import Chart from "../../vendor/chart.umd.js"
 import { themeColor, withAlpha, onThemeChange } from "./theme_colors.js"
 import { formatNumber, formatFlow } from "./format.js"
 
-const VIZ_SIZE = 10
+const SERIES_COUNT = 8
 // Chart.js draws a point style at boxHeight·√2/2.
 const LEGEND_KEY_PX = 9
 const LEGEND_FONT_PX = 12
-const PHONE_VALUE_TICKS = 5
+const VALUE_TICKS = 6
+const PHONE_VALUE_TICKS = 4
 const HALO_WIDTH = 5
 
-const PHONE = window.matchMedia("(max-width: 575.98px)")
+const PHONE = window.matchMedia("(width < 40rem)")
 export function isPhone() {
   return PHONE.matches
 }
@@ -150,13 +151,28 @@ export function snugTop(values, spaces = 5) {
   }
 }
 
-// By the entity's stable (config) order, never cycled through the series.
-export function vizToken(index) {
-  return `--viz-${(index % VIZ_SIZE) + 1}`
+// Series that mean the same wherever a chart shows them; ZiwoasWeb.Charts.Series mirrors this.
+export const SEMANTIC_SERIES = { grid: 1, consumption: 1, solar: 2, warning: 2, battery: 3, danger: 4 }
+export const OTHER_TONE = "--color-chart-other"
+
+// The series a chart leaves its categories once the semantic ones it shows are taken.
+export function freeSeries(semantic = []) {
+  const taken = semantic.map((name) => {
+    if (!(name in SEMANTIC_SERIES)) throw new Error(`unknown semantic series: ${name}`)
+    return SEMANTIC_SERIES[name]
+  })
+  const free = []
+  for (let series = 1; series <= SERIES_COUNT; series++) {
+    if (!taken.includes(series)) free.push(`--color-chart-${series}`)
+  }
+  return free
 }
 
-export function tonesByOrder(ids) {
-  return new Map(ids.map((id, index) => [ id, vizToken(index) ]))
+// By the entity's stable (config) order, never cycled: ids beyond the free series get no tone
+// and belong in one "Weitere" series in OTHER_TONE.
+export function tonesByOrder(ids, semantic = []) {
+  const free = freeSeries(semantic)
+  return new Map(ids.slice(0, free.length).map((id, index) => [ id, free[index] ]))
 }
 
 // A dashed horizontal line across the plot, named at its end instead of in the legend.
@@ -179,12 +195,25 @@ export function lineElements() {
   return { line: { borderWidth: isPhone() ? 0.75 : 1.25 } }
 }
 
+// A series token with a "-fill" twin fills bars in it and keeps the line for their outline.
+const fillTones = new Map()
+function fillTone(tone) {
+  if (!fillTones.has(tone)) {
+    const fill = `${tone}-fill`
+    fillTones.set(tone, getComputedStyle(document.documentElement).getPropertyValue(fill) ? fill : tone)
+  }
+  return fillTones.get(tone)
+}
+
+// An area takes its series' fill at `fillAlpha` under a line in the line colour.
+export const AREA_ALPHA = 0.45
+
 function paintDatasets(chart) {
   for (const dataset of chart.data.datasets) {
     if (!dataset.tone) continue
-    const color = themeColor(dataset.tone)
-    dataset.borderColor = color
-    dataset.backgroundColor = dataset.fillAlpha == null ? color : withAlpha(color, dataset.fillAlpha)
+    const fill = themeColor(fillTone(dataset.tone))
+    dataset.borderColor = themeColor(dataset.tone)
+    dataset.backgroundColor = dataset.fillAlpha == null ? fill : withAlpha(fill, dataset.fillAlpha)
   }
 }
 
@@ -195,6 +224,7 @@ function setDefaults() {
   Chart.defaults.font.family = getComputedStyle(document.body).fontFamily
   Chart.defaults.locale = document.documentElement.lang || "de"
   Chart.defaults.elements.bar.borderRadius = 3
+  Chart.defaults.elements.bar.borderWidth = 1
   Chart.defaults.plugins.filler.drawTime = "beforeDatasetsDraw"
 }
 
@@ -215,10 +245,34 @@ export function tooltipLabel(context) {
   const unit = dataset.unit ?? scale.unit
   const decimals = dataset.decimals ?? scale.decimals ?? 0
   const value = context.parsed.y
+  if (dataset.members) return groupLabel(dataset, context.dataIndex, value, { unit, decimals })
   const text = dataset.flowWords
     ? formatFlow(value, { ...dataset.flowWords, unit, decimals })
     : formatNumber(value, { decimals, unit })
   return `${dataset.label}: ${text}`
+}
+
+// Canvas tooltips never wrap; this keeps a line narrower than the chart.
+const GROUP_LINE_CHARS = 72
+const PHONE_GROUP_LINE_CHARS = 44
+
+function groupLabel(dataset, index, value, { unit, decimals }) {
+  const total = formatNumber(value, { decimals, unit })
+  const parts = dataset.members
+    .map((member) => ({ label: member.label, value: Number(member.data[index] || 0) }))
+    .filter((member) => Number(member.value.toFixed(decimals)) > 0)
+    .sort((a, b) => b.value - a.value)
+    .map((member) => `${member.label} ${formatNumber(member.value, { decimals })}`)
+  if (parts.length === 0) return `${dataset.label}: ${total}`
+
+  const lineChars = isPhone() ? PHONE_GROUP_LINE_CHARS : GROUP_LINE_CHARS
+  const lines = [ `${dataset.label} ${total}: ${parts[0]}` ]
+  for (const part of parts.slice(1)) {
+    const joined = `${lines.at(-1)} · ${part}`
+    if (joined.length > lineChars) lines.push(part)
+    else lines[lines.length - 1] = joined
+  }
+  return lines
 }
 
 function inLegend(chart, index) {
@@ -352,15 +406,15 @@ function drawEndLabels(chart) {
       // Opt-in solid plate, for labels that may sit over shading such as a hatch.
       if (dataset.endLabelBox) {
         const { left, top, right, bottom } = spot.box
-        ctx.fillStyle = themeColor("--felt-surface")
+        ctx.fillStyle = themeColor("--color-base-100")
         ctx.fillRect(left - 3, top - 1, right - left + 6, bottom - top + 2)
       }
       ctx.textAlign = spot.textAlign
       ctx.textBaseline = spot.textBaseline
       ctx.lineJoin = "round"
       ctx.lineWidth = HALO_WIDTH
-      ctx.strokeStyle = themeColor("--chart-halo")
-      ctx.fillStyle = themeColor(dataset.endLabelTone || "--felt-secondary-color")
+      ctx.strokeStyle = themeColor("--color-chart-halo")
+      ctx.fillStyle = dataset.endLabelTone ? themeColor(dataset.endLabelTone) : mutedText()
       ctx.strokeText(text, spot.x, spot.y)
       ctx.fillText(text, spot.x, spot.y)
     }
@@ -368,10 +422,14 @@ function drawEndLabels(chart) {
   })
 }
 
+function mutedText() {
+  return withAlpha(themeColor("--color-base-content"), 0.7)
+}
+
 function paintOptions(chart) {
-  const text = themeColor("--felt-body-color")
-  const muted = themeColor("--felt-secondary-color")
-  const grid = themeColor("--chart-grid")
+  const text = themeColor("--color-base-content")
+  const muted = mutedText()
+  const grid = themeColor("--color-chart-gridline")
   // The raw config, not the resolver proxy.
   const options = chart.config.options
 
@@ -385,10 +443,8 @@ function paintOptions(chart) {
     if (id.startsWith("y") && [ undefined, Chart.Ticks.formatters.numeric ].includes(scale.ticks.callback)) {
       scale.ticks.callback = valueTick
     }
-    if (isPhone()) {
-      scale.title.display = false
-      if (id.startsWith("y")) scale.ticks.maxTicksLimit ??= PHONE_VALUE_TICKS
-    }
+    if (isPhone()) scale.title.display = false
+    if (id.startsWith("y")) scale.ticks.maxTicksLimit ??= isPhone() ? PHONE_VALUE_TICKS : VALUE_TICKS
   }
 
   options.plugins ||= {}
@@ -399,7 +455,7 @@ function paintOptions(chart) {
     boxWidth: keySize, boxHeight: keySize, padding: 12, font: { size: LEGEND_FONT_PX },
   })
   const tooltip = options.plugins.tooltip = Object.assign(options.plugins.tooltip || {}, {
-    backgroundColor: themeColor("--felt-surface-raised"),
+    backgroundColor: themeColor("--color-popover"),
     titleColor: text,
     bodyColor: text,
     borderColor: grid,
@@ -437,6 +493,11 @@ export const chartTheme = {
     subscriptions.delete(chart)
   },
 }
+
+// Canvas text keeps the fallback font it was drawn in: redraw once Figtree has loaded.
+document.fonts.load(`${LEGEND_FONT_PX}px Figtree`).then(() => {
+  Object.values(Chart.instances).forEach((chart) => chart.update("none"))
+})
 
 export function renderChart(chart, canvas, config) {
   if (chart && chart.config.type === config.type) {

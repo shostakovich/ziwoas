@@ -1,5 +1,7 @@
 # felt-css is the UI foundation; our own CSS covers only ZiWoAS widgets
 
+**Status:** Superseded by [ADR-0011](0011-setzkasten-as-the-ui-foundation.md).
+
 The app's look used to live in one hand-written `application.css` of some 1,600 lines with its
 own colour variables, breakpoints and component classes. It now builds on felt-css, a pure-CSS
 library with Bootstrap 5.3 class names, loaded from `https://felt-css.rocu.de/felt.css` before

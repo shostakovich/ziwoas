@@ -56,13 +56,17 @@ defmodule ZiwoasWeb.SensorsLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} look={@look} current_path={@current_path} main_class="app-main-wide">
+    <Layouts.app flash={@flash} current_path={@current_path} width={:default}>
       <.header>Sensoren</.header>
-      <%= if @latest == %{} do %>
-        <.card title="Noch keine Sensordaten">
-          <p>Die Sensoransicht erscheint, sobald die ersten Messwerte da sind.</p>
-        </.card>
-      <% else %>
+      <.empty_state
+        :if={@latest == %{}}
+        layout={:page}
+        plush="traffic-light"
+        title="Noch keine Sensordaten"
+      >
+        Die Sensoransicht erscheint, sobald die ersten Messwerte da sind.
+      </.empty_state>
+      <div :if={@latest != %{}} class="flex flex-col gap-8">
         <.battery_warning sensors={@sensors} latest={@latest} />
         <.room_strip :if={@rooms != []} rooms={@rooms} />
         <.room
@@ -75,11 +79,27 @@ defmodule ZiwoasWeb.SensorsLive do
           now={@now}
           zone={@zone}
         />
-        <%= if @other_sensors != [] do %>
-          <h2 :if={@rooms != []} class="h4 mb-3">Weitere Sensoren</h2>
-          <.sensor_cards sensors={@other_sensors} latest={@latest} now={@now} />
-        <% end %>
-      <% end %>
+        <section
+          :if={@other_sensors != []}
+          id="other-sensors"
+          aria-labelledby={@rooms != [] && "other-sensors-heading"}
+          aria-label={@rooms == [] && "Sensoren"}
+          class={[
+            "flex flex-col gap-4 md:gap-6",
+            @rooms != [] && "border-t border-base-content/10 pt-8"
+          ]}
+        >
+          <.section_heading :if={@rooms != []} id="other-sensors-heading" class="mb-0">
+            Weitere Sensoren
+          </.section_heading>
+          <.sensor_cards
+            sensors={@other_sensors}
+            latest={@latest}
+            now={@now}
+            level={if @rooms != [], do: 3, else: 2}
+          />
+        </section>
+      </div>
     </Layouts.app>
     """
   end

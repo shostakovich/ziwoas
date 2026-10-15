@@ -11,21 +11,18 @@ defmodule ZiwoasWeb.SolakonHistoryComponent do
     socket = assign(socket, assigns)
     zone = Config.get().location.timezone
     history = Solakon.history(socket.assigns.range, Clock.now(), zone)
-    socket = assign(socket, :history, history)
 
-    socket =
-      if connected?(socket),
-        do: push_event(socket, "solakon_history:data", history_chart(history)),
-        else: socket
+    # A month of two-minute snapshots is too heavy for the first, static render.
+    chart = if connected?(socket), do: JSON.encode!(history_chart(history))
 
-    {:ok, socket}
+    {:ok, assign(socket, history: history, chart: chart)}
   end
 
   @impl true
   def render(assigns) do
     ~H"""
-    <div id={@id} phx-hook="SolakonHistory" data-range={@history.range}>
-      <.history id={@id} history={@history} page={@page} />
+    <div>
+      <.history id={@id} history={@history} chart={@chart} page={@page} />
     </div>
     """
   end

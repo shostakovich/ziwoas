@@ -132,6 +132,10 @@ defmodule ZiwoasWeb.Charts.PlotTest do
     assert %Label{x: 1, y: 2, text: "Jan"}.zero == false
   end
 
+  test "groups a value's thousands the German way" do
+    assert [_, %Label{text: "1.000"}] = Plot.value_labels(plot(y: {0, 1000}), [0, 1000], 4)
+  end
+
   test "lays a tooltip over each value's column" do
     assert Plot.hits(plot(), [0, 1], ~w[null eins]) == [
              %Hit{rect: %Rect{x: 20, y: 10, width: 7, height: 70}, title: "null"},

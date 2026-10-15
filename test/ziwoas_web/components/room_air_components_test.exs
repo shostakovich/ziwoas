@@ -1,6 +1,8 @@
 defmodule ZiwoasWeb.RoomAirComponentsTest do
   use ExUnit.Case, async: true
 
+  import Phoenix.LiveViewTest, only: [render_component: 2]
+
   alias Ziwoas.Sensors.RoomReading
   alias ZiwoasWeb.Charts.RoomAir, as: RoomAirCharts
   alias ZiwoasWeb.RoomAirComponents, as: RoomAir
@@ -120,6 +122,31 @@ defmodule ZiwoasWeb.RoomAirComponentsTest do
     assert RoomAir.balcony_text(balcony, [:cools], room) == "Balkon 32,0 °C · 50 %"
   end
 
+  test "the dashboard tile's headline carries the verdict's level" do
+    now = ~U[2026-10-14 17:00:00Z]
+    room = reading(co2: 1600)
+    room = put_in(room.values.co2, %{value: 1600, source: :lead, taken_at: now})
+
+    headline_level = fn verdict ->
+      tile = %{
+        id: "room-x",
+        name: "X",
+        reading: room,
+        quantities: [:co2],
+        verdict: verdict,
+        now: now
+      }
+
+      render_component(&RoomAir.dashboard_tile/1, tile: tile)
+      |> LazyHTML.from_fragment()
+      |> LazyHTML.query("[data-verdict]")
+      |> LazyHTML.attribute("data-level")
+    end
+
+    assert headline_level.({:bad, [:co2]}) == ["bad"]
+    assert headline_level.({:good, [:co2]}) == ["good"]
+  end
+
   test "rooms get anchors without umlauts" do
     assert RoomAir.anchors(["Wohnzimmer", "Gäste Bad/Süd"]) == %{
              "Wohnzimmer" => "room-wohnzimmer",
@@ -165,8 +192,13 @@ defmodule ZiwoasWeb.RoomAirComponentsTest do
     assert %{band: [40, 60], decimals: 0, unit: "%", from_zero: false, suggested_max: 80} =
              Enum.find(RoomAirCharts.charts([:humidity]), &(&1.key == :humidity))
 
-    assert [%{label: "15 Bald lüften"}, %{label: "35 Jetzt lüften"}] =
-             Enum.find(RoomAirCharts.charts(RoomReading.quantities()), &(&1.key == :pm)).lines
+    pm = Enum.find(RoomAirCharts.charts(RoomReading.quantities()), &(&1.key == :pm))
+    assert [%{label: "15 Bald lüften"}, %{label: "35 Jetzt lüften"}] = pm.lines
+
+    assert [%{quantity: :pm2_5, series: 1}, %{quantity: :pm10, series: 3}] = pm.series,
+           "the warn and bad lines keep series 2 and 4 for themselves"
+
+    assert [%{series: 1}] = hd(RoomAirCharts.charts([:temperature])).series
   end
 
   test "the SEN66's minutes average into 5-minute buckets; gaps and source changes stay apart" do

@@ -1,3 +1,16 @@
+@import "tailwindcss" source(none);
+@source "../css";
+@source "../js";
+@source "../../lib/ziwoas_web";
+
+@plugin "daisyui/packages/bundle/daisyui" {
+  themes: false;
+}
+
+/* Resolved through NODE_PATH, which holds the Mix build path (config :tailwind). */
+@import "lib/setzkasten/priv/static/setzkasten.css";
+@import "./palette.css";
+
 @import "./application.css";
 @import "./dashboard.css";
 @import "./lights.css";

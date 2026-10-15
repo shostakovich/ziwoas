@@ -2,7 +2,7 @@ defmodule Ziwoas.PlugsTest do
   use Ziwoas.DataCase
 
   alias Ziwoas.Plugs
-  alias Ziwoas.Plugs.{DailyTotal, Measurement, State}
+  alias Ziwoas.Plugs.{DailyTotal, Measurement, Plug, State}
   alias Ziwoas.Repo
 
   @now ~U[2026-10-05 10:00:00.500000Z]
@@ -137,6 +137,56 @@ defmodule Ziwoas.PlugsTest do
     test "no range before the first total" do
       assert Plugs.daily_total_range() == nil
       assert Plugs.dates_with_daily_totals() == []
+    end
+  end
+
+  describe "consumer_rank" do
+    @today ~D[2026-10-05]
+
+    defp consumers(ids),
+      do: [%Plug{id: "bkw", role: :producer} | for(id <- ids, do: %Plug{id: id, role: :consumer})]
+
+    defp days_ago_total!(plug_id, days_ago, wh),
+      do:
+        Repo.insert!(%DailyTotal{
+          plug_id: plug_id,
+          date: Date.add(@today, -days_ago),
+          energy_wh: wh
+        })
+
+    test "consumers by their energy in the 30 days before today, most first, no producers" do
+      days_ago_total!("fridge", 1, 300.0)
+      days_ago_total!("washer", 2, 900.0)
+      days_ago_total!("tv", 30, 400.0)
+      days_ago_total!("tv", 1, 100.0)
+      days_ago_total!("bkw", 1, 5000.0)
+
+      assert Plugs.consumer_rank(consumers(~w[fridge tv washer]), @today) == ~w[washer tv fridge]
+    end
+
+    test "today and days before the window do not count" do
+      days_ago_total!("fridge", 1, 100.0)
+      days_ago_total!("tv", 0, 900.0)
+      days_ago_total!("tv", 31, 900.0)
+      days_ago_total!("tv", 2, 50.0)
+
+      assert Plugs.consumer_rank(consumers(~w[tv fridge]), @today) == ~w[fridge tv]
+    end
+
+    test "the window ends at the newest aggregated day, not at a night's missing one" do
+      days_ago_total!("tv", 31, 900.0)
+      days_ago_total!("fridge", 2, 100.0)
+
+      assert Plugs.consumer_rank(consumers(~w[fridge tv]), @today) == ~w[tv fridge]
+    end
+
+    test "ties keep config order; consumers without data follow in config order" do
+      days_ago_total!("b", 1, 200.0)
+      days_ago_total!("d", 1, 200.0)
+      days_ago_total!("c", 1, 0.0)
+
+      assert Plugs.consumer_rank(consumers(~w[a b c d e]), @today) == ~w[b d c a e]
+      assert Plugs.consumer_rank(consumers(~w[x y]), @today) == ~w[x y]
     end
   end
 

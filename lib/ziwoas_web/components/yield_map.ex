@@ -26,17 +26,25 @@ defmodule ZiwoasWeb.Components.YieldMap do
       )
 
     ~H"""
-    <.card title="Ausbeute nach Sonnenstand" data-chart="yield-map">
-      <%= if @map.bins == [] do %>
-        <p class="note small text-body-secondary mb-0">
-          Die Karte füllt sich, sobald Stunden mit Einstrahlung und PV-Leistung zusammenkommen.
-        </p>
-      <% else %>
+    <.card :if={@map.bins == []} title="Ausbeute nach Sonnenstand" level={3} data-chart="yield-map">
+      <.empty_state>
+        Die Karte füllt sich, sobald Stunden mit Einstrahlung und PV-Leistung zusammenkommen.
+      </.empty_state>
+    </.card>
+    <.chart_card
+      :if={@map.bins != []}
+      id="yield-map"
+      title="Ausbeute nach Sonnenstand"
+      subtitle="in % der besten Stunde"
+      summary="Ausbeute nach Sonnenstand, Azimut über Sonnenhöhe"
+      level={3}
+      height={:auto}
+      data-chart="yield-map"
+    >
+      <div class="sun-figure">
         <svg
           :for={sky <- @skies}
           viewBox={Plot.view_box(sky.plot)}
-          role="img"
-          aria-label="Ausbeute nach Sonnenstand, Azimut über Sonnenhöhe"
           class={"yield-map-#{sky.key} #{frame_classes(sky.key)}"}
         >
           <g class="grid">
@@ -103,7 +111,10 @@ defmodule ZiwoasWeb.Components.YieldMap do
             </g>
           </g>
           <g :for={path <- sky.paths}>
-            <polyline class="sun" points={path.points} />
+            <polyline class="sun-halo" points={path.points} /><polyline
+              class="sun"
+              points={path.points}
+            />
             <%= for dot <- path.dots do %>
               <circle class="dot" cx={dot.x} cy={dot.y} r={@dot_radius} /><text
                 :if={dot.text}
@@ -127,20 +138,24 @@ defmodule ZiwoasWeb.Components.YieldMap do
             </text>
           </g>
         </svg>
-        <.legend_list class="mt-2 mb-0">
-          <.legend_item>
-            Ausbeute 0 %<span class="legend-ramp" style={"background: #{@gradient}"}></span>100 %
-          </.legend_item>
-          <.legend_item>
-            <span class="legend-line"></span>Sonnenbahn, Punkte alle drei Stunden
-          </.legend_item>
-        </.legend_list>
-        <details class="solakon-details small text-body-secondary mt-3">
-          <summary>Wie wird gerechnet?</summary>
-          <p class="note mt-2 mb-0">{@note}</p>
-        </details>
-      <% end %>
-    </.card>
+      </div>
+      <:legend>
+        <.keys class="mt-3">
+          <.ramp_key gradient={@gradient} from="0 %" to="100 %" />
+          <.legend items={[
+            %{label: "Sonnenbahn, Punkte alle drei Stunden", color: 2, marker: :line}
+          ]} />
+        </.keys>
+        <.disclosure
+          id="yield-map-method"
+          variant={:row}
+          summary="Wie wird gerechnet?"
+          class="mt-4"
+        >
+          <p class="note max-w-prose">{@note}</p>
+        </.disclosure>
+      </:legend>
+    </.chart_card>
     """
   end
 end

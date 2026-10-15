@@ -9,6 +9,7 @@ defmodule ZiwoasWeb.Charts.RoomAir do
   the client replaces its points from `from` on.
   """
   alias Ziwoas.{Config, Sensors}
+  alias ZiwoasWeb.Charts.Series
   alias ZiwoasWeb.{Format, RoomAirComponents}
 
   @charted [:co2, :pm2_5, :pm10, :voc_index, :nox_index, :temperature, :humidity]
@@ -18,6 +19,7 @@ defmodule ZiwoasWeb.Charts.RoomAir do
   @slow_bucket_ms 900_000
   @slow [:temperature, :humidity]
   @verdict_lines %{warn: "Bald lüften", bad: "Jetzt lüften"}
+  @line_series %{warn: :warning, bad: :danger}
   # Room above CO₂'s top line for its label on a phone's 500-step axis.
   @co2_axis_top 1500
   @temperature_span_k 3
@@ -129,13 +131,20 @@ defmodule ZiwoasWeb.Charts.RoomAir do
 
   defp chart(key, quantities, opts) do
     first = hd(quantities)
+    lines = Keyword.get(opts, :lines, [])
+    free = Series.free(Enum.map(lines, &@line_series[&1.level]))
 
     %{
       key: key,
       unit: RoomAirComponents.unit(first) || "",
       decimals: RoomAirComponents.precision(first),
-      series: Enum.map(quantities, &%{quantity: &1, label: RoomAirComponents.label(&1)}),
-      lines: Keyword.get(opts, :lines, []),
+      series:
+        Enum.zip_with(
+          quantities,
+          free,
+          &%{quantity: &1, label: RoomAirComponents.label(&1), series: &2}
+        ),
+      lines: lines,
       band: Keyword.get(opts, :band),
       from_zero: Keyword.get(opts, :from_zero, true),
       suggested_min: Keyword.get(opts, :suggested_min),

@@ -1,48 +1,31 @@
-.weather-icon-sm { --felt-icon-size: 42px; }
-.weather-icon-md { --felt-icon-size: 72px; }
-.weather-icon-lg { --felt-icon-size: 82px; }
-
-.weather-icon-inline { --felt-icon-size: 1.5em; vertical-align: -0.45em; }
-
-.weather-day-segments {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  column-gap: var(--felt-space-2);
-}
-.weather-segment {
-  display: grid;
-  grid-template-rows: subgrid;
-  grid-row: span 5;
-  row-gap: 0;
-  justify-items: center;
-}
-.weather-segment > * + * { margin-top: .4rem; }
-.weather-segment-temp { grid-row: 3; }
-.weather-segment-rain { grid-row: 4; }
-.weather-segment-solar { grid-row: 5; }
-@media (max-width: 575.98px) {
-  .weather-segment:nth-child(n + 3) { margin-top: var(--felt-space-2); }
-}
-@media (min-width: 576px) {
-  .weather-day-segments { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-}
-
+/* Half a column always peeks at the end edge under Setzkasten's fade, so the strip reads as scrollable. */
 .weather-hour-scroller {
-  --hour-fade: 3.5rem;
+  --weather-hours: 5;
   display: grid;
   grid-auto-flow: column;
-  grid-auto-columns: minmax(min-content, 1fr);
-  column-gap: var(--felt-space-2);
-  padding-inline-end: var(--hour-fade);
+  grid-auto-columns: max(3.5rem, calc((100% - var(--weather-hours) * 0.5rem) / (var(--weather-hours) + 0.5)));
+  gap: 0.25rem 0.5rem;
+  padding: 0.75rem 1rem;
   scroll-snap-type: x proximity;
-  scroll-padding-inline-start: var(--felt-space-3);
-  mask-image: linear-gradient(to right, black calc(100% - var(--hour-fade)), transparent);
+  scroll-padding-inline: 1rem;
+
+  @variant sm {
+    --weather-hours: 8;
+  }
+  @variant lg {
+    --weather-hours: 12;
+  }
 }
+.weather-hour-scroller:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+}
+/* Time, icon, temperature, then wind, sun and rain: every hour on the same rows. */
 .weather-hour-card {
   display: grid;
   grid-template-rows: subgrid;
   grid-row: span 6;
-  min-width: 4rem;
+  justify-items: center;
   scroll-snap-align: start;
 }
 .weather-hour-extras {
@@ -50,20 +33,62 @@
   grid-template-rows: subgrid;
   grid-row: span 3;
 }
+.weather-hour-extras > li {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.125rem;
+}
 .weather-hour-wind { grid-row: 1; }
 .weather-hour-solar { grid-row: 2; }
 .weather-hour-rain { grid-row: 3; }
 
-.weather-hour-scroller.card-body { scroll-padding-inline-start: var(--felt-space-4); }
-
-.weather-day-hour-row { container-type: inline-size; }
-@container (min-width: 28.5rem) {
-  .weather-day-hour-row .weather-hour-scroller {
-    padding-inline-end: var(--felt-space-3);
-    mask-image: none;
-  }
+.weather-day-segments {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 0.5rem;
 }
-
-@media (max-width: 575.98px) {
-  .weather-icon-lg { --felt-icon-size: 64px; }
+@media (width >= 40rem) {
+  .weather-day-segments { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+/* Label, icon, temperature, rain, sun and chevron line up across a day's segments. */
+.weather-segment {
+  display: grid;
+  grid-template-rows: subgrid;
+  grid-row: span 6;
+  justify-items: center;
+  padding: 0.75rem 0.5rem 0.5rem;
+  border-radius: var(--radius-box);
+  background-color: var(--color-base-200);
+  color: var(--color-base-content);
+  cursor: pointer;
+  transition: background-color var(--setzkasten-duration-exit) var(--setzkasten-ease-out),
+    scale var(--setzkasten-duration-press) var(--setzkasten-ease-out);
+}
+.weather-segment > * + * { margin-top: 0.25rem; }
+.weather-segment:hover { background-color: color-mix(in oklab, var(--color-base-200), var(--color-base-content) 7%); }
+.weather-segment:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+.weather-segment[aria-expanded="true"] {
+  background-color: var(--color-row-selected);
+  box-shadow: inset 0 -3px 0 var(--color-selected);
+}
+.weather-segment-temp { grid-row: 3; }
+.weather-segment-rain { grid-row: 4; }
+.weather-segment-solar { grid-row: 5; }
+.weather-segment-chevron {
+  grid-row: 6;
+  transition: rotate var(--setzkasten-duration) var(--setzkasten-ease-out);
+}
+.weather-segment[aria-expanded="true"] .weather-segment-chevron { rotate: 180deg; }
+@media (width < 40rem) {
+  .weather-segment:nth-child(n + 3) { margin-top: 0.5rem; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .weather-segment:active { scale: 0.97; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .weather-segment-chevron { transition: none; }
 }

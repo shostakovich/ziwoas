@@ -21,15 +21,21 @@ defmodule ZiwoasWeb.LampPowerUpTest do
   end
 
   defp card_text(view),
-    do: view |> element("#light_card_FL1 .card-body") |> render() |> LazyHTML.from_fragment()
+    do: view |> element("#light_card_FL1") |> render() |> LazyHTML.from_fragment()
 
   defp summary(view),
-    do: view |> card_text() |> LazyHTML.query(".text-body-secondary") |> Enum.map(&text/1)
+    do: view |> card_text() |> LazyHTML.query("[data-status]") |> Enum.map(&text/1)
 
-  defp text(node), do: node |> LazyHTML.text() |> String.trim()
+  defp text(node),
+    do:
+      node
+      |> LazyHTML.text()
+      |> String.replace("\u2060", "")
+      |> String.replace("\u00A0", " ")
+      |> String.trim()
 
   defp tap_lamp(view) do
-    view |> element("#light_card_FL1 button.sw-lamp-knob") |> render_click()
+    view |> element("#light_card_FL1 button[aria-pressed]") |> render_click()
     render_async(view)
   end
 
@@ -54,7 +60,15 @@ defmodule ZiwoasWeb.LampPowerUpTest do
     {:ok, view, _html} = live(conn, ~p"/switches")
 
     assert ["Aus · stromlos" | _] = summary(view)
-    assert has_element?(view, "#light_card_FL1 button.sw-lamp-knob.off[phx-value-on=true]")
+    assert has_element?(view, "#light_card_FL1 button[aria-pressed=false][phx-value-on=true]")
+  end
+
+  test "an unpowered lamp's page shows its brightness inactive, though its state says on", %{
+    conn: conn
+  } do
+    {:ok, view, _html} = live(conn, ~p"/lights/FL1")
+
+    assert has_element?(view, "input#light_brightness[data-on=false]")
   end
 
   test "tapping an unpowered lamp switches its plug on, counts while it starts, and switches it once it answers",
@@ -143,7 +157,7 @@ defmodule ZiwoasWeb.LampPowerUpTest do
     refute_receive {:shelly_rpc, _plug, _method, _params}, 100
     assert sent() == []
     refute Repo.get_by(State, light_key: "FL1").on
-    assert has_element?(view, "#light_power", "Aus · stromlos")
+    assert has_element?(view, "#light_power", ~r/Aus\W+stromlos/u)
   end
 
   test "commands while the lamp starts are collected, the last one per kind wins",
@@ -155,7 +169,7 @@ defmodule ZiwoasWeb.LampPowerUpTest do
 
     assert has_element?(
              view,
-             "#light_starting.alert",
+             "#light_starting[role=status][aria-busy=true]",
              "Lampe startet — Einstellungen werden übernommen, sobald sie erreichbar ist."
            )
 
@@ -192,22 +206,44 @@ defmodule ZiwoasWeb.LampPowerUpTest do
     FakeShelly.serve("fridge")
     {:ok, view, _html} = live(conn, ~p"/switches")
     tap_lamp(view)
-    assert has_element?(view, "#light_card_FL1 button.sw-lamp-knob:not(.off)[phx-value-on=false]")
+    assert has_element?(view, "#light_card_FL1 button[aria-pressed=true][phx-value-on=false]")
 
     tap_lamp(view)
-    assert has_element?(view, "#light_card_FL1 button.sw-lamp-knob.off[phx-value-on=true]")
+    assert has_element?(view, "#light_card_FL1 button[aria-pressed=false][phx-value-on=true]")
     plug_switched_on()
+  end
+
+  test "a rejoin replays no lamp form, so it neither sends a command nor powers the plug",
+       %{conn: conn} do
+    FakeShelly.serve("fridge")
+    {:ok, view, _html} = live(conn, ~p"/lights/FL1")
+
+    for id <- recovered_forms(view), do: view |> form("##{id}") |> render_change()
+    render_async(view)
+
+    refute_receive {:shelly_rpc, "fridge", "Switch.Set", _params}, 100
+    assert sent() == []
+    assert plug_commands() == []
+  end
+
+  # The forms LiveView's client sends again, with their values, when the page rejoins.
+  defp recovered_forms(view) do
+    view
+    |> render()
+    |> LazyHTML.from_fragment()
+    |> LazyHTML.query("form[id][phx-change]:not([phx-auto-recover=ignore])")
+    |> LazyHTML.attribute("id")
   end
 
   test "the detail page follows its plug's relay", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/lights/FL1")
-    assert has_element?(view, "#light_power", "Aus · stromlos")
+    assert has_element?(view, "#light_power", ~r/Aus\W+stromlos/u)
 
     relay!(true)
-    refute has_element?(view, "#light_power", "Aus · stromlos")
+    refute has_element?(view, "#light_power", ~r/Aus\W+stromlos/u)
 
     relay!(false)
-    assert has_element?(view, "#light_power", "Aus · stromlos")
+    assert has_element?(view, "#light_power", ~r/Aus\W+stromlos/u)
   end
 
   test "leaving the page aborts nothing, not even the plug switching on", %{conn: conn} do

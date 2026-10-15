@@ -4,7 +4,7 @@ defmodule ZiwoasWeb.WeatherLive do
 
   import ZiwoasWeb.WeatherComponents
 
-  alias Ziwoas.{Clock, Config, Sensors, Weather}
+  alias Ziwoas.{Clock, Config, Sensors, Sun, Weather}
 
   @segment_indexes %{"0" => 0, "1" => 1, "2" => 2, "3" => 3}
 
@@ -41,13 +41,15 @@ defmodule ZiwoasWeb.WeatherLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} look={@look} current_path={@current_path}>
+    <Layouts.app flash={@flash} current_path={@current_path} width={:default}>
       <.header>Wetter</.header>
 
       <.empty current={@current} today={@today} days={@days} />
-      <.current current={@current} sensor={@sensor} />
-      <.today records={@today} zone={@zone} />
-      <.forecast days={@days} zone={@zone} open={@open_segments} />
+      <div class="flex flex-col gap-8">
+        <.current current={@current} sensor={@sensor} daylight={@daylight} />
+        <.today records={@today} zone={@zone} />
+        <.forecast days={@days} zone={@zone} open={@open_segments} />
+      </div>
     </Layouts.app>
     """
   end
@@ -60,6 +62,7 @@ defmodule ZiwoasWeb.WeatherLive do
     assign(socket,
       zone: zone,
       current: Weather.latest_current(),
+      daylight: Sun.daytime?(config.location, now),
       today: Weather.today_hourly(now, zone),
       days: Weather.future_days(Clock.today(zone), zone),
       sensor: Sensors.fresh_outdoor(outdoor_sensor_ids(config), now)

@@ -46,6 +46,16 @@ defmodule Ziwoas.Switching.Row do
     end
   end
 
+  @doc "Since when the plug is in its state, with the source when a command set it last."
+  @spec since(t) :: {DateTime.t(), Command.source() | nil} | nil
+  def since(%__MODULE__{last_command: command, state: state}) do
+    cond do
+      command && fresher?(command, state) -> {command.inserted_at, command.source}
+      state && state.updated_at -> {state.updated_at, nil}
+      true -> nil
+    end
+  end
+
   defp fresher?(_command, nil), do: true
   defp fresher?(_command, %State{updated_at: nil}), do: true
 

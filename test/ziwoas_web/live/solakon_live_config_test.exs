@@ -34,35 +34,60 @@ defmodule ZiwoasWeb.SolakonLiveConfigTest do
 
   test "the auto-regulation follows an enabled config and the stored state", %{conn: conn} do
     doc = page(conn, "/solakon")
-    assert texts(doc, ".stat-value#solakon-control-state") == ["Aktiv"]
-    assert texts(doc, "#solakon-control-help") == ["folgt dem gemessenen Verbrauch"]
-    assert count(doc, "button#solakon-control-toggle[aria-checked=true]") == 1
-    assert count(doc, "button#solakon-control-toggle[disabled]") == 0
+
+    assert texts(doc, "#solakon-control-meta") == [
+             "Aktiv\u2060\u00A0· folgt dem gemessenen Verbrauch"
+           ]
+
+    assert count(doc, "input#solakon-control-toggle[checked]") == 1
+    assert count(doc, "input#solakon-control-toggle[disabled]") == 0
 
     Repo.insert!(%Control.State{paused: true})
     doc = page(conn, "/solakon")
-    assert texts(doc, ".stat-value#solakon-control-state") == ["Pausiert"]
-    assert count(doc, "button#solakon-control-toggle[aria-checked=false]") == 1
+    assert texts(doc, "#solakon-control-meta") == ["Pausiert"]
+    assert count(doc, "input#solakon-control-toggle:not([checked])") == 1
   end
 
   test "the Auto-Regelung switch pauses and resumes the stored control", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/solakon")
 
-    view |> element("#solakon-control-toggle") |> render_click()
+    view |> form("#solakon-control-form", %{control: "false"}) |> render_change()
     render_async(view)
 
     assert has_element?(view, "#solakon-control-state", "Pausiert")
-    assert has_element?(view, "#solakon-control-help", "pausiert")
-    assert has_element?(view, "button#solakon-control-toggle[aria-checked=false]:not([disabled])")
+    refute has_element?(view, "#solakon-control-meta", "folgt")
+    assert has_element?(view, "input#solakon-control-toggle:not([checked]):not([disabled])")
     refute Solakon.control_active?()
 
-    view |> element("#solakon-control-toggle") |> render_click()
+    view |> form("#solakon-control-form", %{control: "true"}) |> render_change()
     render_async(view)
 
     assert has_element?(view, "#solakon-control-state", "Aktiv")
-    assert has_element?(view, "#solakon-control-help", "folgt dem gemessenen Verbrauch")
-    assert has_element?(view, "button#solakon-control-toggle[aria-checked=true]")
+    assert has_element?(view, "#solakon-control-meta", "folgt dem gemessenen Verbrauch")
+    assert has_element?(view, "input#solakon-control-toggle[checked]")
     assert Solakon.control_active?()
+  end
+
+  test "a replayed form without the switch's value writes nothing", %{conn: conn} do
+    {:ok, view, html} = live(conn, ~p"/solakon")
+    doc = LazyHTML.from_fragment(html)
+
+    assert count(doc, "form#solakon-eps-form[phx-auto-recover=ignore]") == 1
+    assert count(doc, "form#solakon-control-form[phx-auto-recover=ignore]") == 1
+
+    log =
+      capture_log(fn ->
+        render_change(view, "toggle_eps", %{"_target" => ["eps"]})
+        render_change(view, "toggle_control", %{"_target" => ["control"]})
+        render_async(view)
+      end)
+
+    refute log =~ "switch failed"
+    assert Solakon.control_active?()
+    assert Repo.aggregate(Control.State, :count) == 0
+    assert has_element?(view, "input#solakon-eps-toggle:not([disabled])")
+    assert has_element?(view, "input#solakon-control-toggle[checked]:not([disabled])")
+    refute has_element?(view, "#solakon-eps-error, #solakon-control-error")
   end
 
   test "an outlet switch the inverter does not take keeps the switch and names the failure", %{
@@ -70,17 +95,17 @@ defmodule ZiwoasWeb.SolakonLiveConfigTest do
   } do
     reading!(30)
     {:ok, view, _html} = live(conn, ~p"/solakon")
-    assert has_element?(view, "button#solakon-eps-toggle[aria-checked=false]")
+    assert has_element?(view, "input#solakon-eps-toggle:not([checked])")
 
     log =
       capture_log(fn ->
-        view |> element("#solakon-eps-toggle") |> render_click()
+        view |> form("#solakon-eps-form", %{eps: "true"}) |> render_change()
         render_async(view)
       end)
 
     assert log =~ "EPS switch failed"
-    assert has_element?(view, "#solakon-eps-error:not([hidden])", "Schalten fehlgeschlagen")
-    assert has_element?(view, "button#solakon-eps-toggle[aria-checked=false]:not([disabled])")
+    assert has_element?(view, "#solakon-eps-error[role=alert]", "Schalten fehlgeschlagen")
+    assert has_element?(view, "input#solakon-eps-toggle:not([checked]):not([disabled])")
     assert has_element?(view, "#solakon-eps-state", "Aus")
   end
 
@@ -90,10 +115,18 @@ defmodule ZiwoasWeb.SolakonLiveConfigTest do
 
     doc = page(conn, "/")
 
-    assert count(doc, "#dashboard_hero .col[hidden]") == 0
-    assert texts(doc, "#dashboard_hero .display-4") == ["310", "84"]
-    assert count(doc, "#dashboard_hero img[alt='Batterie'][src*='solakon_battery_charging']") == 1
-    assert texts(doc, "#tile_netbalance_now .stat-value") == ["+60 W"]
+    assert texts(doc, "#hero_pv > span:first-child, #hero_battery > span:first-child") == [
+             "310",
+             "84"
+           ]
+
+    assert count(doc, "#dashboard_hero img[alt='Batterie lädt'][src*='solakon_battery_charging']") ==
+             1
+
+    assert texts(doc, "#tile_netbalance_now :is(.stat-value, .stat-desc)") == [
+             "60 W",
+             "Überschuss"
+           ]
 
     [state] =
       doc
@@ -107,6 +140,6 @@ defmodule ZiwoasWeb.SolakonLiveConfigTest do
   test "a stale reading leaves the inverter offline", %{conn: conn} do
     reading!(121)
 
-    assert count(page(conn, "/"), "#dashboard_hero .col[hidden]") == 1
+    assert count(page(conn, "/"), "#hero_battery") == 0
   end
 end

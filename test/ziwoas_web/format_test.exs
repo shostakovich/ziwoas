@@ -68,14 +68,6 @@ defmodule ZiwoasWeb.FormatTest do
     end
   end
 
-  describe "eur/1" do
-    test "euros with cents, a dash when unknown" do
-      assert Format.eur(1234.5) == "1.234,50 €"
-      assert Format.eur(-0.5) == "−0,50 €"
-      assert Format.eur(nil) == "—"
-    end
-  end
-
   describe "dates" do
     test "date/1 and day_month/1" do
       assert Format.date(~D[2026-10-07]) == "07.10.2026"

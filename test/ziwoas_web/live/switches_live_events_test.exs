@@ -3,6 +3,7 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
 
   import Ecto.Query
   import Phoenix.LiveViewTest
+  import Setzkasten.Test.Confirm
 
   alias Ziwoas.{Clock, FakeShelly, Repo, TestClock}
   alias Ziwoas.Lights.Light
@@ -52,8 +53,10 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
   defp new_entry(view, label),
     do: view |> element("#sw_rules_fridge button", label) |> render_click()
 
-  defp entry_button(view, id, event),
-    do: element(view, "#sw_entry_fridge_#{id} button[phx-click=#{event}]")
+  defp entry_button(view, id, action), do: element(view, "#sw_entry_fridge_#{id}_#{action}")
+
+  defp delete_entry(view, id, question),
+    do: confirm_click(view, "#sw_entry_fridge_#{id}_delete", question)
 
   defp checked_days(view, form),
     do:
@@ -81,12 +84,35 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
 
       assert_received {:shelly_rpc, "fridge", "Switch.Set", %{on: true}}
       assert [%Command{action: :on, source: :manual}] = Repo.all(Command)
-      assert has_element?(view, "#sw_head_fridge .small", "An seit 17:00 (manuell)")
+      assert has_element?(view, "#sw_head_fridge [data-status]", "An seit 17:00 (manuell)")
 
       assert has_element?(
                view,
                "#sw_head_fridge button[phx-click=switch_plug][phx-value-state=off]"
              )
+    end
+
+    test "is busy while the switch runs and drops a second tap", %{conn: conn} do
+      shelly =
+        FakeShelly.serve("fridge", fn _method, _params ->
+          receive do
+            :answer -> {:ok, %{"was_on" => false}}
+          end
+        end)
+
+      view = open_page(conn)
+      knob = element(view, "#sw_head_fridge button[phx-click=switch_plug]")
+      render_click(knob)
+      assert_receive {:shelly_rpc, "fridge", "Switch.Set", %{on: true}}
+      assert has_element?(view, "#sw_head_fridge button[aria-busy=true]")
+
+      render_click(knob)
+      send(shelly, :answer)
+      render_async(view)
+
+      refute_received {:shelly_rpc, "fridge", "Switch.Set", _params}
+      assert [%Command{action: :on}] = Repo.all(Command)
+      refute has_element?(view, "#sw_head_fridge button[aria-busy]")
     end
 
     test "an unreachable plug is a flash and logs nothing", %{conn: conn} do
@@ -146,17 +172,33 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
 
     test "turns its lamp", %{conn: conn} do
       view = open_page(conn)
-      view |> element("#light_card_ABCDEF01 button.sw-knob") |> render_click()
+      view |> element("#light_card_ABCDEF01 button[aria-pressed]") |> render_click()
       render_async(view)
 
       assert_received {:govee, "ABCDEF01", {:power, true}}
-      assert has_element?(view, "#light_card_ABCDEF01 .small", "An · Weiß")
+      assert has_element?(view, "#light_card_ABCDEF01 [data-status]", ~r/An\W+Weiß/u)
+    end
+
+    test "is busy while its command runs and drops a second tap", %{conn: conn} do
+      stop_supervised!(Ziwoas.FakeGoveeBridge)
+      start_supervised!({Ziwoas.FakeGoveeBridge, test: self(), sleep_ms: 150})
+      view = open_page(conn)
+      knob = element(view, "#light_card_ABCDEF01 button[aria-pressed]")
+      render_click(knob)
+      assert has_element?(view, "#light_card_ABCDEF01 button[aria-busy=true]")
+
+      render_click(knob)
+      render_async(view, 1_000)
+
+      assert_received {:govee, "ABCDEF01", {:power, true}}
+      refute_received {:govee, "ABCDEF01", _verb}
+      refute has_element?(view, "#light_card_ABCDEF01 button[aria-busy]")
     end
 
     test "a lamp the bridge does not take is a flash", %{conn: conn} do
       stop_supervised!(Ziwoas.FakeGoveeBridge)
       view = open_page(conn)
-      view |> element("#light_card_ABCDEF01 button.sw-knob") |> render_click()
+      view |> element("#light_card_ABCDEF01 button[aria-pressed]") |> render_click()
       render_async(view)
 
       assert has_element?(view, "#flash-error", "Lampe nicht erreichbar")
@@ -167,7 +209,7 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
       stop_supervised!(Ziwoas.FakeGoveeBridge)
       start_supervised!({Ziwoas.FakeGoveeBridge, test: self(), sleep_ms: 1_000})
       view = open_page(conn)
-      view |> element("#light_card_ABCDEF01 button.sw-knob") |> render_click()
+      view |> element("#light_card_ABCDEF01 button[aria-pressed]") |> render_click()
       refute has_element?(view, "#flash-error")
       render_async(view)
 
@@ -184,11 +226,12 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
   end
 
   describe "a new Zeitfenster" do
-    test "the editor offers two times and the weekdays as toggle buttons", %{conn: conn} do
+    test "the editor offers two times and the weekdays as a multiple choice", %{conn: conn} do
       view = open_page(conn)
-      new_entry(view, "+ Zeitfenster")
+      new_entry(view, "Zeitfenster")
 
       assert has_element?(view, "#sw_editor_fridge form[phx-submit=save_entry]")
+      assert has_element?(view, "#sw_fridge_new_title", "Neues Zeitfenster")
       assert has_element?(view, "#sw_editor_fridge input#sw_fridge_new_on_at_time[type=time]")
       assert has_element?(view, "#sw_editor_fridge input#sw_fridge_new_off_at_time[type=time]")
 
@@ -196,7 +239,7 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
 
       assert doc
              |> LazyHTML.query(
-               "[role=group][aria-label=Wochentage] input.btn-check[type=checkbox][name='window[days][]']"
+               "fieldset#sw_fridge_new_days input[type=checkbox][name='window[days][]']"
              )
              |> Enum.count() == 7
 
@@ -207,14 +250,28 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
 
     test "refuses as it is typed and on save, then saves, closes and says so", %{conn: conn} do
       view = open_page(conn)
-      new_entry(view, "+ Zeitfenster")
+      new_entry(view, "Zeitfenster")
       form = "#sw_editor_fridge form"
 
       html = view |> form(form, window_params("18:00", "18:00", ["", "1"])) |> render_change()
       assert html =~ "An- und Aus-Zeit müssen sich unterscheiden"
+      refute has_element?(view, "#sw_fridge_new_errors")
 
       html = view |> form(form, window_params("18:00", "19:00", [""])) |> render_submit()
-      assert html =~ "mindestens ein Wochentag muss gewählt sein"
+      assert html =~ "Mindestens ein Wochentag muss gewählt sein"
+
+      assert has_element?(
+               view,
+               "#sw_fridge_new_form > #sw_fridge_new_errors[role=alert]",
+               "1 Feld ist noch nicht richtig"
+             )
+
+      assert has_element?(
+               view,
+               "#sw_fridge_new_form[phx-hook='Setzkasten.Components.Forms.FocusInvalid']"
+             )
+
+      assert has_element?(view, "fieldset#sw_fridge_new_days input[value='1'][aria-invalid=true]")
       assert rules() == []
 
       view |> form(form, window_params("22:00", "06:00", ["", "1"])) |> render_submit()
@@ -225,12 +282,12 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
       refute has_element?(view, "#sw_editor_fridge form")
       assert render(view) =~ "Mo · 22:00–06:00"
       assert render(view) =~ "Zeitfenster gespeichert."
-      assert view |> element("#sw_card_fridge summary") |> render() =~ "Schaltzeiten (2)"
+      assert has_element?(view, "#sw_schedule_fridge > summary > span", "2")
     end
 
     test "a refused form keeps what was typed", %{conn: conn} do
       view = open_page(conn)
-      new_entry(view, "+ Zeitfenster")
+      new_entry(view, "Zeitfenster")
 
       view
       |> form("#sw_editor_fridge form", window_params("", "25:00", ["", "1"]))
@@ -243,7 +300,7 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
 
     test "a refused save clears the flash of the one saved before", %{conn: conn} do
       view = open_page(conn)
-      new_entry(view, "+ Zeitfenster")
+      new_entry(view, "Zeitfenster")
 
       view
       |> form("#sw_editor_fridge form", window_params("18:00", "23:00", ["", "1"]))
@@ -251,21 +308,33 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
 
       assert render(view) =~ "Zeitfenster gespeichert."
 
-      new_entry(view, "+ Zeitfenster")
+      new_entry(view, "Zeitfenster")
 
       view
       |> form("#sw_editor_fridge form", window_params("18:00", "19:00", [""]))
       |> render_submit()
 
-      assert render(view) =~ "mindestens ein Wochentag muss gewählt sein"
+      assert render(view) =~ "Mindestens ein Wochentag muss gewählt sein"
       refute has_element?(view, "#flash-info", "Zeitfenster gespeichert.")
     end
 
     test "Abbrechen closes the editor", %{conn: conn} do
       view = open_page(conn)
-      new_entry(view, "+ Zeitfenster")
+      new_entry(view, "Zeitfenster")
       view |> element("#sw_editor_fridge button", "Abbrechen") |> render_click()
       refute has_element?(view, "#sw_editor_fridge form")
+    end
+
+    test "focus moves into the editor and back to the button that opened it", %{conn: conn} do
+      view = open_page(conn)
+      assert has_element?(view, "#sw_plugs[phx-hook=FocusReturn]")
+      new_entry(view, "Einzelschaltung")
+      assert has_element?(view, "#sw_fridge_new_form[phx-mounted*=focus_first]")
+
+      view |> element("#sw_editor_fridge button", "Abbrechen") |> render_click()
+
+      assert_push_event(view, "focus_return", %{ids: ["sw_new_rule_fridge"]})
+      assert has_element?(view, "button#sw_new_rule_fridge", "Einzelschaltung")
     end
   end
 
@@ -274,14 +343,28 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
       conn: conn
     } do
       view = open_page(conn)
-      new_entry(view, "+ Einzelschaltung")
+      new_entry(view, "Einzelschaltung")
 
       assert has_element?(
                view,
-               "[role=group][aria-label=Richtung] input.btn-check[type=radio][name='rule[action]'][value=off][checked]"
+               "fieldset#sw_fridge_new_action input[type=radio][name='rule[action]'][value=off][checked]"
              )
 
-      assert view |> element("label[for=sw_fridge_new_day_1]") |> render() =~ "Mo"
+      assert has_element?(
+               view,
+               "fieldset#sw_fridge_new_days label:first-of-type input[value='1'][aria-label=Montag]"
+             )
+
+      legends =
+        view
+        |> element("#sw_editor_fridge form")
+        |> render()
+        |> LazyHTML.from_fragment()
+        |> LazyHTML.query("legend")
+        |> Enum.map(&String.trim(LazyHTML.text(&1)))
+
+      assert legends == ["Richtung", "Wochentage"]
+      refute has_element?(view, "#sw_editor_fridge [aria-hidden=true]", "Wochentage")
 
       view
       |> form("#sw_editor_fridge form", rule_params("07:30", "on", ["", "6", "7"]))
@@ -295,7 +378,7 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
 
     test "refuses a direction that is neither on nor off", %{conn: conn} do
       view = open_page(conn)
-      new_entry(view, "+ Einzelschaltung")
+      new_entry(view, "Einzelschaltung")
 
       html =
         view
@@ -303,6 +386,12 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
         |> render_submit(rule_params("22:00", "toggle", ["1"]))
 
       assert html =~ "Richtung muss an oder aus sein"
+
+      assert has_element?(
+               view,
+               "fieldset#sw_fridge_new_action[role=radiogroup][aria-invalid=true][aria-describedby='sw_fridge_new_action-error-0']"
+             )
+
       assert rules() == []
     end
   end
@@ -313,8 +402,9 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
       ids = Enum.map(rules(), & &1.id)
       view = open_page(conn)
 
-      view |> entry_button(group, "edit_entry") |> render_click()
+      view |> entry_button(group, "edit") |> render_click()
       assert has_element?(view, "#sw_entry_fridge_#{group} form[phx-submit=save_entry]")
+      assert has_element?(view, "#sw_fridge_#{group}_title", "Zeitfenster bearbeiten")
       assert view |> element("#sw_fridge_#{group}_on_at_time") |> render() =~ ~s(value="18:00")
 
       view
@@ -329,7 +419,7 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
     test "past midnight shows the times and days that were typed", %{conn: conn} do
       group = a_window("22:00", "06:00", [1, 2, 3, 4, 5])
       view = open_page(conn)
-      view |> entry_button(group, "edit_entry") |> render_click()
+      view |> entry_button(group, "edit") |> render_click()
 
       assert checked_days(view, "#sw_entry_fridge_#{group}") == ~w[1 2 3 4 5]
     end
@@ -337,7 +427,7 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
     test "a refused update stays in its row and changes nothing", %{conn: conn} do
       group = a_window()
       view = open_page(conn)
-      view |> entry_button(group, "edit_entry") |> render_click()
+      view |> entry_button(group, "edit") |> render_click()
 
       html =
         view
@@ -353,14 +443,31 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
       group = a_window()
       view = open_page(conn)
 
-      view |> entry_button(group, "set_enabled") |> render_click()
+      view |> entry_button(group, "toggle") |> render_click()
       assert Enum.map(rules(), & &1.enabled) == [false, false]
-      view |> entry_button(group, "set_enabled") |> render_click()
+      view |> entry_button(group, "toggle") |> render_click()
       assert Enum.map(rules(), & &1.enabled) == [true, true]
 
-      view |> entry_button(group, "delete_entry") |> render_click()
+      delete_entry(view, group, "Zeitfenster löschen?")
       assert rules() == []
       assert render(view) =~ "Zeitfenster gelöscht."
+    end
+
+    test "a closed editor hands focus back to its row's actions", %{conn: conn} do
+      group = a_window()
+      view = open_page(conn)
+      view |> entry_button(group, "edit") |> render_click()
+      assert has_element?(view, "#sw_fridge_#{group}_form[phx-mounted*=focus_first]")
+
+      view
+      |> form("#sw_entry_fridge_#{group} form", window_params("19:00", "23:00", ["", "1"]))
+      |> render_submit()
+
+      row = "sw_entry_fridge_#{group}"
+      assert_push_event(view, "focus_return", %{ids: ids})
+      assert ids == ["#{row}_edit", "#{row}-menu-toggle", "sw_new_window_fridge"]
+      assert has_element?(view, "button##{row}_edit")
+      assert has_element?(view, "summary##{row}-menu-toggle")
     end
 
     test "a group that left this plug or lost a half is no Zeitfenster here", %{conn: conn} do
@@ -390,7 +497,7 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
       Switching.set_enabled([rule], false)
       view = open_page(conn)
 
-      view |> entry_button(rule.id, "edit_entry") |> render_click()
+      view |> entry_button(rule.id, "edit") |> render_click()
 
       view
       |> form("#sw_entry_fridge_#{rule.id} form", rule_params("07:30", "on", ["", "6", "7"]))
@@ -403,12 +510,12 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
       rule = a_single()
       view = open_page(conn)
 
-      view |> entry_button(rule.id, "set_enabled") |> render_click()
+      view |> entry_button(rule.id, "toggle") |> render_click()
       refute Repo.get!(Rule, rule.id).enabled
-      view |> entry_button(rule.id, "set_enabled") |> render_click()
+      view |> entry_button(rule.id, "toggle") |> render_click()
       assert Repo.get!(Rule, rule.id).enabled
 
-      view |> entry_button(rule.id, "delete_entry") |> render_click()
+      delete_entry(view, rule.id, "Schaltzeit löschen?")
       assert rules() == []
       assert render(view) =~ "Schaltzeit gelöscht."
     end
@@ -434,11 +541,11 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
       orphan = Repo.one(Rule)
       view = open_page(conn)
 
-      view |> entry_button(orphan.id, "edit_entry") |> render_click()
+      view |> entry_button(orphan.id, "edit") |> render_click()
       assert has_element?(view, "#sw_entry_fridge_#{orphan.id} form[phx-submit=save_entry]")
       view |> element("#sw_entry_fridge_#{orphan.id} button", "Abbrechen") |> render_click()
 
-      view |> entry_button(orphan.id, "delete_entry") |> render_click()
+      delete_entry(view, orphan.id, "Schaltzeit löschen?")
       assert rules() == []
     end
   end

@@ -40,6 +40,28 @@ defmodule ZiwoasWeb.SolakonLiveTest do
   defp count(doc, selector), do: doc |> LazyHTML.query(selector) |> Enum.count()
   defp squish(text), do: text |> String.split() |> Enum.join(" ")
 
+  defp energy_flow_state(view) do
+    view
+    |> element("#energy_flow")
+    |> render()
+    |> LazyHTML.from_fragment()
+    |> LazyHTML.attribute("data-state")
+    |> hd()
+    |> JSON.decode!()
+  end
+
+  defp chart_data(view) do
+    view
+    |> element("#solakon_history-chart")
+    |> render()
+    |> LazyHTML.from_fragment()
+    |> LazyHTML.attribute("data-chart")
+    |> hd()
+    |> JSON.decode!()
+  end
+
+  @range_link "#solakon_history nav[aria-label=Zeitraum] a[aria-current=page]"
+
   defp floats(schema, attrs),
     do:
       Map.new(attrs, fn {key, value} ->
@@ -79,33 +101,55 @@ defmodule ZiwoasWeb.SolakonLiveTest do
       })
 
   test "the page renders the single continuous Solakon overview", %{conn: conn} do
+    snapshot!(pv1_power_w: 100)
     doc = page(conn)
 
     assert texts(doc, "title") == ["PV"]
     assert texts(doc, "h1") == ["PV"]
-    assert texts(doc, "nav[aria-label=Hauptnavigation] a.active") == ["PV"]
-    assert count(doc, "main.app-main-wide") == 1
-    assert attrs(doc, "#live_freshness[phx-hook=LiveFreshness]", "data-beat") == ["0"]
-    assert count(doc, "#live_freshness #energy_flow[phx-hook=EnergyFlow][data-state]") == 1
+    assert texts(doc, "#app-shell-nav a[aria-current=page]") == ["PV"]
+    assert count(doc, "main#main.max-w-5xl") == 1
+    assert count(doc, "#live_stale") == 0
+    assert count(doc, "#energy_flow[phx-hook=EnergyFlow][data-state]") == 1
     assert count(doc, "#energy_flow svg#energy_flow_svg[phx-update=ignore]") == 1
 
-    for title <- ["Energiefluss", "Status", "Solakon-Verlauf", "Wirtschaftlichkeit"],
-        do: assert(title in texts(doc, ".card-title"))
+    sections =
+      ~w(Status Steuerung Panels Speicher PV-Verlauf Wirtschaftlichkeit Sonnenkalender Ausbeute)
 
-    assert texts(doc, "main h2.h6") |> Enum.take(3) == ["Steuerung", "Panels", "Speicher"]
-    assert attrs(doc, "#solakon_history[phx-hook=SolakonHistory]", "data-range") == ["24h"]
-    assert count(doc, "#solakon_history #solakon_history_frame[phx-update=ignore] > canvas") == 1
+    assert Enum.filter(texts(doc, "main h2"), &(&1 in sections)) == sections
+
+    assert attrs(doc, "#solakon_history-chart[phx-hook=SolakonHistory]", "data-range") == ["24h"]
+    assert texts(doc, "#solakon_history h3.card-title") == ["Leistung"]
+    assert texts(doc, "#solakon_history h3.card-title + p") == ["Watt · letzte 24 Stunden"]
+    assert count(doc, "#solakon_history-chart[phx-update=ignore] > canvas") == 1
+    assert count(doc, "#solakon_history-chart[data-chart]") == 0
     assert count(doc, "#solakon_history script") == 0
-    assert texts(doc, "#solakon_history a.btn.active") == ["Letzte 24 h"]
+    assert texts(doc, @range_link) == ["24 h"]
 
-    assert count(doc, "button#solakon-eps-toggle[role=switch][phx-click=toggle_eps]") == 1
-    assert count(doc, "button#solakon-control-toggle[role=switch][phx-click=toggle_control]") == 1
-    assert count(doc, "label[for=solakon-eps-toggle]") == 1
+    assert doc
+           |> attrs("#solakon_history nav[aria-label=Zeitraum] a", "data-phx-link-state")
+           |> Enum.uniq() == ["replace"]
+
+    assert count(doc, "form#solakon-eps-form[phx-change=toggle_eps] input#solakon-eps-toggle") ==
+             1
+
+    assert count(
+             doc,
+             "form#solakon-control-form[phx-change=toggle_control] input#solakon-control-toggle"
+           ) == 1
+
+    assert texts(doc, "#solakon-eps label > span") == ["Notstrom"]
+    assert texts(doc, "#solakon-control label > span") == ["Auto-Regelung"]
+    assert count(doc, "#solakon-controls label .sr-only") == 0
+    assert texts(doc, "#solakon-controls h3") == ["Außensteckdose", "Regelung"]
 
     assert count(doc, "[data-async=loading]") == 3
 
+    assert texts(doc, "[data-async=loading] a[href='/solakon/wirtschaftlichkeit']") == [
+             "Kosten und Preise pflegen"
+           ]
+
     refute LazyHTML.text(doc) =~ ~r/SOH|EPS|46613|39067|Modbus/
-    assert count(doc, ".ef-ring[data-ring='pv'] > img.icon[src*='icon_sonne'][alt='PV']") == 1
+    assert count(doc, ".ef-ring[data-ring='pv'] > img.plush[src*='icon_sonne']") == 1
   end
 
   test "without an inverter configured the auto-regulation is off and cannot be switched", %{
@@ -113,18 +157,17 @@ defmodule ZiwoasWeb.SolakonLiveTest do
   } do
     doc = page(conn)
 
-    assert texts(doc, ".stat-value#solakon-control-state") == ["Aus"]
-    assert texts(doc, "#solakon-control-help") == ["in Konfiguration deaktiviert"]
-    assert count(doc, "button#solakon-control-toggle[disabled][aria-checked=false]") == 1
+    assert texts(doc, "#solakon-control-meta") == [
+             "Aus\u2060\u00A0· in Konfiguration deaktiviert"
+           ]
+
+    assert count(doc, "input#solakon-control-toggle[disabled]:not([checked])") == 1
+    assert hd(texts(doc, "#solakon-panels")) =~ "Noch keine Panelwerte"
+    assert count(doc, "#solakon-panels .stat") == 0
   end
 
-  test "switching the outlet without an inverter configured says so", %{conn: conn} do
-    {:ok, view, _html} = live(conn, ~p"/solakon")
-
-    view |> element("#solakon-eps-toggle") |> render_click()
-
-    assert has_element?(view, "#solakon-eps-error:not([hidden])", "Solakon nicht konfiguriert")
-    assert has_element?(view, "button#solakon-eps-toggle[aria-checked=false]:not([disabled])")
+  test "without an inverter configured the outlet cannot be switched", %{conn: conn} do
+    assert count(page(conn), "input#solakon-eps-toggle[disabled]:not([checked])") == 1
   end
 
   test "controls, panels, storage, balance and status without protocol language", %{conn: conn} do
@@ -150,22 +193,24 @@ defmodule ZiwoasWeb.SolakonLiveTest do
 
     doc = page(conn)
 
-    assert count(doc, ".solakon-control-card") == 2
+    assert count(doc, "#solakon-controls .card") == 2
 
-    assert texts(doc, ".solakon-panel-grid .card") ==
-             [
-               "Panel 1 211 W 41,7 V · 5,12 A",
-               "Panel 2 198 W 40,5 V · 4,88 A",
-               "Panel 3 176 W 0,0 V · 0,00 A",
-               "Panel 4 0 W 0,0 V · 0,00 A"
-             ]
+    assert texts(doc, "#solakon-panels .stat-title") ==
+             ["Panel 1", "Panel 2", "Panel 3", "Panel 4"]
 
-    assert texts(doc, ".solakon-details p") |> Enum.take(2) == [
-             "Speichertemperatur (Status/Regelung) 24,8 °C",
-             "Wechselrichtertemperatur 34,1 °C"
+    assert texts(doc, "#solakon-panels .stat-value") == ["211 W", "198 W", "176 W", "0 W"]
+
+    assert hd(texts(doc, "#solakon-panels .stat-desc")) =~ ~r/^41,7 V\S*\s?· 5,12 A$/u
+
+    assert texts(doc, "#solakon-status-details dt") == [
+             "Speichertemperatur (Status/Regelung)",
+             "Wechselrichtertemperatur",
+             "Außensteckdose"
            ]
 
-    assert texts(doc, ".solakon-storage-grid .stat-label") == [
+    assert texts(doc, "#solakon-status-details dd") |> Enum.take(2) == ["24,8 °C", "34,1 °C"]
+
+    assert texts(doc, "#solakon-storage .stat-title") == [
              "Ladestand",
              "Batterie­gesundheit",
              "Aktuelle Batterie­leistung",
@@ -175,10 +220,13 @@ defmodule ZiwoasWeb.SolakonLiveTest do
              "Volle Kapazität"
            ]
 
-    assert texts(doc, ".solakon-storage-grid .stat-value") ==
+    assert texts(doc, "#solakon-storage .stat-value") ==
              ["— %", "97 %", "— W", "51,3 V", "4,20 A", "24,8 °C", "51,2 Ah"]
 
-    assert count(doc, ".solakon-balance-row") == 5
+    assert count(doc, "#solakon-storage-soc progress") == 0
+
+    assert count(doc, "#solakon_history_balance progress") == 5
+    assert texts(doc, "#solakon_history_balance h4") == ["Energie im Zeitraum"]
     # The visible text, not the markup: random tokens (CSRF, session) may contain „EPS“.
     refute LazyHTML.text(doc) =~ ~r/SOH|EPS|Modbus|Register|39067|46613|Fault\d|Alarm \d/
   end
@@ -198,12 +246,15 @@ defmodule ZiwoasWeb.SolakonLiveTest do
 
     doc = page(conn)
 
-    assert attrs(doc, ".solakon-status-figure img", "data-solakon-battery-state") == ["charging"]
-    assert count(doc, ".solakon-status-figure img[src*=solakon_battery_charging]") == 1
-    assert texts(doc, ".solakon-status-summary") == ["Akku lädt gerade"]
-    assert "84 %" in texts(doc, ".solakon-storage-grid .stat-value")
+    assert attrs(doc, "#solakon-status img", "data-solakon-battery-state") == ["charging"]
+    assert count(doc, "#solakon-status img[src*=solakon_battery_charging]") == 1
+    assert texts(doc, "#solakon-status-summary") == ["Akku lädt gerade"]
+    assert "84 %" in texts(doc, "#solakon-storage .stat-value")
+    assert attrs(doc, "#solakon-storage-soc progress", "value") == ["84"]
+    assert attrs(doc, "#solakon-storage-soc progress", "aria-label") == ["Ladestand"]
+    assert attrs(doc, "#solakon-storage-soc [data-low]", "data-low") == ["false"]
     assert texts(doc, "#solakon-eps-state") == ["An"]
-    assert count(doc, "button#solakon-eps-toggle[aria-checked=true]") == 1
+    assert count(doc, "input#solakon-eps-toggle[checked]") == 1
   end
 
   test "the battery character: fault, warm, cold, low, discharging, quiet", %{conn: conn} do
@@ -219,13 +270,18 @@ defmodule ZiwoasWeb.SolakonLiveTest do
       reading!(attrs)
       doc = page(conn)
 
-      assert attrs(doc, ".solakon-status-figure img", "data-solakon-battery-state") == [state]
-      assert texts(doc, ".solakon-status-summary") == [summary]
+      assert attrs(doc, "#solakon-status img", "data-solakon-battery-state") == [state]
+      assert texts(doc, "#solakon-status-summary") == [summary]
+
+      assert attrs(doc, "#solakon-storage-soc [data-low]", "data-low") ==
+               [to_string(state == "low")]
     end
   end
 
-  test "the Wirtschaftlichkeit card sits between the history and the sun calendar", %{conn: conn} do
-    assert loaded_page(conn) |> texts("a.btn") |> Enum.member?("Kosten erfassen")
+  test "the Wirtschaftlichkeit section sits between the history and the sun calendar", %{
+    conn: conn
+  } do
+    assert loaded_page(conn) |> texts("#economics a.btn") == ["Kosten erfassen"]
 
     Repo.insert!(%CostItem{
       label: "Anlage",
@@ -245,10 +301,14 @@ defmodule ZiwoasWeb.SolakonLiveTest do
     doc = loaded_page(conn)
     html = LazyHTML.to_html(doc)
 
-    assert hd(texts(doc, ".economics-tiles .stat-value")) == "1.000,00 €"
-    assert Enum.at(texts(doc, ".economics-tiles .stat-value"), 1) == "0,60 €"
-    assert attrs(doc, "a.btn-outline-secondary", "href") == ["/solakon/wirtschaftlichkeit"]
-    {solakon, _} = :binary.match(html, "Solakon-Verlauf")
+    assert texts(doc, "#economics-cost .stat-value") == ["1.000,00\u00a0€"]
+    assert texts(doc, "#economics-saved .stat-value") == ["0,60\u00a0€"]
+
+    assert attrs(doc, "#economics a[href='/solakon/wirtschaftlichkeit']", "href") == [
+             "/solakon/wirtschaftlichkeit"
+           ]
+
+    {solakon, _} = :binary.match(html, "PV-Verlauf")
     {economics, _} = :binary.match(html, "Wirtschaftlichkeit")
     {calendar, _} = :binary.match(html, "Sonnenkalender")
     assert solakon < economics and economics < calendar
@@ -256,8 +316,9 @@ defmodule ZiwoasWeb.SolakonLiveTest do
 
   test "the shading section and the sun calendar, and their empty states", %{conn: conn} do
     empty = loaded_page(conn)
-    assert count(empty, ".shading") == 0
-    assert texts(empty, ".empty-state h2") == ["Noch kein Sonnenkalender", "Noch keine Ausbeute"]
+    assert count(empty, "#shading [data-chart]") == 0
+    assert hd(texts(empty, "#sun-calendar")) =~ "Noch kein Sonnenkalender"
+    assert hd(texts(empty, "#shading")) =~ "Noch keine Ausbeute"
 
     for index <- 0..2 do
       date = Date.add(~D[2026-07-01], index)
@@ -284,14 +345,29 @@ defmodule ZiwoasWeb.SolakonLiveTest do
     doc = loaded_page(conn)
 
     assert "Sonnenkalender 2026" in texts(doc, "h2")
-    assert count(doc, ".sun-calendar [data-strip]") == 4
-    assert count(doc, ".sun-calendar [data-strip='pv'] svg.strip-chart-wide polyline.sun") == 3
-    assert "Wechsel der Quelle" in texts(doc, ".sun-calendar .legend-item")
-    assert count(doc, ".sun-calendar .note") == 1
-    assert count(doc, ".shading [data-chart='yield-map'] .fields rect") >= 1
-    assert count(doc, ".shading [data-chart='daily-profiles'] .multiple") == 1
-    assert count(doc, ".shading [data-chart='panels'] .panel-chart-wide polyline") == 4
-    assert texts(doc, "[data-chart='panels'] .card-subtitle") == ["seit 01.07.2026 · 3 Tage"]
+    assert count(doc, "#sun-calendar [data-strip]") == 4
+    assert count(doc, "#sun-calendar [data-strip='pv'] svg.strip-chart-wide polyline.sun") == 3
+    assert "Wechsel der Quelle" in texts(doc, "#sun-calendar li")
+    assert count(doc, "#sun-calendar .note") == 1
+    assert count(doc, "#shading [data-chart='yield-map'] .fields rect") >= 1
+    assert count(doc, "#shading [data-chart='daily-profiles'] .multiple") == 1
+    assert count(doc, "#shading [data-chart='panels'] .panel-chart-wide polyline") == 4
+
+    assert texts(doc, "[data-chart='panels'] .card-title + p") == [
+             "Stundenmittel in W\u2060\u00a0· seit 01.07.2026 · 3 Tage"
+           ]
+  end
+
+  test "an outage at mount is marked stale at once, since the newest reading", %{conn: conn} do
+    insert_sample!("fridge", DateTime.to_unix(now()) - 900, 82.4, 110.0)
+    reading!(taken_at: DateTime.add(now(), -300))
+
+    {:ok, view, _html} = live(conn, ~p"/solakon")
+    doc = LazyHTML.from_fragment(render(view))
+
+    assert texts(doc, "header #live_stale") == ["veraltet"]
+    assert texts(doc, "header p") == ["Keine neuen Messwerte seit 11:55 Uhr"]
+    assert texts(doc, "#solakon-storage-soc .badge") == ["veraltet"]
   end
 
   describe "the history page" do
@@ -307,22 +383,21 @@ defmodule ZiwoasWeb.SolakonLiveTest do
 
       doc = page(conn, ~p"/solakon/history?range=7d")
 
-      assert texts(doc, "title") == ["Solakon-Verlauf"]
-      assert texts(doc, "header.visually-hidden h1") == ["Solakon-Verlauf"]
-      assert texts(doc, "#solakon_history a.btn.active") == ["Letzte 7 Tage"]
+      assert texts(doc, "title") == ["PV-Verlauf"]
+      assert texts(doc, "h1") == ["PV-Verlauf"]
+      assert texts(doc, "#solakon_history h2.card-title + p") == ["Watt · letzte 7 Tage"]
+      assert texts(doc, "main header a[href='/solakon']") == ["PV"]
+      assert texts(doc, "#solakon_history nav a[aria-current=page]") == ["7 Tage"]
 
-      assert attrs(doc, "#solakon_history a.btn", "href") ==
+      assert attrs(doc, "#solakon_history nav a", "href") ==
                Enum.map(~w(24h 7d 30d), &"/solakon/history?range=#{&1}")
 
-      assert attrs(doc, "#solakon_history[phx-hook=SolakonHistory]", "data-range") == ["7d"]
+      assert attrs(doc, "#solakon_history-chart[phx-hook=SolakonHistory]", "data-range") == ["7d"]
 
-      assert count(doc, ".solakon-balance-row") == 5
-
-      assert count(
-               doc,
-               ".solakon-balance-row[data-role='battery'] .progress-bar[style*='background-color: var(--viz-battery)']"
-             ) == 2
-
+      assert count(doc, "#solakon_history_balance progress") == 5
+      assert texts(doc, "#solakon_history_balance h3") == ["Energie im Zeitraum"]
+      assert count(doc, "#solakon_history_balance [data-role='battery'] progress") == 2
+      assert count(doc, "#solakon_history_balance [data-role='solar'] progress") == 1
       assert texts(doc, "[data-role='outlet-average']") == ["Ø Außensteckdose 0 W"]
     end
 
@@ -332,9 +407,13 @@ defmodule ZiwoasWeb.SolakonLiveTest do
       for path <- [~p"/solakon/history?range=1y", ~p"/solakon/history"] do
         doc = page(conn, path)
 
-        assert texts(doc, "#solakon_history a.btn.active") == ["Letzte 24 h"]
-        assert "Keine Solakon-Historie" in texts(doc, ".text-body-secondary")
-        assert count(doc, ".solakon-balance-row") == 0
+        assert texts(doc, "#solakon_history nav a[aria-current=page]") == ["24 h"]
+
+        assert hd(texts(doc, "#solakon_history [data-role=empty]")) =~
+                 "Keine Werte in diesem Zeitraum"
+
+        assert count(doc, "#solakon_history-chart") == 0
+        assert count(doc, "#solakon_history_balance") == 0
         assert count(doc, "[data-role='outlet-average']") == 0
       end
     end
@@ -350,57 +429,117 @@ defmodule ZiwoasWeb.SolakonLiveTest do
       assert Process.alive?(view.pid)
     end
 
-    test "plug deltas and readings move the freshness beat, and leave the history be", %{
+    test "plug deltas and readings redraw the energy flow, and leave the history be", %{
       conn: conn
     } do
       {:ok, view, _html} = live(conn, ~p"/solakon")
-      assert_push_event(view, "solakon_history:data", %{range: "24h"})
+      refute has_element?(view, "#solakon_history-chart")
+      snapshot!(pv1_power_w: 100)
 
+      insert_sample!("fridge", DateTime.to_unix(now()) - 5, 82.4, 110.0)
       send(view.pid, {:live, []})
-      assert has_element?(view, "#live_freshness[data-beat='1'] #energy_flow[data-state]")
+      assert %{"home_w" => 82.4} = energy_flow_state(view)
+
+      insert_sample!("fridge", DateTime.to_unix(now()) - 1, 90.0, 111.0)
+      send(view.pid, {:reading, reading!([])})
+      assert %{"home_w" => 90.0} = energy_flow_state(view)
+      refute has_element?(view, "#solakon_history-chart")
+    end
+
+    test "each reading and snapshot updates status, controls, panels and storage", %{
+      conn: conn
+    } do
+      reading!(battery_soc_pct: 50)
+      {:ok, view, _html} = live(conn, ~p"/solakon")
+      assert has_element?(view, "#solakon-storage-soc", "50")
+      assert has_element?(view, "#solakon-eps-state", "Aus")
+      assert has_element?(view, "#solakon-panels", "Noch keine Panelwerte")
+
+      send(
+        view.pid,
+        {:reading, reading!(battery_soc_pct: 84, battery_power_w: 80, eps_enabled: true)}
+      )
+
+      doc = LazyHTML.from_fragment(render(view))
+      assert texts(doc, "#solakon-status-summary") == ["Akku lädt gerade"]
+      assert texts(doc, "#solakon-status-details dd") |> List.last() == "bereit"
+      assert texts(doc, "#solakon-eps-state") == ["An"]
+      assert count(doc, "input#solakon-eps-toggle[checked]") == 1
+      assert attrs(doc, "#solakon-storage-soc progress", "value") == ["84"]
+
+      send(view.pid, {:snapshot, snapshot!(pv1_power_w: 210)})
+      assert has_element?(view, "#solakon-panel-1", "210")
+    end
+
+    test "without a reading for two minutes the page is marked stale, not faded", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/solakon")
+
+      send(view.pid, :check_freshness)
+      doc = LazyHTML.from_fragment(render(view))
+      assert count(doc, "#live_stale") == 0
+
+      TestClock.freeze(DateTime.add(now(), 121))
+      send(view.pid, :check_freshness)
+      doc = LazyHTML.from_fragment(render(view))
+
+      assert texts(doc, "header #live_stale") == ["veraltet"]
+      assert texts(doc, "header p") == ["Keine neuen Messwerte seit 12:00 Uhr"]
+      assert texts(doc, "#solakon-storage-soc .badge") == ["veraltet"]
 
       send(view.pid, {:reading, reading!([])})
-      assert has_element?(view, "#live_freshness[data-beat='2']")
-      refute_push_event(view, "solakon_history:data", %{})
+      refute has_element?(view, "#live_stale")
+      refute has_element?(view, "#solakon-storage .badge")
+    end
+
+    test "the panels are marked stale with the page", %{conn: conn} do
+      snapshot!(pv1_power_w: 100)
+      {:ok, view, _html} = live(conn, ~p"/solakon")
+      refute has_element?(view, "#solakon-panels .badge")
+
+      TestClock.freeze(DateTime.add(now(), 121))
+      send(view.pid, :check_freshness)
+      doc = LazyHTML.from_fragment(render(view))
+
+      assert texts(doc, "#solakon-panels .badge") == List.duplicate("veraltet", 4)
     end
 
     test "the chart's data goes to the hook on mount, and afresh with every stored snapshot", %{
       conn: conn
     } do
       {:ok, view, _html} = live(conn, ~p"/solakon")
-      assert_push_event(view, "solakon_history:data", %{range: "24h", times: []})
-      refute has_element?(view, "#solakon_history .solakon-balance-row")
+      assert has_element?(view, "#solakon_history [data-role=empty]")
+      refute has_element?(view, "#solakon_history-chart")
+      refute has_element?(view, "#solakon_history_balance")
 
       snapshot = snapshot!(pv1_power_w: 100)
       send(view.pid, {:snapshot, snapshot})
 
-      assert_push_event(view, "solakon_history:data", %{
-        range: "24h",
-        times: [_],
-        datasets: [
-          %{label: "PV", data: [100.0]},
-          %{label: "Akku"},
-          %{label: "Außensteckdose"},
-          %{label: "0 W", data: [0]}
-        ]
-      })
+      assert %{
+               "times" => [_],
+               "datasets" => [
+                 %{"key" => "pv", "label" => "PV", "data" => [100.0]},
+                 %{"key" => "battery", "label" => "Akku"},
+                 %{"key" => "outlet", "label" => "Außensteckdose"}
+               ]
+             } = chart_data(view)
 
-      assert has_element?(view, "#solakon_history[phx-hook=SolakonHistory] .solakon-balance-row")
-      assert has_element?(view, "#solakon_history a.btn.active", "Letzte 24 h")
+      assert has_element?(view, "#solakon_history_balance progress")
+      assert has_element?(view, @range_link, "24 h")
     end
 
     test "the history page refreshes on the same event", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/solakon/history?range=7d")
-      assert_push_event(view, "solakon_history:data", %{range: "7d"})
-      refute has_element?(view, "#solakon_history .solakon-balance-row")
+      refute has_element?(view, "#solakon_history-chart")
+      refute has_element?(view, "#solakon_history_balance")
 
       send(view.pid, {:reading, reading!([])})
       snapshot = snapshot!(pv1_power_w: 100)
       send(view.pid, {:snapshot, snapshot})
 
-      assert_push_event(view, "solakon_history:data", %{range: "7d", times: [_]})
-      assert has_element?(view, "#solakon_history .solakon-balance-row")
-      assert has_element?(view, "#solakon_history a.btn.active", "Letzte 7 Tage")
+      assert %{"times" => [_]} = chart_data(view)
+      assert has_element?(view, "#solakon_history-chart[data-range='7d']")
+      assert has_element?(view, "#solakon_history_balance progress")
+      assert has_element?(view, @range_link, "7 Tage")
     end
 
     test "a range tab swaps the history in place and the refresh keeps that range", %{conn: conn} do
@@ -408,47 +547,30 @@ defmodule ZiwoasWeb.SolakonLiveTest do
       snapshot = snapshot!(pv1_power_w: 100)
       {:ok, view, _html} = live(conn, ~p"/solakon")
 
-      assert has_element?(view, "#solakon_history a.btn.active", "Letzte 24 h")
+      assert has_element?(view, @range_link, "24 h")
+      assert %{"datasets" => [%{"data" => [100.0]} | _]} = chart_data(view)
 
-      assert_push_event(view, "solakon_history:data", %{
-        range: "24h",
-        datasets: [%{data: [100.0]} | _]
-      })
-
-      view |> element("#solakon_history a", "7 Tage") |> render_click()
+      view |> element("#solakon_history nav a", "7 Tage") |> render_click()
 
       assert_patch(view, ~p"/solakon?range=7d")
-      assert has_element?(view, "#solakon_history a.btn.active", "Letzte 7 Tage")
-      assert has_element?(view, "#solakon_history[phx-hook=SolakonHistory][data-range='7d']")
-
-      assert_push_event(view, "solakon_history:data", %{
-        range: "7d",
-        datasets: [%{data: [300.0, 100.0]} | _]
-      })
+      assert has_element?(view, @range_link, "7 Tage")
+      assert has_element?(view, "#solakon_history-chart[data-range='7d']")
+      assert %{"datasets" => [%{"data" => [300.0, 100.0]} | _]} = chart_data(view)
 
       send(view.pid, {:snapshot, snapshot})
 
-      assert_push_event(view, "solakon_history:data", %{range: "7d"})
-
-      assert has_element?(
-               view,
-               "#solakon_history[data-range='7d'] a.btn.active",
-               "Letzte 7 Tage"
-             )
+      assert has_element?(view, "#solakon_history-chart[data-range='7d']")
+      assert has_element?(view, @range_link, "7 Tage")
     end
 
     test "the history page's range tabs swap it in place too", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/solakon/history")
 
-      view |> element("#solakon_history a", "30 Tage") |> render_click()
+      view |> element("#solakon_history nav a", "30 Tage") |> render_click()
       assert_patch(view, ~p"/solakon/history?range=30d")
-      assert_push_event(view, "solakon_history:data", %{range: "30d"})
 
-      assert has_element?(
-               view,
-               "#solakon_history[data-range='30d'] a.btn.active",
-               "Letzte 30 Tage"
-             )
+      assert has_element?(view, @range_link, "30 Tage")
+      assert has_element?(view, "#solakon_history [data-role=empty]")
     end
   end
 end
