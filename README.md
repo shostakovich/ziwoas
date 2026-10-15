@@ -21,7 +21,7 @@ SQLite. The UI is in German.
 
 ```bash
 cp config/ziwoas.example.yml config/ziwoas.yml   # adjust: location, plugs, …
-mix setup                                        # deps, database, esbuild, assets
+mix setup                                        # deps, database, Tailwind, esbuild, assets
 mix phx.server                                   # http://localhost:4000
 ```
 
@@ -52,13 +52,14 @@ also builds the assets.
 
 ## Assets
 
-esbuild runs as a standalone binary (no Node) and bundles `assets/js/app.js` with the LiveView
-hooks from `assets/js/hooks/`, and `assets/css/app.css`, into `priv/static/assets/`. Chart.js lives
-in `assets/vendor/`, felt-css comes from the CDN
-([ADR-0005](docs/adr/0005-felt-css-as-the-ui-foundation.md)).
+Tailwind and esbuild run as standalone binaries (no Node). Tailwind builds `assets/css/app.css`,
+which imports daisyUI, the Setzkasten components' stylesheet, ZiWoAS's palette and the widget
+CSS; esbuild bundles `assets/js/app.js` with the LiveView hooks from `assets/js/hooks/` and
+Setzkasten's. Both write to `priv/static/assets/`. Chart.js and the Lucide icons live in
+`assets/vendor/` ([ADR-0011](docs/adr/0011-setzkasten-as-the-ui-foundation.md)).
 
 ```bash
-mix assets.setup    # fetch the esbuild binary
+mix assets.setup    # fetch the Tailwind and esbuild binaries
 mix assets.build    # development (mix phx.server rebuilds on changes itself)
 mix assets.deploy   # minified and digested, for a release
 ```
