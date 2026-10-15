@@ -129,7 +129,7 @@ defmodule ZiwoasWeb.DashboardComponents do
             %{
               plug: plug,
               width: width,
-              color: "var(--viz-#{rem(Enum.find_index(order, &(&1 == plug.id)), 10) + 1})"
+              color: "var(--color-chart-#{rem(Enum.find_index(order, &(&1 == plug.id)), 8) + 1})"
             }
           end,
         producers: Enum.filter(plugs, &(&1.role == :producer and &1.online)),

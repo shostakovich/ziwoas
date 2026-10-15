@@ -216,7 +216,7 @@ defmodule ZiwoasWeb.ReportsLiveTest do
     assert count(producer, "img[alt='Erzeuger']") == 1
 
     assert attr(producer, ".progress-bar", "style") == [
-             "width: 100.0%; background-color: var(--viz-solar)"
+             "width: 100.0%; background-color: var(--color-solar)"
            ]
 
     assert count(doc, "ol.list-group[aria-label='Rangliste'] > li") == 1
@@ -227,7 +227,7 @@ defmodule ZiwoasWeb.ReportsLiveTest do
     assert texts(consumer, ".col-1") == ["1"]
 
     assert attr(consumer, ".progress-bar", "style") == [
-             "width: 25.0%; background-color: var(--viz-1)"
+             "width: 25.0%; background-color: var(--color-chart-1)"
            ]
 
     assert texts(consumer, ".text-end") == ["0,50 kWh"]

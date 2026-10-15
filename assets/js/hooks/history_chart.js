@@ -23,7 +23,7 @@ function config(points) {
     type: "bar",
     data: {
       labels,
-      datasets: [{ label: "Ertrag", data: points.map((p) => p.energy_wh / 1000), tone: "--viz-solar" }],
+      datasets: [{ label: "Ertrag", data: points.map((p) => p.energy_wh / 1000), tone: "--color-solar" }],
     },
     options: {
       responsive: true,

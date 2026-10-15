@@ -1,4 +1,4 @@
-import { renderChart, vizToken, tonesByOrder, timeCategoryScale, localMidnight, isPhone, snugTop, lineElements } from "../lib/chart_theme.js"
+import { renderChart, seriesToken, tonesByOrder, timeCategoryScale, localMidnight, isPhone, snugTop, lineElements } from "../lib/chart_theme.js"
 
 const DAILY_ICONS_PADDING = 44
 const DETAIL_ICONS_PADDING = 38
@@ -110,9 +110,9 @@ export default {
     const enabled = this.weatherEnabled("daily")
     const consumerDatasets = this.consumerBarDatasets(daily.consumer_series || [], { top: 5 })
     const datasets = [
-      { label: "Ertrag", data: daily.produced_kwh || [], tone: "--viz-solar", stack: "produced" },
+      { label: "Ertrag", data: daily.produced_kwh || [], tone: "--color-solar", stack: "produced" },
       ...(consumerDatasets.length > 0 ? consumerDatasets : [
-        { label: "Verbrauch", data: daily.consumed_kwh || [], tone: "--viz-total", stack: "consumed" },
+        { label: "Verbrauch", data: daily.consumed_kwh || [], tone: "--color-consumption", stack: "consumed" },
       ]),
     ]
 
@@ -185,8 +185,8 @@ export default {
       data: {
         labels,
         datasets: [
-          { label: "Autarkie", data: ratios.map((r) => r.autarky_pct), tone: "--viz-2" },
-          { label: "Eigenverbrauch", data: ratios.map((r) => r.self_consumption_pct), tone: "--viz-solar" },
+          { label: "Autarkie", data: ratios.map((r) => r.autarky_pct), tone: "--color-chart-3" },
+          { label: "Eigenverbrauch", data: ratios.map((r) => r.self_consumption_pct), tone: "--color-solar" },
         ],
       },
       options: {
@@ -214,7 +214,7 @@ export default {
       return {
         label: series.name,
         data: series.data,
-        tone: producer ? "--viz-solar" : this.consumerTone(series),
+        tone: producer ? "--color-solar" : this.consumerTone(series),
         fill: producer,
         fillAlpha: producer ? 0.12 : undefined,
         tension: 0.2,
@@ -277,7 +277,7 @@ export default {
   dailyPowerBarConfig(detail) {
     const producers = (detail.series || [])
       .filter((series) => series.role === "producer")
-      .map((series) => ({ label: series.name, data: series.data || [], tone: "--viz-solar", stack: "produced" }))
+      .map((series) => ({ label: series.name, data: series.data || [], tone: "--color-solar", stack: "produced" }))
     const consumers = this.consumerBarDatasets((detail.series || []).filter((series) => series.role === "consumer"))
 
     return {
@@ -297,7 +297,7 @@ export default {
   },
 
   consumerTone(series) {
-    return this.consumerTones.get(series.plug_id) ?? vizToken(this.consumerTones.size)
+    return this.consumerTones.get(series.plug_id) ?? seriesToken(this.consumerTones.size)
   },
 
   consumerBarDatasets(series, { top } = {}) {
@@ -317,7 +317,7 @@ export default {
       datasets.push({
         label: "Weitere Verbraucher",
         data: Array.from({ length }, (_, index) => +rest.reduce((sum, row) => sum + Number(row.data?.[index] || 0), 0).toFixed(3)),
-        tone: "--viz-muted",
+        tone: "--color-chart-muted",
         stack: "consumed",
       })
     }
@@ -343,7 +343,7 @@ function totalConsumption(series) {
   return {
     label: "Gesamtverbrauch",
     data: Array.from({ length }, (_, index) => consumers.reduce((sum, row) => sum + Number(row.data?.[index] || 0), 0)),
-    tone: "--viz-total",
+    tone: "--color-chart-total",
     fill: false,
     tension: 0.2,
     pointRadius: 0,

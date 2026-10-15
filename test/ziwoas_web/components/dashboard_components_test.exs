@@ -182,7 +182,7 @@ defmodule ZiwoasWeb.DashboardComponentsTest do
       assert attr(hd(segments(doc)), "title") == "Washer · 1.980 W"
     end
 
-    test "color follows the consumer's roster position and wraps after ten" do
+    test "color follows the consumer's roster position and wraps after eight" do
       doc =
         bar([
           row("bkw", :producer, apower_w: -300.0),
@@ -191,13 +191,15 @@ defmodule ZiwoasWeb.DashboardComponentsTest do
         ])
 
       [fridge, _washer] = segments(doc)
-      assert color(fridge, ".progress-bar") == "var(--viz-2)"
-      assert doc |> LazyHTML.query("ul li") |> Enum.at(1) |> color(".badge") == "var(--viz-1)"
+      assert color(fridge, ".progress-bar") == "var(--color-chart-2)"
 
-      many = bar(for i <- 0..10, do: row("p#{i}", :consumer, apower_w: 100.0 - i))
+      assert doc |> LazyHTML.query("ul li") |> Enum.at(1) |> color(".badge") ==
+               "var(--color-chart-1)"
+
+      many = bar(for i <- 0..8, do: row("p#{i}", :consumer, apower_w: 100.0 - i))
       colors = Enum.map(segments(many), &color(&1, ".progress-bar"))
-      assert Enum.at(colors, 9) == "var(--viz-10)"
-      assert Enum.at(colors, 10) == hd(colors)
+      assert Enum.at(colors, 7) == "var(--color-chart-8)"
+      assert Enum.at(colors, 8) == hd(colors)
     end
   end
 

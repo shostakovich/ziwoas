@@ -54,7 +54,7 @@ defmodule ZiwoasWeb.SolakonComponents do
           <div class="progress" style="height: .5rem" aria-hidden="true">
             <div
               class="progress-bar"
-              style={"width: #{row.share}%; background-color: var(--viz-#{row.role})"}
+              style={"width: #{row.share}%; background-color: var(--color-#{row.role})"}
             >
             </div>
           </div>

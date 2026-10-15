@@ -1,15 +1,15 @@
 .sun-charts {
-  --ramp-amber-0: color-mix(in oklab, var(--viz-solar) 14%, transparent);
-  --ramp-amber-1: var(--viz-solar);
+  --ramp-amber-0: color-mix(in oklab, var(--color-solar) 14%, transparent);
+  --ramp-amber-1: var(--color-solar);
   --ramp-amber-2: var(--felt-warning-emphasis);
-  --ramp-blue-0: color-mix(in oklab, var(--viz-grid) 12%, transparent);
-  --ramp-blue-1: var(--viz-grid);
+  --ramp-blue-0: color-mix(in oklab, var(--color-grid) 12%, transparent);
+  --ramp-blue-1: var(--color-grid);
   --ramp-blue-2: var(--felt-primary-emphasis);
   --ramp-grey-0: color-mix(in oklab, var(--felt-body-color) 6%, transparent);
   --ramp-grey-1: color-mix(in oklab, var(--felt-body-color) 85%, var(--felt-surface));
-  --ramp-low: var(--viz-grid);
+  --ramp-low: var(--color-grid);
   --ramp-neutral: color-mix(in oklab, var(--felt-body-color) 19%, var(--felt-surface));
-  --ramp-high: var(--viz-solar);
+  --ramp-high: var(--color-solar);
   --nodata: color-mix(in oklab, var(--felt-surface-sunk) 55%, transparent);
   /* Amber on the amber ramp vanishes in the dark. */
   --sun-line: light-dark(var(--felt-warning-text), var(--felt-body-color));
@@ -37,10 +37,10 @@
 }
 .sun-charts svg text { fill: var(--felt-secondary-color); font-size: var(--chart-text); }
 .sun-charts svg :is(line, polyline) { vector-effect: non-scaling-stroke; }
-.sun-charts svg .grid line { stroke: var(--chart-grid); stroke-width: 1px; }
+.sun-charts svg .grid line { stroke: var(--color-chart-gridline); stroke-width: 1px; }
 .sun-charts svg .axis { stroke: var(--felt-border-color); stroke-width: 1px; }
 .sun-charts svg text.zero { dominant-baseline: alphabetic; }
-.sun-charts svg .bars path { fill: var(--viz-solar); }
+.sun-charts svg .bars path { fill: var(--color-solar); }
 .sun-charts svg .hits rect { fill: transparent; }
 /* Copies in <use> match only selectors that stay inside the copy: name no ancestor outside it. */
 .cells .nodata { fill: var(--nodata); }
@@ -52,7 +52,7 @@ polyline:is(.sun, .sun-halo) {
   stroke-linecap: round;
   vector-effect: non-scaling-stroke;
 }
-polyline.sun-halo { stroke: var(--chart-halo); stroke-width: 5px; }
+polyline.sun-halo { stroke: var(--color-chart-halo); stroke-width: 5px; }
 polyline.noon { stroke-width: 1.3px; stroke-dasharray: 2 4; }
 .sun-charts .seam { --tone: var(--felt-secondary-color); }
 .sun-charts svg .seam { stroke: var(--tone); stroke-width: 1.3px; stroke-dasharray: 3 3; }
@@ -76,13 +76,13 @@ polyline.noon { stroke-width: 1.3px; stroke-dasharray: 2 4; }
 .sun-charts .legend-line.noon { border-top-style: dotted; }
 .sun-charts .legend-line.seam { border-top-style: dashed; }
 
-.shading .measured { --tone: var(--viz-solar); }
-.shading .expected { --tone: var(--viz-1); }
+.shading .measured { --tone: var(--color-solar); }
+.shading .expected { --tone: var(--color-chart-1); }
 .shading .theory { --tone: var(--felt-secondary-color); }
-.shading .pv1 { --tone: var(--viz-1); }
-.shading .pv2 { --tone: var(--viz-4); }
-.shading .pv3 { --tone: var(--viz-2); }
-.shading .pv4 { --tone: var(--viz-3); }
+.shading .pv1 { --tone: var(--color-chart-1); }
+.shading .pv2 { --tone: var(--color-chart-4); }
+.shading .pv3 { --tone: var(--color-chart-3); }
+.shading .pv4 { --tone: var(--color-chart-5); }
 
 .shading svg .fields rect { stroke: none; }
 .shading svg .dot { fill: var(--felt-secondary-color); stroke: var(--felt-surface); stroke-width: 2; }
@@ -91,7 +91,7 @@ polyline.noon { stroke-width: 1.3px; stroke-dasharray: 2 4; }
 .shading svg .direct-labels text,
 .shading svg .unit {
   paint-order: stroke;
-  stroke: var(--chart-halo);
+  stroke: var(--color-chart-halo);
   stroke-width: 0.28em;
   stroke-linejoin: round;
 }
@@ -108,7 +108,7 @@ polyline.noon { stroke-width: 1.3px; stroke-dasharray: 2 4; }
 .shading .multiple svg .curve { stroke-width: 1.7px; }
 .shading svg .expected { stroke-dasharray: 3.5 3; }
 .shading .multiple svg .theory { stroke-width: 1px; stroke-dasharray: 1 2.5; }
-.shading svg .measured-area { fill: var(--viz-solar); fill-opacity: 0.18; }
+.shading svg .measured-area { fill: var(--color-solar); fill-opacity: 0.18; }
 .shading svg .leaders line { stroke: var(--felt-secondary-color); stroke-width: 0.75px; }
 .shading .legend-line.expected { border-top-style: dashed; }
 .shading .legend-line.theory { border-top-style: dotted; }

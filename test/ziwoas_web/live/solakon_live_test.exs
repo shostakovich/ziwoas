@@ -320,7 +320,7 @@ defmodule ZiwoasWeb.SolakonLiveTest do
 
       assert count(
                doc,
-               ".solakon-balance-row[data-role='battery'] .progress-bar[style*='background-color: var(--viz-battery)']"
+               ".solakon-balance-row[data-role='battery'] .progress-bar[style*='background-color: var(--color-battery)']"
              ) == 2
 
       assert texts(doc, "[data-role='outlet-average']") == ["Ø Außensteckdose 0 W"]

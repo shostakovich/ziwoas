@@ -52,5 +52,5 @@
 .ld-toast-container { position: fixed; inset-inline: 0; bottom: var(--felt-space-3); margin-inline: auto;
                       padding-inline: var(--felt-space-3); }
 @media (max-width: 991.98px) {
-  .ld-toast-container { bottom: calc(var(--tabbar-height) + .875rem); }
+  .ld-toast-container { bottom: calc(var(--setzkasten-dock-offset, 0px) + .875rem); }
 }

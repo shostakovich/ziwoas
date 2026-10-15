@@ -1,4 +1,4 @@
-import { renderChart, vizToken, timeScale, timeTooltipTitle, thresholdLine } from "../lib/chart_theme.js"
+import { renderChart, seriesToken, timeScale, timeTooltipTitle, thresholdLine } from "../lib/chart_theme.js"
 import { themeColor } from "../lib/theme_colors.js"
 
 const DAY_MS = 86_400_000
@@ -89,7 +89,7 @@ function dataset({ label }, points, index) {
     label,
     data: points.map(([ x, y ]) => ({ x, y })),
     standIn: points.map((point) => point[2] === 1),
-    tone: vizToken(index),
+    tone: seriesToken(index),
     borderWidth: 2,
     pointRadius: 0,
     tension: 0.25,
@@ -170,7 +170,7 @@ function hatch(ctx) {
   const tile = document.createElement("canvas")
   tile.width = tile.height = HATCH_PX
   const pen = tile.getContext("2d")
-  pen.strokeStyle = themeColor("--chart-stand-in")
+  pen.strokeStyle = themeColor("--color-chart-stand-in")
   pen.lineWidth = 1.5
   pen.beginPath()
   for (const offset of [ -HATCH_PX, 0, HATCH_PX ]) {
@@ -197,12 +197,12 @@ const shading = {
     if (shadingOptions.band) {
       const [ low, high ] = shadingOptions.band
       const top = scales.y.getPixelForValue(high)
-      ctx.fillStyle = themeColor("--chart-band")
+      ctx.fillStyle = themeColor("--color-chart-band")
       ctx.fillRect(area.left, top, area.right - area.left, scales.y.getPixelForValue(low) - top)
     }
 
     if (shadingOptions.gaps.length) {
-      ctx.fillStyle = themeColor("--chart-gap")
+      ctx.fillStyle = themeColor("--color-chart-gap")
       for (const [ from, to ] of shadingOptions.gaps) {
         const left = scales.x.getPixelForValue(from)
         ctx.fillRect(left, area.top, Math.max(scales.x.getPixelForValue(to) - left, 1), area.bottom - area.top)

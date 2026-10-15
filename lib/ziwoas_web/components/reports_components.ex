@@ -66,10 +66,10 @@ defmodule ZiwoasWeb.ReportsComponents do
     """
   end
 
-  @plug_colors for n <- 1..10, do: "var(--viz-#{n})"
+  @plug_colors for n <- 1..8, do: "var(--color-chart-#{n})"
 
-  defp plug_color(position), do: Enum.at(@plug_colors, Integer.mod(position || 0, 10))
-  defp producer_color, do: "var(--viz-solar)"
+  defp plug_color(position), do: Enum.at(@plug_colors, Integer.mod(position || 0, 8))
+  defp producer_color, do: "var(--color-solar)"
 
   defp energy_tile(label, kwh, signed \\ false),
     do: measure_tile(nil, label, kwh, "kWh", 2, signed)

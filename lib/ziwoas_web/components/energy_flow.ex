@@ -19,22 +19,22 @@ defmodule ZiwoasWeb.Components.EnergyFlow do
   @height 320
   @radius 40
   @rings [
-    pv: {200, 80, "--viz-solar"},
-    grid: {58, 170, "--viz-grid"},
+    pv: {200, 80, "--color-solar"},
+    grid: {58, 170, "--color-grid"},
     consumer: {342, 170, "--felt-track"},
-    battery: {200, 260, "--viz-battery"}
+    battery: {200, 260, "--color-battery"}
   ]
   # Lines start inside their ring, so the dots enter from under it instead of waiting on top.
   @channels [
-    {"SolarHome", "--viz-solar",
+    {"SolarHome", "--color-solar",
      "M 209.6,109.5 L 212.4,118 C 219.2,139 246.9,139.1 304,157.6 L 312.5,160.4"},
-    {"SolarGrid", "--viz-solar",
+    {"SolarGrid", "--color-solar",
      "M 190.4,109.5 L 187.6,118 C 180.8,139 153.1,139.1 96,157.6 L 87.5,160.4"},
-    {"SolarBattery", "--viz-solar", "M 200,111 L 200,229"},
-    {"GridHome", "--viz-grid", "M 89,170 L 311,170"},
-    {"GridBattery", "--viz-grid",
+    {"SolarBattery", "--color-solar", "M 200,111 L 200,229"},
+    {"GridHome", "--color-grid", "M 89,170 L 311,170"},
+    {"GridBattery", "--color-grid",
      "M 87.5,179.6 L 96,182.4 C 153.1,200.9 180.8,201 187.6,222 L 190.4,230.5"},
-    {"BatteryHome", "--viz-battery",
+    {"BatteryHome", "--color-battery",
      "M 209.6,230.5 L 212.4,222 C 219.2,201 246.9,200.9 304,182.4 L 312.5,179.6"}
   ]
 

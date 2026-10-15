@@ -82,7 +82,7 @@ export default {
         fill: isProducer,
         pointRadius: 0,
         hidden: !isProducer,
-        tone: isProducer ? "--viz-solar" : tones.get(s.plug_id),
+        tone: isProducer ? "--color-solar" : tones.get(s.plug_id),
         ...(isProducer ? { fillAlpha: 0.12 } : {}),
       }
     })
@@ -137,7 +137,7 @@ export default {
       data: {
         labels,
         datasets: [
-          { label: "Erzeugt", data: produced, tone: "--viz-solar", stack: "produced" },
+          { label: "Erzeugt", data: produced, tone: "--color-solar", stack: "produced" },
           ...topConsumerDatasets(consumers, sorted, buckets, tones, 5),
         ],
       },
@@ -177,7 +177,7 @@ function topConsumerDatasets(consumers, sorted, buckets, tones, limit) {
     datasets.push({
       label: "Weitere Verbraucher",
       data: sorted.map((_, index) => +rest.reduce((sum, row) => sum + row.data[index], 0).toFixed(3)),
-      tone: "--viz-muted",
+      tone: "--color-chart-muted",
       stack: "consumed",
     })
   }
@@ -198,7 +198,7 @@ function totalConsumption(datasets) {
   return {
     label: "Gesamtverbrauch",
     data: Array.from(pointsByTs.entries()).sort(([a], [b]) => a - b).map(([x, y]) => ({ x, y })),
-    tone: "--viz-total",
+    tone: "--color-chart-total",
     fill: false,
     pointRadius: 0,
     tension: 0.2,

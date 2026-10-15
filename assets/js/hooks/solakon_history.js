@@ -2,7 +2,7 @@ import { renderChart, timeCategoryScale, roundedFloor, dropOffStepBound, formatT
 
 // A night's standby dips a few watts below zero: end on the next hundred, not a whole tick step.
 const FLOOR_STEP_W = 100
-const SERIES_TOKENS = { "PV": "--viz-solar", "Akku": "--viz-battery", "Außensteckdose": "--viz-grid", "0 W": "--viz-muted" }
+const SERIES_TOKENS = { "PV": "--color-solar", "Akku": "--color-battery", "Außensteckdose": "--color-grid", "0 W": "--color-chart-muted" }
 const FLOW_WORDS = {
   "Akku": { positive: "lädt", negative: "entlädt" },
   "Außensteckdose": { positive: "liefert", negative: "zieht" },
@@ -30,7 +30,7 @@ function config(chart, range) {
     return {
       label: dataset.label,
       data: dataset.data,
-      tone: SERIES_TOKENS[dataset.label] || "--viz-muted",
+      tone: SERIES_TOKENS[dataset.label] || "--color-chart-muted",
       fillAlpha: fill ? 0.14 : 0,
       borderDash: reference ? [4, 4] : [],
       borderWidth: reference ? 1 : 2,

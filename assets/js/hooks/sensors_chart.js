@@ -1,4 +1,4 @@
-import { renderChart, vizToken, tonesByOrder, timeScale, timeTooltipTitle, thresholdLine } from "../lib/chart_theme.js"
+import { renderChart, seriesToken, tonesByOrder, timeScale, timeTooltipTitle, thresholdLine } from "../lib/chart_theme.js"
 
 const CO2_LINES = [
   { name: "Lüften", tone: "--felt-warning", textTone: "--felt-warning-text" },
@@ -47,7 +47,7 @@ function datasets(series, tones) {
   return series.map((s) => ({
     label: s.name,
     data: s.points.map(([x, y]) => ({ x, y })),
-    tone: tones.get(s.device_id) ?? vizToken(0),
+    tone: tones.get(s.device_id) ?? seriesToken(0),
     fillAlpha: 0.15,
     tension: 0.25,
     borderWidth: 2,

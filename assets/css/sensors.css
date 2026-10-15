@@ -31,15 +31,15 @@
 .chart-key-band,
 .chart-key-gap,
 .chart-key-stand-in { height: .75rem; border-radius: 2px; }
-.chart-key-band { background-color: var(--chart-band); }
-.chart-key-gap { background-color: var(--chart-gap); box-shadow: inset 0 0 0 1px var(--chart-grid); }
+.chart-key-band { background-color: var(--color-chart-band); }
+.chart-key-gap { background-color: var(--color-chart-gap); box-shadow: inset 0 0 0 1px var(--color-chart-gridline); }
 .chart-key-stand-in {
-  background-image: repeating-linear-gradient(-45deg, var(--chart-stand-in) 0 1.5px, transparent 1.5px 5px);
-  box-shadow: inset 0 0 0 1px var(--chart-stand-in);
+  background-image: repeating-linear-gradient(-45deg, var(--color-chart-stand-in) 0 1.5px, transparent 1.5px 5px);
+  box-shadow: inset 0 0 0 1px var(--color-chart-stand-in);
 }
 
 /* One hue, from the body colour (fine) to the pure data colour (coarse): every step keeps 3:1 on the card. */
-[data-bin] { --bin-color: color-mix(in oklab, var(--viz-1) var(--bin-mix, 100%), var(--felt-body-color)); }
+[data-bin] { --bin-color: color-mix(in oklab, var(--color-chart-1) var(--bin-mix, 100%), var(--felt-body-color)); }
 .pm-split [data-bin] { background-color: var(--bin-color); }
 .pm-split-key { --felt-badge-dot-color: var(--bin-color); }
 [data-bin="1"] { --bin-mix: 33%; }

@@ -11,9 +11,9 @@ const CHANNELS = [
 ]
 
 const CONSUMER_SOURCES = [
-  { flow: "solar_to_home_w",   color: "var(--viz-solar)" },
-  { flow: "grid_to_home_w",    color: "var(--viz-grid)" },
-  { flow: "battery_to_home_w", color: "var(--viz-battery)" },
+  { flow: "solar_to_home_w",   color: "var(--color-solar)" },
+  { flow: "grid_to_home_w",    color: "var(--color-grid)" },
+  { flow: "battery_to_home_w", color: "var(--color-battery)" },
 ]
 
 const IDLE_W = 1

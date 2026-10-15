@@ -849,7 +849,7 @@ defmodule ZiwoasWeb.RoomAirComponents do
       class="chart-key list-inline small text-body-secondary mb-2"
     >
       <li :for={{tone, name} <- @series} class="list-inline-item">
-        <span class="chart-key-line" style={"--tone: var(--viz-#{tone})"}></span>{name}
+        <span class="chart-key-line" style={"--tone: var(--color-chart-#{tone})"}></span>{name}
       </li>
       <li :if={@limits} class="list-inline-item">
         <span class="chart-key-limit"></span>{@limits}
