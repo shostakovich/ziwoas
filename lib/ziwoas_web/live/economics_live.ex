@@ -95,6 +95,11 @@ defmodule ZiwoasWeb.EconomicsLive do
 
   defp today, do: Clock.today(Config.get().location.timezone)
 
+  defp price_decimals(eur_per_kwh) do
+    %Decimal{exp: exp} = Decimal.normalize(eur_per_kwh)
+    -exp |> max(2) |> min(5)
+  end
+
   @impl true
   def render(assigns) do
     ~H"""
@@ -195,7 +200,10 @@ defmodule ZiwoasWeb.EconomicsLive do
             >
               <span class="me-auto tabular-nums">ab {date(price.valid_from)}</span>
               <span class="fw-semibold tabular-nums text-nowrap">
-                {number(price.eur_per_kwh, precision: 4, unit: "€/kWh")}
+                {number(price.eur_per_kwh,
+                  precision: price_decimals(price.eur_per_kwh),
+                  unit: "€/kWh"
+                )}
               </span>
               <button
                 type="button"

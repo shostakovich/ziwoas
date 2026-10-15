@@ -193,7 +193,7 @@ defmodule ZiwoasWeb.EconomicsLiveTest do
       html = submit_price(view, %{eur_per_kwh: "0,123456", valid_from: "2026-07-01"})
 
       assert texts(html, "#flash-info") == ["Preis ab 01.07.2026 erfasst"]
-      assert html =~ "0,1235 €/kWh"
+      assert html =~ "0,12346 €/kWh"
       assert [%{valid_from: ~D[2026-07-01]} = price] = Repo.all(ElectricityPrice)
       assert Decimal.equal?(price.eur_per_kwh, Decimal.new("0.12346"))
     end
@@ -209,7 +209,8 @@ defmodule ZiwoasWeb.EconomicsLiveTest do
 
     test "a second one for the same day is refused", %{conn: conn} do
       insert_price!("2026-07-01", "0.30")
-      {:ok, view, _html} = live(conn, @path)
+      {:ok, view, html} = live(conn, @path)
+      assert html =~ "0,30 €/kWh"
 
       html = submit_price(view, %{eur_per_kwh: "0,25", valid_from: "2026-07-01"})
 
