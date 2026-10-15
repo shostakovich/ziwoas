@@ -3,6 +3,7 @@ defmodule ZiwoasWeb.EconomicsLive do
   use ZiwoasWeb, :live_view
 
   import ZiwoasWeb.EconomicsComponents
+  import ZiwoasWeb.ErrorSummary, only: [error_summary: 1]
 
   alias Ziwoas.{Clock, Config, Economics}
 
@@ -32,7 +33,10 @@ defmodule ZiwoasWeb.EconomicsLive do
          |> reset_cost_form()}
 
       {:error, changeset} ->
-        {:noreply, socket |> clear_flash() |> assign(cost_form: to_form(changeset))}
+        {:noreply,
+         socket
+         |> clear_flash()
+         |> assign(cost_form: to_form(changeset))}
     end
   end
 
@@ -61,7 +65,10 @@ defmodule ZiwoasWeb.EconomicsLive do
          |> reset_price_form()}
 
       {:error, changeset} ->
-        {:noreply, socket |> clear_flash() |> assign(price_form: to_form(changeset))}
+        {:noreply,
+         socket
+         |> clear_flash()
+         |> assign(price_form: to_form(changeset))}
     end
   end
 
@@ -95,6 +102,7 @@ defmodule ZiwoasWeb.EconomicsLive do
 
   defp today, do: Clock.today(Config.get().location.timezone)
 
+  # As stored, up to five places, but never fewer than a euro amount's two.
   defp price_decimals(eur_per_kwh) do
     %Decimal{exp: exp} = Decimal.normalize(eur_per_kwh)
     -exp |> max(2) |> min(5)
@@ -104,130 +112,139 @@ defmodule ZiwoasWeb.EconomicsLive do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} current_path={@current_path}>
-      <.header>Wirtschaftlichkeit</.header>
+      <.header back={~p"/solakon"} back_label="PV">
+        Wirtschaftlichkeit
+        <:subtitle :if={since(@overview)}>{since(@overview)}</:subtitle>
+      </.header>
 
-      <.overview_card result={@overview} title="Stand" link={false} />
+      <div class="flex flex-col gap-8">
+        <.overview result={@overview} heading={false} />
 
-      <.card title="Kostenposten">
-        <p class="small text-body-secondary">
-          Alles, was die Anlage gekostet hat. Eine Förderung oder Rückerstattung wird
-          als negativer Betrag erfasst.
-        </p>
+        <section aria-labelledby="cost-items-heading">
+          <.section_heading id="cost-items-heading" count={length(@cost_items)}>
+            Kostenposten
+          </.section_heading>
+          <p class="text-sm text-base-content/70 max-w-prose mb-3">
+            Alles, was die Anlage gekostet hat. Eine Förderung oder Rückerstattung wird
+            als negativer Betrag erfasst.
+          </p>
 
-        <%= if @cost_items != [] do %>
-          <ul class="list-group list-group-flush mb-2" id="cost_items">
-            <li
+          <.list :if={@cost_items != []} id="cost_items">
+            <.list_row
               :for={item <- @cost_items}
               id={"cost_item-#{item.id}"}
-              class="list-group-item economics-row d-flex align-items-center gap-3 px-0"
+              title={item.label}
+              trailing_on_phone={:title}
             >
-              <div class="me-auto">
-                <div>{item.label}</div>
-                <div class="small text-body-secondary tabular-nums">
-                  {date(item.spent_on)}
-                  <%= if item.note do %>
-                    · {item.note}
-                  <% end %>
-                </div>
-              </div>
-              <span class="fw-semibold tabular-nums text-nowrap">
-                {eur(item.amount_eur)}
-              </span>
-              <button
-                type="button"
-                class="btn-close"
-                title="Löschen"
-                aria-label={"#{item.label} löschen"}
-                phx-click="delete_cost_item"
-                phx-value-id={item.id}
-                data-confirm={"#{item.label} wirklich löschen?"}
-              ></button>
-            </li>
-          </ul>
-          <p class="d-flex justify-content-between">
-            Summe
-            <strong class="tabular-nums">
-              {eur(@overview.acquisition_cost_eur)}
-            </strong>
+              <:meta>{join_meta([date(item.spent_on), item.note])}</:meta>
+              <:trailing><.amount value={item.amount_eur} /></:trailing>
+              <:action
+                id={"cost_item-#{item.id}-delete"}
+                label="Löschen"
+                icon="trash-2"
+                danger
+                confirm={"„#{item.label}“ löschen?"}
+                on_click={JS.push("delete_cost_item", value: %{id: item.id})}
+              />
+            </.list_row>
+            <:foot label="Summe" actions={1}>
+              <.euro value={@overview.acquisition_cost_eur} />
+            </:foot>
+          </.list>
+          <.empty_state :if={@cost_items == []} id="cost_items_empty">
+            Noch keine Kostenposten erfasst.
+          </.empty_state>
+
+          <.form
+            for={@cost_form}
+            id="cost_item_form"
+            phx-hook="Setzkasten.Components.Forms.FocusInvalid"
+            class="mt-6"
+            phx-change="validate_cost_item"
+            phx-submit="save_cost_item"
+          >
+            <.section_heading level={3} size={:sm}>Kostenposten erfassen</.section_heading>
+            <.error_summary id="cost_item_form_errors" form={@cost_form} class="mb-4" />
+            <div class="grid gap-4 md:grid-cols-2">
+              <.input field={@cost_form[:label]} label="Bezeichnung" required />
+              <.input field={@cost_form[:amount_eur]} label="Betrag" suffix="€" numeric required />
+              <.input field={@cost_form[:spent_on]} type="date" label="Datum" required />
+              <.input field={@cost_form[:note]} label="Notiz (optional)" />
+            </div>
+            <.action_bar>
+              <.button type="submit" variant={:primary} phx-disable-with="Speichert …">
+                Hinzufügen
+              </.button>
+            </.action_bar>
+          </.form>
+        </section>
+
+        <section aria-labelledby="prices-heading">
+          <.section_heading id="prices-heading" count={length(@prices)}>
+            Strompreise
+          </.section_heading>
+          <p class="text-sm text-base-content/70 max-w-prose mb-3">
+            Was eine Kilowattstunde aus dem Netz kostet. Ein Preis gilt ab seinem Datum
+            bis zum nächsten; der früheste deckt auch alle Tage davor.
           </p>
-        <% else %>
-          <p class="small text-body-secondary">Noch keine Kostenposten erfasst.</p>
-        <% end %>
 
-        <.form
-          for={@cost_form}
-          id="cost_item_form"
-          class="row g-2"
-          phx-change="validate_cost_item"
-          phx-submit="save_cost_item"
-        >
-          <.input field={@cost_form[:label]} label="Bezeichnung" />
-          <.input field={@cost_form[:amount_eur]} label="Betrag in €" inputmode="decimal" />
-          <.input field={@cost_form[:spent_on]} type="date" label="Datum" />
-          <.input field={@cost_form[:note]} label="Notiz (optional)" />
-          <div class="col-12">
-            <.button type="submit" variant={:primary} phx-disable-with="Speichert …">
-              Hinzufügen
-            </.button>
-          </div>
-        </.form>
-      </.card>
-
-      <.card title="Strompreise">
-        <p class="small text-body-secondary">
-          Was eine Kilowattstunde aus dem Netz kostet. Ein Preis gilt ab seinem Datum
-          bis zum nächsten; der früheste deckt auch alle Tage davor.
-        </p>
-
-        <%= if @prices != [] do %>
-          <ul class="list-group list-group-flush mb-3" id="prices">
-            <li
+          <.list :if={@prices != []} id="prices">
+            <.list_row
               :for={price <- @prices}
               id={"price-#{price.id}"}
-              class="list-group-item economics-row d-flex align-items-center gap-3 px-0"
+              title={"ab #{date(price.valid_from)}"}
+              trailing_on_phone={:title}
             >
-              <span class="me-auto tabular-nums">ab {date(price.valid_from)}</span>
-              <span class="fw-semibold tabular-nums text-nowrap">
-                {number(price.eur_per_kwh,
-                  precision: price_decimals(price.eur_per_kwh),
-                  unit: "€/kWh"
-                )}
-              </span>
-              <button
-                type="button"
-                class="btn-close"
-                title="Löschen"
-                aria-label={"Preis ab #{date(price.valid_from)} löschen"}
-                phx-click="delete_price"
-                phx-value-id={price.id}
-                data-confirm={"Preis ab #{date(price.valid_from)} wirklich löschen?"}
-              ></button>
-            </li>
-          </ul>
-        <% else %>
-          <p class="small text-body-secondary">
+              <:trailing>
+                <span class="tabular-nums whitespace-nowrap">
+                  {number(price.eur_per_kwh,
+                    precision: price_decimals(price.eur_per_kwh),
+                    unit: "€/kWh"
+                  )}
+                </span>
+              </:trailing>
+              <:action
+                id={"price-#{price.id}-delete"}
+                label="Löschen"
+                icon="trash-2"
+                danger
+                confirm={"Preis ab #{date(price.valid_from)} löschen?"}
+                on_click={JS.push("delete_price", value: %{id: price.id})}
+              />
+            </.list_row>
+          </.list>
+          <.empty_state :if={@prices == []} id="prices_empty">
             Noch kein Strompreis erfasst. Ohne ihn bleibt die Ersparnis unbekannt.
-          </p>
-        <% end %>
+          </.empty_state>
 
-        <.form
-          for={@price_form}
-          id="price_form"
-          class="row g-2 align-items-end"
-          phx-change="validate_price"
-          phx-submit="save_price"
-        >
-          <.input field={@price_form[:eur_per_kwh]} label="Preis in €/kWh" inputmode="decimal" />
-          <.input field={@price_form[:valid_from]} type="date" label="Gültig ab" />
-          <div class="col-12 col-md-4">
-            <.button type="submit" variant={:primary} phx-disable-with="Speichert …">
-              Hinzufügen
-            </.button>
-          </div>
-        </.form>
-      </.card>
-
-      <.button navigate={~p"/solakon"}>Zurück zu PV</.button>
+          <.form
+            for={@price_form}
+            id="price_form"
+            phx-hook="Setzkasten.Components.Forms.FocusInvalid"
+            class="mt-6"
+            phx-change="validate_price"
+            phx-submit="save_price"
+          >
+            <.section_heading level={3} size={:sm}>Preis erfassen</.section_heading>
+            <.error_summary id="price_form_errors" form={@price_form} class="mb-4" />
+            <div class="grid gap-4 md:grid-cols-2">
+              <.input
+                field={@price_form[:eur_per_kwh]}
+                label="Preis"
+                suffix="€/kWh"
+                numeric
+                required
+              />
+              <.input field={@price_form[:valid_from]} type="date" label="Gültig ab" required />
+            </div>
+            <.action_bar>
+              <.button type="submit" variant={:primary} phx-disable-with="Speichert …">
+                Hinzufügen
+              </.button>
+            </.action_bar>
+          </.form>
+        </section>
+      </div>
     </Layouts.app>
     """
   end

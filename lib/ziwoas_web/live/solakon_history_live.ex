@@ -9,7 +9,7 @@ defmodule ZiwoasWeb.SolakonHistoryLive do
   def mount(_params, _session, socket) do
     if connected?(socket), do: Solakon.subscribe()
 
-    {:ok, assign(socket, page_title: "Solakon-Verlauf", range: nil, refresh: 0)}
+    {:ok, assign(socket, page_title: "PV-Verlauf", range: nil, refresh: 0)}
   end
 
   @impl true
@@ -22,8 +22,8 @@ defmodule ZiwoasWeb.SolakonHistoryLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} current_path={@current_path}>
-      <.header class="sr-only">Solakon-Verlauf</.header>
+    <Layouts.app flash={@flash} current_path={@current_path} width={:default}>
+      <.header back={~p"/solakon"} back_label="PV">PV-Verlauf</.header>
       <.live_component
         module={SolakonHistoryComponent}
         id="solakon_history"

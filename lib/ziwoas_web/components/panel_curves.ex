@@ -13,26 +13,37 @@ defmodule ZiwoasWeb.Components.PanelCurves do
     panels = assigns.panels
     empty = Shading.Panels.empty?(panels)
 
+    legend = PanelCurves.legend(panels)
+
     assigns =
       assign(assigns,
         empty: empty,
         charts: if(empty, do: [], else: PanelCurves.charts(panels)),
-        legend: PanelCurves.legend(panels),
-        period: PanelCurves.period(panels)
+        legend: Enum.map(legend, &%{label: &1.label, color: &1.color, marker: :line}),
+        tones: Map.new(legend, &{&1.key, "--tone: #{&1.tone}"}),
+        subtitle: join_meta(["Stundenmittel in W", PanelCurves.period(panels)])
       )
 
     ~H"""
-    <.card title="Die vier Panels im Tagesverlauf" subtitle={@period} data-chart="panels">
-      <%= if @empty do %>
-        <p class="note small text-body-secondary mb-0">
-          Der Vergleich erscheint, sobald alle vier Panels einen Tag lang geliefert haben.
-        </p>
-      <% else %>
+    <.card :if={@empty} title="Die vier Panels im Tagesverlauf" level={3} data-chart="panels">
+      <.empty_state>
+        Der Vergleich erscheint, sobald alle vier Panels einen Tag lang geliefert haben.
+      </.empty_state>
+    </.card>
+    <.chart_card
+      :if={!@empty}
+      id="panel-curves"
+      title="Die vier Panels im Tagesverlauf"
+      subtitle={@subtitle}
+      summary="Stundenmittel je Panel über den Tag"
+      level={3}
+      height={:auto}
+      data-chart="panels"
+    >
+      <div class="sun-figure">
         <svg
           :for={chart <- @charts}
           viewBox={Plot.view_box(chart.plot)}
-          role="img"
-          aria-label="Stundenmittel je Panel über den Tag"
           class={"panel-chart panel-chart-#{chart.key} #{frame_classes(chart.key)}"}
         >
           <g class="grid">
@@ -46,9 +57,6 @@ defmodule ZiwoasWeb.Components.PanelCurves do
           </g>
           <g class="value-labels" dominant-baseline="central">
             <.value_texts labels={chart.value_labels} />
-            <text class="unit" x={chart.unit_label.x} y={chart.unit_label.y}>
-              {chart.unit_label.text}
-            </text>
           </g>
           <g class="hour-labels" dominant-baseline="hanging">
             <text
@@ -68,7 +76,7 @@ defmodule ZiwoasWeb.Components.PanelCurves do
             y2={Plot.bottom(chart.plot)}
           />
           <%= for {key, segments} <- chart.series, points <- segments do %>
-            <polyline class={"curve #{key}"} points={points} />
+            <polyline class={"curve #{key}"} style={@tones[key]} points={points} />
           <% end %>
           <%= if chart.named do %>
             <g class="leaders">
@@ -82,23 +90,28 @@ defmodule ZiwoasWeb.Components.PanelCurves do
               />
             </g>
             <g class="direct-labels" dominant-baseline="central">
-              <text :for={label <- chart.labels} class={label.key} x={label.x} y={label.y}>
+              <text
+                :for={label <- chart.labels}
+                class={label.key}
+                style={@tones[label.key]}
+                x={label.x}
+                y={label.y}
+              >
                 {label.text}
               </text>
             </g>
           <% end %>
           <.hit_areas :if={tooltips?(chart.key)} hits={chart.hits} />
         </svg>
-        <ul class="legend d-sm-none list-unstyled row row-cols-2 g-1 small text-body-secondary mt-2 mb-0">
-          <li :for={{key, label} <- @legend} class="legend-item col d-flex align-items-center gap-2">
-            <span class={"legend-line #{key}"}></span>{label}
-          </li>
-        </ul>
-        <p class="note small text-body-secondary mt-3 mb-0">
-          Gezählt sind nur Tage, an denen alle vier Panels geliefert haben — ein Panel, das noch nicht angeschlossen war, meldet null Watt und würde seine eigene Linie nach unten ziehen.
+      </div>
+      <:legend>
+        <.legend items={@legend} class="mt-3 sm:hidden" />
+        <p class="note text-xs text-base-content/70 max-w-prose mt-2">
+          Gezählt sind nur Tage, an denen alle vier Panels geliefert haben. Ein Panel, das noch
+          nicht angeschlossen war, meldet null Watt und würde seine eigene Linie nach unten ziehen.
         </p>
-      <% end %>
-    </.card>
+      </:legend>
+    </.chart_card>
     """
   end
 end

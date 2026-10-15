@@ -9,23 +9,10 @@
   --color-battery-fill: var(--color-chart-3-fill);
 
   --color-chart-muted: color-mix(in oklab, var(--color-base-content) 50%, var(--color-base-100));
-  --color-chart-total: color-mix(in oklab, var(--color-base-content) 75%, var(--color-base-100));
+  --color-chart-total: color-mix(in oklab, var(--color-base-content) 70%, var(--color-base-100));
   --color-chart-gridline: color-mix(in oklab, var(--color-base-content) 10%, transparent);
   --color-chart-halo: color-mix(in oklab, var(--color-base-100) 60%, transparent);
   --color-chart-band: color-mix(in oklab, var(--color-base-content) 7%, transparent);
   --color-chart-gap: color-mix(in oklab, var(--color-base-content) 4%, transparent);
   --color-chart-stand-in: color-mix(in oklab, var(--color-base-content) 30%, transparent);
-}
-
-.chart-frame {
-  position: relative;
-  height: clamp(280px, 48vh, 380px);
-  overflow: hidden;
-}
-.chart-frame-prominent { height: clamp(320px, 48vh, 400px); }
-.chart-frame-compact { height: clamp(240px, 34vh, 320px); }
-.chart-frame canvas {
-  display: block;
-  width: 100% !important;
-  height: 100% !important;
 }

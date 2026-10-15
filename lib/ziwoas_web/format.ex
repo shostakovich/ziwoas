@@ -32,10 +32,6 @@ defmodule ZiwoasWeb.Format do
     end
   end
 
-  @spec eur(value) :: String.t()
-  def eur(nil), do: @missing
-  def eur(value), do: number(value, precision: 2, unit: "€")
-
   @spec date(Date.t() | DateTime.t() | NaiveDateTime.t()) :: String.t()
   def date(date), do: Calendar.strftime(date, "%d.%m.%Y")
 

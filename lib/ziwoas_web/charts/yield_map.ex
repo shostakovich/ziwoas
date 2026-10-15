@@ -9,6 +9,7 @@ defmodule ZiwoasWeb.Charts.YieldMap do
   @frames [
     %{
       key: :wide,
+      left: 52,
       stretch: 1.45,
       density: :dense,
       hours: nil,
@@ -17,6 +18,7 @@ defmodule ZiwoasWeb.Charts.YieldMap do
     },
     %{
       key: :narrow,
+      left: 68,
       stretch: 2.1,
       density: :sparse,
       hours: [12],
@@ -25,7 +27,6 @@ defmodule ZiwoasWeb.Charts.YieldMap do
     }
   ]
   @width 720
-  @left 52
   @right 10
   @top 16
   @bottom 36
@@ -73,14 +74,14 @@ defmodule ZiwoasWeb.Charts.YieldMap do
       )
 
     {az_first, az_last} = azimuths
-    scale_x = (@width - @left - @right) / :erlang.float(az_last - az_first)
+    scale_x = (@width - frame.left - @right) / :erlang.float(az_last - az_first)
     plot_height = top_elevation * scale_x * frame.stretch
 
     plot =
       Plot.new(
         width: @width,
         height: @top + plot_height + @bottom,
-        margins: [top: @top, right: @right, bottom: @bottom, left: @left],
+        margins: [top: @top, right: @right, bottom: @bottom, left: frame.left],
         x: azimuths,
         y: {0, top_elevation}
       )

@@ -92,10 +92,9 @@ defmodule Ziwoas.Solakon.HistoryTest do
     assert_in_delta history.outlet_average_w, 0.0, 1.0e-9
 
     chart = chart(history)
-    assert chart.range == "24h"
-    assert Enum.map(datasets(chart), &label/1) == ["PV", "Akku", "Außensteckdose", "0 W"]
+    assert Enum.map(datasets(chart), &label/1) == ["PV", "Akku", "Außensteckdose"]
+    assert Enum.map(datasets(chart), & &1.key) == ~w[pv battery outlet]
     assert dataset(history, 0) == [200.0, 300.0, 200.0, 250.0]
-    assert dataset(history, 3) === [0, 0, 0, 0]
 
     rows = SolakonComponents.balance_rows(history)
 
@@ -191,6 +190,11 @@ defmodule Ziwoas.Solakon.HistoryTest do
     assert history(nil).range == "24h"
   end
 
+  test "each range names its span, the web's tabs and periods follow from it" do
+    assert Enum.map(History.ranges(), &History.span/1) == [hours: 24, days: 7, days: 30]
+    assert History.span("1y") == {:hours, 24}
+  end
+
   test "7d and 30d start on the same local clock time, across both DST changes" do
     for {now, range, from} <- [
           {~U[2026-11-01 11:00:00.000000Z], "30d", ~U[2026-10-02 10:00:00.000000Z]},
@@ -282,8 +286,8 @@ defmodule Ziwoas.Solakon.HistoryTest do
 
     assert %History{range: "7d", times: [], balance: nil, outlet_average_w: nil} = history
     assert chart(history).times == []
-    assert Enum.map(datasets(chart(history)), &label/1) == ["PV", "Akku", "Außensteckdose", "0 W"]
-    assert Enum.map(datasets(chart(history)), &data/1) == [[], [], [], []]
+    assert Enum.map(datasets(chart(history)), &label/1) == ["PV", "Akku", "Außensteckdose"]
+    assert Enum.map(datasets(chart(history)), &data/1) == [[], [], []]
     assert SolakonComponents.balance_rows(history) == []
     assert SolakonComponents.outlet_average(history) == nil
   end

@@ -5,7 +5,7 @@ defmodule Ziwoas.Solakon.History do
   alias Ziwoas.{LocalDay, Repo}
   alias Ziwoas.Solakon.{Reading, Snapshot}
 
-  @ranges [{"24h", {:seconds, 24 * 3600}}, {"7d", {:days, 7}}, {"30d", {:days, 30}}]
+  @ranges [{"24h", {:hours, 24}}, {"7d", {:days, 7}}, {"30d", {:days, 30}}]
 
   # Snapshots arrive every 2 min; a gap past this is downtime and must not inflate the outlet energy.
   @outlet_max_gap_s 300
@@ -43,6 +43,9 @@ defmodule Ziwoas.Solakon.History do
   @spec ranges() :: [range]
   def ranges, do: Enum.map(@ranges, &elem(&1, 0))
 
+  @spec span(range) :: {:hours | :days, pos_integer}
+  def span(range), do: @ranges |> List.keyfind!(range(range), 0) |> elem(1)
+
   @spec range(term) :: range
   def range(key) do
     if List.keymember?(@ranges, key, 0), do: key, else: "24h"
@@ -74,9 +77,9 @@ defmodule Ziwoas.Solakon.History do
 
   @spec from_time(range, DateTime.t(), String.t()) :: DateTime.t()
   def from_time(range, now, zone) do
-    case List.keyfind(@ranges, range, 0) do
-      {_, {:seconds, seconds}} -> DateTime.add(now, -seconds)
-      {_, {:days, days}} -> LocalDay.advance_days(now, -days, zone)
+    case span(range) do
+      {:hours, hours} -> DateTime.add(now, -hours, :hour)
+      {:days, days} -> LocalDay.advance_days(now, -days, zone)
     end
   end
 

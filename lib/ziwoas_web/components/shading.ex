@@ -12,18 +12,21 @@ defmodule ZiwoasWeb.Components.Shading do
 
   def shading(assigns) do
     ~H"""
-    <%= if Shading.Report.empty?(@report) do %>
-      <section class="card card-body mb-3 empty-state">
-        <h2 class="card-title">Noch keine Ausbeute</h2>
-        <p>Die Karte erscheint, sobald die ersten Stundenwerte der PV-Leistung vorliegen.</p>
-      </section>
-    <% else %>
-      <div class="sun-charts shading">
+    <section
+      id="shading"
+      class={!Shading.Report.empty?(@report) && "sun-charts shading"}
+      aria-labelledby="shading-heading"
+    >
+      <.section_heading id="shading-heading">Ausbeute</.section_heading>
+      <.empty_state :if={Shading.Report.empty?(@report)} plush="sun" title="Noch keine Ausbeute">
+        Die Karte erscheint, sobald die ersten Stundenwerte der PV-Leistung vorliegen.
+      </.empty_state>
+      <div :if={!Shading.Report.empty?(@report)} class="flex flex-col gap-4 md:gap-6">
         <.yield_map map={@report.map} />
         <.daily_profiles profiles={@report.profiles} />
         <.panel_curves panels={@report.panels} />
       </div>
-    <% end %>
+    </section>
     """
   end
 end

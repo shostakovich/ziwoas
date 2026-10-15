@@ -10,42 +10,38 @@ defmodule ZiwoasWeb.Components.DailyProfiles do
 
   def daily_profiles(assigns) do
     assigns =
-      assign(assigns, view: DailyProfiles.view(assigns.profiles), keys: DailyProfiles.keys())
+      assign(assigns, view: DailyProfiles.view(assigns.profiles), keys: legend_items())
 
     ~H"""
-    <.card
+    <.card :if={is_nil(@view)} title="Tagesgang je Monat" level={3} data-chart="daily-profiles">
+      <.empty_state>Der Tagesgang erscheint, sobald ein Monat Stundenwerte hat.</.empty_state>
+    </.card>
+    <.chart_card
+      :if={@view}
+      id="daily-profiles"
       title="Tagesgang je Monat"
-      subtitle={if @view, do: "Mittlere Leistung je Stunde in W"}
+      subtitle="Mittlere Leistung je Stunde in W"
+      summary="PV-Leistung je Stunde für jeden Monat: gemessen, aus der Einstrahlung erwartet und bei wolkenlosem Himmel"
+      level={3}
+      height={:auto}
       data-chart="daily-profiles"
     >
-      <%= if is_nil(@view) do %>
-        <p class="note small text-body-secondary mb-0">
-          Der Tagesgang erscheint, sobald ein Monat Stundenwerte hat.
-        </p>
-      <% else %>
-        <.legend_list class="mb-3">
-          <.legend_item :for={{key, label} <- @keys}>
-            <span class={"legend-line #{key}"}></span>{label}
-          </.legend_item>
-        </.legend_list>
-        <div class="row row-cols-2 row-cols-lg-3 g-3">
-          <figure
-            :for={multiple <- @view.multiples}
-            class={"multiple col mb-0#{if multiple.partial, do: " partial"}"}
-            data-month={multiple.month}
-          >
-            <figcaption class={"small fw-semibold mb-1#{if multiple.partial, do: " text-body-secondary"}"}>
+      <div class="grid grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-5">
+        <figure
+          :for={multiple <- @view.multiples}
+          class={["multiple", multiple.partial && "partial"]}
+          data-month={multiple.month}
+        >
+          <figcaption class="flex gap-1.5 text-sm mb-1">
+            <span class={["font-semibold", multiple.partial && "text-base-content/70"]}>
               {multiple.label}
-              <span class="fw-normal text-body-secondary">
-                {multiple.days} {Text.days(multiple.days)}
-              </span>
-            </figcaption>
-            <svg
-              viewBox={Plot.view_box(@view.plot)}
-              role="img"
-              aria-label={"Tagesgang #{multiple.label}"}
-              {if multiple.partial, do: [class: "opacity-50"], else: []}
-            >
+            </span>
+            <span class="text-base-content/70 tabular-nums">
+              {multiple.days} {Text.days(multiple.days)}
+            </span>
+          </figcaption>
+          <div class="sun-figure">
+            <svg viewBox={Plot.view_box(@view.plot)}>
               <g class="grid">
                 <line
                   :for={at <- @view.grid_lines}
@@ -85,13 +81,33 @@ defmodule ZiwoasWeb.Components.DailyProfiles do
               <% end %>
               <.hit_areas hits={multiple.hits} />
             </svg>
-          </figure>
+          </div>
+        </figure>
+      </div>
+      <:legend>
+        <.legend items={@keys} class="mt-4" />
+        <div class="flex flex-col gap-1 text-xs text-base-content/70 max-w-prose mt-2">
+          <p class="sm:hidden" data-role="grid-step">
+            Gitterlinien alle {number(@view.grid_step, unit: "W")}.
+          </p>
+          <p class="note">
+            Einstrahlung und wolkenloser Himmel sind mit dem Verhältnis von PV-Leistung zu
+            Einstrahlung der besten Stunde auf Anlagenleistung umgerechnet. Der Abstand zwischen der gemessenen und der erwarteten
+            Linie ist der Anteil, den Abschattung, Ausrichtung oder Drosselung kosten.
+          </p>
         </div>
-        <p class="note small text-body-secondary mt-3 mb-0">
-          Einstrahlung und wolkenloser Himmel sind mit dem Verhältnis von PV-Leistung zu Einstrahlung der besten Stunde auf Anlagenleistung umgerechnet. Der Abstand zwischen der gemessenen und der erwarteten Linie ist der Anteil, den Abschattung, Ausrichtung oder Drosselung kosten.
-        </p>
-      <% end %>
-    </.card>
+      </:legend>
+    </.chart_card>
     """
+  end
+
+  @markers %{
+    measured: %{color: 2, marker: :line},
+    expected: %{color: 1, marker: :dashed},
+    theory: %{color: :neutral, marker: :line}
+  }
+
+  defp legend_items do
+    for {key, label} <- DailyProfiles.keys(), do: Map.put(@markers[key], :label, label)
   end
 end

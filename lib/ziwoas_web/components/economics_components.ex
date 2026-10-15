@@ -6,73 +6,86 @@ defmodule ZiwoasWeb.EconomicsComponents do
 
   @min_projection_days 90
 
-  attr :result, Overview, required: true
-  attr :title, :string, default: "Wirtschaftlichkeit"
-  attr :link, :boolean, default: true
+  @spec since(Overview.t()) :: String.t() | nil
+  def since(%Overview{data_start: nil}), do: nil
+  def since(%Overview{data_start: start}), do: "seit #{date(start)}"
 
-  def overview_card(assigns) do
+  attr :result, Overview, required: true
+  attr :heading, :boolean, default: true, doc: "off where the page header names it"
+
+  def overview(assigns) do
     result = assigns.result
 
     assigns =
       assign(assigns,
-        subtitle: result.data_start && "seit #{date(result.data_start)}",
-        tiles: [
-          {"Anschaffungs­kosten", eur(result.acquisition_cost_eur)},
-          {"Ersparnis", eur(result.saved_eur)},
-          {"Zurückverdient", covered_value(result)},
-          {payback_label(result), payback_value(result)}
-        ],
-        covered_value: covered_value(result),
-        covered_pct: result.covered_ratio && round(result.covered_ratio * 100),
+        payback_label: payback_label(result),
+        payback_value: payback_value(result),
+        covered_pct: result.covered_ratio && result.covered_ratio * 100,
+        since: assigns.heading && since(result),
         hint: hint(result)
       )
 
     ~H"""
-    <.card title={@title} subtitle={@subtitle}>
-      <div class="row row-cols-2 row-cols-md-4 g-3 mb-3 economics-tiles">
-        <div :for={{label, value} <- @tiles} class="col d-flex">
-          <div class="stat flex-grow-1">
-            <span class="stat-label">{label}</span>
-            <span class="stat-value fs-4 mt-auto">{value}</span>
-          </div>
+    <section id="economics" aria-labelledby={@heading && "economics-heading"}>
+      <.overview_heading :if={@heading} costed={@result.costed} />
+      <div class="flex flex-col gap-4">
+        <div class="setzkasten-stat-grid grid grid-cols-2 md:grid-cols-3 gap-4">
+          <.stat id="economics-cost" label="Anschaffungs­kosten" size={:sm}>
+            <.euro value={@result.acquisition_cost_eur} />
+          </.stat>
+          <.stat id="economics-saved" label="Ersparnis" size={:sm}>
+            <.euro value={@result.saved_eur} />
+          </.stat>
+          <.stat
+            id="economics-payback"
+            label={@payback_label}
+            value={@payback_value}
+            size={:sm}
+            class="col-span-2 md:col-span-1"
+          />
+        </div>
+        <.bar
+          :if={@covered_pct}
+          id="economics-covered"
+          label="Zurückverdient"
+          value={min(@covered_pct, 100)}
+          tone={:neutral}
+          show_value
+          value_label={number(@covered_pct, precision: 1, unit: "%")}
+          data-economics-covered-pct={round(@covered_pct)}
+        />
+        <div class="flex flex-col gap-1 text-sm text-base-content/70 max-w-prose">
+          <p>
+            <span :if={@since}>{String.capitalize(@since)}.</span>
+            Gerechnet wird nur mit dem Strom, den die gemessenen Verbraucher im selben
+            Moment genutzt haben. Eingespeister Strom wird nicht vergütet und zählt nicht.
+          </p>
+          <p :if={@hint} data-economics-hint>{@hint}</p>
         </div>
       </div>
-
-      <div
-        :if={@covered_pct}
-        class="progress mb-3"
-        role="progressbar"
-        aria-label={"#{@covered_value} der Anschaffungskosten zurückverdient"}
-        aria-valuenow={@covered_pct}
-        aria-valuemin="0"
-        aria-valuemax="100"
-        data-economics-covered-pct={@covered_pct}
-      >
-        <div class="progress-bar bg-warning" style={"width: #{@covered_pct}%"}></div>
-      </div>
-
-      <p class="small text-body-secondary">
-        Gerechnet wird nur mit dem Strom, den die gemessenen Verbraucher im selben
-        Moment genutzt haben. Eingespeister Strom wird nicht vergütet und zählt nicht.
-      </p>
-
-      <p :if={@hint} class="small text-body-secondary">{@hint}</p>
-
-      <.button
-        :if={@link}
-        size={:sm}
-        navigate={~p"/solakon/wirtschaftlichkeit"}
-      >
-        {if @result.costed, do: "Kosten und Preise pflegen", else: "Kosten erfassen"}
-      </.button>
-    </.card>
+    </section>
     """
   end
 
-  defp covered_value(%Overview{covered_ratio: nil}), do: "—"
+  attr :costed, :boolean, default: nil, doc: "nil while the overview is unknown"
 
-  defp covered_value(%Overview{covered_ratio: ratio}),
-    do: number(ratio * 100, precision: 1, unit: "%")
+  def overview_heading(assigns) do
+    ~H"""
+    <.section_heading id="economics-heading">
+      Wirtschaftlichkeit
+      <:actions>
+        <.button size={:sm} navigate={~p"/solakon/wirtschaftlichkeit"}>
+          {if @costed == false, do: "Kosten erfassen", else: "Kosten und Preise pflegen"}
+        </.button>
+      </:actions>
+    </.section_heading>
+    """
+  end
+
+  attr :value, :any, required: true
+
+  def euro(%{value: nil} = assigns), do: ~H"—"
+  def euro(assigns), do: ~H|<.amount value={Decimal.from_float(@value * 1.0)} />|
 
   defp payback_label(result),
     do: if(Overview.reached?(result), do: "Amortisiert", else: "Voraus­sichtliche Amortisation")

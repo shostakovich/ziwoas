@@ -13,9 +13,10 @@ defmodule ZiwoasWeb.Charts.SunCalendar do
   @row_heights [wide: 8, narrow: 25]
   @bars_heights [wide: 100, narrow: 240]
   @densities %{wide: :dense, narrow: :sparse}
-  @bars_bottom 34
+  @bars_top 10
+  @bars_bottom 38
   @strip_margins [top: @top, right: @right, bottom: @bottom_pad, left: @left]
-  @bars_margins [top: @top, right: @right, bottom: @bars_bottom, left: @left]
+  @bars_margins [top: @bars_top, right: @right, bottom: @bars_bottom, left: @left]
   @dense_hour_step 3
   @max_bar_grid_lines 4
   @sparse_hour_step 6
@@ -79,7 +80,7 @@ defmodule ZiwoasWeb.Charts.SunCalendar do
           plot =
             Plot.new(
               width: @width,
-              height: @top + height + @bars_bottom,
+              height: @bars_top + height + @bars_bottom,
               margins: @bars_margins,
               x: day_axis,
               y: {0, bars_max}
@@ -142,11 +143,6 @@ defmodule ZiwoasWeb.Charts.SunCalendar do
       month_lines: month_lines(plot, shared.month_doys, Plot.top(plot)),
       grid_lines: Plot.grid_lines(plot, bar_values),
       value_labels: Plot.value_labels(plot, bar_values, @axis_label_gap),
-      unit_label: %Plot.Label{
-        x: Plot.left(plot),
-        y: Plot.top(plot) - @month_label_lift,
-        text: "kWh"
-      },
       month_labels:
         month_labels(plot, density, shared.year, Plot.bottom(plot) + @month_label_gap),
       areas: bar_areas(plot, days),

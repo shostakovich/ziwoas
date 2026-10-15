@@ -5,72 +5,129 @@ defmodule ZiwoasWeb.SolakonComponents do
   alias Ziwoas.Solakon
   alias Ziwoas.Solakon.{Reading, Snapshot}
 
-  @ranges [{"24h", "24 h"}, {"7d", "7 Tage"}, {"30d", "30 Tage"}]
   @flow_words [positive: "liefert", negative: "zieht"]
+  @balance_colors %{"solar" => 2, "battery" => 3, "grid" => 1}
 
   attr :id, :string, required: true
   attr :history, Solakon.History, required: true
+  attr :chart, :string, default: nil, doc: "the series as JSON, nil until connected"
   attr :page, :atom, values: [:solakon, :history], required: true
 
   def history(assigns) do
+    rows = balance_rows(assigns.history)
+
     assigns =
       assign(assigns,
-        ranges: @ranges,
-        rows: balance_rows(assigns.history),
+        options:
+          for(
+            range <- Solakon.History.ranges(),
+            do: {range_label(range), range, range_path(assigns.page, range)}
+          ),
+        period: range_period(assigns.history.range),
+        level: if(assigns.page == :solakon, do: 3, else: 2),
+        empty: assigns.history.times == [],
+        rows: rows,
+        pv_row: Enum.find(rows, &(&1.role == "solar")),
+        pair_rows: Enum.reject(rows, &(&1.role == "solar")),
         outlet_average: outlet_average(assigns.history)
       )
 
     ~H"""
-    <div
-      class="btn-group btn-group-sm d-flex d-sm-inline-flex mb-3"
-      role="group"
-      aria-label="Zeitraum"
+    <.chart_card
+      id={@id}
+      title="Leistung"
+      subtitle={"Watt · letzte #{@period}"}
+      level={@level}
+      hook={!@empty && "SolakonHistory"}
+      hook_attrs={%{"data-chart" => @chart, "data-range" => @history.range}}
+      height={if @empty, do: :auto, else: :lg}
+      summary={
+        if @empty,
+          do: "Keine Werte, letzte #{@period}",
+          else: "Leistung von PV, Akku und Außensteckdose, letzte #{@period}"
+      }
     >
-      <.link
-        :for={{key, label} <- @ranges}
-        patch={range_path(@page, key)}
-        replace
-        class={["btn btn-outline-primary flex-fill", key == @history.range && "active"]}
-        aria-current={key == @history.range && "true"}
-      >
-        <span class="d-none d-sm-inline">Letzte </span>{label}
-      </.link>
-    </div>
-    <div class="chart-frame" id={"#{@id}_frame"} phx-update="ignore">
-      <canvas></canvas>
-    </div>
-    <p :if={@history.times == []} class="small text-body-secondary">Keine Solakon-Historie</p>
-    <p class="small text-body-secondary">
-      Über 0 W: Akku lädt, Außensteckdose liefert ins Hausnetz. Unter 0 W: Akku entlädt, Außensteckdose zieht Leistung.
-    </p>
-    <div class="solakon-balance mt-3">
-      <div
-        :for={row <- @rows}
-        class="solakon-balance-row row gx-2 gy-1 align-items-center small mb-2"
-        data-role={row.role}
-      >
-        <span class="col col-sm-4 text-truncate">{row.label}</span>
-        <div class="col-12 col-sm order-last order-sm-0">
-          <div class="progress" style="height: .5rem" aria-hidden="true">
-            <div
-              class="progress-bar"
-              style={"width: #{row.share}%; background-color: var(--color-#{row.role})"}
-            >
-            </div>
+      <.empty_state :if={@empty} plush="sun" title="Keine Werte in diesem Zeitraum" data-role="empty">
+        Der Verlauf füllt sich mit jedem Messwert, den der Wechselrichter speichert.
+      </.empty_state>
+      <:actions>
+        <.segmented
+          mode={:patch}
+          value={@history.range}
+          label="Zeitraum"
+          size={:sm}
+          options={@options}
+        />
+      </:actions>
+      <:legend>
+        <.legend :if={!@empty} items={legend_items()} class="mt-3" />
+        <p :if={!@empty} class="text-xs text-base-content/70 max-w-prose mt-2">
+          Über 0 W lädt der Akku und die Außensteckdose liefert ins Hausnetz, darunter entlädt
+          der Akku und die Außensteckdose zieht Leistung.
+        </p>
+        <div
+          :if={@rows != []}
+          id={"#{@id}_balance"}
+          class="mt-4 border-t border-base-content/10 pt-4"
+        >
+          <.section_heading level={@level + 1} size={:sm}>Energie im Zeitraum</.section_heading>
+          <div class="grid gap-x-8 gap-y-3 md:grid-cols-2">
+            <.balance_bar row={@pv_row} class="md:col-span-2" />
+            <.balance_bar :for={row <- @pair_rows} row={row} />
           </div>
+          <p
+            :if={@outlet_average}
+            class="flex justify-between gap-4 text-sm mt-4"
+            data-role="outlet-average"
+          >
+            <span>Ø Außensteckdose</span>
+            <span class="tabular-nums whitespace-nowrap">{@outlet_average}</span>
+          </p>
         </div>
-        <span class="col-auto tabular-nums text-nowrap">{row.value}</span>
-      </div>
-      <div
-        :if={@outlet_average}
-        class="d-flex justify-content-between gap-2 small"
-        data-role="outlet-average"
-      >
-        <span>Ø Außensteckdose</span>
-        <span class="tabular-nums text-nowrap">{@outlet_average}</span>
-      </div>
-    </div>
+      </:legend>
+    </.chart_card>
     """
+  end
+
+  attr :row, :map, required: true
+  attr :class, :any, default: nil
+
+  defp balance_bar(assigns) do
+    ~H"""
+    <.bar
+      label={@row.label}
+      value={@row.share}
+      color={Map.fetch!(balance_colors(), @row.role)}
+      show_value
+      value_label={@row.value}
+      class={@class}
+      data-role={@row.role}
+    />
+    """
+  end
+
+  defp balance_colors, do: @balance_colors
+
+  defp legend_items do
+    [
+      %{label: "PV", color: 2, marker: :line},
+      %{label: "Akku", color: 3, marker: :line},
+      %{label: "Außensteckdose", color: 1, marker: :line}
+    ]
+  end
+
+  defp range_label(range) do
+    case Solakon.History.span(range) do
+      {:hours, hours} -> "#{hours} h"
+      {:days, days} -> "#{days} Tage"
+    end
+  end
+
+  defp range_period(range) do
+    case Solakon.History.span(range) do
+      {:hours, hours} -> "#{hours} Stunden"
+      {:days, days} -> "#{days} Tage"
+    end
   end
 
   defp range_path(:solakon, range), do: ~p"/solakon?#{[range: range]}"
@@ -79,18 +136,17 @@ defmodule ZiwoasWeb.SolakonComponents do
   @spec history_chart(Solakon.History.t()) :: map
   def history_chart(%Solakon.History{} = history) do
     %{
-      range: history.range,
       times: Enum.map(history.times, &DateTime.to_unix(&1, :millisecond)),
       datasets: [
-        dataset("PV", history.pv_w),
-        dataset("Akku", history.battery_w),
-        dataset("Außensteckdose", history.outlet_w),
-        %{label: "0 W", data: Enum.map(history.times, fn _ -> 0 end)}
+        dataset("pv", "PV", history.pv_w),
+        dataset("battery", "Akku", history.battery_w),
+        dataset("outlet", "Außensteckdose", history.outlet_w)
       ]
     }
   end
 
-  defp dataset(label, watts), do: %{label: label, data: Enum.map(watts, &Float.round(&1, 1))}
+  defp dataset(key, label, watts),
+    do: %{key: key, label: label, data: Enum.map(watts, &Float.round(&1, 1))}
 
   @spec balance_rows(Solakon.History.t()) :: [map]
   def balance_rows(%Solakon.History{balance: nil}), do: []
@@ -162,7 +218,7 @@ defmodule ZiwoasWeb.SolakonComponents do
     battery_soc_pct = reading && reading.battery_soc_pct
     battery_temp_c = first_value([reading, latest], :battery_temperature_c)
 
-    {state, asset, summary} =
+    {state, plush, summary} =
       battery_character(
         battery_fault?(reading, latest),
         battery_temp_c,
@@ -177,37 +233,39 @@ defmodule ZiwoasWeb.SolakonComponents do
         inverter_temp_c: first_value([reading, latest], :inverter_temperature_c),
         eps_enabled: reading && reading.eps_enabled,
         battery_state: state,
-        battery_asset: asset,
+        battery_plush: plush,
         battery_summary: summary
       )
 
     ~H"""
-    <.card title="Status">
-      <div class="solakon-status-figure d-flex align-items-center gap-3 mb-2">
-        <img
-          class="object-fit-contain flex-shrink-0"
-          width="64"
-          height="64"
-          data-solakon-battery-state={@battery_state}
-          alt=""
-          src={~p"/images/#{@battery_asset}"}
-        />
-        <p class="solakon-status-summary fw-semibold mb-0">{@battery_summary}</p>
-      </div>
-      <p :for={message <- @status_messages} class="small text-body-secondary mb-1">{message}</p>
-      <details class="solakon-details small text-body-secondary mt-2">
-        <summary>Details</summary>
-        <div class="mt-2">
-          <p class="mb-1">
-            Speichertemperatur (Status/Regelung) {number(@battery_temp_c, precision: 1)}&nbsp;°C
-          </p>
-          <p class="mb-1">
-            Wechselrichtertemperatur {number(@inverter_temp_c, precision: 1)}&nbsp;°C
-          </p>
-          <p class="mb-0">Außensteckdose {if @eps_enabled, do: "bereit", else: "aus"}</p>
+    <section id="solakon-status" aria-labelledby="solakon-status-heading">
+      <.section_heading id="solakon-status-heading">Status</.section_heading>
+      <div class="flex items-center gap-4">
+        <.plush name={@battery_plush} size={:xl} data-solakon-battery-state={@battery_state} />
+        <div class="min-w-0">
+          <p id="solakon-status-summary" class="font-semibold">{@battery_summary}</p>
+          <ul id="solakon-status-messages" class="text-sm text-base-content/70">
+            <li :for={message <- @status_messages}>{message}</li>
+          </ul>
         </div>
-      </details>
-    </.card>
+      </div>
+      <.disclosure
+        id="solakon-status-details"
+        variant={:row}
+        summary="Details"
+        class="mt-4 md:max-w-md"
+      >
+        <.description_list>
+          <:item label="Speichertemperatur (Status/Regelung)">
+            {number(@battery_temp_c, precision: 1, unit: "°C")}
+          </:item>
+          <:item label="Wechselrichtertemperatur">
+            {number(@inverter_temp_c, precision: 1, unit: "°C")}
+          </:item>
+          <:item label="Außensteckdose">{if @eps_enabled, do: "bereit", else: "aus"}</:item>
+        </.description_list>
+      </.disclosure>
+    </section>
     """
   end
 
@@ -216,7 +274,7 @@ defmodule ZiwoasWeb.SolakonComponents do
   defp conditions(_reading, latest), do: Solakon.conditions(latest)
 
   defp battery_character(true, _temp, _soc, _power),
-    do: {"fault", "solakon_battery_fault.webp", "Akku meldet Aufmerksamkeit"}
+    do: {"fault", "battery-warning", "Akku meldet Aufmerksamkeit"}
 
   defp battery_character(false, temp, soc, power),
     do: temperature_character(temp) || charge_character(soc) || flow_character(power)
@@ -225,32 +283,25 @@ defmodule ZiwoasWeb.SolakonComponents do
 
   defp temperature_character(temp) do
     cond do
-      temp >= Reading.hot_temp_c() -> {"hot", "solakon_battery_hot.webp", "Akku ist warm"}
-      temp <= Reading.cold_temp_c() -> {"cold", "solakon_battery_cold.webp", "Akku ist kalt"}
+      temp >= Reading.hot_temp_c() -> {"hot", "battery-hot", "Akku ist warm"}
+      temp <= Reading.cold_temp_c() -> {"cold", "battery-cold", "Akku ist kalt"}
       true -> nil
     end
   end
 
   defp charge_character(soc) do
     if not is_nil(soc) and soc <= Reading.low_soc_pct(),
-      do: {"low", "solakon_battery_low.webp", "Akku ist niedrig geladen"}
+      do: {"low", "battery-low", "Akku ist niedrig geladen"}
   end
 
   defp flow_character(power) do
     deadband = Reading.charge_deadband_w()
 
     cond do
-      is_nil(power) ->
-        {"normal", "solakon_battery_normal.webp", "Alles ruhig am Speicher"}
-
-      power > deadband ->
-        {"charging", "solakon_battery_charging.webp", "Akku lädt gerade"}
-
-      power < -deadband ->
-        {"normal", "solakon_battery_normal.webp", "Akku versorgt gerade das Haus"}
-
-      true ->
-        {"normal", "solakon_battery_normal.webp", "Alles ruhig am Speicher"}
+      is_nil(power) -> {"normal", "battery", "Alles ruhig am Speicher"}
+      power > deadband -> {"charging", "battery-charging", "Akku lädt gerade"}
+      power < -deadband -> {"normal", "battery", "Akku versorgt gerade das Haus"}
+      true -> {"normal", "battery", "Alles ruhig am Speicher"}
     end
   end
 
@@ -263,13 +314,13 @@ defmodule ZiwoasWeb.SolakonComponents do
   end
 
   attr :reading, Reading, default: nil
+  attr :inverter, :boolean, required: true, doc: "whether an inverter is monitored"
   attr :eps_on, :boolean, required: true
-  attr :eps_pending, :boolean, default: false
+  attr :eps_target, :boolean, default: nil, doc: "the state asked for while it switches"
   attr :eps_error, :string, default: nil
   attr :control_enabled, :boolean, required: true
   attr :control_active, :boolean, required: true
-  attr :control_pending, :boolean, default: false
-  attr :control_help, :string, default: nil
+  attr :control_target, :boolean, default: nil
   attr :control_error, :string, default: nil
 
   def controls(assigns) do
@@ -277,107 +328,110 @@ defmodule ZiwoasWeb.SolakonComponents do
 
     assigns =
       assign(assigns,
-        eps_power: number(reading && reading.eps_power_w, unit: "W"),
-        eps_voltage: number(reading && reading.eps_voltage_v, precision: 1, unit: "V")
+        eps_state: if(assigns.eps_on, do: "An", else: "Aus"),
+        eps_meta:
+          join_meta([
+            number(reading && reading.eps_power_w, unit: "W"),
+            number(reading && reading.eps_voltage_v, precision: 1, unit: "V")
+          ]),
+        control_state: control_state(assigns),
+        control_detail: control_detail(assigns)
       )
 
     ~H"""
-    <h2 class="h6 text-uppercase text-body-secondary mt-4 mb-2">Steuerung</h2>
-    <section class="row row-cols-1 row-cols-sm-2 g-2 mb-3">
-      <div class="col">
-        <article class="card h-100 solakon-control-card">
-          <div class="card-body p-3">
-            <div class="stat">
-              <span class="stat-label">Außensteckdose</span>
-              <span class="stat-value fs-2" id="solakon-eps-state">
-                {if @eps_on, do: "An", else: "Aus"}
-              </span>
-              <span class="small text-body-secondary">
-                Notstrom-Ausgang · <span>{@eps_power}</span> · <span>{@eps_voltage}</span>
-              </span>
-            </div>
+    <section id="solakon-controls" aria-labelledby="solakon-controls-heading">
+      <.section_heading id="solakon-controls-heading">Steuerung</.section_heading>
+      <div class="grid gap-4 md:grid-cols-2 md:gap-6">
+        <.card id="solakon-eps" title="Außensteckdose" level={3}>
+          <:actions>
             <.switch
-              id="solakon-eps-toggle"
-              checked={@eps_on}
-              disabled={@eps_pending}
+              id="solakon-eps"
+              name="eps"
               event="toggle_eps"
-              label="Außensteckdose schalten"
+              label="Notstrom"
+              checked={shown(@eps_on, @eps_target)}
+              disabled={!@inverter or !is_nil(@eps_target)}
             />
-            <p
-              class="small text-danger mt-2 mb-0"
-              id="solakon-eps-error"
-              hidden={is_nil(@eps_error)}
-            >
-              {@eps_error}
-            </p>
-          </div>
-        </article>
-      </div>
-      <div class="col">
-        <article class="card h-100 solakon-control-card">
-          <div class="card-body p-3">
-            <div class="stat">
-              <span class="stat-label">Auto-Regelung</span>
-              <span class="stat-value fs-2" id="solakon-control-state">
-                {cond do
-                  @control_active -> "Aktiv"
-                  @control_enabled -> "Pausiert"
-                  true -> "Aus"
-                end}
-              </span>
-              <span class="small text-body-secondary" id="solakon-control-help">
-                {cond do
-                  @control_help -> @control_help
-                  @control_enabled -> "folgt dem gemessenen Verbrauch"
-                  true -> "in Konfiguration deaktiviert"
-                end}
-              </span>
-            </div>
+          </:actions>
+          <.state_line id="solakon-eps" state={@eps_state} detail={@eps_meta} />
+          <.alert :if={@eps_error} id="solakon-eps-error" tone={:error} class="mt-2">
+            {@eps_error}
+          </.alert>
+        </.card>
+        <.card id="solakon-control" title="Regelung" level={3}>
+          <:actions>
             <.switch
-              id="solakon-control-toggle"
-              checked={@control_active}
-              disabled={!@control_enabled or @control_pending}
+              id="solakon-control"
+              name="control"
               event="toggle_control"
               label="Auto-Regelung"
+              checked={shown(@control_active, @control_target)}
+              disabled={!@control_enabled or !is_nil(@control_target)}
             />
-            <p
-              class="small text-danger mt-2 mb-0"
-              id="solakon-control-error"
-              hidden={is_nil(@control_error)}
-            >
-              {@control_error}
-            </p>
-          </div>
-        </article>
+          </:actions>
+          <.state_line id="solakon-control" state={@control_state} detail={@control_detail} />
+          <.alert :if={@control_error} id="solakon-control-error" tone={:error} class="mt-2">
+            {@control_error}
+          </.alert>
+        </.card>
       </div>
     </section>
     """
   end
 
+  defp low?(soc), do: not is_nil(soc) and soc <= Reading.low_soc_pct()
+
+  defp control_state(%{control_active: true}), do: "Aktiv"
+  defp control_state(%{control_enabled: true}), do: "Pausiert"
+  defp control_state(_assigns), do: "Aus"
+
+  defp control_detail(%{control_active: true}), do: "folgt dem gemessenen Verbrauch"
+  defp control_detail(%{control_enabled: true}), do: nil
+  defp control_detail(_assigns), do: "in Konfiguration deaktiviert"
+
   attr :id, :string, required: true
-  attr :checked, :boolean, required: true
-  attr :disabled, :boolean, default: false
+  attr :state, :string, required: true
+  attr :detail, :string, default: nil
+
+  defp state_line(assigns) do
+    ~H"""
+    <p id={"#{@id}-meta"} class="text-sm text-base-content/70 tabular-nums">
+      <span id={"#{@id}-state"} class="font-medium text-base-content">{@state}</span><span
+        :if={@detail}
+        data-role="detail"
+      ><.meta_sep />{@detail}</span>
+    </p>
+    """
+  end
+
+  defp shown(state, nil), do: state
+  defp shown(_state, target), do: target
+
+  attr :id, :string, required: true
+  attr :name, :string, required: true
   attr :event, :string, required: true
   attr :label, :string, required: true
+  attr :checked, :boolean, required: true
+  attr :disabled, :boolean, required: true
 
   defp switch(assigns) do
     ~H"""
-    <div class="form-check form-switch mt-2 mb-0">
-      <button
-        type="button"
-        class="form-check-input"
-        role="switch"
-        id={@id}
-        aria-checked={to_string(@checked)}
+    <.form for={%{}} id={"#{@id}-form"} phx-change={@event} phx-auto-recover="ignore">
+      <.input
+        type="toggle"
+        id={"#{@id}-toggle"}
+        name={@name}
+        label={@label}
+        checked={@checked}
         disabled={@disabled}
-        phx-click={@event}
-      ></button>
-      <label class="form-check-label" for={@id}>{@label}</label>
-    </div>
+        bare
+      />
+    </.form>
     """
   end
 
   attr :snapshot, Snapshot, default: nil
+  attr :stale, :boolean, default: false
 
   def panels(assigns) do
     assigns =
@@ -388,21 +442,35 @@ defmodule ZiwoasWeb.SolakonComponents do
       )
 
     ~H"""
-    <h2 class="h6 text-uppercase text-body-secondary mt-4 mb-2">Panels</h2>
-    <section class="grid grid-cols-2 md:grid-cols-4 gap-4 solakon-panel-grid">
-      <.stat
-        :for={panel <- @panels}
-        label={"Panel #{panel.index}"}
-        value={number(panel.power_w, unit: "W")}
-        desc={"#{number(panel.voltage_v, precision: 1, unit: "V")} · #{number(panel.current_a, precision: 2, unit: "A")}"}
-        size={:sm}
-      />
+    <section id="solakon-panels" aria-labelledby="solakon-panels-heading">
+      <.section_heading id="solakon-panels-heading">Panels</.section_heading>
+      <.empty_state :if={@panels == []} title="Noch keine Panelwerte">
+        Sie erscheinen mit der ersten Messung des Wechselrichters.
+      </.empty_state>
+      <div :if={@panels != []} class="setzkasten-stat-grid grid grid-cols-2 md:grid-cols-4 gap-4">
+        <.stat
+          :for={panel <- @panels}
+          id={"solakon-panel-#{panel.index}"}
+          label={"Panel #{panel.index}"}
+          value={number(panel.power_w)}
+          unit="W"
+          desc={
+            join_meta([
+              number(panel.voltage_v, precision: 1, unit: "V"),
+              number(panel.current_a, precision: 2, unit: "A")
+            ])
+          }
+          size={:sm}
+          stale={@stale}
+        />
+      </div>
     </section>
     """
   end
 
   attr :reading, Reading, default: nil
   attr :snapshot, Snapshot, default: nil
+  attr :stale, :boolean, default: false
 
   def storage(assigns) do
     reading = assigns.reading
@@ -414,29 +482,55 @@ defmodule ZiwoasWeb.SolakonComponents do
 
     assigns =
       assign(assigns,
+        soc: reading && reading.battery_soc_pct,
         tiles: [
-          {"Ladestand", number(reading && reading.battery_soc_pct), "%"},
-          {"Batterie­gesundheit", number(latest && latest.battery_health_pct), "%"},
-          {"Aktuelle Batterie­leistung",
+          {"health", "Batterie­gesundheit", number(latest && latest.battery_health_pct), "%"},
+          {"power", "Aktuelle Batterie­leistung",
            number(reading && Reading.battery_display_power_w(reading)), "W"},
-          {"Batterie­spannung", number(either.(:battery_voltage_v), precision: 1), "V"},
-          {"Batteriestrom", number(either.(:battery_current_a), precision: 2), "A"},
-          {"Speicher­temperatur", number(either.(:battery_temperature_c), precision: 1), "°C"},
-          {"Volle Kapazität", number(latest && latest.full_charge_capacity_ah, precision: 1),
-           "Ah"}
+          {"voltage", "Batterie­spannung", number(either.(:battery_voltage_v), precision: 1),
+           "V"},
+          {"current", "Batteriestrom", number(either.(:battery_current_a), precision: 2), "A"},
+          {"temperature", "Speicher­temperatur",
+           number(either.(:battery_temperature_c), precision: 1), "°C"},
+          {"capacity", "Volle Kapazität",
+           number(latest && latest.full_charge_capacity_ah, precision: 1), "Ah"}
         ]
       )
 
     ~H"""
-    <h2 class="h6 text-uppercase text-body-secondary mt-4 mb-2">Speicher</h2>
-    <section class="grid grid-cols-2 md:grid-cols-3 gap-4 solakon-storage-grid">
-      <.stat
-        :for={{label, value, unit} <- @tiles}
-        label={label}
-        value={value}
-        unit={unit}
-        size={:sm}
-      />
+    <section id="solakon-storage" aria-labelledby="solakon-storage-heading">
+      <.section_heading id="solakon-storage-heading">Speicher</.section_heading>
+      <div class="setzkasten-stat-grid grid grid-cols-2 md:grid-cols-4 gap-4">
+        <.stat
+          id="solakon-storage-soc"
+          label="Ladestand"
+          value={number(@soc)}
+          unit="%"
+          size={:sm}
+          stale={@stale}
+          class="col-span-2"
+        >
+          <:meter :if={@soc}>
+            <.bar
+              label="Ladestand"
+              value={@soc}
+              color={if !low?(@soc), do: 3}
+              tone={:warning}
+              hide_label
+              data-low={to_string(low?(@soc))}
+            />
+          </:meter>
+        </.stat>
+        <.stat
+          :for={{key, label, value, unit} <- @tiles}
+          id={"solakon-storage-#{key}"}
+          label={label}
+          value={value}
+          unit={unit}
+          size={:sm}
+          stale={@stale}
+        />
+      </div>
     </section>
     """
   end

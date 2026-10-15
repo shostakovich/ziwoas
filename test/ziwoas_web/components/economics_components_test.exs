@@ -23,8 +23,8 @@ defmodule ZiwoasWeb.EconomicsComponentsTest do
     )
   end
 
-  defp card(result, opts \\ []) do
-    (&EconomicsComponents.overview_card/1)
+  defp overview(result, opts \\ []) do
+    (&EconomicsComponents.overview/1)
     |> render_component([result: result] ++ opts)
     |> LazyHTML.from_fragment()
   end
@@ -40,23 +40,25 @@ defmodule ZiwoasWeb.EconomicsComponentsTest do
       |> LazyHTML.query("[data-economics-covered-pct]")
       |> LazyHTML.attribute("data-economics-covered-pct")
 
-  test "shows cost, savings, covered share and the projected date" do
-    doc = card(result())
+  defp stat(doc, id), do: hd(texts(doc, "##{id} .stat-value"))
+  defp hint(doc), do: texts(doc, "[data-economics-hint]")
 
-    assert texts(doc, ".card-title") == ["Wirtschaftlichkeit"]
-    assert texts(doc, ".card-title + p") == ["seit 14.02.2026"]
-    assert texts(doc, ".stat-value") == ["1.000,00 €", "200,00 €", "20,0 %", "09.11.2028"]
+  test "shows cost, savings and the projected date as tiles, the covered share as a bar" do
+    doc = overview(result())
+
+    assert texts(doc, "h2") == ["Wirtschaftlichkeit"]
+    assert stat(doc, "economics-cost") == "1.000,00 €"
+    assert stat(doc, "economics-saved") == "200,00 €"
+    assert stat(doc, "economics-payback") == "09.11.2028"
+
+    assert texts(doc, ".stat-title") ==
+             ["Anschaffungs­kosten", "Ersparnis", "Voraus­sichtliche Amortisation"]
+
     assert covered(doc) == ["20"]
-
-    assert texts(doc, ".stat-label") ==
-             [
-               "Anschaffungs­kosten",
-               "Ersparnis",
-               "Zurückverdient",
-               "Voraus­sichtliche Amortisation"
-             ]
-
-    assert "Hochrechnung aus 200 Tagen." in texts(doc, "p")
+    assert texts(doc, "#economics-covered progress[aria-label]") == [""]
+    assert hd(texts(doc, "#economics-covered")) == "Zurückverdient 20,0 %"
+    assert hd(texts(doc, "p")) =~ ~r/^Seit 14.02.2026\. Gerechnet wird nur/
+    assert hint(doc) == ["Hochrechnung aus 200 Tagen."]
     assert texts(doc, "a.btn") == ["Kosten und Preise pflegen"]
 
     assert doc |> LazyHTML.query("a.btn") |> LazyHTML.attribute("href") == [
@@ -65,17 +67,23 @@ defmodule ZiwoasWeb.EconomicsComponentsTest do
   end
 
   test "the covered share rounds from its own ratio and keeps one decimal" do
-    assert covered(card(result(covered_ratio: 0.51))) == ["51"]
-    assert Enum.at(texts(card(result(covered_ratio: 1.0 / 3)), ".stat-value"), 2) == "33,3 %"
+    assert covered(overview(result(covered_ratio: 0.51))) == ["51"]
+
+    assert hd(texts(overview(result(covered_ratio: 1.0 / 3)), "#economics-covered")) ==
+             "Zurückverdient 33,3 %"
+
+    assert overview(result(covered_ratio: 1.2))
+           |> LazyHTML.query("#economics-covered progress")
+           |> LazyHTML.attribute("value") == ["100"]
   end
 
   test "the payback: a dash, the day it was reached, or too little data" do
-    no_projection = card(result(projected_payback_date: nil))
-    assert List.last(texts(no_projection, ".stat-value")) == "—"
-    assert length(texts(no_projection, "p.text-body-secondary")) == 1
+    no_projection = overview(result(projected_payback_date: nil))
+    assert stat(no_projection, "economics-payback") == "—"
+    assert hint(no_projection) == []
 
     reached =
-      card(
+      overview(
         result(
           saved_eur: 1200.0,
           covered_ratio: 1.0,
@@ -84,17 +92,17 @@ defmodule ZiwoasWeb.EconomicsComponentsTest do
         )
       )
 
-    assert List.last(texts(reached, ".stat-label")) == "Amortisiert"
-    assert List.last(texts(reached, ".stat-value")) == "04.05.2027"
+    assert List.last(texts(reached, ".stat-title")) == "Amortisiert"
+    assert stat(reached, "economics-payback") == "04.05.2027"
 
-    short = card(result(projected_payback_date: nil, projection_days: 12))
-    assert List.last(texts(short, ".stat-value")) == "Noch zu wenig Daten"
-    assert "Basis sind erst 12 Tage." in texts(short, "p")
+    short = overview(result(projected_payback_date: nil, projection_days: 12))
+    assert stat(short, "economics-payback") == "Noch zu wenig Daten"
+    assert hint(short) == ["Basis sind erst 12 Tage."]
   end
 
   test "without cost items it asks for them, without a price it says the savings are unknown" do
     uncosted =
-      card(
+      overview(
         result(
           acquisition_cost_eur: 0.0,
           costed: false,
@@ -106,11 +114,11 @@ defmodule ZiwoasWeb.EconomicsComponentsTest do
 
     assert texts(uncosted, "a.btn") == ["Kosten erfassen"]
     assert covered(uncosted) == []
-    assert Enum.at(texts(uncosted, ".stat-value"), 2) == "—"
-    assert "Noch keine Kosten erfasst." in texts(uncosted, "p")
+    assert stat(uncosted, "economics-cost") == "0,00 €"
+    assert hint(uncosted) == ["Noch keine Kosten erfasst."]
 
     unpriced =
-      card(
+      overview(
         result(
           saved_eur: nil,
           covered_ratio: nil,
@@ -120,15 +128,18 @@ defmodule ZiwoasWeb.EconomicsComponentsTest do
         )
       )
 
-    assert Enum.at(texts(unpriced, ".stat-value"), 1) == "—"
-    assert "Noch kein Strompreis erfasst." in texts(unpriced, "p")
+    assert stat(unpriced, "economics-saved") == "—"
+    assert hint(unpriced) == ["Noch kein Strompreis erfasst."]
   end
 
-  test "without any data it names no start date; on its own page it takes a title and no link" do
-    assert texts(card(result(data_start: nil)), ".card-title + p") == []
+  test "without any data it names no start date; under a page header it has no heading of its own" do
+    refute hd(texts(overview(result(data_start: nil)), "p")) =~ "Seit"
+    assert EconomicsComponents.since(result()) == "seit 14.02.2026"
+    assert EconomicsComponents.since(result(data_start: nil)) == nil
 
-    own = card(result(), title: "Stand", link: false)
-    assert texts(own, ".card-title") == ["Stand"]
+    own = overview(result(), heading: false)
+    assert texts(own, "h2") == []
     assert texts(own, "a") == []
+    refute hd(texts(own, "p")) =~ "Seit"
   end
 end

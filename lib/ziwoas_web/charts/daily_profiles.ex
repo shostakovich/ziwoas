@@ -39,6 +39,7 @@ defmodule ZiwoasWeb.Charts.DailyProfiles do
 
     %{
       plot: plot,
+      grid_step: scale.step,
       grid_lines: Plot.grid_lines(plot, grid_values),
       value_labels: Plot.value_labels(plot, grid_values, @value_label_gap),
       hour_labels: %{dense: hour_labels(plot, hours, 3), sparse: hour_labels(plot, hours, 6)},

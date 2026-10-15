@@ -69,7 +69,7 @@ defmodule ZiwoasWeb.SunChartsTest do
 
       assert attrs(doc, "[data-strip]", "data-strip") == ~w[pv irradiance cloud energy]
 
-      assert texts(doc, ".sun-calendar h3") == [
+      assert texts(doc, "#sun-calendar h3") == [
                "PV-Leistung",
                "Einstrahlung",
                "Bewölkung",
@@ -80,7 +80,8 @@ defmodule ZiwoasWeb.SunChartsTest do
     test "shows the empty state while no PV hour exists" do
       doc = render_calendar(pv: %{})
 
-      assert texts(doc, ".empty-state h2") == ["Noch kein Sonnenkalender"]
+      assert texts(doc, "#sun-calendar h2") == ["Sonnenkalender"]
+      assert hd(texts(doc, "#sun-calendar")) =~ "Noch kein Sonnenkalender"
       assert count(doc, "svg") == 0
     end
 
@@ -121,13 +122,13 @@ defmodule ZiwoasWeb.SunChartsTest do
       assert count(doc, "[data-strip='irradiance'] line.seam, [data-strip='energy'] line.seam") ==
                0
 
-      assert hd(texts(doc, "[data-strip='pv'] .legend")) =~ "Wechsel der Quelle"
-      [note] = texts(doc, ".sun-calendar .note")
+      assert "Wechsel der Quelle" in texts(doc, "[data-strip='pv'] li")
+      [note] = texts(doc, "#sun-calendar .note")
       assert note =~ "Bis 19.06." and note =~ "ab 20.06." and note =~ "(AC)" and note =~ "(DC)"
 
       plain = render_calendar()
       assert count(plain, "line.seam") == 0
-      assert count(plain, ".sun-calendar .note") == 0
+      assert count(plain, "#sun-calendar .note") == 0
     end
 
     test "draws the sun lines once per frame, lets the other strips reuse them, and breaks them at gaps" do
@@ -150,11 +151,11 @@ defmodule ZiwoasWeb.SunChartsTest do
 
       assert count(doc, "#sun-lines-wide polyline.sun.rise") == 2
       assert count(doc, "#sun-lines-wide polyline.sun-halo") == 6
-      assert hd(texts(doc, "[data-strip='pv'] .legend")) =~ "Sonnenhöchststand"
+      assert "Sonnenhöchststand" in texts(doc, "[data-strip='pv'] li")
 
       bare = render_calendar()
       assert count(bare, "polyline.sun") == 0
-      refute hd(texts(bare, "[data-strip='pv'] .legend")) =~ "Sonnenaufgang"
+      assert texts(bare, "[data-strip='pv'] li") == []
     end
 
     test "gives every day a tooltip with its numbers, naming what is missing" do
@@ -192,7 +193,7 @@ defmodule ZiwoasWeb.SunChartsTest do
         )
 
       assert attrs(one, "svg.energy-chart-wide .bars path", "d") == [
-               "M235 130V30H236.8V80H238.6V130Z"
+               "M235 110V10H236.8V60H238.6V110Z"
              ]
 
       two =
@@ -204,15 +205,29 @@ defmodule ZiwoasWeb.SunChartsTest do
             })
         )
 
-      assert ["M235 130V30H236.8V130Z", "M238.6 130V130H240.4V130Z"] =
+      assert ["M235 110V10H236.8V110Z", "M238.6 110V110H240.4V110Z"] =
                attrs(two, "svg.energy-chart-wide .bars path", "d")
     end
 
     test "puts the maximum and the unit into every strip's legend, with a thousands dot" do
-      assert texts(render_calendar(pv_max: 1200.0), "[data-strip='pv'] .legend-item") |> hd() ==
-               "01.200 W"
+      assert texts(render_calendar(pv_max: 1200.0), "[data-strip='pv'] [data-key=ramp]") ==
+               ["01.200 W"]
 
-      assert length(texts(render_calendar(), ".sun-calendar .legend")) == 3
+      assert length(texts(render_calendar(), "#sun-calendar [data-key=ramp]")) == 3
+      assert length(texts(render_calendar(), "#sun-calendar [data-key=nodata]")) == 3
+    end
+
+    test "names unit and period in the subtitles, not inside the drawing" do
+      doc = render_calendar()
+
+      assert texts(doc, "#sun-calendar .card-title + p") == [
+               "je Stunde in W",
+               "je Stunde in W/m²",
+               "je Stunde in %",
+               "in kWh"
+             ]
+
+      refute Enum.any?(texts(doc, "svg text"), &(&1 == "kWh"))
     end
   end
 
@@ -252,6 +267,7 @@ defmodule ZiwoasWeb.SunChartsTest do
                "Azimut 140–145° · Höhe 45–50° · Ausbeute 80 % · 12 Stunden · 11–13 Uhr"
 
       assert "fill: var(--ramp-high)" in attrs(doc, "svg.yield-map-wide .fields > g", "style")
+      assert texts(doc, "#yield-map-method summary") == ["Wie wird gerechnet?"]
     end
 
     test "names the compass on both densities and the degrees only on the wide sky" do
@@ -310,7 +326,8 @@ defmodule ZiwoasWeb.SunChartsTest do
       doc = render_map([])
 
       assert count(doc, "svg") == 0
-      assert hd(texts(doc, "p.note")) =~ "Die Karte füllt sich"
+      assert texts(doc, ".card-title") == ["Ausbeute nach Sonnenstand"]
+      assert hd(texts(doc, "p")) =~ "Die Karte füllt sich"
     end
   end
 
@@ -335,12 +352,11 @@ defmodule ZiwoasWeb.SunChartsTest do
 
       assert texts(doc, "figcaption") == ["Jun 30 Tage", "Jul 1 Tag", "Feb 28 Tage"]
       assert attrs(doc, ".multiple.partial", "data-month") == ["7"]
-      assert attrs(doc, ".multiple[data-month='7'] svg", "class") == ["opacity-50"]
-      assert attrs(doc, ".multiple[data-month='6'] svg", "class") == []
       assert texts(doc, ".card-title + p") == ["Mittlere Leistung je Stunde in W"]
-      assert hd(texts(doc, "p.note")) =~ "mit dem Verhältnis von PV-Leistung zu Einstrahlung der"
+      assert texts(doc, "[data-role=grid-step]") == ["Gitterlinien alle 250 W."]
+      assert hd(texts(doc, ".note")) =~ "mit dem Verhältnis von PV-Leistung zu Einstrahlung der"
 
-      assert texts(doc, ".legend-item") == [
+      assert texts(doc, "li") == [
                "PV gemessen",
                "Erwartet aus Einstrahlung",
                "Wolkenloser Himmel"
@@ -374,7 +390,7 @@ defmodule ZiwoasWeb.SunChartsTest do
       doc = render_profiles([])
 
       assert texts(doc, ".card-title + p") == []
-      assert hd(texts(doc, "p.note")) =~ "sobald ein Monat Stundenwerte hat"
+      assert hd(texts(doc, "p")) =~ "sobald ein Monat Stundenwerte hat"
     end
   end
 
@@ -403,11 +419,11 @@ defmodule ZiwoasWeb.SunChartsTest do
 
     test "says since when the days were counted, in the singular for one" do
       assert texts(render_panels(panels(four())), ".card-title + p") == [
-               "seit 27.08.2026 · 16 Tage"
+               "Stundenmittel in W\u2060\u00a0· seit 27.08.2026 · 16 Tage"
              ]
 
       assert texts(render_panels(panels(four(), 1)), ".card-title + p") == [
-               "seit 27.08.2026 · 1 Tag"
+               "Stundenmittel in W\u2060\u00a0· seit 27.08.2026 · 1 Tag"
              ]
     end
 
@@ -422,8 +438,27 @@ defmodule ZiwoasWeb.SunChartsTest do
              ]
 
       assert count(doc, "svg.panel-chart-narrow .direct-labels") == 0
-      assert texts(doc, "ul.legend.d-sm-none li") == ["Panel 1", "Panel 2", "Panel 3", "Panel 4"]
+      assert texts(doc, "ul.sm\\:hidden li") == ["Panel 1", "Panel 2", "Panel 3", "Panel 4"]
       assert count(doc, "svg.panel-chart-narrow .hits") == 0
+    end
+
+    test "the phone's drawing keeps to three value steps" do
+      doc = render_panels(panels(four()))
+
+      assert texts(doc, "svg.panel-chart-wide .value-labels text") ==
+               ~w[0 100 200 300 400]
+
+      assert texts(doc, "svg.panel-chart-narrow .value-labels text") == ~w[0 200 400]
+    end
+
+    test "colours the panels on the series the chart contract leaves free next to the PV's amber" do
+      doc = render_panels(panels(four()))
+
+      assert attrs(doc, "svg.panel-chart-wide polyline.curve", "style") ==
+               Enum.map([1, 3, 4, 5], &"--tone: var(--color-chart-#{&1})")
+
+      assert attrs(doc, "ul.sm\\:hidden li svg", "class") ==
+               Enum.map([1, 3, 4, 5], &"h-2.5 w-4 shrink-0 stroke-chart-#{&1}")
     end
 
     test "lifts the names back over the axis when pushing them apart ran out of room" do
@@ -457,7 +492,7 @@ defmodule ZiwoasWeb.SunChartsTest do
 
       assert count(doc, "svg") == 0
       assert texts(doc, ".card-title + p") == []
-      assert hd(texts(doc, "p.note")) =~ "sobald alle vier Panels einen Tag lang geliefert haben"
+      assert hd(texts(doc, "p")) =~ "sobald alle vier Panels einen Tag lang geliefert haben"
     end
   end
 
@@ -470,6 +505,8 @@ defmodule ZiwoasWeb.SunChartsTest do
 
     doc = html(&Components.Shading.shading/1, report: report)
 
-    assert texts(doc, ".empty-state h2") == ["Noch keine Ausbeute"]
+    assert texts(doc, "#shading h2") == ["Ausbeute"]
+    assert hd(texts(doc, "#shading")) =~ "Noch keine Ausbeute"
+    assert count(doc, "[data-chart]") == 0
   end
 end

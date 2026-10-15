@@ -2,12 +2,14 @@ defmodule ZiwoasWeb.EconomicsLiveTest do
   use ZiwoasWeb.ConnCase
 
   import Phoenix.LiveViewTest
+  import Setzkasten.Test.Confirm
 
   alias Ziwoas.Economics.{CostItem, ElectricityPrice}
   alias Ziwoas.Energy.DailySummary
   alias Ziwoas.{Repo, TestClock}
 
   @path "/solakon/wirtschaftlichkeit"
+  @total "#cost_items-foot > :not([aria-hidden])"
 
   setup do
     TestClock.freeze("2026-10-05T12:00:00+02:00")
@@ -27,6 +29,11 @@ defmodule ZiwoasWeb.EconomicsLiveTest do
       |> LazyHTML.query(selector)
       |> Enum.map(&(&1 |> LazyHTML.text() |> String.split() |> Enum.join(" ")))
 
+  defp first_id(html, selector),
+    do: html |> LazyHTML.from_fragment() |> LazyHTML.query(selector) |> Enum.at(0) |> id()
+
+  defp id(node), do: node |> LazyHTML.attribute("id") |> hd()
+
   defp submit_cost(view, attrs),
     do: view |> form("#cost_item_form", cost_item: attrs) |> render_submit()
 
@@ -42,11 +49,16 @@ defmodule ZiwoasWeb.EconomicsLiveTest do
       {:ok, _view, html} = live(conn, @path)
 
       assert texts(html, "h1") == ["Wirtschaftlichkeit"]
-      assert texts(html, ".card-title") == ["Stand", "Kostenposten", "Strompreise"]
-      assert length(texts(html, ".economics-row")) == 3
+      assert length(texts(html, "main#main.max-w-3xl")) == 1
+      assert length(texts(html, "header .navbar.max-w-5xl")) == 1
+      assert texts(html, "main h2") == ["Kostenposten 2", "Strompreise 1"]
+      assert texts(html, "form h3") == ["Kostenposten erfassen", "Preis erfassen"]
+      assert length(texts(html, "#cost_items > li[id^=cost_item-]")) == 2
+      assert texts(html, @total) == ["Summe", "1.000,00\u00a0€"]
+      assert length(texts(html, "#prices > li")) == 1
       assert html =~ "Förderung"
-      assert html =~ "1.000,00 €"
-      assert html =~ "−200,00 €"
+      assert texts(html, "#economics-cost .stat-value") == ["1.000,00\u00a0€"]
+      assert html =~ "−200,00\u00a0€"
       assert html =~ "0,2902 €/kWh"
       assert html =~ "05.01.2026"
       assert html =~ "ab 01.01.2026"
@@ -57,7 +69,8 @@ defmodule ZiwoasWeb.EconomicsLiveTest do
       cost_item!("Montage", "200.00", ~D[2026-01-06])
 
       assert {:ok, _view, html} = live(conn, @path)
-      assert html =~ "899,90 €"
+      assert texts(html, "#economics-cost .stat-value") == ["899,90\u00a0€"]
+      assert texts(html, @total) == ["Summe", "899,90\u00a0€"]
     end
 
     test "prices self-consumption from the price book, not zero", %{conn: conn} do
@@ -71,21 +84,23 @@ defmodule ZiwoasWeb.EconomicsLiveTest do
       })
 
       assert {:ok, _view, html} = live(conn, @path)
-      assert html =~ "0,30 €"
+      assert texts(html, "#economics-saved .stat-value") == ["0,30\u00a0€"]
     end
 
     test "says what is missing, and offers today's date in the forms", %{conn: conn} do
       {:ok, view, html} = live(conn, @path)
 
       assert html =~ "Noch keine Kostenposten erfasst."
+      refute has_element?(view, "#cost_items")
       assert html =~ "Noch kein Strompreis erfasst."
       assert has_element?(view, "#cost_item_form input[type=date][value='2026-10-05']")
       assert has_element?(view, "#price_form input[type=date][value='2026-10-05']")
-      assert has_element?(view, "a[href='/solakon']", "Zurück zu PV")
+      assert has_element?(view, "main header a[href='/solakon']", "PV")
     end
 
     test "the card on the PV page links here", %{conn: conn} do
       {:ok, view, _html} = live(conn, "/solakon")
+      render_async(view)
 
       assert {:ok, _view, html} =
                view
@@ -110,7 +125,7 @@ defmodule ZiwoasWeb.EconomicsLiveTest do
         })
 
       assert texts(html, "#flash-info") == ["Wechselrichter erfasst"]
-      assert html =~ "899,90 €"
+      assert html =~ "899,90\u00a0€"
       assert html =~ "inkl. Montage"
       assert has_element?(view, "#cost_item_form input[name='cost_item[label]']:not([value])")
 
@@ -131,6 +146,16 @@ defmodule ZiwoasWeb.EconomicsLiveTest do
                "Datum angeben"
              ]
 
+      assert texts(html, "#cost_item_form [role=alert]") == [
+               "3 Felder sind noch nicht richtig Bitte prüfe die markierten Felder."
+             ]
+
+      assert has_element?(
+               view,
+               "#cost_item_form[phx-hook='Setzkasten.Components.Forms.FocusInvalid']"
+             )
+
+      assert first_id(html, "#cost_item_form [aria-invalid=true]") == "cost_item_label"
       assert texts(html, "#flash-info") == []
       assert cost_items() == 0
     end
@@ -159,16 +184,14 @@ defmodule ZiwoasWeb.EconomicsLiveTest do
       html = view |> element("#cost_item_form") |> render_change(%{"cost_item" => params})
 
       assert texts(html, "#cost_item_form [id*='-error-']") == ["Betrag als Zahl angeben"]
+      assert texts(html, "#cost_item_form [role=alert]") == []
     end
 
     test "is deleted after a confirmation, with a flash", %{conn: conn} do
       item = cost_item!("Module", "1200.00", ~D[2026-01-05])
       {:ok, view, _html} = live(conn, @path)
 
-      button =
-        element(view, "#cost_item-#{item.id} button[data-confirm='Module wirklich löschen?']")
-
-      html = render_click(button)
+      html = confirm_click(view, "#cost_item-#{item.id}-delete", "„Module“ löschen?")
 
       assert texts(html, "#flash-info") == ["Module gelöscht"]
       assert html =~ "Noch keine Kostenposten erfasst."
@@ -180,7 +203,7 @@ defmodule ZiwoasWeb.EconomicsLiveTest do
       {:ok, view, _html} = live(conn, @path)
       Repo.delete!(item)
 
-      html = view |> element("#cost_item-#{item.id} button") |> render_click()
+      html = confirm_click(view, "#cost_item-#{item.id}-delete")
 
       assert texts(html, "#flash-error") == ["Kostenposten nicht gefunden"]
     end
@@ -204,6 +227,17 @@ defmodule ZiwoasWeb.EconomicsLiveTest do
       html = submit_price(view, %{eur_per_kwh: "0", valid_from: "2026-07-01"})
 
       assert texts(html, "#price_form [id*='-error-']") == ["Preis muss größer als 0 sein"]
+
+      assert texts(html, "#price_form [role=alert]") == [
+               "1 Feld ist noch nicht richtig Bitte prüfe das markierte Feld."
+             ]
+
+      assert has_element?(
+               view,
+               "#price_form[phx-hook='Setzkasten.Components.Forms.FocusInvalid']"
+             )
+
+      assert first_id(html, "#price_form [aria-invalid=true]") == "electricity_price_eur_per_kwh"
       assert prices() == 0
     end
 
@@ -238,12 +272,7 @@ defmodule ZiwoasWeb.EconomicsLiveTest do
       price = insert_price!("2026-07-01", "0.30")
       {:ok, view, _html} = live(conn, @path)
 
-      html =
-        view
-        |> element(
-          "#price-#{price.id} button[data-confirm='Preis ab 01.07.2026 wirklich löschen?']"
-        )
-        |> render_click()
+      html = confirm_click(view, "#price-#{price.id}-delete", "Preis ab 01.07.2026 löschen?")
 
       assert texts(html, "#flash-info") == ["Preis ab 01.07.2026 gelöscht"]
       assert prices() == 0
