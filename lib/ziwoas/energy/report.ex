@@ -169,7 +169,6 @@ defmodule Ziwoas.Energy.Report do
         plug_id: plug_id,
         name: Roster.find(roster, plug_id).name,
         role: role,
-        position: Enum.find_index(peers, &(&1 == plug_id)),
         kwh:
           rows_by_plug[plug_id]
           |> Enum.map(& &1.energy_wh)

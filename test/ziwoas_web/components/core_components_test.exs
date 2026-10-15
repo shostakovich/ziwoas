@@ -84,14 +84,15 @@ defmodule ZiwoasWeb.CoreComponentsTest do
     end
   end
 
-  describe "measure_stat/6" do
-    test "a dash without unit when unknown, a plus on a signed non-negative value" do
-      assert CoreComponents.measure_stat("t", "Bilanz", nil, "kWh", 2, true) ==
+  describe "measure_stat/5" do
+    test "a dash without unit when unknown, the value in German otherwise" do
+      assert CoreComponents.measure_stat("t", "Bilanz", nil, "kWh", 2) ==
                %{id: "t", label: "Bilanz", value: "—", unit: nil}
 
-      assert CoreComponents.measure_stat(nil, "Bilanz", 0.0, "kWh", 2, true).value == "+0,00"
-      assert CoreComponents.measure_stat(nil, "Bilanz", -1.5, "kWh", 2, true).value == "−1,50"
-      assert CoreComponents.measure_stat(nil, "Gespart", 1234.5, "€", 2).value == "1.234,50"
+      assert CoreComponents.measure_stat(nil, "Bilanz", -1.5, "kWh", 2).value == "−1,50"
+
+      assert CoreComponents.measure_stat("t", "Gespart", 1234.5, "€", 2) ==
+               %{id: "t", label: "Gespart", value: "1.234,50", unit: "€"}
     end
   end
 end

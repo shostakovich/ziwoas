@@ -4,12 +4,14 @@ defmodule ZiwoasWeb.DashboardLive do
 
   import ZiwoasWeb.Components.EnergyFlow
   import ZiwoasWeb.DashboardComponents
+  import ZiwoasWeb.LiveFreshness, only: [live_header: 1]
   import ZiwoasWeb.RoomAirComponents, only: [dashboard_tile: 1]
 
-  alias Ziwoas.{Clock, Config, Energy, LocalDay, Plugs, Sensors, Solakon, Weather}
-  alias Ziwoas.Plugs.Measurement
-  alias ZiwoasWeb.Charts
-  alias ZiwoasWeb.DashboardComponents
+  alias Ziwoas.{Clock, Config, Energy, LocalDay, Plugs, Sensors, Solakon, Sun, Weather}
+  alias Ziwoas.Plugs.Roster
+  alias ZiwoasWeb.{Charts, DashboardComponents, RoomAirComponents, WeatherIcon}
+
+  on_mount ZiwoasWeb.LiveFreshness
 
   @summary_throttle_s 60
   @today_chart_refresh_ms 3_600_000
@@ -19,11 +21,21 @@ defmodule ZiwoasWeb.DashboardLive do
   @impl true
   def mount(_params, _session, socket) do
     config = Config.get()
+    roster = Config.plug_roster(config)
 
     socket =
       socket
-      |> assign(page_title: "Dashboard", beat: 0)
+      |> assign(
+        page_title: "Home",
+        zone: config.location.timezone,
+        roster: roster,
+        producers: roster |> Roster.producers() |> Enum.map(& &1.name),
+        consumers: roster |> Roster.consumers() |> Enum.map(&{&1.id, &1.name}),
+        today_chart: nil,
+        history: nil
+      )
       |> assign_summary(config)
+      |> assign_rank(config)
       |> assign_room_air(config)
       |> load_live()
 
@@ -39,14 +51,14 @@ defmodule ZiwoasWeb.DashboardLive do
 
     {:ok,
      if(connected?(socket),
-       do: socket |> push_today_chart(config) |> push_history_chart(config),
+       do: socket |> assign_today_chart(config) |> assign_history(config),
        else: socket
      )}
   end
 
   @impl true
   def handle_info({:live, deltas}, socket) do
-    socket = socket |> load_live() |> maybe_refresh_summary()
+    socket = socket |> load_live() |> maybe_refresh_summary() |> fill_empty_today_chart(deltas)
 
     socket =
       if deltas == [],
@@ -71,83 +83,74 @@ defmodule ZiwoasWeb.DashboardLive do
 
   def handle_info({:snapshot, _snapshot}, socket), do: {:noreply, socket}
 
-  def handle_info({:aggregated, _date}, socket),
-    do: {:noreply, push_history_chart(socket, Config.get())}
+  def handle_info({:aggregated, _date}, socket) do
+    config = Config.get()
+    {:noreply, socket |> assign_rank(config) |> assign_history(config)}
+  end
 
   def handle_info(:midnight, socket) do
     config = Config.get()
     schedule_midnight(config)
-    {:noreply, socket |> assign_summary(config) |> push_history_chart(config)}
+    {:noreply, socket |> assign_summary(config) |> assign_rank(config) |> assign_history(config)}
   end
 
   def handle_info(:slide_today_chart, socket) do
     Process.send_after(self(), :slide_today_chart, @today_chart_refresh_ms)
-    {:noreply, push_today_chart(socket, Config.get())}
+    {:noreply, assign_today_chart(socket, Config.get())}
   end
 
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} current_path={@current_path}>
-      <.header>Dashboard</.header>
+    <Layouts.app flash={@flash} current_path={@current_path} width={:default}>
+      <.live_header stale={@stale} live_at={@live_at} zone={@zone}>Home</.live_header>
 
-      <div
-        id="live_freshness"
-        phx-hook="LiveFreshness"
-        data-threshold-s={Measurement.offline_after_s()}
-        data-beat={@beat}
-      >
-        <.hero live={@live} weather_asset={@weather_asset} weather_alt={@weather_alt} />
+      <div class="flex flex-col gap-8">
+        <div class="flex flex-col gap-4 md:gap-6">
+          <div class="grid grid-cols-2 gap-4 md:gap-6 lg:grid-cols-4">
+            <.hero
+              live={@live}
+              weather_plush={@weather_plush}
+              weather_alt={@weather_alt}
+              class="col-span-2"
+            />
+            <.stat :for={tile <- @live_tiles} {tile} size={:sm} stale={@stale} />
+          </div>
 
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 live-dim">
-          <.stat {tile(@summary_tiles, "tile_produced")} size={:sm} />
-          <.stat {tile(@summary_tiles, "tile_consumed")} size={:sm} />
-          <.stat {tile(@summary_tiles, "tile_savings")} size={:sm} />
-          <.stat {tile(@summary_tiles, "tile_net_today")} size={:sm} />
-          <.stat :for={live_tile <- @live_tiles} {live_tile} size={:sm} />
-          <.stat {tile(@summary_tiles, "tile_autarky")} size={:sm} />
-          <.stat {tile(@summary_tiles, "tile_self_consumption")} size={:sm} />
+          <div class="grid gap-4 md:gap-6 lg:grid-cols-2">
+            <.energy_flow live={@live} class="min-w-0" />
+            <div class="flex min-w-0 flex-col gap-4 md:gap-6">
+              <.plug_bar live={@live} rank={@rank} class={@room_air && "flex-1"} />
+              <div :if={@room_air}><.dashboard_tile tile={@room_air} /></div>
+            </div>
+          </div>
         </div>
 
-        <.dashboard_tile :if={@room_air} tile={@room_air} />
-
-        <.energy_flow
-          live={@live}
-          pv_asset={@weather_asset}
-          pv_alt={@weather_alt}
-          class="live-dim"
-        />
-
-        <h2 class="h6 text-uppercase text-body-secondary mt-4 mb-2">Steckdosen</h2>
-        <.plug_bar live={@live} />
-
-        <div id="today_chart" phx-hook="TodayChart">
-          <.card title="Gesamtenergie" subtitle="kWh je Stunde · letzte 24 h">
-            <div class="chart-frame" id="today_energy_chart" phx-update="ignore">
-              <canvas data-chart="energy"></canvas>
+        <section aria-labelledby="today_heading">
+          <.section_heading id="today_heading">Heute</.section_heading>
+          <div class="flex flex-col gap-4 md:gap-6">
+            <div class="setzkasten-stat-grid grid grid-cols-2 gap-4 md:grid-cols-3 md:gap-6">
+              <.stat :for={tile <- @summary_tiles} {tile} size={:sm} />
             </div>
-          </.card>
+            <.today_charts
+              chart={@today_chart}
+              producers={@producers}
+              consumers={@consumers}
+              rank={@rank}
+              roster={@roster}
+              zone={@zone}
+            />
+          </div>
+        </section>
 
-          <.card title="Leistung" subtitle="Watt · letzte 24 h">
-            <div class="chart-frame" id="today_power_chart" phx-update="ignore">
-              <canvas data-chart="power"></canvas>
-            </div>
-          </.card>
-        </div>
-
-        <div id="history_chart" phx-hook="HistoryChart">
-          <.card title="Ertrag" subtitle="kWh je Tag · letzte 14 Tage">
-            <div class="chart-frame" id="history_chart_frame" phx-update="ignore">
-              <canvas></canvas>
-            </div>
-          </.card>
-        </div>
+        <section :if={@producers != []} aria-labelledby="history_heading">
+          <.section_heading id="history_heading">Verlauf</.section_heading>
+          <.history_chart points={@history} />
+        </section>
       </div>
     </Layouts.app>
     """
   end
-
-  defp tile(tiles, id), do: Enum.find(tiles, &(&1.id == id))
 
   defp assign_summary(socket, config) do
     assign(socket,
@@ -156,26 +159,50 @@ defmodule ZiwoasWeb.DashboardLive do
     )
   end
 
+  defp assign_rank(socket, config),
+    do:
+      assign(
+        socket,
+        :rank,
+        Plugs.consumer_rank(config.plugs, Clock.today(config.location.timezone))
+      )
+
   defp assign_room_air(socket, config) do
     now = Clock.now()
 
     room_air =
-      with name when is_binary(name) <- Sensors.display_room(config) do
-        reading = Sensors.room_reading(config, name, now)
+      with display when is_binary(display) <- Sensors.display_room(config) do
+        anchors = config |> Sensors.rooms() |> RoomAirComponents.anchors()
 
-        %{
-          id:
-            config |> Sensors.rooms() |> ZiwoasWeb.RoomAirComponents.anchors() |> Map.fetch!(name),
-          name: name,
-          reading: reading,
-          quantities: Sensors.room_quantities(config, name),
-          verdict: Sensors.air_verdict(reading),
-          now: now
-        }
+        [
+          display
+          | Enum.filter(Sensors.rooms(config), &(:co2 in Sensors.room_quantities(config, &1)))
+        ]
+        |> Enum.uniq()
+        |> Enum.map(&room_tile(config, &1, anchors, now))
+        |> Enum.max_by(&severity(&1.verdict))
       end
 
     assign(socket, :room_air, room_air)
   end
+
+  defp room_tile(config, name, anchors, now) do
+    reading = Sensors.room_reading(config, name, now)
+
+    %{
+      id: Map.fetch!(anchors, name),
+      name: name,
+      reading: reading,
+      quantities: Sensors.room_quantities(config, name),
+      verdict: Sensors.air_verdict(reading),
+      now: now
+    }
+  end
+
+  defp severity({:bad, _quantities}), do: 3
+  defp severity({:warn, _quantities}), do: 2
+  defp severity({:good, _quantities}), do: 1
+  defp severity(nil), do: 0
 
   defp maybe_refresh_summary(socket) do
     if Clock.unix_now() - socket.assigns.summary_at >= @summary_throttle_s,
@@ -190,25 +217,45 @@ defmodule ZiwoasWeb.DashboardLive do
     Process.send_after(self(), :midnight, delay_ms)
   end
 
-  defp push_today_chart(socket, config),
-    do: push_event(socket, "today_chart:data", Charts.Dashboard.today(config))
+  # An empty chart has no hook to take deltas, so the first readings redraw it whole.
+  defp fill_empty_today_chart(%{assigns: %{today_chart: chart}} = socket, [_ | _])
+       when not is_nil(chart) do
+    if Charts.Dashboard.measured?(chart),
+      do: socket,
+      else: assign_today_chart(socket, Config.get())
+  end
 
-  defp push_history_chart(socket, config) do
+  defp fill_empty_today_chart(socket, _deltas), do: socket
+
+  defp assign_today_chart(socket, config),
+    do: assign(socket, :today_chart, Charts.Dashboard.today(config))
+
+  defp assign_history(socket, config) do
     today = Clock.today(config.location.timezone)
-    push_event(socket, "history_chart:data", Charts.Dashboard.history(config, today))
+    assign(socket, :history, Charts.Dashboard.history(config, today).points)
   end
 
   defp load_live(socket) do
-    live = Energy.live_state(Config.get(), Clock.now())
-    {weather_asset, weather_alt} = ZiwoasWeb.WeatherIcon.dashboard(Weather.latest_current())
-    beat = if Map.has_key?(socket.assigns, :live), do: socket.assigns.beat + 1, else: 0
+    config = Config.get()
+    now = Clock.now()
+    live = Energy.live_state(config, now)
+    {weather_plush, weather_alt} = weather(Weather.latest_current(), config.location, now)
 
     assign(socket,
       live: live,
       live_tiles: DashboardComponents.live_tiles(live),
-      weather_asset: weather_asset,
-      weather_alt: weather_alt,
-      beat: beat
+      weather_plush: weather_plush,
+      weather_alt: weather_alt
     )
   end
+
+  defp weather(%{icon: icon} = record, location, now) when is_binary(icon) do
+    if String.trim(icon) == "",
+      do: weather(nil, location, now),
+      else:
+        {WeatherIcon.current_plush_name(record, Sun.daytime?(location, now)),
+         WeatherIcon.label(icon)}
+  end
+
+  defp weather(_record, _location, _now), do: {"sun", "Sonne"}
 end

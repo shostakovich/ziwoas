@@ -175,10 +175,6 @@ export function tonesByOrder(ids, semantic = []) {
   return new Map(ids.slice(0, free.length).map((id, index) => [ id, free[index] ]))
 }
 
-export function seriesToken(index) {
-  return `--color-chart-${(index % SERIES_COUNT) + 1}`
-}
-
 // A dashed horizontal line across the plot, named at its end instead of in the legend.
 export function thresholdLine(xBounds, { value, name, tone, textTone }) {
   return {

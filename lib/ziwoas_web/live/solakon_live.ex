@@ -160,7 +160,7 @@ defmodule ZiwoasWeb.SolakonLive do
         data-threshold-s={Measurement.offline_after_s()}
         data-beat={@beat}
       >
-        <.energy_flow live={@live} pv_asset="icon_sonne.webp" pv_alt="PV" />
+        <.energy_flow live={@live} />
 
         <.status reading={@reading} snapshot={@snapshot} />
         <.controls

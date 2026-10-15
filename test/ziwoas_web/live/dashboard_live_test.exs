@@ -30,38 +30,45 @@ defmodule ZiwoasWeb.DashboardLiveTest do
   defp stat(doc, id),
     do: doc |> LazyHTML.query("##{id}-value > span") |> Enum.map_join(" ", &LazyHTML.text/1)
 
+  defp payload(doc, chart),
+    do: doc |> attrs("##{chart}-chart", "data-payload") |> hd() |> JSON.decode!()
+
   defp weather!(attrs) do
     defaults = %{kind: :current, lat: 52.52, lon: 13.405, timestamp: Clock.now(), daytime: "day"}
     Repo.insert!(struct!(Record, Map.merge(defaults, Map.new(attrs))))
   end
 
-  test "the page: title, navigation, the energy flow, the tiles and the charts", %{conn: conn} do
+  test "the page: title, navigation, hero, energy flow, tiles, sections and charts", %{conn: conn} do
     doc = page(conn)
 
-    assert texts(doc, "title") == ["Dashboard"]
-    assert texts(doc, "h1") == ["Dashboard"]
+    assert texts(doc, "title") == ["Home"]
+    assert texts(doc, "h1") == ["Home"]
     assert texts(doc, "#app-shell-nav a[aria-current=page]") == ["Home"]
+    assert count(doc, "main#main.max-w-5xl") == 1
+    assert count(doc, "#dashboard_hero #hero_pv") == 1
     assert count(doc, ".energy-flow > svg[viewBox='0 0 400 320']") == 1
     assert count(doc, ".energy-flow svg g[fill='none'] > circle") == 4
-    assert texts(doc, "p.energy-flow-key") == ["Verbraucher-Ring: Herkunft des Stroms"]
 
     assert texts(doc, "[id^='tile_'] .stat-title") == [
-             "Erzeugt heute",
-             "Verbraucht heute",
-             "Gespart heute",
-             "Bilanz heute",
              "Verbrauch jetzt",
              "Bilanz jetzt",
-             "Autarkie heute",
+             "Erzeugt",
+             "Verbraucht",
+             "Gespart",
+             "Bilanz",
+             "Autarkie",
              "Eigen­verbrauchs­quote"
            ]
 
-    assert count(doc, "#today_chart[phx-hook=TodayChart] [phx-update=ignore][id] > canvas") == 2
+    assert texts(doc, "main h2") |> Enum.filter(&(&1 in ["Heute", "Verlauf"])) == [
+             "Heute",
+             "Verlauf"
+           ]
 
-    assert attrs(doc, "#today_chart canvas", "data-chart") == ["energy", "power"]
+    assert attrs(doc, "section.card[aria-busy=true]", "id") ==
+             ~w[today_energy today_power history]
 
-    assert count(doc, "#history_chart[phx-hook=HistoryChart] [phx-update=ignore][id] > canvas") ==
-             1
+    assert count(doc, "[phx-hook=TodayChart], [phx-hook=HistoryChart]") == 0
   end
 
   test "the energy flow card is the EnergyFlow hook; its SVG keeps its running dots", %{
@@ -69,7 +76,7 @@ defmodule ZiwoasWeb.DashboardLiveTest do
   } do
     doc = page(conn)
 
-    assert count(doc, ".energy-flow-card#energy_flow[phx-hook=EnergyFlow][data-state]") == 1
+    assert count(doc, "#energy_flow[phx-hook=EnergyFlow][data-state]") == 1
     assert count(doc, "#energy_flow svg#energy_flow_svg[phx-update=ignore]") == 1
   end
 
@@ -82,51 +89,33 @@ defmodule ZiwoasWeb.DashboardLiveTest do
     assert count(doc, "script[type='importmap']") == 0
   end
 
-  test "hero, tiles, plug bar and energy flow dim together when the live picture goes stale", %{
-    conn: conn
-  } do
+  test "the battery half stays away without a fresh reading", %{conn: conn} do
     doc = page(conn)
 
-    assert attrs(doc, "#live_freshness[phx-hook=LiveFreshness]", "data-threshold-s") == ["120"]
-    assert attrs(doc, "#live_freshness", "data-beat") == ["0"]
-    assert count(doc, "#live_freshness .live-dim") == 4
-
-    assert count(
-             doc,
-             "#dashboard_hero.live-dim, #dashboard_plug_bar.live-dim, .energy-flow-card.live-dim"
-           ) == 3
-
-    assert count(doc, ".live-dim > #tile_consumption_now") == 1
+    assert count(doc, "#hero_battery") == 0
+    assert count(doc, ".ef-ring[data-ring=battery] img[src*='solakon_battery_normal']") == 1
   end
 
-  test "the battery hero hides itself without a fresh reading and keeps the SVG asset map", %{
+  test "the current weather in German in the hero, the sun without one and in the PV ring", %{
     conn: conn
   } do
-    doc = page(conn)
-
-    assert count(doc, "#dashboard_hero .col[hidden] img.hero-icon[alt='Batterie']") == 1
-
-    assert count(
-             doc,
-             "img[data-ef='efBatteryImage'][data-battery-state-charging*='solakon_battery_charging']"
-           ) == 1
-  end
-
-  test "the current weather icon in the hero and the PV node, the sun without one", %{conn: conn} do
-    assert count(page(conn), "img.hero-icon[src*='icon_sonne'][alt='Sonne']") == 1
+    assert count(page(conn), "#dashboard_hero img[src*='icon_sonne'][alt='Sonne']") == 1
 
     weather!(daytime: "night", icon: "cloudy")
     doc = page(conn)
-    assert count(doc, "img.hero-icon[src*='weather_cloudy_night'][alt='cloudy']") == 1
-
-    assert count(
-             doc,
-             ".ef-ring[data-ring='pv'] > img.icon[src*='weather_cloudy_night'][alt='cloudy']"
-           ) == 1
+    assert count(doc, "#dashboard_hero img[src*='weather_cloudy_night'][alt='bewölkt']") == 1
+    assert count(doc, ".ef-ring[data-ring='pv'] > img[src*='icon_sonne']") == 1
 
     Repo.delete_all(Record)
     weather!(icon: "")
-    assert count(page(conn), "img.hero-icon[alt='Sonne']") == 1
+    assert count(page(conn), "#dashboard_hero img[src*='icon_sonne'][alt='Sonne']") == 1
+  end
+
+  test "the hero's weather turns to night once the sun is down, as on Wetter", %{conn: conn} do
+    TestClock.freeze("2026-10-05T23:00:00+02:00")
+    weather!(daytime: "day", icon: "cloudy")
+
+    assert count(page(conn), "#dashboard_hero img[src*='weather_cloudy_night']") == 1
   end
 
   test "live plugs: the consumers' draw, the producer's yield, the day's energy", %{conn: conn} do
@@ -141,33 +130,49 @@ defmodule ZiwoasWeb.DashboardLiveTest do
     assert stat(doc, "tile_netbalance_now") == "—"
     assert stat(doc, "tile_produced") == "0,05 kWh"
     assert stat(doc, "tile_consumed") == "0,01 kWh"
-    assert texts(doc, "#dashboard_hero .col:first-child .display-4") == ["413"]
+    assert texts(doc, "#hero_pv > span:first-child") == ["413"]
 
     assert texts(doc, "#dashboard_plug_bar [data-role='producer']") == [
              "Balkonkraftwerk erzeugt 413 W"
            ]
 
-    assert texts(doc, "#dashboard_plug_bar strong") == ["82 W"]
+    assert texts(doc, "#dashboard_plug_shares li") == ["Kühlschrank 82 W"]
+  end
+
+  test "an outage at mount is marked stale at once, since the newest measurement", %{conn: conn} do
+    insert_sample!("fridge", now_ts() - 900, 82.4, 110.0)
+    insert_sample!("bkw", now_ts() - 600, -300.0, 1000.0)
+
+    doc = page(conn)
+
+    assert texts(doc, "header #live_stale") == ["veraltet"]
+    assert texts(doc, "header p") == ["Keine neuen Messwerte seit 11:50 Uhr"]
+    assert texts(doc, "#tile_consumption_now .badge") == ["veraltet"]
   end
 
   describe "connected" do
-    test "the charts get their data once connected", %{conn: conn} do
+    test "the charts get their data as hook attributes once connected", %{conn: conn} do
       insert_sample!("fridge", now_ts() - 5, 82.4, 110.0)
       Repo.insert!(%DailyTotal{plug_id: "bkw", date: ~D[2026-10-01], energy_wh: 1500.0})
       Repo.insert!(%DailyTotal{plug_id: "fridge", date: ~D[2026-10-01], energy_wh: 400.0})
       Repo.insert!(%DailyTotal{plug_id: "bkw", date: ~D[2026-09-20], energy_wh: 9.0})
 
       {:ok, view, _html} = live(conn, ~p"/")
+      doc = from(render(view))
 
-      assert_push_event(view, "today_chart:data", %{series: series})
-      fridge = Enum.find(series, &(&1.plug_id == "fridge"))
-      assert %{name: "Kühlschrank", role: :consumer} = fridge
-      assert fridge.points == [%{ts: div(now_ts() - 5, 60) * 60, avg_power_w: 82.4}]
-      assert %{points: []} = Enum.find(series, &(&1.plug_id == "bkw"))
+      assert attrs(doc, "[phx-hook=TodayChart]", "data-chart") == ~w[energy power]
 
-      assert_push_event(view, "history_chart:data", %{
-        points: [%{date: "2026-10-01", energy_wh: 1500.0}]
-      })
+      %{"series" => series} = payload(doc, "today_power")
+      fridge = Enum.find(series, &(&1["plug_id"] == "fridge"))
+      assert %{"name" => "Kühlschrank", "role" => "consumer"} = fridge
+      assert fridge["points"] == [[div(now_ts() - 5, 60) * 60, 82.4]]
+      assert %{"points" => []} = Enum.find(series, &(&1["plug_id"] == "bkw"))
+
+      energy = payload(doc, "today_energy")
+      assert length(energy["hours"]) == 25
+      assert [%{"plug_id" => "fridge", "name" => "Kühlschrank"}] = energy["consumers"]
+
+      assert payload(doc, "history") == [%{"date" => "2026-10-01", "energy_wh" => 1500.0}]
     end
 
     test "a plug event re-renders hero, tiles, plug bar and energy flow, and pushes the deltas",
@@ -182,23 +187,62 @@ defmodule ZiwoasWeb.DashboardLiveTest do
       doc = from(render(view))
 
       assert stat(doc, "tile_consumption_now") == "82 W"
-      assert texts(doc, "#dashboard_plug_bar strong") == ["82 W"]
-      assert attrs(doc, "#live_freshness", "data-beat") == ["1"]
+      assert texts(doc, "#dashboard_plug_shares li span:last-child") == ["82 W"]
       assert [state] = attrs(doc, "#energy_flow", "data-state")
       assert JSON.decode!(state)["home_w"] == 82.4
 
       assert_push_event(view, "today_chart:deltas", %{deltas: ^deltas})
     end
 
-    test "an event without deltas pushes none, an inverter reading beats too", %{conn: conn} do
+    test "an event without deltas pushes none", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/")
 
       send(view.pid, {:live, []})
-      send(view.pid, {:reading, %Reading{id: 1}})
-      doc = from(render(view))
+      render(view)
 
       refute_push_event(view, "today_chart:deltas", _)
-      assert attrs(doc, "#live_freshness", "data-beat") == ["2"]
+    end
+
+    test "without a reading for two minutes the live values are marked stale, not faded",
+         %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      send(view.pid, :check_freshness)
+      doc = from(render(view))
+      assert count(doc, "#live_stale") == 0
+      assert texts(doc, ".stat .badge") == []
+
+      TestClock.freeze(DateTime.add(Clock.parse!(@now), 121))
+      send(view.pid, :check_freshness)
+      doc = from(render(view))
+
+      assert texts(doc, "header #live_stale") == ["veraltet"]
+      assert texts(doc, "header p") == ["Keine neuen Messwerte seit 12:00 Uhr"]
+
+      assert texts(doc, "#tile_consumption_now .badge, #tile_netbalance_now .badge") == [
+               "veraltet",
+               "veraltet"
+             ]
+
+      assert texts(doc, "#tile_produced .badge") == []
+
+      send(view.pid, {:reading, %Reading{id: 1}})
+      doc = from(render(view))
+      assert count(doc, "#live_stale") == 0
+      assert texts(doc, ".stat .badge") == []
+    end
+
+    test "a plug event clears the stale badge, a room sensor's reading does not", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/")
+      TestClock.freeze(DateTime.add(Clock.parse!(@now), 121))
+      send(view.pid, :check_freshness)
+      assert has_element?(view, "#live_stale")
+
+      send(view.pid, {:reading, %Sensors.Reading{device_id: "TEST_INDOOR"}})
+      assert has_element?(view, "#live_stale")
+
+      send(view.pid, {:live, []})
+      refute has_element?(view, "#live_stale")
     end
 
     test "plug events recompute the day's tiles at most once a minute", %{conn: conn} do
@@ -217,34 +261,57 @@ defmodule ZiwoasWeb.DashboardLiveTest do
 
     test "midnight starts the day's tiles afresh and redraws the history", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/")
-      assert_push_event(view, "history_chart:data", %{points: []})
+
+      assert texts(from(render(view)), "#history_empty p.font-semibold") == [
+               "Noch kein Ertrag aufgezeichnet"
+             ]
 
       insert_sample!("bkw", now_ts() - 600, -300.0, 1000.0)
       insert_sample!("bkw", now_ts() - 5, -412.6, 1500.0)
       Repo.insert!(%DailyTotal{plug_id: "bkw", date: ~D[2026-10-04], energy_wh: 700.0})
 
       send(view.pid, :midnight)
+      doc = from(render(view))
 
-      assert stat(from(render(view)), "tile_produced") == "0,50 kWh"
-      assert_push_event(view, "history_chart:data", %{points: [%{energy_wh: 700.0}]})
+      assert stat(doc, "tile_produced") == "0,50 kWh"
+      assert [%{"energy_wh" => 700.0}] = payload(doc, "history")
     end
 
     test "the nightly aggregation redraws the history", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/")
-      assert_push_event(view, "history_chart:data", %{points: []})
 
       Repo.insert!(%DailyTotal{plug_id: "bkw", date: ~D[2026-10-04], energy_wh: 700.0})
       Plugs.aggregate("Europe/Berlin", [], today: ~D[2026-10-05])
 
-      assert_push_event(view, "history_chart:data", %{points: [%{date: "2026-10-04"}]})
+      assert [%{"date" => "2026-10-04"}] = payload(from(render(view)), "history")
     end
 
     test "every hour the 24 h window slides on", %{conn: conn} do
+      insert_sample!("fridge", now_ts() - 5, 82.4, 110.0)
       {:ok, view, _html} = live(conn, ~p"/")
-      assert_push_event(view, "today_chart:data", _)
+      assert %{"series" => [%{"points" => []} | _]} = payload(from(render(view)), "today_power")
 
+      insert_sample!("bkw", now_ts() - 5, -412.6, 1500.0)
       send(view.pid, :slide_today_chart)
-      assert_push_event(view, "today_chart:data", %{series: [_ | _]})
+
+      assert %{"series" => [%{"points" => [_]} | _]} = payload(from(render(view)), "today_power")
+    end
+
+    test "without a reading in 24 hours the charts make way for an empty state until one comes",
+         %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/")
+      doc = from(render(view))
+
+      assert texts(doc, "#today_empty p.font-semibold") == [
+               "Keine Messwerte der letzten 24 Stunden"
+             ]
+
+      assert count(doc, "[phx-hook=TodayChart]") == 0
+
+      insert_sample!("fridge", now_ts() - 5, 82.4, 110.0)
+      send(view.pid, {:live, [%{id: "fridge", avg_power_w: 82.4, bucket_ts: now_ts() - 5}]})
+
+      assert attrs(from(render(view)), "[phx-hook=TodayChart]", "data-chart") == ~w[energy power]
     end
 
     test "the page listens to Plugs and Solakon", %{conn: conn} do
@@ -312,6 +379,39 @@ defmodule ZiwoasWeb.DashboardLiveTest do
           - { id: SEN, name: Raumluft, type: sen66, room: Wohnzimmer, port: /dev/x }
         """)
       )
+
+      assert texts(page(conn), "#room_air_tile h2 + p") == ["Wohnzimmer"]
+    end
+
+    test "shows the room that needs airing most, the SEN66's room while the air is even",
+         %{conn: conn} do
+      TestConfigs.put(
+        TestConfigs.plugs("""
+        sensors:
+          - { id: SEN, name: Raumluft, type: sen66, room: Wohnzimmer, port: /dev/x }
+          - { id: KCH, name: Küche, type: meter_pro_co2, room: Küche }
+          - { id: BAD, name: Bad, type: meter_pro_co2, room: Bad }
+        """)
+      )
+
+      for {id, co2} <- [{"SEN", 640}, {"KCH", 1100}, {"BAD", 1450}],
+          do: Repo.insert!(%Sensors.Reading{device_id: id, taken_at: Clock.now(), co2: co2})
+
+      assert texts(page(conn), "#room_air_tile h2 + p") == ["Bad"]
+
+      Repo.insert!(%Sensors.Reading{
+        device_id: "BAD",
+        taken_at: DateTime.add(Clock.now(), 1),
+        co2: 600
+      })
+
+      assert texts(page(conn), "#room_air_tile h2 + p") == ["Küche"]
+
+      Repo.insert!(%Sensors.Reading{
+        device_id: "KCH",
+        taken_at: DateTime.add(Clock.now(), 1),
+        co2: 600
+      })
 
       assert texts(page(conn), "#room_air_tile h2 + p") == ["Wohnzimmer"]
     end

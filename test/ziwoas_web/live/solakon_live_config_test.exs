@@ -90,10 +90,18 @@ defmodule ZiwoasWeb.SolakonLiveConfigTest do
 
     doc = page(conn, "/")
 
-    assert count(doc, "#dashboard_hero .col[hidden]") == 0
-    assert texts(doc, "#dashboard_hero .display-4") == ["310", "84"]
-    assert count(doc, "#dashboard_hero img[alt='Batterie'][src*='solakon_battery_charging']") == 1
-    assert texts(doc, "#tile_netbalance_now .stat-value") == ["+60 W"]
+    assert texts(doc, "#hero_pv > span:first-child, #hero_battery > span:first-child") == [
+             "310",
+             "84"
+           ]
+
+    assert count(doc, "#dashboard_hero img[alt='Batterie lädt'][src*='solakon_battery_charging']") ==
+             1
+
+    assert texts(doc, "#tile_netbalance_now :is(.stat-value, .stat-desc)") == [
+             "60 W",
+             "Überschuss"
+           ]
 
     [state] =
       doc
@@ -107,6 +115,6 @@ defmodule ZiwoasWeb.SolakonLiveConfigTest do
   test "a stale reading leaves the inverter offline", %{conn: conn} do
     reading!(121)
 
-    assert count(page(conn, "/"), "#dashboard_hero .col[hidden]") == 1
+    assert count(page(conn, "/"), "#hero_battery") == 0
   end
 end

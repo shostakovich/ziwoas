@@ -4,7 +4,7 @@ defmodule ZiwoasWeb.ReportsLive do
 
   import ZiwoasWeb.ReportsComponents
 
-  alias Ziwoas.{Clock, Config, Energy}
+  alias Ziwoas.{Clock, Config, Energy, Plugs}
   alias Ziwoas.Energy.Report
   alias ZiwoasWeb.{Charts, ReportRange}
 
@@ -13,13 +13,17 @@ defmodule ZiwoasWeb.ReportsLive do
   @impl true
   def mount(_params, _session, socket) do
     config = Config.get()
+    today = Clock.today(config.location.timezone)
+    roster = Config.plug_roster(config)
 
     {:ok,
      assign(socket,
        page_title: "Berichte",
-       plugs: config.plugs,
+       roster: roster,
        location: config.location,
-       today: Clock.today(config.location.timezone)
+       today: today,
+       rank: Plugs.consumer_rank(roster, today),
+       weather: %{daily: false, detail: false}
      )}
   end
 
@@ -31,82 +35,85 @@ defmodule ZiwoasWeb.ReportsLive do
 
     report =
       Energy.report(range,
-        plugs: socket.assigns.plugs,
+        plugs: socket.assigns.roster,
         location: location,
         today: socket.assigns.today
       )
 
     charts = Charts.EnergyReport.payload(report, location.timezone)
 
-    socket =
-      assign(socket,
-        report: report,
-        preset: preset,
-        range_invalid: invalid,
-        params: params,
-        weather: %{
-          daily: Map.has_key?(charts.daily, :weather),
-          detail: Map.has_key?(charts.detail, :weather)
-        }
-      )
-
     {:noreply,
-     if(connected?(socket), do: push_event(socket, "energy_report:data", charts), else: socket)}
+     assign(socket,
+       report: report,
+       preset: preset,
+       range_invalid: invalid,
+       params: params,
+       charts: if(connected?(socket), do: charts),
+       weather_available: %{
+         daily: Map.has_key?(charts.daily, :weather),
+         detail: Map.has_key?(charts.detail, :weather)
+       }
+     )}
   end
 
   @impl true
   def handle_event("apply_range", params, socket) do
     range = Map.take(params, ~w[start_date end_date])
-    {:noreply, push_patch(socket, to: ~p"/reports?#{range}")}
+    {:noreply, push_patch(socket, to: ~p"/reports?#{range}", replace: true)}
+  end
+
+  def handle_event("toggle_weather", %{"chart" => chart, "visible" => visible}, socket)
+      when chart in ~w[daily detail] do
+    weather = Map.put(socket.assigns.weather, String.to_existing_atom(chart), visible == "true")
+    {:noreply, assign(socket, :weather, weather)}
   end
 
   @impl true
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} current_path={@current_path} width={:default}>
-      <.header>Berichte</.header>
+      <.header>
+        Berichte
+        <:subtitle :if={!Report.empty?(@report)}>{range_label(@report)}</:subtitle>
+      </.header>
 
-      <div id="energy_report" phx-hook="EnergyReport">
-        <.range_picker report={@report} preset={@preset} params={@params} />
+      <.empty_state
+        :if={Report.empty?(@report)}
+        layout={:page}
+        plush="chart-column"
+        title="Noch keine Berichtsdaten"
+      >
+        Die Rückschau erscheint, sobald die erste Tagesaggregation vorhanden ist.
+      </.empty_state>
 
-        <p :if={@range_invalid} class="alert alert-warning mb-3" role="status">
-          Der Datumsbereich war ungültig und wurde auf die letzten 7 Tage zurückgesetzt.
-        </p>
+      <div :if={!Report.empty?(@report)} class="flex flex-col gap-8">
+        <div class="flex flex-col gap-4">
+          <.range_picker report={@report} preset={@preset} params={@params} />
+          <.alert :if={@range_invalid} id="range_invalid" tone={:warning}>
+            Der Datumsbereich war ungültig und wurde auf die letzten 7 Tage zurückgesetzt.
+          </.alert>
+        </div>
 
-        <%= if Report.empty?(@report) do %>
-          <.card title="Noch keine Berichtsdaten">
-            <p class="mb-0">
-              Die Rückschau erscheint, sobald die erste Tagesaggregation vorhanden ist.
-            </p>
-          </.card>
-        <% else %>
-          <.summary summary={@report.summary} />
-
-          <h2 class="h6 text-uppercase text-body-secondary mt-4 mb-2">Steckdosen</h2>
-          <.ranking producers={@report.producer_ranking} consumers={@report.consumer_ranking} />
-
-          <.card title="Energie" subtitle="kWh je Tag · Ertrag und Verbrauch">
-            <.weather_switch :if={@weather.daily} chart="daily" />
-            <div class="chart-frame" id="report_daily_chart" phx-update="ignore">
-              <canvas data-chart="daily"></canvas>
-            </div>
-          </.card>
-
-          <.card title="Leistung" subtitle={power_subtitle(@report, @today)}>
-            <.weather_switch :if={@weather.detail} chart="detail" />
-            <div class="chart-frame" id="report_detail_chart" phx-update="ignore">
-              <canvas data-chart="detail"></canvas>
-            </div>
-          </.card>
-
-          <.card title="Autarkie & Eigenverbrauchsquote" subtitle="Prozent je Tag">
-            <div class="chart-frame" id="report_ratios_chart" phx-update="ignore">
-              <canvas data-chart="ratios"></canvas>
-            </div>
-          </.card>
-        <% end %>
+        <.summary summary={@report.summary} />
+        <.ranking producers={@report.producer_ranking} consumers={@report.consumer_ranking} />
+        <.charts
+          report={@report}
+          today={@today}
+          charts={@charts}
+          weather={@weather}
+          weather_available={@weather_available}
+          rank={@rank}
+          roster={@roster}
+        />
       </div>
     </Layouts.app>
     """
+  end
+
+  defp range_label(%Report{start_date: day, end_date: day}), do: date(day)
+
+  defp range_label(%Report{start_date: from, end_date: to}) do
+    first = if from.year == to.year, do: day_month(from), else: date(from)
+    join_meta(["#{first}–#{date(to)}", "#{Date.diff(to, from) + 1} Tage"])
   end
 end

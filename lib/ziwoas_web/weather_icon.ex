@@ -43,12 +43,4 @@ defmodule ZiwoasWeb.WeatherIcon do
 
   @spec label(String.t() | nil) :: String.t()
   def label(icon), do: Map.fetch!(@labels, Weather.base_icon(icon))
-
-  @spec dashboard(map | nil) :: {String.t(), String.t()}
-  def dashboard(nil), do: {"icon_sonne.webp", "Sonne"}
-
-  def dashboard(%{icon: icon, daytime: daytime}) do
-    alt = if is_binary(icon) and String.trim(icon) != "", do: icon, else: "Sonne"
-    {asset_name(icon, daytime), alt}
-  end
 end

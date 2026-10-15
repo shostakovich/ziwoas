@@ -2,16 +2,11 @@ defmodule ZiwoasWeb.CoreComponents do
   @moduledoc false
   alias ZiwoasWeb.Format
 
-  def measure_stat(id, label, value, unit, precision, signed \\ false)
-
-  def measure_stat(id, label, nil, _unit, _precision, _signed),
+  def measure_stat(id, label, nil, _unit, _precision),
     do: %{id: id, label: label, value: "—", unit: nil}
 
-  def measure_stat(id, label, value, unit, precision, signed) do
-    number = Format.number(value, precision: precision)
-    number = if signed and not (value < 0), do: "+" <> number, else: number
-    %{id: id, label: label, value: number, unit: unit}
-  end
+  def measure_stat(id, label, value, unit, precision),
+    do: %{id: id, label: label, value: Format.number(value, precision: precision), unit: unit}
 
   @doc "German messages from the validation pass through; Ecto's English ones are looked up."
   @spec translate_error({String.t(), keyword}) :: String.t()

@@ -1,5 +1,3 @@
-import { formatWatts, formatPercent } from "./format.js"
-
 // Keys match the SVG's data-ef names efLine<key> and efDots<key>.
 const CHANNELS = [
   { key: "SolarHome",    flow: "solar_to_home_w" },
@@ -11,9 +9,9 @@ const CHANNELS = [
 ]
 
 const CONSUMER_SOURCES = [
-  { flow: "solar_to_home_w",   color: "var(--color-solar)" },
-  { flow: "grid_to_home_w",    color: "var(--color-grid)" },
-  { flow: "battery_to_home_w", color: "var(--color-battery)" },
+  { flow: "solar_to_home_w",   stroke: "stroke-solar" },
+  { flow: "grid_to_home_w",    stroke: "stroke-grid" },
+  { flow: "battery_to_home_w", stroke: "stroke-battery" },
 ]
 
 const IDLE_W = 1
@@ -33,18 +31,6 @@ export class EnergyFlowView {
   }
 
   render(flow) {
-    const online = !!flow?.solakon_online
-    const pvW = online ? Math.max(0, flow.solar_w || 0) : null
-
-    this.setText("efPvW", formatWatts(pvW))
-    this.setText("efConsumerW", formatWatts(flow?.home_w))
-    this.setText("efGridW", magnitude(flow?.grid_w))
-    this.setText("efGridName", direction(flow?.grid_w, "Netzbezug", "Einspeisung", "Stromnetz"))
-    this.setText("efBatteryW", magnitude(flow?.battery_w))
-    this.setText("efBatteryName", direction(flow?.battery_w, "Batterie lädt", "Batterie entlädt", "Batterie"))
-    this.setText("efBatterySoc", flow?.battery_soc_pct == null ? "" : ` · ${formatPercent(flow.battery_soc_pct)}`)
-    setBatteryImage(this.find("efBatteryImage"), flow?.battery_state)
-
     const flows = flow?.flows || {}
     for (const channel of CHANNELS) {
       const w = Number(flows[channel.flow] || 0)
@@ -52,16 +38,11 @@ export class EnergyFlowView {
       this.setDots(channel, w)
     }
     this.setConsumerRing(
-      CONSUMER_SOURCES.map((source) => ({ w: Number(flows[source.flow] || 0), color: source.color }))
+      CONSUMER_SOURCES.map((source) => ({ w: Number(flows[source.flow] || 0), stroke: source.stroke }))
     )
   }
 
   find(name) { return this.element?.querySelector(`[data-ef="${name}"]`) }
-
-  setText(name, text) {
-    const node = this.find(name)
-    if (node) node.textContent = text
-  }
 
   // A flowing channel keeps its circles and only changes playbackRate, so dots don't snap back on a new reading.
   setDots({ key }, w) {
@@ -123,8 +104,7 @@ export class EnergyFlowView {
       const pct = (segment.w / total) * 100
       const arc = document.createElementNS(SVG_NS, "circle")
       for (const attribute of ["cx", "cy", "r"]) arc.setAttribute(attribute, base.getAttribute(attribute))
-      arc.setAttribute("fill", "none")
-      arc.style.stroke = segment.color
+      arc.setAttribute("class", segment.stroke)
       arc.setAttribute("stroke-width", "3")
       arc.setAttribute("pathLength", "100")
       arc.setAttribute("stroke-dasharray", `${pct} ${100 - pct}`)
@@ -133,20 +113,4 @@ export class EnergyFlowView {
       acc += pct
     }
   }
-}
-
-function magnitude(w) {
-  return w == null ? formatWatts(null) : formatWatts(Math.abs(w))
-}
-
-function direction(w, positive, negative, idle) {
-  if (w == null || Math.abs(w) < IDLE_W) return idle
-  return w > 0 ? positive : negative
-}
-
-export function setBatteryImage(image, state) {
-  if (!image) return
-  const key = state || "normal"
-  const src = image.dataset[`batteryState${key.charAt(0).toUpperCase()}${key.slice(1)}`]
-  if (src) image.src = src
 }

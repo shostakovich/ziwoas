@@ -5,7 +5,7 @@ defmodule ZiwoasWeb.ReportsLiveTest do
 
   alias Ziwoas.Energy.DailySummary
   alias Ziwoas.Plugs.DailyTotal
-  alias Ziwoas.{Repo, TestClock}
+  alias Ziwoas.{Repo, TestClock, TestConfigs}
   alias Ziwoas.Weather.Record
 
   setup do
@@ -21,11 +21,6 @@ defmodule ZiwoasWeb.ReportsLiveTest do
         energy_wh: energy_wh * 1.0
       })
 
-  defp pushed(view) do
-    assert_push_event(view, "energy_report:data", payload)
-    payload
-  end
-
   defp page(conn, params \\ []),
     do: conn |> get(~p"/reports?#{params}") |> html_response(200) |> LazyHTML.from_document()
 
@@ -35,11 +30,17 @@ defmodule ZiwoasWeb.ReportsLiveTest do
   defp count(doc, selector), do: doc |> LazyHTML.query(selector) |> Enum.count()
   defp attr(doc, selector, name), do: doc |> LazyHTML.query(selector) |> LazyHTML.attribute(name)
   defp squish(text), do: text |> String.split() |> Enum.join(" ")
+  defp from(html), do: LazyHTML.from_fragment(html)
+
+  defp payload(doc, chart),
+    do: doc |> attr("#report_#{chart}-chart", "data-payload") |> hd() |> JSON.decode!()
 
   test "reports page renders", %{conn: conn} do
+    total!("bkw", "2026-04-10", 2000)
     doc = page(conn)
 
     assert texts(doc, "h1") == ["Berichte"]
+    assert texts(doc, "header p") == ["04.04.–10.04.2026\u2060\u00A0· 7 Tage"]
     assert count(doc, "section[aria-label='Zeitraum']") == 1
     assert texts(doc, "title") == ["Berichte"]
     assert texts(doc, "#app-shell-nav a[aria-current=page]") == ["Berichte"]
@@ -56,13 +57,14 @@ defmodule ZiwoasWeb.ReportsLiveTest do
     assert attr(doc, "#end_date", "min") == ["2024-03-01"]
     assert attr(doc, "#start_date", "max") == ["2026-04-09"]
     assert attr(doc, "#end_date", "max") == ["2026-04-09"]
-    assert texts(doc, ".alert:not([hidden])") == []
+    assert count(doc, "#range_invalid") == 0
 
     {:ok, view, _html} = live(conn, ~p"/reports?start_date=1026-04-01&end_date=2026-04-07")
     assert :sys.get_state(view.pid).socket.assigns.report.start_date == ~D[2024-03-01]
   end
 
   test "reports page accepts custom range params", %{conn: conn} do
+    total!("bkw", "2026-04-10", 2000)
     doc = page(conn, start_date: "2026-04-01", end_date: "2026-04-07")
 
     assert count(doc, "input[name='start_date'][value='2026-04-01']") == 1
@@ -77,11 +79,11 @@ defmodule ZiwoasWeb.ReportsLiveTest do
 
     assert attr(doc, "#start_date", "value") == ["20260401"]
     assert attr(doc, "#end_date", "value") == ["2026-W15-2"]
-    assert [warning] = texts(doc, ".alert.alert-warning")
+    assert [warning] = texts(doc, "#range_invalid")
     assert warning =~ "ungültig"
   end
 
-  test "the weather switch says what it does", %{conn: conn} do
+  test "the weather switches are toggles in their charts, off until switched on", %{conn: conn} do
     total!("bkw", "2026-04-10", 2000)
 
     Repo.insert!(%Record{
@@ -94,77 +96,83 @@ defmodule ZiwoasWeb.ReportsLiveTest do
       solar: 0.5
     })
 
+    path = ~p"/reports?start_date=2026-04-01&end_date=2026-04-07"
     doc = page(conn, start_date: "2026-04-01", end_date: "2026-04-07")
 
-    assert texts(doc, "label[for='report-daily-weather']") == ["Wetter einblenden"]
+    assert texts(doc, "#report_daily form[phx-change=toggle_weather] label") == ["Wetter"]
+    assert attr(doc, "#report-daily-weather[type=checkbox]", "data-weather-toggle") == ["daily"]
+    assert count(doc, "#report-daily-weather[checked]") == 0
+    refute "Einstrahlung (kWh/m²)" in texts(doc, "#report_daily ul li")
 
-    assert attr(doc, "#report-daily-weather[phx-update=ignore]", "data-weather-toggle") == [
-             "daily"
-           ]
+    {:ok, view, _html} = live(conn, path)
+    daily = payload(from(render(view)), "daily")
 
-    {:ok, view, _html} = live(conn, ~p"/reports?start_date=2026-04-01&end_date=2026-04-07")
-    payload = pushed(view)
+    assert [nil, nil, %{"asset_name" => "weather_clear_day.webp", "alt" => "clear"} | _] =
+             daily["weather"]["icons"]
 
-    assert [nil, nil, %{asset_name: "weather_clear_day.webp", alt: "clear"} | _] =
-             payload.daily.weather.icons
-
-    assert payload.weather_assets == %{
+    assert daily["weather_assets"] == %{
              "weather_clear_day.webp" => "/images/weather_clear_day.webp"
            }
+
+    view |> element("#report_daily_weather") |> render_change(%{chart: "daily", visible: "true"})
+    doc = from(render(view))
+
+    assert count(doc, "#report-daily-weather[checked]") == 1
+    assert "Einstrahlung (kWh/m²)" in texts(doc, "#report_daily ul li")
+    assert count(doc, "#report-detail-weather[checked]") == 0
+
+    doc = view |> render_patch(~p"/reports?start_date=2026-04-08&end_date=2026-04-10") |> from()
+
+    assert count(doc, "#report-daily-weather") == 0
+    refute "Einstrahlung (kWh/m²)" in texts(doc, "#report_daily ul li")
   end
 
-  test "a custom range marks Benutzerdefiniert, not a preset, as active", %{conn: conn} do
+  test "a custom range selects no preset", %{conn: conn} do
     total!("bkw", "2026-04-10", 2000)
     doc = page(conn, start_date: "2026-04-01", end_date: "2026-04-07")
 
-    assert texts(doc, ".btn-group[aria-label='Schnellauswahl'] .btn.active") == [
-             "Benutzerdefiniert"
-           ]
-
-    assert count(doc, ".btn-group[aria-label='Schnellauswahl'] a[aria-current]") == 0
+    assert count(doc, "nav#range_presets[aria-label='Schnellauswahl'] a") == 2
+    assert count(doc, "nav#range_presets a[aria-current]") == 0
   end
 
   test "the active preset is marked as the current page", %{conn: conn} do
     total!("bkw", "2026-04-10", 2000)
     doc = page(conn, preset: "last_30")
 
-    assert count(doc, ".btn-group[aria-label='Schnellauswahl'] a.btn") == 2
+    assert texts(doc, "#range_presets a[aria-current='page']") == ["Letzte 30 Tage"]
 
-    assert texts(doc, ".btn-group[aria-label='Schnellauswahl'] a.btn.active[aria-current='page']") ==
-             ["Letzte 30 Tage"]
-
-    assert count(doc, ".btn-group[aria-label='Schnellauswahl'] .btn.active") == 1
-
-    assert attr(doc, ".btn-group a", "href") == [
+    assert attr(doc, "#range_presets a", "href") == [
              "/reports?preset=last_7",
              "/reports?preset=last_30"
            ]
+
+    assert attr(doc, "#range_presets a", "data-phx-link-state") == ["replace", "replace"]
   end
 
   test "the date form labels its fields and submits to the LiveView", %{conn: conn} do
+    total!("bkw", "2026-04-10", 2000)
     doc = page(conn)
     form = LazyHTML.query(doc, "form#range_form[phx-submit='apply_range']")
 
-    assert texts(form, "label[for='start_date']") == ["Von"]
-    assert texts(form, "label[for='end_date']") == ["Bis"]
+    assert texts(form, "label:has(#start_date) span, label[for='start_date']") |> hd() == "Von"
     assert count(form, "input#start_date[type='date']") == 1
     assert count(form, "input#end_date[type='date']") == 1
-    assert texts(form, "button[type='submit']:not([name])") == ["Anwenden"]
+    assert texts(form, "button[type='submit']") == ["Anwenden"]
   end
 
   test "an invalid range is reported as a warning", %{conn: conn} do
     total!("bkw", "2026-04-10", 2000)
     doc = page(conn, start_date: "2026-04-07", end_date: "2026-04-01")
 
-    assert [warning] = texts(doc, ".alert.alert-warning")
+    assert [warning] = texts(doc, "#range_invalid")
     assert warning =~ "ungültig"
   end
 
-  test "reports page renders summary ranking and chart payload", %{conn: conn} do
+  test "summary tiles, the plugs' ranking and three charts loading until connected", %{
+    conn: conn
+  } do
     total!("bkw", "2026-04-10", 2000)
     doc = page(conn)
-
-    assert count(doc, "section[aria-label='Zusammenfassung'] .stat") == 8
 
     assert texts(doc, "section[aria-label='Zusammenfassung'] .stat-title") == [
              "Ertrag",
@@ -173,81 +181,83 @@ defmodule ZiwoasWeb.ReportsLiveTest do
              "Bilanz",
              "Autarkie",
              "Eigen­verbrauchs­quote",
-             "Ø Ertrag/Tag",
-             "Ø Verbrauch/Tag"
+             "Ø Ertrag je Tag",
+             "Ø Verbrauch je Tag"
            ]
 
-    headings = texts(doc, "main h2")
-    refute "Zeitraum" in headings
-    refute "Zusammenfassung" in headings
-    assert "Steckdosen" in headings
-    assert "kWh je Tag · Ertrag und Verbrauch" in texts(doc, ".card-title + p")
-    assert "Leistung" in texts(doc, ".card-title")
-    assert count(doc, ".card .chart-frame") >= 2
-    assert count(doc, "ul.list-group[aria-label='Erzeugung'] > li.list-group-item") == 1
-    assert count(doc, "#energy_report[phx-hook=EnergyReport]") == 1
+    assert texts(doc, "section[aria-label='Zusammenfassung'] .stat-desc") == ["ausgeglichen"]
 
-    assert attr(doc, "#energy_report [phx-update=ignore][id] > canvas", "data-chart") ==
-             ~w[daily detail ratios]
+    assert texts(doc, "main h2") == [
+             "Steckdosen",
+             "Energie",
+             "Leistung",
+             "Autarkie und Eigenverbrauchsquote"
+           ]
 
-    assert count(doc, "#energy_report script") == 0
+    assert attr(doc, "section.card[aria-busy=true]", "id") ==
+             ~w[report_daily report_detail report_ratios]
+
+    assert count(doc, "[phx-hook=EnergyReport]") == 0
+    assert count(doc, "main script") == 0
   end
 
-  test "the charts arrive by push_event once connected", %{conn: conn} do
+  test "once connected each chart is an EnergyReport hook with its own payload", %{conn: conn} do
     total!("bkw", "2026-04-10", 2000)
     {:ok, view, _html} = live(conn, ~p"/reports")
-    payload = pushed(view)
+    doc = from(render(view))
 
-    assert hd(payload.daily.labels) == "04.04."
-    assert payload.daily.produced_kwh == [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-    assert payload.detail.chart_type == "line"
-    assert payload.weather_assets == %{}
+    assert attr(doc, "[phx-hook=EnergyReport]", "data-chart") == ~w[daily detail ratios]
+
+    daily = payload(doc, "daily")
+    assert hd(daily["labels"]) == "04.04."
+    assert daily["produced_kwh"] == [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+    assert daily["weather_assets"] == %{}
+
+    detail = payload(doc, "detail")
+    assert detail["chart_type"] == "line"
+    assert detail["consumer_order"] == ["fridge"]
+
+    assert length(payload(doc, "ratios")["ratios"]) == 7
   end
 
-  test "the producer stands apart from the numbered consumers, each bar in its dashboard colour",
+  test "the ranking: producers and consumers as groups, consumers by place, shares in one tone",
        %{conn: conn} do
+    TestConfigs.put(
+      TestConfigs.plugs("""
+        - id: washer
+          name: Washer
+          role: consumer
+      """)
+    )
+
     total!("bkw", "2026-04-10", 2000)
     total!("fridge", "2026-04-10", 500)
+    total!("washer", "2026-04-10", 800)
     doc = page(conn)
 
-    producer =
-      LazyHTML.query(doc, "ul.list-group[aria-label='Erzeugung'] > li[data-plug-id='bkw']")
+    assert texts(doc, "tbody[id^=ranking-] th[scope=colgroup]") == ["Erzeugung", "Verbrauch"]
 
-    assert count(producer, "img[alt='Erzeuger']") == 1
+    assert attr(doc, "tbody#ranking-producers tr[data-plug-id]", "data-plug-id") == ["bkw"]
 
-    assert attr(producer, ".progress-bar", "style") == [
-             "width: 100.0%; background-color: var(--color-solar)"
-           ]
+    assert attr(doc, "tbody#ranking-consumers tr[data-plug-id]", "data-plug-id") ==
+             ~w[washer fridge]
 
-    assert count(doc, "ol.list-group[aria-label='Rangliste'] > li") == 1
+    assert texts(doc, "tbody#ranking-consumers [data-role=place]") == ["1", "2"]
+    assert count(doc, "tbody#ranking-producers [data-role=place]") == 0
 
-    consumer =
-      LazyHTML.query(doc, "ol.list-group[aria-label='Rangliste'] > li[data-plug-id='fridge']")
-
-    assert texts(consumer, ".col-1") == ["1"]
-
-    assert attr(consumer, ".progress-bar", "style") == [
-             "width: 25.0%; background-color: var(--color-chart-1)"
-           ]
-
-    assert texts(consumer, ".text-end") == ["0,50 kWh"]
-    assert count(consumer, ".order-last.order-sm-0 > .progress") == 1
+    fridge = LazyHTML.query(doc, "tr#ranking-plug-fridge")
+    assert texts(fridge, "td") == ["2", "Fridge 39 %", "0,50 kWh"]
+    assert attr(fridge, "[data-role=share] progress", "aria-label") == ["Fridge"]
+    assert count(doc, "[data-role=share][data-series]") == 0
   end
 
-  test "reports page orders widgets like the dashboard", %{conn: conn} do
-    total!("bkw", "2026-04-10", 2000)
-
-    assert ["Steckdosen", "Energie", "Leistung", "Autarkie & Eigenverbrauchsquote"] =
-             texts(page(conn), "main h2")
-  end
-
-  test "reports page describes the power chart resolution", %{conn: conn} do
+  test "the power chart names its resolution and range", %{conn: conn} do
     for i <- 0..29,
         do: total!("bkw", Date.to_iso8601(Date.add(~D[2026-04-01], i)), 2000)
 
     assert "Watt · Tagesmittel · 01.04.–30.04." in texts(
              page(conn, preset: "last_30"),
-             ".card-title + p"
+             "#report_detail .card-title + p"
            )
   end
 
@@ -255,33 +265,37 @@ defmodule ZiwoasWeb.ReportsLiveTest do
     for i <- 0..2, do: total!("bkw", Date.to_iso8601(Date.add(~D[2026-04-01], i)), 2000)
     range = [start_date: "2026-04-01", end_date: "2026-04-03"]
 
-    assert "Watt · 5-Min-Werte · 01.04.–03.04." in texts(page(conn, range), ".card-title + p")
+    assert texts(page(conn, range), "#report_detail .card-title + p") == [
+             "Watt · 5-Min-Werte · 01.04.–03.04."
+           ]
 
     TestClock.freeze("2027-01-10T12:00:00+01:00")
 
-    assert "Watt · 5-Min-Werte · 01.04.2026–03.04.2026" in texts(
-             page(conn, range),
-             ".card-title + p"
-           )
+    assert texts(page(conn, range), "#report_detail .card-title + p") == [
+             "Watt · 5-Min-Werte · 01.04.2026–03.04.2026"
+           ]
   end
 
-  test "a range without any data shows zeros and no ranking", %{conn: conn} do
+  test "a range without any data shows zeros and says the plugs have none", %{conn: conn} do
     total!("bkw", "2026-04-10", 2000)
     doc = page(conn, start_date: "2020-01-01", end_date: "2020-01-07")
 
     assert texts(doc, ".stat-value") |> hd() == "0,00 kWh"
-    assert texts(doc, "p.small.text-body-secondary") == ["Keine Daten"]
+    assert count(doc, "tbody[id^=ranking-]") == 0
+
+    assert texts(doc, "#ranking_heading + * p.font-semibold, section p.font-semibold") |> hd() ==
+             "Keine Steckdosendaten"
   end
 
-  test "reports page shows empty state without data", %{conn: conn} do
+  test "reports page shows an empty state without data", %{conn: conn} do
     doc = page(conn)
 
-    assert texts(doc, ".card .card-title") == ["Noch keine Berichtsdaten"]
-    assert hd(texts(doc, ".card p")) =~ "sobald die erste Tagesaggregation vorhanden ist"
-    assert attr(doc, "#start_date", "value") == ["2026-04-10"]
+    assert texts(doc, "main h2") == ["Noch keine Berichtsdaten"]
+    assert texts(doc, "main p") |> Enum.any?(&(&1 =~ "sobald die erste Tagesaggregation"))
+    assert count(doc, "#range_form") == 0
   end
 
-  test "reports page renders Autarkie & Eigenverbrauchsquote section", %{conn: conn} do
+  test "the ratios chart and its table of days", %{conn: conn} do
     total!("bkw", "2026-04-10", 2000)
 
     Repo.insert!(%DailySummary{
@@ -293,8 +307,9 @@ defmodule ZiwoasWeb.ReportsLiveTest do
 
     doc = page(conn)
 
-    assert "Autarkie & Eigenverbrauchsquote" in texts(doc, ".card-title")
-    assert count(doc, "#report_ratios_chart[phx-update=ignore] > canvas[data-chart=ratios]") == 1
+    assert texts(doc, "#report_ratios .card-title") == ["Autarkie und Eigenverbrauchsquote"]
+    assert texts(doc, "#report_ratios ul li") == ["Autarkie", "Eigenverbrauchsquote"]
+    assert texts(doc, "tbody#report_ratios_data tr") |> List.last() == "10.04.2026 50,0 % 25,0 %"
     assert "50,0 %" in texts(doc, ".stat-value")
   end
 
@@ -304,7 +319,7 @@ defmodule ZiwoasWeb.ReportsLiveTest do
     doc = view |> render() |> LazyHTML.from_fragment()
 
     assert "Steckdosen" in texts(doc, "h2")
-    assert attr(doc, ".btn-group a[aria-current=page]", "href") == ["/reports?preset=last_30"]
+    assert attr(doc, "#range_presets a[aria-current=page]", "href") == ["/reports?preset=last_30"]
   end
 
   describe "connected" do
@@ -315,39 +330,37 @@ defmodule ZiwoasWeb.ReportsLiveTest do
 
     test "a preset link patches the page to its range", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/reports")
-      assert length(pushed(view).daily.labels) == 7
+      assert length(payload(from(render(view)), "daily")["labels"]) == 7
 
-      view |> element(".btn-group a", "30 Tage") |> render_click()
+      view |> element("#range_presets a", "30 Tage") |> render_click()
 
       assert_patched(view, ~p"/reports?preset=last_30")
-      assert length(pushed(view).daily.labels) == 30
+      doc = from(render(view))
+      assert length(payload(doc, "daily")["labels"]) == 30
 
-      assert attr(LazyHTML.from_fragment(render(view)), ".btn-group a[aria-current=page]", "href") ==
-               [
-                 "/reports?preset=last_30"
-               ]
+      assert attr(doc, "#range_presets a[aria-current=page]", "href") == [
+               "/reports?preset=last_30"
+             ]
     end
 
     test "the range form patches to the chosen dates", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/reports")
-      assert length(pushed(view).daily.labels) == 7
 
       view
       |> form("#range_form", %{start_date: "2026-04-01", end_date: "2026-04-03"})
       |> render_submit()
 
       assert_patched(view, ~p"/reports?#{[end_date: "2026-04-03", start_date: "2026-04-01"]}")
-      assert pushed(view).daily.labels == ["01.04.", "02.04.", "03.04."]
-
-      doc = LazyHTML.from_fragment(render(view))
-      assert texts(doc, ".btn-group .btn.active") == ["Benutzerdefiniert"]
+      doc = from(render(view))
+      assert payload(doc, "daily")["labels"] == ["01.04.", "02.04.", "03.04."]
+      assert count(doc, "#range_presets a[aria-current]") == 0
       assert attr(doc, "#start_date", "value") == ["2026-04-01"]
     end
 
     test "an end date past the newest aggregate stops at it", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/reports?start_date=2026-04-08&end_date=2026-04-30")
 
-      assert pushed(view).daily.labels == ["08.04.", "09.04.", "10.04."]
+      assert payload(from(render(view)), "daily")["labels"] == ["08.04.", "09.04.", "10.04."]
     end
   end
 end

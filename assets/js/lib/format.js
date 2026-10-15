@@ -31,15 +31,6 @@ export function formatNumber(value, { decimals = 0, unit } = {}) {
   return withUnit(negative ? `${MINUS}${text}` : text, unit)
 }
 
-export function formatWatts(value, { decimals = 0 } = {}) {
-  return formatNumber(value, { decimals, unit: "W" })
-}
-
-// value in percent (76 for 76 %), not as a fraction.
-export function formatPercent(value, { decimals = 0 } = {}) {
-  return formatNumber(value, { decimals, unit: "%" })
-}
-
 export function formatFlow(value, { positive, negative, unit = "W", decimals = 0 }) {
   if (missing(value)) return withUnit(DASH, unit)
   const magnitude = formatNumber(Math.abs(Number(value)), { decimals, unit })
