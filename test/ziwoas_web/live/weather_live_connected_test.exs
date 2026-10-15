@@ -20,24 +20,24 @@ defmodule ZiwoasWeb.WeatherLiveConnectedTest do
 
   test "reloads after a weather sync", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/weather")
-    refute has_element?(view, ".weather-current")
+    refute has_element?(view, "#weather-current")
 
     current!(17.5)
     Weather.notify_synced(Clock.today("Europe/Berlin"))
 
-    assert has_element?(view, ".weather-current .stat-value", "17,5")
+    assert has_element?(view, "#weather-now", "17,5")
   end
 
   test "reloads after a sensor poll: the outdoor sensor's temperature", %{conn: conn} do
     current!(17.5)
     {:ok, view, _html} = live(conn, ~p"/weather")
-    assert has_element?(view, ".weather-current .stat-value", "17,5")
+    assert has_element?(view, "#weather-now", "17,5")
 
     outdoor = Enum.find(Ziwoas.Config.get().sensors, &(&1.type == :outdoor_meter))
     {:ok, _} = Sensors.create_reading(outdoor.id, Clock.now(), %{temperature: 9.3})
     Sensors.notify_polled(Clock.now())
 
-    assert has_element?(view, ".weather-current .stat-value", "9,3")
+    assert has_element?(view, "#weather-now", "9,3")
   end
 
   test "a toggle with a day or segment the page does not have changes nothing", %{conn: conn} do
@@ -55,8 +55,8 @@ defmodule ZiwoasWeb.WeatherLiveConnectedTest do
       render_hook(view, "toggle_segment", params)
     end
 
-    assert has_element?(view, ".weather-segment[phx-value-day='2026-05-05']")
-    refute has_element?(view, ".weather-segment.active")
+    assert has_element?(view, "button[phx-value-day='2026-05-05']")
+    refute has_element?(view, "[aria-expanded=true]")
   end
 
   defp forecast! do
@@ -78,8 +78,8 @@ defmodule ZiwoasWeb.WeatherLiveConnectedTest do
     forecast!()
 
     {:ok, view, _html} = live(conn, ~p"/weather")
-    tile = &element(view, ".weather-segment[phx-value-day='2026-05-05'][phx-value-index='#{&1}']")
-    selected = ".weather-segment.active.border-primary.bg-primary-subtle[aria-expanded=true]"
+    tile = &element(view, "button[phx-value-day='2026-05-05'][phx-value-index='#{&1}']")
+    selected = "button[phx-click=toggle_segment][aria-expanded=true]"
 
     render_click(tile.(1))
     assert has_element?(view, "#{selected}[phx-value-index='1']")

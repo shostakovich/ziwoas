@@ -269,43 +269,38 @@ defmodule ZiwoasWeb.DashboardLiveTest do
   end
 
   describe "the room air tile" do
-    test "shows the first room's air verdict and CO₂, and leads to that room", %{conn: conn} do
+    test "shows the room's air verdict and CO₂, and leads to that room", %{conn: conn} do
       Repo.insert!(%Sensors.Reading{device_id: "TEST_INDOOR", taken_at: Clock.now(), co2: 1450})
 
       doc = page(conn)
 
-      assert texts(doc, "#room_air_tile .stat") == [
-               "Wohnzimmer Jetzt lüften CO₂ hoch",
-               "CO₂ 1.450 ppm"
+      assert texts(doc, "#room_air_tile h2") == ["Raumluft"]
+      assert texts(doc, "#room_air_tile h2 + p") == ["Wohnzimmer"]
+      assert texts(doc, "#room_air_tile [data-verdict]") == ["Jetzt lüften CO₂ hoch"]
+      assert attrs(doc, "#room_air_tile [data-verdict] [data-level]", "data-level") == ["bad"]
+
+      assert texts(doc, "#room_air_tile [data-co2]") == [
+               "1.450 ppm CO₂\u2060\u00A0· vor\u00A00\u00A0s"
              ]
 
-      assert texts(doc, "#room_air_tile .room-air-tile-meta") == ["hoch vor\u00A00\u00A0s"]
-
-      assert attrs(doc, "a#room_air_tile", "href") == ["/sensors#room-wohnzimmer"]
-      assert attrs(doc, "a#room_air_tile", "data-phx-link") == ["redirect"]
-      assert count(doc, "a#room_air_tile.bg-danger-subtle") == 1
-      assert "Raumluft" in texts(doc, "h2.h6")
+      assert attrs(doc, "#room_air_tile a", "href") == ["/sensors#room-wohnzimmer"]
+      assert attrs(doc, "#room_air_tile a", "data-phx-link") == ["redirect"]
     end
 
     test "follows each stored sensor reading, and a silent sensor on the next refresh",
          %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/")
 
-      assert texts(from(render(view)), "#room_air_tile .stat-value") == [
-               "Keine aktuellen Werte",
-               "—"
-             ]
+      values = "#room_air_tile :is([data-verdict], [data-co2]) > p:first-child"
+      assert texts(from(render(view)), values) == ["Keine aktuellen Werte", "—"]
 
       {:ok, _reading} = Sensors.create_reading("TEST_INDOOR", Clock.now(), %{co2: 640})
-      assert texts(from(render(view)), "#room_air_tile .stat-value") == ["CO₂ gut", "640 ppm"]
+      assert texts(from(render(view)), values) == ["CO₂ gut", "640 ppm"]
 
       TestClock.freeze(DateTime.add(Clock.parse!(@now), 31 * 60))
       send(view.pid, :refresh_room_air)
 
-      assert texts(from(render(view)), "#room_air_tile .stat-value") == [
-               "Keine aktuellen Werte",
-               "—"
-             ]
+      assert texts(from(render(view)), values) == ["Keine aktuellen Werte", "—"]
     end
 
     test "shows the SEN66's room, as the TRMNL does, even when another room comes first",
@@ -318,7 +313,7 @@ defmodule ZiwoasWeb.DashboardLiveTest do
         """)
       )
 
-      assert texts(page(conn), "#room_air_tile .stat-label") == ["Wohnzimmer", "CO₂"]
+      assert texts(page(conn), "#room_air_tile h2 + p") == ["Wohnzimmer"]
     end
 
     test "stays away without a room that measures CO₂", %{conn: conn} do

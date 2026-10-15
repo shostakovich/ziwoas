@@ -3,6 +3,10 @@ defmodule ZiwoasWeb.SensorsComponents do
   use ZiwoasWeb, :html
 
   alias Ziwoas.Sensors
+  alias ZiwoasWeb.Charts.Categories
+
+  # The CO₂ chart's threshold lines take these, so each sensor keeps one colour on all three charts.
+  @chart_semantic [:warning, :danger]
 
   attr :sensors, :list, required: true
   attr :latest, :map, required: true
@@ -11,23 +15,17 @@ defmodule ZiwoasWeb.SensorsComponents do
 
   def sensor_cards(assigns) do
     ~H"""
-    <section
-      class={[
-        "row row-cols-1 g-3 mb-3",
-        "row-cols-sm-#{columns(@sensors, 2)}",
-        "row-cols-lg-#{columns(@sensors, 3)}"
-      ]}
-      aria-label="Sensoren"
-    >
-      <div :for={sensor <- @sensors} class="col">
-        <.sensor_card sensor={sensor} reading={@latest[sensor.id]} now={@now} />
-      </div>
-    </section>
+    <div class="setzkasten-stat-grid grid gap-4 sm:grid-cols-2 md:gap-6 lg:grid-cols-3">
+      <.sensor_card
+        :for={sensor <- @sensors}
+        sensor={sensor}
+        reading={@latest[sensor.id]}
+        now={@now}
+      />
+    </div>
     <.charts sensors={@sensors} level={@level} />
     """
   end
-
-  defp columns(sensors, max), do: sensors |> length() |> max(1) |> min(max)
 
   attr :sensors, :list, required: true
   attr :latest, :map, required: true
@@ -42,14 +40,15 @@ defmodule ZiwoasWeb.SensorsComponents do
     assigns = assign(assigns, :names, Enum.join(names, ", "))
 
     ~H"""
-    <div
+    <.alert
       :if={@names != ""}
-      class="alert alert-warning d-flex align-items-center gap-3 mb-3"
-      role="alert"
+      id="battery-warning"
+      tone={:warning}
+      icon="battery-low"
+      title="Batterie schwach"
     >
-      <img class="icon sensor-alert-icon" alt="" src={~p"/images/solakon_battery_low.webp"} />
-      <div><strong>Batterie schwach:</strong> {@names}</div>
-    </div>
+      {@names}
+    </.alert>
     """
   end
 
@@ -58,49 +57,46 @@ defmodule ZiwoasWeb.SensorsComponents do
   attr :now, DateTime, required: true
 
   def sensor_card(assigns) do
-    assigns = assign(assigns, :co2?, assigns.sensor.type == :meter_pro_co2)
+    reading = assigns.reading
+    co2 = if assigns.sensor.type == :meter_pro_co2 && reading, do: reading.co2
+
+    assigns =
+      assign(assigns,
+        co2: co2,
+        temperature: reading && reading.temperature,
+        note:
+          if(reading,
+            do:
+              join_meta([
+                reading.humidity && "Luftfeuchte #{number(reading.humidity, unit: "%")}",
+                co2 && number(co2, unit: "ppm"),
+                age_label(reading, assigns.now)
+              ]),
+            else: "Keine Daten"
+          )
+      )
 
     ~H"""
-    <article class="card h-100">
-      <div class="card-body">
-        <h3 class="card-title h6">{@sensor.name}</h3>
-        <div class="d-flex align-items-center gap-3">
-          <.co2_gauge :if={@co2? && @reading && @reading.co2} ppm={@reading.co2} />
-
-          <div class="flex-grow-1">
-            <%= if @reading do %>
-              <ul class="list-unstyled mb-1">
-                <li :if={@reading.temperature}>
-                  <strong class="fs-5 tabular-nums">{number(@reading.temperature, precision: 1)}</strong>
-                  °C
-                </li>
-                <li :if={@reading.humidity}>
-                  <strong class="fs-5 tabular-nums">{number(@reading.humidity)}</strong> % rH
-                </li>
-                <li :if={@co2? && @reading.co2}>
-                  <strong class="fs-5 tabular-nums">{number(@reading.co2)}</strong> ppm
-                </li>
-              </ul>
-              <div class="small text-body-secondary">
-                {age_label(@reading, @now)}
-              </div>
-            <% else %>
-              <p class="small text-body-secondary mb-0">Keine Daten</p>
-            <% end %>
-          </div>
-        </div>
-      </div>
-    </article>
+    <.stat
+      id={"sensor-#{@sensor.id}"}
+      label={@sensor.name}
+      value={number(@temperature, precision: 1)}
+      unit={@temperature && "°C"}
+      desc={@note}
+    >
+      <:figure :if={@co2} label={co2_label(@co2)}><.co2_gauge ppm={@co2} /></:figure>
+    </.stat>
     """
   end
 
-  @spec age_label(map | nil, DateTime.t()) :: String.t()
-  def age_label(reading, now) do
-    case Sensors.age_s(reading, now) do
+  @doc "How long ago a reading, or a room reading's value, was taken; it never breaks inside."
+  @spec age_label(%{taken_at: DateTime.t()} | nil, DateTime.t()) :: String.t()
+  def age_label(taken, now) do
+    case Sensors.age_s(taken, now) do
       nil -> "—"
-      seconds when seconds < 60 -> "vor #{seconds} s"
-      seconds when seconds < 3600 -> "vor #{div(seconds, 60)} Min"
-      seconds -> "vor #{div(seconds, 3600)} h"
+      seconds when seconds < 60 -> "vor\u00A0#{max(seconds, 0)}\u00A0s"
+      seconds when seconds < 3600 -> "vor\u00A0#{div(seconds, 60)}\u00A0Min"
+      seconds -> "vor\u00A0#{div(seconds, 3600)}\u00A0h"
     end
   end
 
@@ -108,53 +104,63 @@ defmodule ZiwoasWeb.SensorsComponents do
   attr :level, :integer, default: 2
 
   def charts(assigns) do
+    co2_sensors = Enum.filter(assigns.sensors, &(&1.type == :meter_pro_co2))
+
     assigns =
-      assign(assigns, :co2_sensors, Enum.filter(assigns.sensors, &(&1.type == :meter_pro_co2)))
+      assign(assigns,
+        co2_sensors: co2_sensors,
+        legend: legend_items(assigns.sensors, assigns.sensors),
+        co2_legend: legend_items(assigns.sensors, co2_sensors)
+      )
 
     ~H"""
-    <div id="sensors_chart" phx-hook="SensorsChart">
-      <.card
+    <div id="sensors_chart" class="grid gap-4 md:grid-cols-2 md:gap-6">
+      <.chart_card
         :if={@co2_sensors != []}
+        id="sensors-co2"
+        class="md:col-span-2"
         title="CO₂"
         subtitle={chart_subtitle("ppm", @co2_sensors)}
+        summary="CO₂ der letzten 24 Stunden"
+        hook="SensorsChart"
         level={@level}
+        hook_attrs={%{"data-series" => "co2"}}
+        height={:lg}
       >
-        <div class="chart-frame chart-frame-prominent" id="sensors_co2_chart" phx-update="ignore">
-          <canvas data-series="co2"></canvas>
-        </div>
-      </.card>
-
-      <div class="row row-cols-1 row-cols-md-2 g-3">
-        <div class="col">
-          <.card title="Temperatur" subtitle={chart_subtitle("°C", @sensors)} level={@level}>
-            <div
-              class="chart-frame chart-frame-compact"
-              id="sensors_temperature_chart"
-              phx-update="ignore"
-            >
-              <canvas data-series="temperature"></canvas>
-            </div>
-          </.card>
-        </div>
-
-        <div class="col">
-          <.card
-            title="Luftfeuchtigkeit"
-            subtitle={chart_subtitle("Prozent", @sensors)}
-            level={@level}
-          >
-            <div
-              class="chart-frame chart-frame-compact"
-              id="sensors_humidity_chart"
-              phx-update="ignore"
-            >
-              <canvas data-series="humidity"></canvas>
-            </div>
-          </.card>
-        </div>
-      </div>
+        <:legend :if={length(@co2_sensors) > 1}><.legend items={@co2_legend} /></:legend>
+      </.chart_card>
+      <.chart_card
+        id="sensors-temperature"
+        title="Temperatur"
+        subtitle={chart_subtitle("°C", @sensors)}
+        summary="Temperatur der letzten 24 Stunden"
+        hook="SensorsChart"
+        level={@level}
+        hook_attrs={%{"data-series" => "temperature"}}
+      >
+        <:legend :if={length(@sensors) > 1}><.legend items={@legend} /></:legend>
+      </.chart_card>
+      <.chart_card
+        id="sensors-humidity"
+        title="Luftfeuchte"
+        subtitle={chart_subtitle("%", @sensors)}
+        summary="Luftfeuchte der letzten 24 Stunden"
+        hook="SensorsChart"
+        level={@level}
+        hook_attrs={%{"data-series" => "humidity"}}
+      >
+        <:legend :if={length(@sensors) > 1}><.legend items={@legend} /></:legend>
+      </.chart_card>
     </div>
     """
+  end
+
+  # Ranked across all sensors, as the hook's tonesByOrder is, so a sensor keeps its colour.
+  defp legend_items(sensors, shown) do
+    shown
+    |> Enum.map(&{&1.id, &1.name})
+    |> Categories.legend(Enum.map(sensors, & &1.id), @chart_semantic)
+    |> Enum.map(&Map.put(&1, :marker, :line))
   end
 
   @spec chart_data([map], [map]) :: %{
@@ -187,104 +193,61 @@ defmodule ZiwoasWeb.SensorsComponents do
     end
   end
 
-  defp chart_subtitle(unit, [sensor]), do: "#{unit} · #{sensor.name} · letzte 24 h"
-  defp chart_subtitle(unit, _sensors), do: "#{unit} · letzte 24 h"
+  defp chart_subtitle(unit, [sensor]), do: join_meta([unit, sensor.name])
+  defp chart_subtitle(unit, _sensors), do: unit
 
   @min_ppm 400
   @max_ppm 2000
-  # In CSS pixels at the cards' 6.5rem, the units felt-css's felt tile and stitch are drawn in.
   @center 52
   @radius 40
+  @band 4
+  @current_band 7
+  # A hairline of the surface between neighbouring zones.
+  @gap_share 0.006
   @level_labels [good: "gut", warn: "erhöht", bad: "hoch"]
-  @felt_texture "https://felt-css.rocu.de/img/felt.webp"
-  # felt-css's --felt-stitch-pitch.
-  @stitch_pitch 10
+  @zone_classes %{good: "fill-success", warn: "fill-warning", bad: "fill-error"}
+
+  @spec co2_label(number) :: String.t()
+  def co2_label(ppm),
+    do: "CO₂ #{number(ppm, unit: "ppm")}, #{@level_labels[Sensors.co2_level(ppm)]}"
 
   attr :ppm, :integer, required: true
+  attr :class, :any, default: "w-26"
 
   def co2_gauge(assigns) do
     ppm = assigns.ppm
     level = Sensors.co2_level(ppm)
-    # Each gauge on a page brings its own defs, so ids must not collide.
-    uid = System.unique_integer([:positive])
 
     assigns =
       assign(assigns,
-        id: &"co2-gauge-#{&1}-#{uid}",
-        label: "CO₂ #{number(ppm, unit: "ppm")}, #{@level_labels[level]}",
         zones: zones(level),
-        stitches: stitches(),
         needle_angle: fixed(share(ppm) * 180),
-        felt_texture: @felt_texture,
-        stitch: "#{~p"/images/felt_stitch.svg"}#stitch",
         center: @center,
-        needle_end: @center - @radius + 7
+        needle_end: @center - @radius + @current_band + 3
       )
 
     ~H"""
-    <div class="co2-gauge position-relative">
-      <svg class="d-block w-100 h-auto" viewBox="0 0 104 61" role="img" aria-label={@label}>
-        <defs>
-          <pattern id={@id.("texture")} patternUnits="userSpaceOnUse" width="256" height="256">
-            <image href={@felt_texture} width="256" height="256" />
-          </pattern>
-          <%!-- The region spans the whole drawing: a stroked arc's bounding box leaves out half its width. --%>
-          <filter
-            id={@id.("cut")}
-            filterUnits="userSpaceOnUse"
-            x="-5"
-            y="-5"
-            width="114"
-            height="71"
-            color-interpolation-filters="sRGB"
-          >
-            <feTurbulence
-              type="fractalNoise"
-              baseFrequency="1.04"
-              numOctaves="2"
-              seed="7"
-              result="fibres"
-            />
-            <feDisplacementMap
-              in="SourceGraphic"
-              in2="fibres"
-              scale="1.4"
-              xChannelSelector="R"
-              yChannelSelector="G"
-            />
-            <feDropShadow class="co2-gauge-shadow" dx="0" dy="1" stdDeviation="0.8" />
-          </filter>
-        </defs>
-        <g class="co2-gauge-piece" filter={"url(##{@id.("cut")})"}>
-          <%= for {level, path, current} <- @zones do %>
-            <path class={["co2-gauge-zone", current && "is-current"]} data-level={level} d={path} />
-            <path
-              class="co2-gauge-texture felt-texture"
-              d={path}
-              stroke={"url(##{@id.("texture")})"}
-            />
-          <% end %>
-        </g>
-        <g class="co2-gauge-piece" filter={"url(##{@id.("cut")})"}>
-          <g class="co2-gauge-needle" transform={"rotate(#{@needle_angle} #{@center} #{@center})"}>
-            <line x1={@center} y1={@center} x2={@needle_end} y2={@center} />
-          </g>
-          <circle class="co2-gauge-hub" cx={@center} cy={@center} r="5" />
-          <circle
-            class="felt-texture"
-            cx={@center}
-            cy={@center}
-            r="5"
-            fill={"url(##{@id.("texture")})"}
+    <div class={["co2-gauge shrink-0", @class]}>
+      <svg class="block h-auto w-full" viewBox="0 0 104 61">
+        <path
+          :for={zone <- @zones}
+          class={["co2-gauge-zone", zone.class]}
+          data-current={zone.current && "true"}
+          data-level={zone.level}
+          d={zone.path}
+        />
+        <g class="co2-gauge-needle" transform={"rotate(#{@needle_angle} #{@center} #{@center})"}>
+          <line
+            class="stroke-base-content"
+            x1={@center}
+            y1={@center}
+            x2={@needle_end}
+            y2={@center}
+            stroke-width="3.5"
+            stroke-linecap="round"
           />
         </g>
-      </svg>
-      <svg class="stitches stitches-patch" viewBox="0 0 104 61" aria-hidden="true">
-        <g transform={"translate(#{@center} #{@center})"}>
-          <use :for={transform <- @stitches} href={@stitch} transform={transform} />
-          <use href={@stitch} transform="rotate(45) scale(.7)" />
-          <use href={@stitch} transform="rotate(-45) scale(.7)" />
-        </g>
+        <circle class="fill-base-content" cx={@center} cy={@center} r="5" />
       </svg>
     </div>
     """
@@ -292,26 +255,34 @@ defmodule ZiwoasWeb.SensorsComponents do
 
   defp zones(current) do
     bounds = [@min_ppm, Sensors.co2_warn_ppm(), Sensors.co2_bad_ppm(), @max_ppm]
+    ranges = Enum.chunk_every(bounds, 2, 1, :discard)
+    last = length(ranges) - 1
 
-    for {{level, _label}, [from, to]} <-
-          Enum.zip(@level_labels, Enum.chunk_every(bounds, 2, 1, :discard)) do
-      {level, "M #{point(share(from))} A #{@radius} #{@radius} 0 0 1 #{point(share(to))}",
-       level == current}
+    for {{{level, _label}, [from, to]}, index} <-
+          Enum.with_index(Enum.zip(@level_labels, ranges)) do
+      band = if level == current, do: @current_band, else: @band
+      start = share(from) + if(index > 0, do: @gap_share, else: 0)
+      stop = share(to) - if(index < last, do: @gap_share, else: 0)
+
+      %{
+        level: level,
+        class: @zone_classes[level],
+        current: level == current,
+        path: sector(start, stop, @radius - band, @radius + band)
+      }
     end
   end
 
-  defp stitches do
-    count = round(:math.pi() * @radius / @stitch_pitch)
-
-    for i <- 0..(count - 1),
-        do: "rotate(#{fixed((i + 0.5) / count * 180 - 90)}) translate(0 -#{@radius})"
+  defp sector(from, to, inner, outer) do
+    "M #{point(from, outer)} A #{outer} #{outer} 0 0 1 #{point(to, outer)} " <>
+      "L #{point(to, inner)} A #{inner} #{inner} 0 0 0 #{point(from, inner)} Z"
   end
 
-  defp point(at) do
+  defp point(at, radius) do
     angle = :math.pi() * (1 - at)
 
-    fixed(@center + @radius * :math.cos(angle)) <>
-      " " <> fixed(@center - @radius * :math.sin(angle))
+    fixed(@center + radius * :math.cos(angle)) <>
+      " " <> fixed(@center - radius * :math.sin(angle))
   end
 
   defp fixed(number), do: :erlang.float_to_binary(number * 1.0, decimals: 1)

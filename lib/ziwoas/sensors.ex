@@ -321,13 +321,14 @@ defmodule Ziwoas.Sensors do
   def battery_low?(%Reading{battery_pct: pct}) when is_integer(pct), do: pct <= @battery_low_pct
   def battery_low?(_reading), do: false
 
-  @spec age_s(Reading.t() | nil, DateTime.t()) :: integer | nil
+  @doc "Seconds since a reading, or a room reading's value, was taken."
+  @spec age_s(%{taken_at: DateTime.t()} | nil, DateTime.t()) :: integer | nil
   def age_s(nil, _now), do: nil
-  def age_s(%Reading{} = reading, now), do: div(age_us(reading, now), 1_000_000)
+  def age_s(%{taken_at: _} = taken, now), do: div(age_us(taken, now), 1_000_000)
 
   @spec offline?(Reading.t() | nil, DateTime.t()) :: boolean
   def offline?(nil, _now), do: true
   def offline?(%Reading{} = reading, now), do: age_us(reading, now) > @offline_after_s * 1_000_000
 
-  defp age_us(%Reading{taken_at: taken_at}, now), do: DateTime.diff(now, taken_at, :microsecond)
+  defp age_us(%{taken_at: taken_at}, now), do: DateTime.diff(now, taken_at, :microsecond)
 end

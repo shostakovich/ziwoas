@@ -144,6 +144,16 @@ defmodule Ziwoas.WeatherTest do
       assert Segment.dominant_daytime(s) == "night"
     end
 
+    test "a part is day when at least half of its hours are" do
+      dawn = [record(daytime: "night"), record(daytime: "night")]
+      daylight = List.duplicate(record(daytime: "day"), 4)
+
+      assert Segment.prevailing_daytime(segment(dawn ++ daylight)) == "day"
+      assert Segment.prevailing_daytime(segment(Enum.take(daylight, 1) ++ dawn)) == "night"
+      assert Segment.prevailing_daytime(segment(Enum.take(daylight, 2) ++ dawn)) == "day"
+      assert Segment.prevailing_daytime(segment([])) == "day"
+    end
+
     test "complete with an hour per hour of its range" do
       assert Segment.complete?(segment(List.duplicate(record([]), 6)))
       refute Segment.complete?(segment(List.duplicate(record([]), 3)))

@@ -54,6 +54,13 @@ defmodule Ziwoas.Weather.Segment do
     end
   end
 
+  @doc "Day when at least half of the part's hours are in daylight, so a dawn hour leaves no moon on a morning."
+  @spec prevailing_daytime(t) :: String.t()
+  def prevailing_daytime(%__MODULE__{records: records}) do
+    night = Enum.count(records, &(&1.daytime == "night"))
+    if night * 2 > length(records), do: "night", else: "day"
+  end
+
   defp severity(icon) do
     Enum.find_index(@icon_severity, &(&1 == icon)) || length(@icon_severity)
   end

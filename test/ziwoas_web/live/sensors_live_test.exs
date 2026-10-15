@@ -27,15 +27,21 @@ defmodule ZiwoasWeb.SensorsLiveTest do
 
   defp attrs(doc, selector, name), do: doc |> LazyHTML.query(selector) |> LazyHTML.attribute(name)
   defp count(doc, selector), do: doc |> LazyHTML.query(selector) |> Enum.count()
-  defp squish(text), do: text |> String.split() |> Enum.join(" ")
+
+  defp squish(text),
+    do: text |> String.replace(["\u00A0", "\u2060"], " ") |> String.split() |> Enum.join(" ")
 
   defp ms(minutes_ago),
     do: Clock.parse!(@now) |> DateTime.to_unix(:millisecond) |> Kernel.-(minutes_ago * 60_000)
 
-  defp card(doc, name),
-    do: doc |> LazyHTML.query("article.card") |> Enum.find(&(LazyHTML.text(&1) =~ name))
-
   defp tile(doc, room, quantity), do: texts(doc, "##{room} [data-quantity=#{quantity}]")
+
+  # The strip renders its trailing badge twice: at the title on phones, in its column from md.
+  defp verdict_badge(doc, room) do
+    [level] = doc |> attrs("##{room}-strip [data-level]", "data-level") |> Enum.uniq()
+    [word] = doc |> texts("##{room}-strip [data-level]") |> Enum.uniq()
+    {level, word}
+  end
 
   describe "the test config: one meter in the Wohnzimmer, the balcony without a room" do
     test "the room view shows CO₂ with its verdict, and tiles only for what the room measures",
@@ -47,18 +53,21 @@ defmodule ZiwoasWeb.SensorsLiveTest do
 
       assert texts(doc, "title") == ["Sensoren"]
       assert texts(doc, "#app-shell-nav a[aria-current=page]") == ["Sensoren"]
-      assert texts(doc, "nav.room-air-strip a") == ["Wohnzimmer Bald lüften 1.200 ppm"]
-      assert attrs(doc, "nav.room-air-strip a", "href") == ["#room-wohnzimmer"]
+      assert texts(doc, "#room-strip a") == ["Wohnzimmer"]
+      assert attrs(doc, "#room-strip a", "href") == ["#room-wohnzimmer"]
+      assert hd(texts(doc, "#room-wohnzimmer-strip")) =~ "1.200 ppm"
+      assert verdict_badge(doc, "room-wohnzimmer") == {"warn", "Bald lüften"}
 
-      assert texts(doc, "#room-wohnzimmer h2") == ["Wohnzimmer"]
+      assert texts(doc, "#room-wohnzimmer-name") == ["Wohnzimmer"]
 
-      assert texts(doc, "#room-wohnzimmer .room-air-sources") == [
+      assert texts(doc, "#room-wohnzimmer-sources") == [
                "Leitsensor: Test Wohnzimmer · vor 5 Min"
              ]
 
-      assert attrs(doc, "#room-wohnzimmer .co2-gauge svg[role=img]", "aria-label") == [
-               "CO₂ 1.200 ppm, erhöht"
-             ]
+      assert attrs(doc, "#room-wohnzimmer-co2-now [role=img]:has(.co2-gauge svg)", "aria-label") ==
+               ["CO₂ 1.200 ppm, erhöht"]
+
+      assert texts(doc, "#room-wohnzimmer-co2-now") == ["CO₂ 1.200 ppm erhöht"]
 
       assert texts(doc, "#room-wohnzimmer-verdict") == [
                "Lüftungsempfehlung Bald lüften CO₂ erhöht"
@@ -72,17 +81,26 @@ defmodule ZiwoasWeb.SensorsLiveTest do
 
       assert tile(doc, "room-wohnzimmer", "temperature") == ["Temperatur 21,0 °C angenehm"]
 
-      assert attrs(doc, "#room-wohnzimmer-charts[phx-hook=RoomAirChart] canvas", "data-chart") ==
+      assert attrs(doc, "#room-wohnzimmer-charts [phx-hook=RoomAirChart]", "data-chart") ==
                ~w[co2 temperature humidity]
 
-      assert texts(doc, "h2.h4") == ["Weitere Sensoren"]
-      assert texts(card(doc, "Test Balkon"), "li") == ["12,0 °C", "70 % rH"]
+      assert attrs(doc, "#room-wohnzimmer-charts [phx-hook=RoomAirChart]", "data-room") ==
+               List.duplicate("room-wohnzimmer", 3)
 
-      assert attrs(doc, "#sensors_chart [phx-update=ignore] > canvas", "data-series") ==
+      assert count(doc, "h3#room-wohnzimmer-history") == 1
+      assert texts(doc, "#room-wohnzimmer-charts h4") == ["CO₂", "Temperatur", "Luftfeuchte"]
+
+      assert texts(doc, "#other-sensors-heading") == ["Weitere Sensoren"]
+
+      assert texts(doc, "#sensor-TEST_OUTDOOR") == [
+               "Test Balkon 12,0 °C Luftfeuchte 70 % · vor 5 Min"
+             ]
+
+      assert attrs(doc, "#sensors_chart [phx-hook=SensorsChart]", "data-series") ==
                ~w[temperature humidity]
 
-      assert texts(doc, "#sensors_chart h3") == ["Temperatur", "Luftfeuchtigkeit"]
-      assert count(doc, ".alert:not([hidden])") == 0
+      assert texts(doc, "#sensors_chart h3") == ["Temperatur", "Luftfeuchte"]
+      assert count(doc, "main [role=alert], main [role=status]") == 0
     end
 
     test "without rooms the sensors' charts sit right under the page heading", %{conn: conn} do
@@ -98,22 +116,22 @@ defmodule ZiwoasWeb.SensorsLiveTest do
 
       reading!("TEST_OUTDOOR", 5, temperature: 12.0, humidity: 70.0, battery_pct: 100)
 
-      assert texts(page(conn), "#sensors_chart h2") == ["Temperatur", "Luftfeuchtigkeit"]
+      assert texts(page(conn), "#sensors_chart h2") == ["Temperatur", "Luftfeuchte"]
     end
 
     test "sensors with a low battery are named", %{conn: conn} do
       reading!("TEST_INDOOR", 5, temperature: 21.0, co2: 600, battery_pct: 90)
       reading!("TEST_OUTDOOR", 5, temperature: 12.0, battery_pct: 15)
 
-      assert texts(page(conn), ".alert.alert-warning[role=alert]") == [
-               "Batterie schwach: Test Balkon"
+      assert texts(page(conn), "#battery-warning[role=status]") == [
+               "Batterie schwach Test Balkon"
              ]
     end
 
     test "without any reading the page says so", %{conn: conn} do
       doc = page(conn)
 
-      assert texts(doc, ".card .card-title") == ["Noch keine Sensordaten"]
+      assert texts(doc, "main h2") == ["Noch keine Sensordaten"]
       assert count(doc, "#room-wohnzimmer") == 0
       assert count(doc, "#sensors_chart") == 0
     end
@@ -124,12 +142,12 @@ defmodule ZiwoasWeb.SensorsLiveTest do
 
       doc = page(conn)
 
-      assert texts(doc, "#room-wohnzimmer .room-air-sources") == [
+      assert texts(doc, "#room-wohnzimmer-sources") == [
                "Leitsensor: Test Wohnzimmer · keine Daten seit 11:15"
              ]
 
-      assert texts(doc, "#room-wohnzimmer .alert-warning") == [
-               "Test Wohnzimmer: keine Daten seit 11:15 – CO₂, Temperatur und Feuchte fehlen."
+      assert texts(doc, "#room-wohnzimmer-lead-alert") == [
+               "Test Wohnzimmer: keine Daten seit 11:15 – CO₂, Temperatur und Luftfeuchte fehlen."
              ]
 
       assert texts(doc, "#room-wohnzimmer-verdict") == [
@@ -138,10 +156,8 @@ defmodule ZiwoasWeb.SensorsLiveTest do
 
       assert count(doc, "#room-wohnzimmer [data-quantity]") == 0
 
-      assert count(doc, "#room-wohnzimmer p.small") == 0
-
       assert texts(doc, "#room-wohnzimmer-hint") == [
-               "Lüftungshinweis keine aktuellen Balkonwerte"
+               "Kein Lüftungshinweis: keine aktuellen Balkonwerte"
              ]
     end
   end
@@ -163,6 +179,26 @@ defmodule ZiwoasWeb.SensorsLiveTest do
 
     assert count(doc, "#room-wohnzimmer-hint") == 0
     refute LazyHTML.text(doc) =~ "Balkonwerte"
+  end
+
+  test "a stand-in SEN66 says what it reports as the lead does", %{conn: conn} do
+    TestConfigs.put(
+      Config.from_yaml!("""
+      location:
+        timezone: Europe/Berlin
+      plugs: []
+      sensors:
+        - { id: SEN, name: SEN66, type: sen66, room: Wohnzimmer, port: /dev/x }
+        - { id: SEN2, name: Zweiter SEN66, type: sen66, room: Wohnzimmer, port: /dev/y }
+      """)
+    )
+
+    sen66!(1, device_status: 0)
+    reading!("SEN2", 1, temperature: 22.0, device_status: 1 <<< 4)
+
+    assert texts(page(conn), "#room-wohnzimmer-device-alert[role=alert]") == [
+             "Zweiter SEN66 meldet: Lüfter ausgefallen – Feinstaubwerte fehlen oder sind falsch."
+           ]
   end
 
   defp put_room_config do
@@ -217,24 +253,14 @@ defmodule ZiwoasWeb.SensorsLiveTest do
     test "each value comes from the lead sensor unless it lacks one", %{conn: conn} do
       doc = page(conn)
 
-      assert texts(doc, "#room-wohnzimmer .room-air-sources li") == [
+      assert texts(doc, "#room-wohnzimmer-sources li") == [
                "Leitsensor: SEN66 · vor 1 Min · Warnung",
                "Ersatzsensor: Krabbe · vor 10 Min"
              ]
 
-      assert texts(doc, "#room-wohnzimmer .room-air-sources .text-warning-emphasis") == [
-               "Warnung"
-             ]
+      assert texts(doc, "#room-wohnzimmer-sources [data-level=warn]") == ["Warnung"]
 
-      assert attrs(doc, "#room-wohnzimmer .co2-gauge svg[role=img]", "aria-label") == [
-               "CO₂ 900 ppm, gut"
-             ]
-
-      assert texts(doc, "#room-wohnzimmer .room-air-hero .stat > span.small") == [
-               "vom Ersatzsensor",
-               "Feinstaub hoch",
-               "Balkon 14,0 °C · 80 % · bei 26,5 °C: 39 %"
-             ]
+      assert texts(doc, "#room-wohnzimmer-co2-now") == ["CO₂ 900 ppm gut vom Ersatzsensor"]
 
       assert attrs(doc, "#room-wohnzimmer [data-quantity]", "data-quantity") ==
                ~w[pm2_5 pm10 temperature humidity]
@@ -242,7 +268,6 @@ defmodule ZiwoasWeb.SensorsLiveTest do
       assert tile(doc, "room-wohnzimmer", "pm2_5") == ["Feinstaub PM2,5 38,0 µg/m³ hoch"]
       assert tile(doc, "room-wohnzimmer", "temperature") == ["Temperatur 26,5 °C zu warm"]
       assert tile(doc, "room-wohnzimmer", "humidity") == ["Luftfeuchte 65 % zu feucht"]
-      assert count(doc, "#room-wohnzimmer p.small") == 0
     end
 
     test "the verdict names its culprits, the hint what airing would do", %{conn: conn} do
@@ -252,19 +277,28 @@ defmodule ZiwoasWeb.SensorsLiveTest do
                "Lüftungsempfehlung Jetzt lüften Feinstaub hoch"
              ]
 
-      assert texts(doc, "#room-wohnzimmer-hint") == [
-               "Lüftungshinweis Lüften kühlt und trocknet Balkon 14,0 °C · 80 % · bei 26,5 °C: 39 %"
+      assert attrs(doc, "#room-wohnzimmer-verdict", "data-level") == ["bad"]
+
+      assert texts(doc, "#room-wohnzimmer-hint[role=status]") == [
+               "Lüften kühlt und trocknet Balkon 14,0 °C · 80 % · bei 26,5 °C: 39 %"
              ]
 
-      assert texts(doc, "#room-wohnzimmer .alert-warning[role=alert]") == [
+      assert texts(doc, "#room-wohnzimmer-device-alert[role=status]") == [
                "SEN66 meldet: Lüfterdrehzahl weicht ab – Feinstaubwerte können ungenau sein."
              ]
 
-      assert texts(doc, "#room-wohnzimmer [aria-labelledby=room-wohnzimmer-pm-split] li") == [
+      assert texts(doc, "#room-wohnzimmer-pm-shares li") == [
                "bis 1 µm 20,0 · 45 %",
                "1–2,5 µm 18,0 · 41 %",
                "2,5–4 µm 2,0 · 5 %",
                "4–10 µm 4,0 · 9 %"
+             ]
+
+      assert texts(doc, "#room-wohnzimmer-pm-shares > div:first-child") == ["PM10 44,0 µg/m³"]
+      assert texts(doc, "#room-wohnzimmer-pm-split h4") == ["Feinstaub nach Größe"]
+
+      assert attrs(doc, "#room-wohnzimmer-pm-shares[role=group]", "data-series") == [
+               "seq-1 seq-2 seq-4 seq-5"
              ]
     end
 
@@ -272,32 +306,48 @@ defmodule ZiwoasWeb.SensorsLiveTest do
          %{conn: conn} do
       doc = page(conn)
 
-      assert texts(doc, "nav.room-air-strip a") == [
-               "Wohnzimmer Jetzt lüften 900 ppm Lüften kühlt und trocknet",
-               "Schlafzimmer CO₂ gut 700 ppm"
+      assert texts(doc, "#room-strip a") == ["Wohnzimmer", "Schlafzimmer"]
+      assert hd(texts(doc, "#room-wohnzimmer-strip")) =~ "900 ppm · Lüften kühlt und trocknet"
+      assert verdict_badge(doc, "room-wohnzimmer") == {"bad", "Jetzt lüften"}
+      assert verdict_badge(doc, "room-schlafzimmer") == {"good", "CO₂ gut"}
+
+      assert attrs(doc, "main section[aria-labelledby$=-name]", "id") == [
+               "room-wohnzimmer",
+               "room-schlafzimmer"
              ]
 
-      assert count(doc, "section.room-air.border-top") == 1
-      assert count(doc, "#room-schlafzimmer.border-top") == 1
-
-      assert texts(doc, "#room-schlafzimmer h2") == ["Schlafzimmer"]
+      assert texts(doc, "#room-schlafzimmer-name") == ["Schlafzimmer"]
 
       assert attrs(doc, "#room-schlafzimmer [data-quantity]", "data-quantity") ==
                ~w[temperature humidity]
 
-      assert count(doc, "#room-schlafzimmer .pm-split") == 0
+      assert count(doc, "#room-schlafzimmer-pm-split") == 0
       assert texts(doc, "#room-schlafzimmer-verdict") == ["Lüftungsempfehlung CO₂ gut"]
+      assert attrs(doc, "#room-schlafzimmer-verdict", "data-level") == ["good"]
 
-      assert attrs(doc, "#room-schlafzimmer-charts canvas", "data-chart") ==
+      assert [co2_line] = texts(doc, "#room-schlafzimmer-co2-now")
+      refute co2_line =~ "gut", "the verdict already says it"
+
+      assert attrs(doc, "#room-schlafzimmer-charts [phx-hook]", "data-chart") ==
                ~w[co2 temperature humidity]
 
-      assert attrs(doc, "#room-wohnzimmer-charts canvas", "data-chart") ==
+      assert attrs(doc, "#room-wohnzimmer-charts [phx-hook]", "data-chart") ==
                ~w[co2 pm voc_index nox_index temperature humidity]
 
-      assert texts(doc, "#room-wohnzimmer .room-air-sensor dd") |> Enum.take(3) == [
+      assert texts(doc, "#room-wohnzimmer-pm li") == [
+               "PM2,5",
+               "PM10",
+               "Grenzen für PM2,5",
+               "keine Messung"
+             ]
+
+      assert texts(doc, "#room-wohnzimmer-humidity li") == ["angenehm 40–60 %", "Ersatzsensor"]
+
+      assert texts(doc, "#room-wohnzimmer-sensor-SEN dd") == [
                "11:59 · vor 1 Min",
-               "Lüfterdrehzahl weicht ab – Feinstaubwerte können ungenau sein",
-               "dev (SEN66 4.0)"
+               "Warnung",
+               "dev (SEN66 4.0)",
+               "SEN"
              ]
     end
 
@@ -325,7 +375,7 @@ defmodule ZiwoasWeb.SensorsLiveTest do
 
       doc = view |> render() |> LazyHTML.from_fragment()
 
-      assert texts(doc, "#room-wohnzimmer-verdict > span") == [
+      assert texts(doc, "#room-wohnzimmer-verdict > div") == [
                "Lüftungsempfehlung",
                "Jetzt lüften",
                "CO₂ hoch"
@@ -356,13 +406,13 @@ defmodule ZiwoasWeb.SensorsLiveTest do
 
     doc = page(conn)
 
-    assert texts(doc, "#room-wohnzimmer .room-air-sources li") == [
+    assert texts(doc, "#room-wohnzimmer-sources li") == [
              "Leitsensor: SEN66 · keine Daten seit 11:56",
              "Ersatzsensor: Krabbe · vor 10 Min"
            ]
 
-    assert texts(doc, "#room-wohnzimmer .alert-warning") == [
-             "SEN66: keine Daten seit 11:56 – CO₂, Temperatur und Feuchte kommen vom " <>
+    assert texts(doc, "#room-wohnzimmer-lead-alert") == [
+             "SEN66: keine Daten seit 11:56 – CO₂, Temperatur und Luftfeuchte kommen vom " <>
                "Ersatzsensor, Feinstaub, VOC und NOx fehlen."
            ]
   end
@@ -435,8 +485,8 @@ defmodule ZiwoasWeb.SensorsLiveTest do
     test "says what the stand-in covers and what is missing", %{conn: conn} do
       doc = page(conn)
 
-      assert texts(doc, "#room-wohnzimmer .alert-warning") == [
-               "SEN66: keine Daten seit 11:50 – CO₂, Temperatur und Feuchte kommen vom " <>
+      assert texts(doc, "#room-wohnzimmer-lead-alert") == [
+               "SEN66: keine Daten seit 11:50 – CO₂, Temperatur und Luftfeuchte kommen vom " <>
                  "Ersatzsensor, Feinstaub, VOC und NOx fehlen."
              ]
 
@@ -451,19 +501,16 @@ defmodule ZiwoasWeb.SensorsLiveTest do
                "Luftfeuchte 60 % angenehm vom Ersatzsensor"
              ]
 
-      assert count(doc, "#room-wohnzimmer p.small") == 0
-
-      assert texts(doc, "#room-wohnzimmer .room-air-sources .text-warning-emphasis") == [
+      assert texts(doc, "#room-wohnzimmer-sources [data-level=warn]") == [
                "keine Daten seit 11:50"
              ]
 
-      assert texts(doc, "#room-wohnzimmer .room-air-sensor .text-warning-emphasis") == [
+      assert texts(doc, "#room-wohnzimmer [id^=room-wohnzimmer-sensor-] [data-level=warn]") == [
                "keine Daten seit 11:50",
                "15 %"
              ]
 
-      assert Enum.at(texts(doc, "#room-wohnzimmer .room-air-sensor dd"), 1) ==
-               "keine Daten seit 11:50"
+      assert Enum.at(texts(doc, "#room-wohnzimmer-sensor-SEN dd"), 1) == "keine Daten seit 11:50"
     end
   end
 end

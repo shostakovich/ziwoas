@@ -8,7 +8,7 @@ defmodule ZiwoasWeb.WeatherComponents do
 
   defmodule Cell do
     @moduledoc false
-    defstruct [:text, :icon, :alt, :classes, emphasis: false]
+    defstruct [:text, :icon, :alt, :classes, emphasis: false, lucide: false]
   end
 
   @condition_labels %{
@@ -41,70 +41,81 @@ defmodule ZiwoasWeb.WeatherComponents do
 
   def empty(assigns) do
     ~H"""
-    <.card :if={is_nil(@current) and @today == [] and @days == []} title="Noch keine Wetterdaten">
-      <p>Die Wetteransicht erscheint, sobald Bright Sky Daten geladen hat.</p>
-    </.card>
+    <.empty_state
+      :if={is_nil(@current) and @today == [] and @days == []}
+      layout={:page}
+      plush="cloud-sun-rain"
+      title="Noch keine Wetterdaten"
+    >
+      Die Wetteransicht erscheint, sobald Bright Sky Daten geladen hat.
+    </.empty_state>
     """
   end
 
   attr :current, :any, required: true
   attr :sensor, :any, required: true
+  attr :daylight, :boolean, default: true, doc: "the sun is up now, by the clock"
 
   def current(assigns) do
+    current = assigns.current
+    night = current && (current.daytime == "night" or not assigns.daylight)
+
+    assigns =
+      assign(assigns,
+        night: night,
+        plush: current && WeatherIcon.current_plush_name(current, assigns.daylight),
+        measures:
+          current &&
+            [
+              {"humidity", "Luftfeuchte", number(current.relative_humidity), "%"},
+              {"clouds", "Wolken", number(current.cloud_cover), "%"},
+              {"rain", "Regen", number(current.precipitation || 0, precision: 1), "mm"},
+              {"pressure", "Luftdruck", number(current.pressure_msl || 0), "hPa"}
+            ]
+      )
+
     ~H"""
-    <section :if={@current} class="weather-current card mb-3">
-      <div class="card-body">
-        <div class="row g-3 align-items-center">
-          <div class="col-12 col-md d-flex align-items-center gap-3">
-            <img
-              class="icon weather-icon-lg"
-              width="82"
-              height="82"
-              alt={icon_label(@current.icon)}
-              src={~p"/images/#{WeatherIcon.asset_name(@current)}"}
-            />
-            <div class="stat">
-              <span class="stat-label">Jetzt</span>
-              <span class="stat-value fs-1">
-                {number((@sensor || @current).temperature, precision: 1, unit: "°C")}
-              </span>
-              <span class="small text-body-secondary">{current_summary(@current, @sensor)}</span>
-            </div>
-          </div>
-          <div class="col-12 col-md-auto">
-            <ul class="list-unstyled row row-cols-4 row-cols-md-auto g-3 small text-body-secondary text-nowrap text-center text-md-start mb-0">
-              <li class="col">
-                <strong class="d-block text-body tabular-nums">{number(@current.relative_humidity)}%</strong>Luft
-              </li>
-              <li class="col">
-                <strong class="d-block text-body tabular-nums">{number(@current.cloud_cover)}%</strong>Wolken
-              </li>
-              <li class="col">
-                <strong class="d-block text-body tabular-nums">
-                  {number(@current.precipitation || 0, precision: 1, unit: "mm")}
-                </strong>Regen
-              </li>
-              <li class="col">
-                <strong class="d-block text-body tabular-nums">{number(@current.pressure_msl || 0)}</strong>hPa
-              </li>
-            </ul>
-          </div>
+    <.card
+      :if={@current}
+      id="weather-current"
+      as="section"
+      aria-label="Aktuelles Wetter"
+    >
+      <div id="weather-now" class="flex items-center justify-between gap-4">
+        <div class="min-w-0">
+          <p class="stat-title">Jetzt</p>
+          <p class="stat-value leading-10 tabular-nums">
+            {number((@sensor || @current).temperature, precision: 1)}
+            <span class="text-base font-semibold text-base-content/70">°C</span>
+          </p>
+          <p class="text-sm text-base-content/70">{current_summary(@current, @sensor)}</p>
         </div>
-      </div>
-      <div class="weather-current-solar card-footer d-flex align-items-baseline gap-2">
-        <span class="small fw-semibold text-uppercase text-warning-emphasis">
-          <img class="icon weather-icon-inline" alt="" src={~p"/images/weather_clear_day.webp"} />
-          Solar
+        <span role="img" aria-label={icon_label(@current.icon)} class="shrink-0">
+          <.plush name={@plush} size={:xl} class="size-16 sm:size-20" />
         </span>
-        <span class="fw-semibold tabular-nums">
-          <%= if @current.daytime == "night" do %>
-            Nacht
-          <% else %>
+      </div>
+      <dl class="mt-3 grid grid-cols-4 gap-x-3 border-t border-base-content/10 pt-3 sm:flex sm:gap-x-10">
+        <div
+          :for={{key, label, value, unit} <- @measures}
+          class="flex min-w-0 flex-col-reverse"
+          data-measure={key}
+        >
+          <dt class="truncate text-xs text-base-content/70">{label}</dt>
+          <dd class="font-semibold whitespace-nowrap tabular-nums">
+            {value} <span class="text-xs font-medium text-base-content/70">{unit}</span>
+          </dd>
+        </div>
+      </dl>
+      <:footer>
+        <p id="weather-solar" class="flex items-center gap-2">
+          <.plush name={if @night, do: "weather-clear-night", else: "weather-clear-day"} size={:sm} />
+          Sonne <span :if={@night} class="font-semibold text-base-content">Nacht</span>
+          <span :if={!@night} class="font-semibold text-base-content tabular-nums">
             {number(Weather.solar_w_per_m2(@current), unit: "W/m²")}
-          <% end %>
-        </span>
-      </div>
-    </section>
+          </span>
+        </p>
+      </:footer>
+    </.card>
     """
   end
 
@@ -116,15 +127,31 @@ defmodule ZiwoasWeb.WeatherComponents do
       assign(assigns, rows: hour_rows(assigns.records), units: hour_units(assigns.records))
 
     ~H"""
-    <%= if @records != [] do %>
-      <h2 class="h6 text-uppercase text-body-secondary mt-4 mb-2">Heute</h2>
-      <section class="weather-hour-row card mb-3" aria-label="Heute">
-        <div class={["weather-hour-scroller card-body overflow-x-auto", @units != [] && "pb-2"]}>
-          <.hour_card :for={record <- @records} record={record} rows={@rows} zone={@zone} />
-        </div>
-        <.hour_key units={@units} class="px-4 pb-4" />
-      </section>
-    <% end %>
+    <section :if={@records != []} id="weather-today" aria-labelledby="weather-today-heading">
+      <.section_heading id="weather-today-heading">Heute</.section_heading>
+      <div class="border-y border-base-content/10 max-sm:-mx-4">
+        <.hour_strip records={@records} rows={@rows} zone={@zone} label="Heute, Stunde für Stunde" />
+      </div>
+      <.hour_key units={@units} class="mt-2" />
+    </section>
+    """
+  end
+
+  attr :records, :list, required: true
+  attr :rows, :list, required: true
+  attr :zone, :string, required: true
+  attr :label, :string, required: true
+
+  defp hour_strip(assigns) do
+    ~H"""
+    <div
+      class="weather-hour-scroller setzkasten-scroller overflow-x-auto"
+      role="region"
+      aria-label={@label}
+      tabindex="0"
+    >
+      <.hour_card :for={record <- @records} record={record} rows={@rows} zone={@zone} />
+    </div>
     """
   end
 
@@ -137,12 +164,12 @@ defmodule ZiwoasWeb.WeatherComponents do
 
   def forecast(assigns) do
     ~H"""
-    <%= if @days != [] do %>
-      <h2 class="h6 text-uppercase text-body-secondary mt-4 mb-2">Nächste Tage</h2>
-      <section class="vstack gap-3">
+    <section :if={@days != []} id="weather-forecast" aria-labelledby="weather-forecast-heading">
+      <.section_heading id="weather-forecast-heading">Nächste Tage</.section_heading>
+      <div class="flex flex-col gap-4 md:gap-6">
         <.day :for={day <- @days} day={day} zone={@zone} open={@open} />
-      </section>
-    <% end %>
+      </div>
+    </section>
     """
   end
 
@@ -153,6 +180,7 @@ defmodule ZiwoasWeb.WeatherComponents do
   defp day(assigns) do
     segments = Day.segments(assigns.day)
     iso = Date.to_iso8601(assigns.day.date)
+    precip = Day.precip_sum(assigns.day)
 
     assigns =
       assign(assigns,
@@ -161,90 +189,82 @@ defmodule ZiwoasWeb.WeatherComponents do
         iso: iso,
         selected: Map.get(assigns.open, iso),
         peak: Day.solar_peak_w_per_m2(assigns.day),
-        precip: Day.precip_sum(assigns.day)
+        summary:
+          join_meta([
+            "#{temp_range(Day.temp_min(assigns.day), Day.temp_max(assigns.day))} °C",
+            precip > 0 && "Regen #{number(precip, precision: 1, unit: "mm")}"
+          ])
       )
 
     ~H"""
-    <article class="weather-day-card card">
-      <header class="card-header">
-        <div class="d-flex justify-content-between align-items-baseline gap-2">
-          <h3 class="h6 mb-0 text-nowrap">
-            {weekday(@day.date)}
-            <span class="fw-normal text-body-secondary tabular-nums">{day_month(@day.date)}</span>
-          </h3>
-          <div
-            :if={@peak}
-            class="weather-day-peak small fw-semibold text-warning-emphasis tabular-nums text-nowrap"
-          >
-            <img class="icon weather-icon-inline" alt="" src={~p"/images/weather_clear_day.webp"} />
-            Spitze {number(@peak, unit: "W/m²")}
-          </div>
-        </div>
-        <div class="weather-day-summary small text-body-secondary tabular-nums">
-          {number(Day.temp_min(@day))} – {number(Day.temp_max(@day), unit: "°C")}
-          <%= if @precip > 0 do %>
-            · Regen {number(@precip, precision: 1, unit: "mm")}
+    <.card
+      as="article"
+      id={"day-#{@iso}"}
+      title={"#{weekday(@day.date)}, #{day_month(@day.date)}"}
+      subtitle={@summary}
+      level={3}
+    >
+      <:actions :if={@peak}>
+        <span
+          data-peak
+          class="flex items-center gap-1 text-sm font-medium whitespace-nowrap text-warning-ink tabular-nums"
+        >
+          <.plush name="weather-clear-day" size={:sm} /> Spitze {number(@peak, unit: "W/m²")}
+        </span>
+      </:actions>
+      <div class="weather-day-segments mt-2">
+        <button
+          :for={{segment, idx} <- @segments}
+          type="button"
+          id={"seg-#{@iso}-#{idx}-toggle"}
+          class="weather-segment"
+          phx-click="toggle_segment"
+          phx-value-day={@iso}
+          phx-value-index={idx}
+          data-segment-index={idx}
+          data-segment-complete={to_string(Segment.complete?(segment))}
+          aria-expanded={to_string(idx == @selected)}
+          aria-controls={"seg-#{@iso}-#{idx}"}
+        >
+          <span class="text-sm text-base-content/70">
+            {segment_label(segment)}
+          </span>
+          <.plush
+            name={WeatherIcon.plush_name(segment)}
+            size={:xl}
+            alt={icon_label(Segment.dominant_icon(segment))}
+          />
+          <%= for row <- @rows, cell = segment_cell(segment, row) do %>
+            <span
+              class={["weather-segment-#{row}", "tabular-nums", cell.classes]}
+              data-row={row}
+              data-emphasis={cell.emphasis && "true"}
+            >
+              {cell.text}
+            </span>
           <% end %>
-        </div>
-      </header>
-      <div class="card-body">
-        <div class="weather-day-segments">
-          <button
-            :for={{segment, idx} <- @segments}
-            type="button"
-            class={[
-              "weather-segment btn btn-light w-100",
-              idx == @selected && "active border-primary bg-primary-subtle"
-            ]}
-            phx-click="toggle_segment"
-            phx-value-day={@iso}
-            phx-value-index={idx}
-            data-segment-index={idx}
-            data-segment-complete={to_string(Segment.complete?(segment))}
-            aria-expanded={to_string(idx == @selected)}
-            aria-controls={"seg-#{@iso}-#{idx}"}
-          >
-            <span class="weather-segment-label small">{segment_label(segment)}</span>
-            <img
-              class="weather-segment-icon icon weather-icon-md"
-              width="72"
-              height="72"
-              loading="lazy"
-              alt={icon_label(Segment.dominant_icon(segment))}
-              src={~p"/images/#{WeatherIcon.asset_name(segment)}"}
-            />
-            <%= for row <- @rows, cell = segment_cell(segment, row) do %>
-              <.dynamic_tag
-                tag_name={if cell.emphasis, do: "strong", else: "span"}
-                class={["weather-segment-#{row}", "tabular-nums", cell.classes]}
-              >
-                {cell.text}
-              </.dynamic_tag>
-            <% end %>
-          </button>
-        </div>
-
-        <div class="weather-day-hours">
-          <div
-            :for={{segment, idx} <- @segments}
-            class="weather-day-hour-row bg-body-secondary border rounded-3 mt-3"
-            id={"seg-#{@iso}-#{idx}"}
-            data-segment-index={idx}
-            hidden={idx != @selected}
-          >
-            <div class="weather-hour-scroller overflow-x-auto py-3 ps-3">
-              <.hour_card
-                :for={record <- segment.records}
-                record={record}
-                rows={hour_rows(segment.records)}
-                zone={@zone}
-              />
-            </div>
-            <.hour_key units={hour_units(segment.records)} class="px-3 pb-3" />
-          </div>
-        </div>
+          <.icon name="chevron-down" class="weather-segment-chevron text-base-content/70" />
+        </button>
       </div>
-    </article>
+
+      <div
+        :for={{segment, idx} <- @segments}
+        class="mt-4 rounded-box bg-base-200 py-1"
+        id={"seg-#{@iso}-#{idx}"}
+        role="region"
+        aria-labelledby={"seg-#{@iso}-#{idx}-toggle"}
+        data-segment-index={idx}
+        hidden={idx != @selected}
+      >
+        <.hour_strip
+          records={segment.records}
+          rows={hour_rows(segment.records)}
+          zone={@zone}
+          label={"#{weekday(@day.date)}, #{segment_label(segment)}, Stunde für Stunde"}
+        />
+        <.hour_key units={hour_units(segment.records)} class="px-4 pb-3" />
+      </div>
+    </.card>
     """
   end
 
@@ -254,27 +274,34 @@ defmodule ZiwoasWeb.WeatherComponents do
 
   defp hour_card(assigns) do
     ~H"""
-    <article class="weather-hour-card text-center small">
-      <div class="weather-hour-time fw-semibold tabular-nums">
+    <article class="weather-hour-card text-center">
+      <time
+        class="text-sm font-medium tabular-nums"
+        datetime={DateTime.to_iso8601(@record.timestamp)}
+      >
         {clock(@record.timestamp, @zone)}
-      </div>
-      <img
-        class="icon weather-icon-sm d-block mx-auto my-2"
-        width="42"
-        height="42"
-        loading="lazy"
+      </time>
+      <.plush
+        name={WeatherIcon.plush_name(@record)}
+        size={:lg}
         alt={icon_label(@record.icon)}
-        src={~p"/images/#{WeatherIcon.asset_name(@record)}"}
+        class="size-10"
       />
-      <strong class="d-block fs-4 tabular-nums">{number(@record.temperature)}°</strong>
+      <span class="text-lg font-semibold tabular-nums">
+        {number(@record.temperature)}°
+      </span>
       <ul
         :if={@rows != []}
-        class="weather-hour-extras list-unstyled mt-1 mb-0 text-body-secondary tabular-nums text-nowrap"
+        class="weather-hour-extras text-xs whitespace-nowrap text-base-content/70 tabular-nums"
       >
         <%= for row <- @rows, cell = hour_cell(@record, row) do %>
-          <li class={["weather-hour-#{row}", cell.classes, cell.emphasis && "fw-semibold"]}>
-            <img class="icon weather-icon-inline" alt={cell.alt} src={~p"/images/#{cell.icon}"} />
-            {cell.text}
+          <li
+            class={["weather-hour-#{row}", cell.classes, cell.emphasis && "font-semibold"]}
+            data-row={row}
+            data-emphasis={cell.emphasis && "true"}
+          >
+            <.icon :if={cell.lucide} name={cell.icon} label={cell.alt} class="size-4 shrink-0" />
+            <.plush :if={!cell.lucide} name={cell.icon} size={:sm} alt={cell.alt} />{cell.text}
           </li>
         <% end %>
       </ul>
@@ -290,9 +317,13 @@ defmodule ZiwoasWeb.WeatherComponents do
     ~H"""
     <ul
       :if={@units != []}
-      class={"weather-hour-key list-unstyled d-flex flex-wrap column-gap-3 row-gap-0 small text-body-secondary mb-0 #{@class}"}
+      class={[
+        "flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-base-content/70",
+        @class
+      ]}
+      data-hour-key
     >
-      <li :for={unit <- @units} class="text-nowrap">{unit}</li>
+      <li :for={unit <- @units} class="whitespace-nowrap">{unit}</li>
     </ul>
     """
   end
@@ -306,13 +337,11 @@ defmodule ZiwoasWeb.WeatherComponents do
   def condition_label(condition), do: Map.get(@condition_labels, condition)
 
   defp current_summary(current, sensor) do
-    [
+    join_meta([
       condition_label(current.condition),
       "Wind #{number(current.wind_speed || 0, unit: "km/h")}",
       if(sensor, do: "eigener Sensor", else: "DWD")
-    ]
-    |> Enum.reject(&is_nil/1)
-    |> Enum.join(" · ")
+    ])
   end
 
   def hour_rows(records) do
@@ -335,10 +364,11 @@ defmodule ZiwoasWeb.WeatherComponents do
 
         %Cell{
           text: number(wind),
-          icon: "weather_wind_day.webp",
+          icon: "wind",
+          lucide: true,
           alt: @hour_units[:wind],
           emphasis: windy,
-          classes: if(windy, do: "text-body")
+          classes: if(windy, do: "text-base-content")
         }
     end
   end
@@ -350,10 +380,10 @@ defmodule ZiwoasWeb.WeatherComponents do
 
     %Cell{
       text: number(solar),
-      icon: "weather_clear_day.webp",
+      icon: "weather-clear-day",
       alt: @hour_units[:solar],
       emphasis: sunny?(solar),
-      classes: "text-warning-emphasis"
+      classes: "text-warning-ink"
     }
   end
 
@@ -362,14 +392,14 @@ defmodule ZiwoasWeb.WeatherComponents do
       is_number(record.precipitation) and record.precipitation > 0 ->
         %Cell{
           text: number(record.precipitation, precision: 1),
-          icon: "weather_rain_day.webp",
+          icon: "weather-rain-day",
           alt: @hour_units[:rain]
         }
 
       at_least?(record.precipitation_probability, 30) ->
         %Cell{
           text: number(record.precipitation_probability, unit: "%"),
-          icon: "weather_rain_day.webp",
+          icon: "weather-rain-day",
           alt: "Regenwahrscheinlichkeit"
         }
 
@@ -391,9 +421,9 @@ defmodule ZiwoasWeb.WeatherComponents do
 
       min ->
         %Cell{
-          text: "#{number(min)} – #{number(Segment.temp_max(segment))}°",
+          text: "#{temp_range(min, Segment.temp_max(segment))}°",
           emphasis: true,
-          classes: "fs-5"
+          classes: "text-base font-semibold"
         }
     end
   end
@@ -402,17 +432,32 @@ defmodule ZiwoasWeb.WeatherComponents do
     precip = Segment.precip_sum(segment)
 
     if precip > 0,
-      do: %Cell{text: number(precip, precision: 1, unit: "mm"), classes: "small fw-normal"}
+      do: %Cell{
+        text: number(precip, precision: 1, unit: "mm"),
+        classes: "text-sm text-base-content/70"
+      }
   end
 
   def segment_cell(segment, :solar) do
     solar = Segment.avg_solar_w_per_m2(segment)
 
     unless is_nil(solar) or Segment.all_night?(segment),
-      do: %Cell{text: number(solar, unit: "W/m²"), classes: "small text-warning-emphasis"}
+      do: %Cell{text: number(solar, unit: "W/m²"), classes: "text-sm text-warning-ink"}
   end
 
   def segment_cell(_segment, _row), do: nil
+
+  @doc "One value when both ends round alike; „bis“ after a minus, else an en dash."
+  @spec temp_range(number | nil, number | nil) :: String.t()
+  def temp_range(min, max) do
+    {low, high} = {number(min), number(max)}
+
+    cond do
+      low == high -> low
+      String.starts_with?(low, "−") -> "#{low} bis #{high}"
+      true -> "#{low}–#{high}"
+    end
+  end
 
   def windy?(km_per_h), do: at_least?(km_per_h, @windy_km_per_h)
   def sunny?(w_per_m2), do: at_least?(w_per_m2, @sunny_w_per_m2)

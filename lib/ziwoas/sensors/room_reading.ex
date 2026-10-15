@@ -46,7 +46,7 @@ defmodule Ziwoas.Sensors.RoomReading do
           lead: Sensor.t(),
           stand_ins: [Sensor.t()],
           lead_fresh: boolean,
-          device_status: [DeviceStatus.flag()],
+          device_status: [{Sensor.t(), [DeviceStatus.flag(), ...]}],
           values: %{quantity => value | nil}
         }
   @type point :: %{
@@ -89,17 +89,23 @@ defmodule Ziwoas.Sensors.RoomReading do
 
   @spec select(String.t(), [Sensor.t(), ...], %{String.t() => Reading.t()}, DateTime.t()) :: t
   def select(room, [lead | stand_ins] = ranked, newest, now) do
-    lead_reading = newest[lead.id]
-    lead_fresh = fresh?(lead, lead_reading, now)
-
     %__MODULE__{
       room: room,
       lead: lead,
       stand_ins: stand_ins,
-      lead_fresh: lead_fresh,
-      device_status: if(lead_fresh, do: DeviceStatus.flags(lead_reading.device_status), else: []),
+      lead_fresh: fresh?(lead, newest[lead.id], now),
+      device_status: device_status(ranked, newest, now),
       values: values(ranked, newest, now)
     }
+  end
+
+  # A stale sensor's last word may be days old.
+  defp device_status(ranked, newest, now) do
+    for sensor <- ranked,
+        reading = newest[sensor.id],
+        fresh?(sensor, reading, now),
+        (flags = DeviceStatus.flags(reading.device_status)) != [],
+        do: {sensor, flags}
   end
 
   @doc """

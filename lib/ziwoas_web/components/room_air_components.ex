@@ -5,11 +5,12 @@ defmodule ZiwoasWeb.RoomAirComponents do
   """
   use ZiwoasWeb, :html
 
-  import ZiwoasWeb.SensorsComponents, only: [co2_gauge: 1, age_label: 2]
+  import ZiwoasWeb.SensorsComponents, only: [co2_gauge: 1, co2_label: 1, age_label: 2]
 
   alias Ziwoas.Config.Sensor
   alias Ziwoas.Sensors
   alias Ziwoas.Sensors.{Reading, RoomReading}
+  alias ZiwoasWeb.Charts.RoomAir, as: RoomAirCharts
 
   @labels %{
     co2: "CO₂",
@@ -32,7 +33,7 @@ defmodule ZiwoasWeb.RoomAirComponents do
     voc_index: "VOC",
     nox_index: "NOx",
     temperature: "Temperatur",
-    humidity: "Feuchte"
+    humidity: "Luftfeuchte"
   }
   @units %{
     co2: "ppm",
@@ -48,17 +49,14 @@ defmodule ZiwoasWeb.RoomAirComponents do
   @tile_quantities [:pm2_5, :pm10, :voc_index, :nox_index, :temperature, :humidity]
   @start_up_quantities [:voc_index, :nox_index]
   @voc_meaning "100 = Mittel der letzten 24 h"
-  @level_badges %{good: "text-bg-success", warn: "text-bg-warning", bad: "text-bg-danger"}
-  @level_texts %{
-    good: "text-success-emphasis",
-    warn: "text-warning-emphasis",
-    bad: "text-danger-emphasis"
-  }
-  @level_tints %{warn: "bg-warning-subtle", bad: "bg-danger-subtle"}
+  @level_tones %{good: :success, warn: :warning, bad: :error}
+  @verdict_tones %{warn: :warning, bad: :error}
+  @verdict_inks %{warn: "text-warning-ink", bad: "text-error-ink"}
   @device_status %{
     fan_speed_warning: {"Lüfterdrehzahl weicht ab", "Feinstaubwerte können ungenau sein"},
     fan_error: {"Lüfter ausgefallen", "Feinstaubwerte fehlen oder sind falsch"},
-    rht_error: {"Temperatur- und Feuchtesensor gestört", "Temperatur und Feuchte sind unsicher"},
+    rht_error:
+      {"Temperatur- und Feuchtesensor gestört", "Temperatur und Luftfeuchte sind unsicher"},
     gas_error: {"VOC/NOx-Sensor gestört", "VOC und NOx sind unsicher"},
     co2_1_error: {"CO₂-Sensor gestört", "CO₂ ist unsicher"},
     co2_2_error: {"CO₂-Sensor gestört", "CO₂ ist unsicher"},
@@ -71,6 +69,8 @@ defmodule ZiwoasWeb.RoomAirComponents do
     {"2,5–4 µm", :pm2_5, :pm4_0},
     {"4–10 µm", :pm4_0, :pm10}
   ]
+  # Four bins spread over the five steps of the sequential ramp.
+  @pm_steps %{1 => 1, 2 => 2, 3 => 4, 4 => 5}
 
   @typedoc "What a room view needs, loaded once per update."
   @type room :: %{
@@ -283,8 +283,27 @@ defmodule ZiwoasWeb.RoomAirComponents do
   defp sentence([one]), do: one
   defp sentence(words), do: Enum.join(Enum.drop(words, -1), ", ") <> " und " <> List.last(words)
 
-  defp level_text(level), do: @level_texts[level]
   defp verdict_level(verdict), do: verdict && elem(verdict, 0)
+
+  attr :level, :atom, required: true, doc: "`:good`, `:warn`, `:bad` or nil"
+  attr :style, :atom, default: :dot, doc: "`:dot` or `:text`; the alarm level is always solid"
+  attr :rest, :global
+  slot :inner_block, required: true
+
+  defp level_badge_for(assigns) do
+    assigns =
+      assign(assigns,
+        tone: Map.get(@level_tones, assigns.level, :neutral),
+        style:
+          if(assigns.level == :bad and assigns.style == :dot, do: :solid, else: assigns.style)
+      )
+
+    ~H"""
+    <.badge tone={@tone} style={@style} data-level={@level} {@rest}>
+      {render_slot(@inner_block)}
+    </.badge>
+    """
+  end
 
   attr :rooms, :list, required: true
 
@@ -295,60 +314,47 @@ defmodule ZiwoasWeb.RoomAirComponents do
           for room <- assigns.rooms do
             co2 = room.reading.values[:co2]
             hint = hint_text(room.hint, room.reading, short: true)
-            %{room: room, co2: co2 && co2.value, hint: hint}
+            %{room: room, co2: co2 && number(co2.value, unit: "ppm"), hint: hint}
           end
       )
 
     ~H"""
-    <nav class="card mb-4 room-air-strip" aria-label="Räume">
-      <div class="list-group list-group-flush">
-        <a
+    <nav id="room-strip" aria-labelledby="room-strip-heading">
+      <.section_heading id="room-strip-heading">Räume</.section_heading>
+      <.list>
+        <.list_row
           :for={entry <- @entries}
+          id={"#{entry.room.id}-strip"}
+          title={entry.room.name}
           href={"##{entry.room.id}"}
-          class="list-group-item list-group-item-action room-air-strip-row"
+          trailing_on_phone={:title}
         >
-          <strong class="room-air-strip-name text-body">{entry.room.name}</strong>
-          <span class={[
-            "room-air-strip-verdict fw-semibold",
-            level_text(verdict_level(entry.room.verdict))
-          ]}>
-            {verdict_word(entry.room.verdict)}
-          </span>
-          <span class="room-air-strip-co2 tabular-nums text-nowrap">
-            {entry.co2 && number(entry.co2, unit: "ppm")}
-          </span>
-          <span class={[
-            "room-air-strip-hint small",
-            if(entry.hint && elem(entry.hint, 1) == :warn,
-              do: "text-warning-emphasis",
-              else: "text-body-secondary"
-            )
-          ]}>
-            {entry.hint && elem(entry.hint, 0)}
-          </span>
-          <.chevron class="room-air-strip-chevron" />
-        </a>
-      </div>
+          <:meta :if={entry.co2 || entry.hint}>
+            <span class="tabular-nums">{entry.co2}</span><.meta_sep :if={entry.co2 && entry.hint} /><.hint_word
+              :if={entry.hint}
+              hint={entry.hint}
+            />
+          </:meta>
+          <:trailing>
+            <.level_badge_for level={verdict_level(entry.room.verdict)}>
+              {verdict_word(entry.room.verdict)}
+            </.level_badge_for>
+          </:trailing>
+        </.list_row>
+      </.list>
     </nav>
     """
   end
 
-  attr :class, :string, default: nil
+  attr :hint, :any, required: true
 
-  defp chevron(assigns) do
+  defp hint_word(%{hint: {_text, :warn}} = assigns) do
     ~H"""
-    <svg class={["room-air-chevron", @class]} viewBox="0 0 16 16" aria-hidden="true">
-      <path
-        d="M6 3l5 5-5 5"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      />
-    </svg>
+    <.level_badge_for level={:warn} style={:text}>{elem(@hint, 0)}</.level_badge_for>
     """
   end
+
+  defp hint_word(assigns), do: ~H"{elem(@hint, 0)}"
 
   attr :room, :map, required: true, doc: "see `t:room/0`"
   attr :first, :boolean, default: true
@@ -361,21 +367,34 @@ defmodule ZiwoasWeb.RoomAirComponents do
   def room(assigns) do
     ~H"""
     <section
-      class={["room-air mb-4", !@first && "mt-5 pt-4 border-top"]}
+      class={[
+        "flex scroll-mt-20 flex-col gap-8",
+        !@first && "border-t border-base-content/10 pt-8"
+      ]}
       id={@room.id}
       aria-labelledby={"#{@room.id}-name"}
     >
-      <h2 class="h3 mb-1" id={"#{@room.id}-name"}>{@room.name}</h2>
-      <.sources room={@room} latest={@latest} now={@now} zone={@zone} />
-      <.device_alert reading={@room.reading} />
-      <.lead_alert room={@room} latest={@latest} now={@now} zone={@zone} />
-      <.hero :if={:co2 in @room.quantities} room={@room} outdoor={@outdoor} balcony={@balcony} />
-      <.tiles room={@room} />
+      <div class="flex flex-col gap-4 md:gap-6">
+        <div>
+          <.section_heading id={"#{@room.id}-name"} class="mb-1">{@room.name}</.section_heading>
+          <.sources room={@room} latest={@latest} now={@now} zone={@zone} />
+        </div>
+        <.device_alert room={@room} />
+        <.lead_alert room={@room} latest={@latest} now={@now} zone={@zone} />
+        <.hero :if={:co2 in @room.quantities} room={@room} />
+        <.hint room={@room} outdoor={@outdoor} balcony={@balcony} />
+        <.tiles room={@room} />
+      </div>
 
-      <h3 class="h6 text-uppercase text-body-secondary mt-4 mb-2">Verlauf · letzte 24 h</h3>
-      <.charts room={@room} />
-      <.pm_split room={@room} />
-      <.sensors_card reading={@room.reading} latest={@latest} now={@now} zone={@zone} />
+      <section aria-labelledby={"#{@room.id}-history"} class="flex flex-col gap-4 md:gap-6">
+        <.section_heading id={"#{@room.id}-history"} level={3} class="mb-0">
+          Verlauf <span class="font-normal text-base-content/70">letzte 24 h</span>
+        </.section_heading>
+        <.charts room={@room} />
+        <.pm_split room={@room} />
+      </section>
+
+      <.sensor_facts room={@room} latest={@latest} now={@now} zone={@zone} />
     </section>
     """
   end
@@ -396,7 +415,7 @@ defmodule ZiwoasWeb.RoomAirComponents do
             {freshness, age} = freshness(sensor, latest, assigns.now, assigns.zone)
 
             %{
-              role: if(sensor == reading.lead, do: "Leitsensor", else: "Ersatzsensor"),
+              role: role(sensor, reading),
               sensor: sensor,
               age: age,
               stale?: freshness != :fresh,
@@ -406,23 +425,37 @@ defmodule ZiwoasWeb.RoomAirComponents do
       )
 
     ~H"""
-    <ul class="room-air-sources list-unstyled d-md-flex flex-wrap column-gap-4 small text-body-secondary mb-3">
-      <li :for={entry <- @entries}>
-        <%!-- Each separator ends its item, so a wrapped line never starts with one. --%>
-        <span class="text-nowrap">
-          {entry.role}: <span class="text-body fw-semibold">{entry.sensor.name}</span> ·
-        </span>
-        <span class="text-nowrap">
-          <span class={entry.stale? && "text-warning-emphasis"}>{entry.age}</span>{if entry.status,
-            do: " ·"}
-        </span>
-        <span :if={entry.status} class="text-nowrap">
-          <span class={tone_text(elem(entry.status, 1))}>{elem(entry.status, 0)}</span>
-        </span>
+    <ul
+      id={"#{@room.id}-sources"}
+      class="flex flex-wrap gap-x-6 gap-y-1 text-sm text-base-content/70"
+    >
+      <li :for={entry <- @entries} data-sensor={entry.sensor.id}>
+        {entry.role}:
+        <span class="font-medium text-base-content">{entry.sensor.name}</span><.meta_sep />
+        <%= if entry.stale? do %>
+          <.level_badge_for
+            level={:warn}
+            style={:text}
+          >
+            {entry.age}
+          </.level_badge_for>
+        <% else %>
+          {entry.age}
+        <% end %>
+        <.meta_sep :if={entry.status} /><.level_badge_for
+          :if={entry.status}
+          level={elem(entry.status, 1)}
+          style={:text}
+        >
+          {elem(entry.status, 0)}
+        </.level_badge_for>
       </li>
     </ul>
     """
   end
+
+  defp role(sensor, reading),
+    do: if(sensor == reading.lead, do: "Leitsensor", else: "Ersatzsensor")
 
   defp freshness(_sensor, nil, _now, _zone), do: {:none, "noch keine Daten"}
 
@@ -432,10 +465,10 @@ defmodule ZiwoasWeb.RoomAirComponents do
       else: {:stale, "keine Daten seit #{since(latest.taken_at, now, zone)}"}
   end
 
-  # A fresh SEN66's device status in a word and a tone; a battery stands in the page's alert.
+  # A fresh SEN66's device status in a word and a level; a battery stands in the page's alert.
   defp status(%Sensor{type: :sen66}, latest) do
     case Sensors.device_status_flags(latest.device_status) do
-      [] -> {"in Ordnung", nil}
+      [] -> {"in Ordnung", :good}
       [:fan_speed_warning] -> {"Warnung", :warn}
       _errors -> {"Fehler", :bad}
     end
@@ -443,31 +476,32 @@ defmodule ZiwoasWeb.RoomAirComponents do
 
   defp status(_sensor, _latest), do: nil
 
-  defp tone_text(:warn), do: "text-warning-emphasis"
-  defp tone_text(:bad), do: "text-danger-emphasis"
-  defp tone_text(_tone), do: nil
-
   defp since(taken_at, now, zone) do
     if DateTime.diff(now, taken_at) < 20 * 3600,
       do: clock(taken_at, zone),
       else: day_month(DateTime.shift_zone!(taken_at, zone))
   end
 
-  attr :reading, RoomReading, required: true
+  attr :room, :map, required: true
 
   defp device_alert(assigns) do
-    flags = assigns.reading.device_status
+    reports = assigns.room.reading.device_status
+
+    warnings_only? =
+      Enum.all?(reports, fn {_sensor, flags} -> flags -- [:fan_speed_warning] == [] end)
 
     assigns =
       assign(assigns,
-        problems: device_status_text(flags),
-        kind: if(flags -- [:fan_speed_warning] == [], do: "warning", else: "danger")
+        reports: for({sensor, flags} <- reports, do: {sensor.name, device_status_text(flags)}),
+        tone: if(warnings_only?, do: :warning, else: :error)
       )
 
     ~H"""
-    <div :if={@problems != []} class={"alert alert-#{@kind} mb-3"} role="alert">
-      <strong>{@reading.lead.name} meldet:</strong> {Enum.join(@problems, "; ")}.
-    </div>
+    <.alert :if={@reports != []} id={"#{@room.id}-device-alert"} tone={@tone}>
+      <p :for={{name, problems} <- @reports}>
+        <span class="font-semibold">{name} meldet:</span> {Enum.join(problems, "; ")}.
+      </p>
+    </.alert>
     """
   end
 
@@ -490,7 +524,7 @@ defmodule ZiwoasWeb.RoomAirComponents do
       )
 
     ~H"""
-    <div :if={@message} class="alert alert-warning mb-3" role="alert">{@message}.</div>
+    <.alert :if={@message} id={"#{@room.id}-lead-alert"} tone={:warning}>{@message}.</.alert>
     """
   end
 
@@ -519,76 +553,86 @@ defmodule ZiwoasWeb.RoomAirComponents do
       )
 
   attr :room, :map, required: true
-  attr :outdoor, Reading, default: nil
-  attr :balcony, :boolean, required: true
 
   defp hero(assigns) do
     reading = assigns.room.reading
     co2 = reading.values.co2
+    level = verdict_level(assigns.room.verdict)
 
     assigns =
       assign(assigns,
         co2: co2,
-        level: verdict_level(assigns.room.verdict),
+        co2_word?: co2 && not (level == :good and Sensors.co2_level(co2.value) == :good),
+        level: level,
+        tone: @verdict_tones[level],
         reason:
-          verdict_reason(assigns.room.verdict, assigns.room, alerted: not reading.lead_fresh),
-        hint: hint_text(assigns.room.hint, reading),
-        hint?: assigns.room.hint != nil or (assigns.balcony and is_nil(assigns.outdoor))
+          verdict_reason(assigns.room.verdict, assigns.room, alerted: not reading.lead_fresh)
       )
 
     ~H"""
-    <div class="card mb-3 room-air-hero">
-      <div class="card-body">
-        <div class="row g-3 align-items-start">
-          <div class="col-12 col-md-auto pe-md-3 d-flex align-items-start gap-3">
-            <.co2_gauge :if={@co2} ppm={@co2.value} />
-            <div class="stat">
-              <span class="stat-label">CO₂</span>
-              <span class="text-nowrap">
-                <span class="stat-value fs-1">{number(@co2 && @co2.value)}</span>
-                <span :if={@co2} class="fs-5 fw-semibold">ppm</span>
-              </span>
-              <span :if={@co2 && @co2.source == :stand_in} class="small text-body-secondary">
-                vom Ersatzsensor
-              </span>
-            </div>
-          </div>
-          <div class="col-12 col-md align-self-stretch room-air-hero-column">
-            <div class="stat" id={"#{@room.id}-verdict"}>
-              <span class="stat-label">Lüftungsempfehlung</span>
-              <span class={["stat-value fs-2", level_text(@level)]}>{verdict_word(@room.verdict)}</span>
-              <span :if={@reason} class="small text-body-secondary">{@reason}</span>
-            </div>
-          </div>
-          <div :if={@hint?} class="col-md d-none d-md-block align-self-stretch room-air-hero-column">
-            <div class="stat">
-              <span class="stat-label">Lüftungshinweis</span>
-              <.hint_lines hint={@hint} outdoor={@outdoor} room={@room} />
-            </div>
-          </div>
-        </div>
-      </div>
-      <div :if={@hint?} class="card-footer d-md-none" id={"#{@room.id}-hint"}>
-        <span class="small fw-semibold text-uppercase text-body-secondary me-1">Lüftungshinweis</span>
-        <.hint_lines hint={@hint} outdoor={@outdoor} room={@room} />
-      </div>
+    <div class="setzkasten-stat-grid grid gap-4 md:grid-cols-2 md:gap-6">
+      <.stat
+        id={"#{@room.id}-co2-now"}
+        label="CO₂"
+        value={number(@co2 && @co2.value)}
+        unit={@co2 && "ppm"}
+        size={:sm}
+      >
+        <:note :if={@co2 && (@co2_word? or @co2.source == :stand_in)}>
+          <.level_badge :if={@co2_word?} quantity={:co2} value={@co2.value} />
+          <span :if={@co2.source == :stand_in}>vom Ersatzsensor</span>
+        </:note>
+        <:figure :if={@co2} label={co2_label(@co2.value)}>
+          <.co2_gauge ppm={@co2.value} class="w-28" />
+        </:figure>
+      </.stat>
+      <.stat
+        id={"#{@room.id}-verdict"}
+        label="Lüftungsempfehlung"
+        value={verdict_word(@room.verdict)}
+        tone={@tone}
+        size={:sm}
+        data-level={@level}
+      >
+        <:note :if={@reason}>
+          <%= if @level in [:warn, :bad] do %>
+            <.level_badge_for level={@level}>{@reason}</.level_badge_for>
+          <% else %>
+            {@reason}
+          <% end %>
+        </:note>
+      </.stat>
     </div>
     """
   end
 
-  attr :hint, :any, required: true
-  attr :outdoor, Reading, default: nil
   attr :room, :map, required: true
+  attr :outdoor, Reading, default: nil
+  attr :balcony, :boolean, required: true
 
-  defp hint_lines(assigns) do
+  defp hint(assigns) do
+    room = assigns.room
+
+    assigns =
+      assign(assigns,
+        hint: hint_text(room.hint, room.reading),
+        shown?: room.hint != nil or (assigns.balcony and is_nil(assigns.outdoor))
+      )
+
     ~H"""
-    <%= if @hint do %>
-      <strong class={elem(@hint, 1) == :warn && "text-warning-emphasis"}>{elem(@hint, 0)}</strong>
-      <span class="d-block small text-body-secondary">
+    <%= if @shown? do %>
+      <.alert
+        :if={@hint}
+        id={"#{@room.id}-hint"}
+        tone={if elem(@hint, 1) == :warn, do: :warning, else: :neutral}
+        icon="wind"
+        title={elem(@hint, 0)}
+      >
         {balcony_text(@outdoor, @room.hint, @room.reading)}
-      </span>
-    <% else %>
-      <span class="small text-body-secondary">keine aktuellen Balkonwerte</span>
+      </.alert>
+      <.alert :if={!@hint} id={"#{@room.id}-hint"} tone={:neutral} icon="wind">
+        Kein Lüftungshinweis: keine aktuellen Balkonwerte
+      </.alert>
     <% end %>
     """
   end
@@ -597,16 +641,14 @@ defmodule ZiwoasWeb.RoomAirComponents do
   attr :value, :any, required: true
 
   def level_badge(assigns) do
-    level = Sensors.level(assigns.quantity, assigns.value)
-
     assigns =
       assign(assigns,
-        class: @level_badges[level],
+        level: Sensors.level(assigns.quantity, assigns.value),
         word: level_word(assigns.quantity, assigns.value)
       )
 
     ~H"""
-    <span :if={@word} class={["badge rounded-pill", @class]}>{@word}</span>
+    <.level_badge_for :if={@word} level={@level}>{@word}</.level_badge_for>
     """
   end
 
@@ -619,7 +661,10 @@ defmodule ZiwoasWeb.RoomAirComponents do
     assigns = assign(assigns, quantities: shown, columns: tile_columns(length(shown)))
 
     ~H"""
-    <div :if={@quantities != []} class={["grid grid-cols-2 gap-4", @columns]}>
+    <div
+      :if={@quantities != []}
+      class={["setzkasten-stat-grid grid grid-cols-2 gap-4 md:gap-6", @columns]}
+    >
       <.stat
         :for={quantity <- @quantities}
         data-quantity={quantity}
@@ -630,7 +675,7 @@ defmodule ZiwoasWeb.RoomAirComponents do
       >
         <:note>
           <.level_badge quantity={quantity} value={@room.reading.values[quantity].value} />
-          {tile_caption(quantity, @room.reading.values[quantity])}
+          <span :if={@room.reading.values[quantity].source == :stand_in}>vom Ersatzsensor</span>
         </:note>
       </.stat>
     </div>
@@ -651,46 +696,42 @@ defmodule ZiwoasWeb.RoomAirComponents do
 
   defp tile_label(quantity), do: Map.get(@tile_labels, quantity, label(quantity))
 
-  # The index meanings stand in the charts' subtitles.
-  defp tile_caption(_quantity, %{source: :stand_in}), do: "vom Ersatzsensor"
-  defp tile_caption(_quantity, _value), do: nil
-
   attr :room, :map, required: true
 
   defp pm_split(assigns) do
-    assigns = assign(assigns, :bins, pm_bins(assigns.room.reading.values))
+    bins = pm_bins(assigns.room.reading.values)
+
+    assigns =
+      assign(assigns,
+        bins: bins,
+        pm10: bins && assigns.room.reading.values.pm10.value
+      )
 
     ~H"""
-    <section :if={@bins} class="card mb-3" aria-labelledby={"#{@room.id}-pm-split"}>
-      <div class="card-body">
-        <h4 class="card-title" id={"#{@room.id}-pm-split"}>Feinstaub nach Größe</h4>
-        <p class="card-subtitle">µg/m³ · Anteile an PM10, aktuelle Messung</p>
-        <div class="progress-stacked pm-split mb-2">
-          <div
-            :for={bin <- @bins}
-            :if={bin.share > 0}
-            class="progress"
-            role="progressbar"
-            style={"width: #{bin.share}%"}
-            aria-label={bin.label}
-            aria-valuenow={bin.share}
-            aria-valuemin="0"
-            aria-valuemax="100"
-          >
-            <div class="progress-bar" data-bin={bin.index}></div>
-          </div>
-        </div>
-        <ul class="list-unstyled d-flex flex-wrap column-gap-4 row-gap-1 small tabular-nums mb-0">
-          <li :for={bin <- @bins} class="d-flex align-items-center gap-2 text-nowrap">
-            <span class="badge badge-dot flex-shrink-0 pm-split-key" data-bin={bin.index}></span>
-            <span>{bin.label}</span>
-            <span class="text-body-secondary">
-              {number(bin.value, precision: 1)} · {number(bin.share, unit: "%")}
-            </span>
-          </li>
-        </ul>
-      </div>
-    </section>
+    <.card
+      :if={@bins}
+      id={"#{@room.id}-pm-split"}
+      title="Feinstaub nach Größe"
+      subtitle="Anteile an PM10 in µg/m³, aktuelle Messung"
+      level={4}
+    >
+      <.share_bar
+        id={"#{@room.id}-pm-shares"}
+        label="PM10"
+        value_label={number(@pm10, precision: 1, unit: "µg/m³")}
+        segments={
+          for bin <- @bins,
+              do: %{
+                label: bin.label,
+                value: bin.value,
+                color: {:seq, bin.step},
+                value_label:
+                  join_meta([number(bin.value, precision: 1), number(bin.share, unit: "%")])
+              }
+        }
+        data-series={Enum.map_join(@bins, " ", &"seq-#{&1.step}")}
+      />
+    </.card>
     """
   end
 
@@ -703,7 +744,12 @@ defmodule ZiwoasWeb.RoomAirComponents do
       @pm_bins
       |> Enum.with_index(1)
       |> Enum.map(fn {{label, below, upper}, index} ->
-        %{index: index, label: label, value: max(pm[upper].value - lower_value(pm, below), 0.0)}
+        %{
+          index: index,
+          step: @pm_steps[index],
+          label: label,
+          value: max(pm[upper].value - lower_value(pm, below), 0.0)
+        }
       end)
       |> with_shares()
     end
@@ -720,85 +766,82 @@ defmodule ZiwoasWeb.RoomAirComponents do
   attr :room, :map, required: true
 
   defp charts(assigns) do
-    quantities = assigns.room.quantities
-    stand_ins? = assigns.room.reading.stand_ins != []
+    %{quantities: quantities, reading: reading} = assigns.room
+    stand_ins? = reading.stand_ins != []
+    cards = for card <- chart_cards(), card.needs in quantities, do: card
+    paired = Enum.reject(cards, &(&1.key == "co2"))
+    # An odd chart out takes the whole row instead of leaving half of it empty.
+    odd_last = if rem(length(paired), 2) == 1, do: List.last(paired)
 
     assigns =
       assign(assigns,
-        co2?: :co2 in quantities,
-        stand_ins?: stand_ins?,
         cards:
-          for card <- chart_cards(), card.needs in quantities do
-            Map.put(card, :stand_ins?, stand_ins? and card.key in ["temperature", "humidity"])
+          for card <- cards do
+            Map.merge(card, %{
+              stand_ins?: stand_ins? and card.key in ["co2", "temperature", "humidity"],
+              wide?: card.key == "co2" or card == odd_last,
+              summary: chart_summary(card, reading)
+            })
           end
       )
 
     ~H"""
-    <div id={"#{@room.id}-charts"} phx-hook="RoomAirChart" data-room={@room.id}>
-      <section :if={@co2?} class="card mb-3">
-        <div class="card-body">
-          <h4 class="card-title">CO₂</h4>
-          <p class="card-subtitle">ppm</p>
-          <.chart_key stand_ins?={@stand_ins?} />
-          <div
-            class="chart-frame chart-frame-prominent"
-            id={"#{@room.id}-co2-chart"}
-            phx-update="ignore"
-          >
-            <canvas data-chart="co2"></canvas>
-          </div>
-        </div>
-      </section>
-
-      <div :if={@cards != []} class="row row-cols-1 row-cols-md-2 g-3 mb-3">
-        <div
-          :for={{card, index} <- Enum.with_index(@cards)}
-          class={["col", odd_last?(@cards, index) && "col-md-12"]}
-        >
-          <section class="card h-100">
-            <div class="card-body d-flex flex-column">
-              <h4 class="card-title">{card.title}</h4>
-              <p class="card-subtitle">{card.subtitle}</p>
-              <.chart_key
-                series={card[:series] || []}
-                limits={card[:limits]}
-                band={card[:band]}
-                gaps?={card[:gaps?] || false}
-                stand_ins?={card.stand_ins?}
-                reserve
-              />
-              <div
-                class="chart-frame chart-frame-compact mt-auto"
-                id={"#{@room.id}-#{card.key}-chart"}
-                phx-update="ignore"
-              >
-                <canvas data-chart={card.key}></canvas>
-              </div>
-            </div>
-          </section>
-        </div>
-      </div>
+    <div id={"#{@room.id}-charts"} class="grid gap-4 md:grid-cols-2 md:gap-6">
+      <.chart_card
+        :for={card <- @cards}
+        id={"#{@room.id}-#{card.key}"}
+        class={card.wide? && "md:col-span-2"}
+        title={card.title}
+        subtitle={card.subtitle}
+        summary={card.summary}
+        hook="RoomAirChart"
+        hook_attrs={%{"data-room" => @room.id, "data-chart" => card.key}}
+        height={if card.key == "co2", do: :lg, else: :md}
+        level={4}
+      >
+        <:legend :if={chart_legend?(card)}>
+          <.chart_legend card={card} />
+        </:legend>
+      </.chart_card>
     </div>
     """
   end
 
-  # An odd chart out takes the whole row instead of leaving half of it empty.
-  defp odd_last?(cards, index), do: rem(length(cards), 2) == 1 and index == length(cards) - 1
+  defp chart_summary(card, reading) do
+    current =
+      for quantity <- card.quantities,
+          value = reading.values[quantity],
+          do:
+            "#{label(quantity)} #{number(value.value, precision: precision(quantity), unit: unit(quantity))}"
+
+    "#{card.title}, letzte 24 Stunden" <>
+      if(current == [], do: "", else: "; jetzt " <> Enum.join(current, ", "))
+  end
+
+  defp key_series(key, quantities) do
+    [chart] = Enum.filter(RoomAirCharts.charts(quantities), &(&1.key == key))
+
+    for %{series: series, label: label} <- chart.series,
+        do: %{label: label, color: series, marker: :line}
+  end
 
   defp chart_cards do
     [
+      %{key: "co2", needs: :co2, quantities: [:co2], title: "CO₂", subtitle: "ppm"},
       %{
         key: "pm",
         needs: :pm2_5,
+        quantities: [:pm2_5, :pm10],
         title: "Feinstaub",
         subtitle: "µg/m³",
-        series: [{1, label(:pm2_5)}, {2, label(:pm10)}],
+        series: key_series(:pm, [:pm2_5, :pm10]),
         limits: "Grenzen für PM2,5",
         gaps?: true
       },
       %{
         key: "voc_index",
         needs: :voc_index,
+        quantities: [:voc_index],
         title: "VOC-Index",
         subtitle: @voc_meaning,
         gaps?: true
@@ -806,14 +849,22 @@ defmodule ZiwoasWeb.RoomAirComponents do
       %{
         key: "nox_index",
         needs: :nox_index,
+        quantities: [:nox_index],
         title: "NOx-Index",
         subtitle: "1 = Normalzustand",
         gaps?: true
       },
-      %{key: "temperature", needs: :temperature, title: "Temperatur", subtitle: "°C"},
+      %{
+        key: "temperature",
+        needs: :temperature,
+        quantities: [:temperature],
+        title: "Temperatur",
+        subtitle: "°C"
+      },
       %{
         key: "humidity",
         needs: :humidity,
+        quantities: [:humidity],
         title: "Luftfeuchte",
         subtitle: "%",
         band: "angenehm 40–60 %"
@@ -821,90 +872,97 @@ defmodule ZiwoasWeb.RoomAirComponents do
     ]
   end
 
-  attr :series, :list, default: []
-  attr :limits, :string, default: nil
-  attr :band, :string, default: nil
-  attr :gaps?, :boolean, default: false
-  attr :stand_ins?, :boolean, default: false
-  attr :reserve, :boolean, default: false, doc: "keeps the line when empty"
+  defp chart_legend?(card),
+    do:
+      card[:series] != nil or card[:limits] != nil or card[:band] != nil or card[:gaps?] == true or
+        card.stand_ins?
 
-  defp chart_key(assigns) do
+  attr :card, :map, required: true
+
+  defp chart_legend(assigns) do
+    assigns =
+      assign(assigns,
+        items:
+          (assigns.card[:series] || []) ++
+            if(assigns.card[:limits],
+              do: [%{label: assigns.card.limits, color: :neutral, marker: :dashed}],
+              else: []
+            )
+      )
+
     ~H"""
-    <ul
-      :if={@reserve || @series != [] || @limits || @band || @gaps? || @stand_ins?}
-      class="chart-key list-inline small text-body-secondary mb-2"
-    >
-      <li :for={{tone, name} <- @series} class="list-inline-item">
-        <span class="chart-key-line" style={"--tone: var(--color-chart-#{tone})"}></span>{name}
-      </li>
-      <li :if={@limits} class="list-inline-item">
-        <span class="chart-key-limit"></span>{@limits}
-      </li>
-      <li :if={@band} class="list-inline-item"><span class="chart-key-band"></span>{@band}</li>
-      <li :if={@gaps?} class="list-inline-item"><span class="chart-key-gap"></span>keine Messung</li>
-      <li :if={@stand_ins?} class="list-inline-item">
-        <span class="chart-key-stand-in"></span>Ersatzsensor
-      </li>
-    </ul>
+    <div class="flex flex-wrap items-center gap-x-4 gap-y-1">
+      <.legend :if={@items != []} items={@items} />
+      <ul class="flex flex-wrap gap-x-4 gap-y-1 text-xs">
+        <li :if={@card[:band]} class="flex items-center gap-1.5">
+          <span class="chart-key chart-key-band" aria-hidden="true"></span>{@card.band}
+        </li>
+        <li :if={@card[:gaps?]} class="flex items-center gap-1.5">
+          <span class="chart-key chart-key-gap" aria-hidden="true"></span>keine Messung
+        </li>
+        <li :if={@card.stand_ins?} class="flex items-center gap-1.5">
+          <span class="chart-key chart-key-stand-in" aria-hidden="true"></span>Ersatzsensor
+        </li>
+      </ul>
+    </div>
     """
   end
 
-  attr :reading, RoomReading, required: true
+  attr :room, :map, required: true
   attr :latest, :map, required: true
   attr :now, DateTime, required: true
   attr :zone, :string, required: true
 
-  defp sensors_card(assigns) do
-    reading = assigns.reading
+  defp sensor_facts(assigns) do
+    reading = assigns.room.reading
 
     assigns =
       assign(assigns,
         sensors:
           for sensor <- [reading.lead | reading.stand_ins] do
-            {sensor, if(sensor == reading.lead, do: "Leitsensor", else: "Ersatzsensor"),
-             assigns.latest[sensor.id]}
+            latest = assigns.latest[sensor.id]
+
+            %{
+              sensor: sensor,
+              role: role(sensor, reading),
+              latest: latest,
+              status: status_text(sensor, latest, assigns.now, assigns.zone)
+            }
           end
       )
 
     ~H"""
-    <section class="card mb-3">
-      <div class="card-body">
-        <h4 class="card-title">Sensoren</h4>
-        <div class="row row-cols-1 row-cols-md-2 g-4">
-          <div :for={{sensor, role, latest} <- @sensors} class="col room-air-sensor">
-            <div class="d-flex align-items-baseline gap-2 mb-1">
-              <strong>{sensor.name}</strong>
-              <span class="badge border">{role}</span>
-            </div>
-            <dl class="row small mb-0">
-              <dt class="col-5 fw-normal text-body-secondary">Letzte Messung</dt>
-              <dd class="col-7 mb-1 tabular-nums">{last_reading(latest, @now, @zone)}</dd>
-              <%= if sensor.type == :sen66 do %>
-                <dt class="col-5 fw-normal text-body-secondary">Status</dt>
-                <dd class={[
-                  "col-7 mb-1",
-                  tone_text(elem(status_text(sensor, latest, @now, @zone), 1))
-                ]}>
-                  {elem(status_text(sensor, latest, @now, @zone), 0)}
-                </dd>
-                <dt class="col-5 fw-normal text-body-secondary">Firmware</dt>
-                <dd class="col-7 mb-1">{(latest && latest.firmware_version) || "—"}</dd>
-              <% end %>
-              <%= if latest && latest.battery_pct do %>
-                <dt class="col-5 fw-normal text-body-secondary">Batterie</dt>
-                <dd class={[
-                  "col-7 mb-1 tabular-nums",
-                  Sensors.battery_low?(latest) && "text-warning-emphasis"
-                ]}>
-                  {number(latest.battery_pct, unit: "%")}
-                </dd>
-              <% end %>
-              <dt class="col-5 fw-normal text-body-secondary">
-                {if sensor.type == :sen66, do: "Seriennummer", else: "Geräte-ID"}
-              </dt>
-              <dd class="col-7 mb-1 font-monospace text-break">{sensor.id}</dd>
-            </dl>
+    <section aria-labelledby={"#{@room.id}-sensors"}>
+      <.section_heading id={"#{@room.id}-sensors"} level={3}>Sensoren</.section_heading>
+      <div class="grid gap-x-8 gap-y-6 md:grid-cols-2">
+        <div :for={entry <- @sensors} id={"#{@room.id}-sensor-#{entry.sensor.id}"}>
+          <div class="flex flex-wrap items-center gap-2">
+            <h4 class="font-semibold">{entry.sensor.name}</h4>
+            <.badge style={:plain}>{entry.role}</.badge>
           </div>
+          <.description_list class="mt-1">
+            <:item label="Letzte Messung">{last_reading(entry.latest, @now, @zone)}</:item>
+            <:item :if={entry.sensor.type == :sen66} label="Status">
+              <.level_badge_for level={elem(entry.status, 1)} style={:text}>
+                {elem(entry.status, 0)}
+              </.level_badge_for>
+            </:item>
+            <:item :if={entry.sensor.type == :sen66} label="Firmware">
+              {(entry.latest && entry.latest.firmware_version) || "—"}
+            </:item>
+            <:item :if={entry.latest && entry.latest.battery_pct} label="Batterie">
+              <%= if Sensors.battery_low?(entry.latest) do %>
+                <.level_badge_for level={:warn} style={:text}>
+                  {number(entry.latest.battery_pct, unit: "%")}
+                </.level_badge_for>
+              <% else %>
+                {number(entry.latest.battery_pct, unit: "%")}
+              <% end %>
+            </:item>
+            <:item label={if entry.sensor.type == :sen66, do: "Seriennummer", else: "Geräte-ID"}>
+              <span class="font-mono">{entry.sensor.id}</span>
+            </:item>
+          </.description_list>
         </div>
       </div>
     </section>
@@ -914,21 +972,13 @@ defmodule ZiwoasWeb.RoomAirComponents do
   defp last_reading(nil, _now, _zone), do: "—"
 
   defp last_reading(%Reading{taken_at: taken_at} = latest, now, zone),
-    do: "#{since(taken_at, now, zone)} · #{age_label(latest, now)}"
+    do: join_meta([since(taken_at, now, zone), age_label(latest, now)])
 
+  # The details stand in the device alert above; here a word.
   defp status_text(sensor, latest, now, zone) do
     case freshness(sensor, latest, now, zone) do
-      {:fresh, _age} ->
-        flags = Sensors.device_status_flags(latest.device_status)
-        {_word, tone} = status(sensor, latest)
-
-        case device_status_text(flags) do
-          [] -> {"in Ordnung", nil}
-          problems -> {Enum.join(problems, "; "), tone}
-        end
-
-      {_stale, since} ->
-        {since, :warn}
+      {:fresh, _age} -> status(sensor, latest)
+      {_stale, since} -> {since, :warn}
     end
   end
 
@@ -945,49 +995,46 @@ defmodule ZiwoasWeb.RoomAirComponents do
       assign(assigns,
         co2: co2,
         level: level,
-        tint: @level_tints[level],
+        ink: @verdict_inks[level],
         reason: verdict_reason(verdict, assigns.tile),
-        age: co2 && age_text(co2.taken_at, now)
+        meta:
+          co2 &&
+            join_meta([co2.source == :stand_in && "Ersatzsensor", age_label(co2, now)])
       )
 
     ~H"""
-    <h2 class="h6 text-uppercase text-body-secondary mt-4 mb-2">Raumluft</h2>
-    <.link
-      navigate={~p"/sensors" <> "#" <> @tile.id}
+    <.card
       id="room_air_tile"
-      class={["card text-decoration-none text-body mb-3 room-air-tile", @tint]}
+      title="Raumluft"
+      subtitle={@tile.name}
+      navigate={~p"/sensors" <> "#" <> @tile.id}
+      class="h-full"
     >
-      <div class="card-body p-3 d-flex align-items-stretch gap-3">
-        <div class="flex-grow-1 room-air-tile-grid">
-          <div class="stat room-air-tile-verdict">
-            <span class="stat-label">{@tile.name}</span>
-            <span class={["stat-value fs-2", level_text(@level)]}>
-              {verdict_word(@tile.verdict)}
-            </span>
-            <span :if={@reason} class="small text-body-secondary">{@reason}</span>
-          </div>
-          <div class="stat text-end room-air-tile-co2">
-            <span class="stat-label">CO₂</span>
-            <span class="stat-value fs-2 text-nowrap">{number(@co2 && @co2.value)}
-            <span :if={@co2} class="fs-5 fw-semibold">ppm</span></span>
-          </div>
-          <div :if={@co2} class="small text-body-secondary room-air-tile-meta">
-            <span class="text-nowrap"><.level_badge quantity={:co2} value={@co2.value} /></span>
-            <span :if={@co2.source == :stand_in} class="text-nowrap">Ersatzsensor ·</span>
-            <span class="text-nowrap">{@age}</span>
-          </div>
+      <:leading><.plush name="traffic-light" size={:lg} /></:leading>
+      <div class="mt-2 flex flex-wrap items-baseline justify-between gap-x-6 gap-y-3">
+        <div class="min-w-0" data-verdict data-level={@level}>
+          <p class={["text-2xl font-semibold tracking-[-0.02em]", @ink]}>
+            {verdict_word(@tile.verdict)}
+          </p>
+          <p :if={@reason} class="mt-1 text-sm">
+            <%= if @level in [:warn, :bad] do %>
+              <.level_badge_for level={@level}>{@reason}</.level_badge_for>
+            <% else %>
+              <span class="text-base-content/70">{@reason}</span>
+            <% end %>
+          </p>
         </div>
-        <.chevron class="room-air-tile-chevron align-self-center" />
+        <div class="text-end" data-co2>
+          <p class="text-2xl font-semibold tracking-[-0.02em] tabular-nums whitespace-nowrap">
+            {number(@co2 && @co2.value)}
+            <span :if={@co2} class="text-base text-base-content/70">ppm</span>
+          </p>
+          <p class="mt-1 text-sm text-base-content/70">
+            CO₂<.meta_sep :if={@meta} />{@meta}
+          </p>
+        </div>
       </div>
-    </.link>
+    </.card>
     """
-  end
-
-  defp age_text(taken_at, now) do
-    case DateTime.diff(now, taken_at) do
-      seconds when seconds < 60 -> "vor\u00A0#{max(seconds, 0)}\u00A0s"
-      seconds when seconds < 3600 -> "vor\u00A0#{div(seconds, 60)}\u00A0Min"
-      seconds -> "vor\u00A0#{div(seconds, 3600)}\u00A0h"
-    end
   end
 end

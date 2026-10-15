@@ -130,7 +130,7 @@ defmodule Ziwoas.Sensors.RoomReadingTest do
   test "a stale lead reports no device status: its last word may be days old" do
     status = Bitwise.bsl(1, 4)
 
-    assert select([sen66(180, device_status: status)]).device_status == [:fan_error]
+    assert select([sen66(180, device_status: status)]).device_status == [{@sen66, [:fan_error]}]
     assert select([sen66(181, device_status: status), meter(60)]).device_status == []
   end
 
@@ -138,7 +138,21 @@ defmodule Ziwoas.Sensors.RoomReadingTest do
     status = Bitwise.bsl(1, 11) + Bitwise.bsl(1, 21)
 
     assert select([sen66(30, device_status: status)]).device_status ==
-             [:pm_error, :fan_speed_warning]
+             [{@sen66, [:pm_error, :fan_speed_warning]}]
+  end
+
+  test "every fresh SEN66 reports its device status, the lead first" do
+    stand_in = %Sensor{@sen66 | id: "SEN2", name: "Zweiter"}
+
+    newest = %{
+      "SEN" => sen66(30, device_status: Bitwise.bsl(1, 21)),
+      "SEN2" => sen66(30, device_id: "SEN2", device_status: Bitwise.bsl(1, 4)),
+      "MTR" => meter(60)
+    }
+
+    reading = RoomReading.select("Wohnzimmer", [@sen66, stand_in, @meter], newest, @now)
+
+    assert reading.device_status == [{@sen66, [:fan_speed_warning]}, {stand_in, [:fan_error]}]
   end
 
   test "a Meter Pro leads a room without a SEN66 and counts for 30 minutes" do

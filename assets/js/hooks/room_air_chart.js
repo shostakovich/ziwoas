@@ -1,45 +1,47 @@
-import { renderChart, seriesToken, timeScale, timeTooltipTitle, thresholdLine } from "../lib/chart_theme.js"
-import { themeColor } from "../lib/theme_colors.js"
+import { renderChart, timeScale, timeTooltipTitle, thresholdLine } from "../lib/chart_theme.js"
+import { themeColor, withAlpha } from "../lib/theme_colors.js"
 
 const DAY_MS = 86_400_000
 const LINE_TONES = {
-  warn: { tone: "--felt-warning", textTone: "--felt-warning-text" },
-  bad: { tone: "--felt-danger", textTone: "--felt-danger-text" },
+  warn: { tone: "--color-chart-2", textTone: "--color-warning-ink" },
+  bad: { tone: "--color-chart-4", textTone: "--color-error-ink" },
 }
 const HATCH_PX = 8
-const MARKER_FONT_PX = 11
+const MARKER_FONT_PX = 12
 const MARKER_GAP_PX = 2
 
-// Points are [ms, value | null, standIn]; a full push replaces them, an appended one replaces
-// those from its `from` on, the quarter hour the server recomputed.
+// One instance per chart card (data-room, data-chart). Points are [ms, value | null, standIn];
+// a full push replaces them, an appended one replaces those from its `from` on, the quarter
+// hour the server recomputed.
 export default {
   mounted() {
-    this.charts = {}
     this.series = {}
     this.handleEvent("room_air_chart:data", (data) => {
       if (data.room !== this.el.dataset.room) return
       if (data.replace) {
-        this.setup = data
-        this.series = data.series
-      } else if (this.setup) {
-        this.append(data.from, data.series)
-      } else {
+        this.setup = data.charts.find((chart) => chart.key === this.el.dataset.chart)
+        this.labels = { standIn: data.stand_in, now: data.now_stand_in }
+        this.series = {}
+      } else if (!this.setup) {
         return
       }
+      this.take(data.from, data.series)
       this.to = data.to
       this.trim()
-      this.renderAll()
+      this.render()
     })
   },
 
   destroyed() {
-    Object.values(this.charts).forEach((chart) => chart.destroy())
-    this.charts = {}
+    this.chart?.destroy()
+    this.chart = null
   },
 
-  append(from, series) {
-    for (const [ quantity, points ] of Object.entries(series)) {
-      const kept = (this.series[quantity] || []).filter(([ at ]) => at < from)
+  take(from, series) {
+    for (const { quantity } of this.setup.series) {
+      const points = series[quantity]
+      if (!points) continue
+      const kept = from == null ? [] : (this.series[quantity] || []).filter(([ at ]) => at < from)
       this.series[quantity] = kept.concat(points)
     }
   },
@@ -54,15 +56,12 @@ export default {
     }
   },
 
-  renderAll() {
-    for (const chart of this.setup.charts) this.render(chart)
-  },
-
-  render(setup) {
-    const canvas = this.el.querySelector(`canvas[data-chart="${setup.key}"]`)
+  render() {
+    const canvas = this.el.querySelector("canvas")
     if (!canvas) return
+    const setup = this.setup
     const xBounds = { min: this.to - DAY_MS, max: this.to }
-    const series = setup.series.map((s, index) => dataset(s, this.series[s.quantity] || [], index))
+    const series = setup.series.map((s) => dataset(s, this.series[s.quantity] || []))
     const lines = setup.lines.map(({ value, label, level }) => ({
       ...thresholdLine(xBounds, { value, name: label, ...LINE_TONES[level] }),
       endLabelPlain: true,
@@ -72,11 +71,11 @@ export default {
     const standIn = ranges(first, this.to, ([ , value, standIn ]) => standIn === 1 && value != null)
     const gaps = ranges(first, this.to, ([ , value ]) => value == null)
 
-    this.charts[setup.key] = renderChart(this.charts[setup.key], canvas, {
+    this.chart = renderChart(this.chart, canvas, {
       type: "line",
       data: { datasets: [ ...series, ...lines ] },
       options: options(setup, xBounds, series, {
-        standIn, gaps, band: setup.band, standInLabel: this.setup.stand_in, nowLabel: this.setup.now_stand_in,
+        standIn, gaps, band: setup.band, standInLabel: this.labels.standIn, nowLabel: this.labels.now,
         standInNow: lastPoint(first)?.[2] === 1,
       }),
       plugins: [ shading, standInMarker ],
@@ -84,12 +83,12 @@ export default {
   },
 }
 
-function dataset({ label }, points, index) {
+function dataset({ label, series }, points) {
   return {
     label,
     data: points.map(([ x, y ]) => ({ x, y })),
     standIn: points.map((point) => point[2] === 1),
-    tone: seriesToken(index),
+    tone: `--color-chart-${series}`,
     borderWidth: 2,
     pointRadius: 0,
     tension: 0.25,
@@ -125,20 +124,6 @@ function spanAround(series, span) {
   return { suggestedMin: Math.floor(middle - span / 2), suggestedMax: Math.ceil(middle + span / 2) }
 }
 
-// Ticks too close to the window's end would push the plot in by half a label; dropping them
-// lets the plot run to the card's right edge.
-const EDGE_SHARE = 0.06
-function flushRight(scale) {
-  return {
-    ...scale,
-    afterBuildTicks(axis) {
-      scale.afterBuildTicks(axis)
-      const edge = (axis.max - axis.min) * EDGE_SHARE
-      axis.ticks = axis.ticks.filter(({ value }) => axis.max - value > edge)
-    },
-  }
-}
-
 function options(setup, xBounds, series, shadingOptions) {
   const y = { beginAtZero: setup.from_zero, unit: setup.unit || undefined, decimals: setup.decimals }
   if (setup.suggested_min != null) y.suggestedMin = setup.suggested_min
@@ -151,7 +136,7 @@ function options(setup, xBounds, series, shadingOptions) {
     interaction: { mode: "nearest", axis: "x", intersect: false },
     // Room for the stand-in marker's label above the plot.
     layout: { padding: { top: shadingOptions.standInNow ? MARKER_FONT_PX + 2 * MARKER_GAP_PX + 2 : 0 } },
-    scales: { x: flushRight(timeScale(xBounds.min, xBounds.max)), y },
+    scales: { x: timeScale(xBounds.min, xBounds.max), y },
     plugins: {
       legend: { display: false },
       roomAirShading: shadingOptions,
@@ -232,7 +217,7 @@ const standInMarker = {
     const point = [ ...meta.data ].reverse().find((element) => !element.skip && Number.isFinite(element.y))
     if (!point) return
     const { ctx, chartArea: area } = chart
-    const muted = themeColor("--felt-secondary-color")
+    const muted = withAlpha(themeColor("--color-base-content"), 0.7)
     ctx.save()
     ctx.strokeStyle = muted
     ctx.lineWidth = 1
@@ -241,7 +226,7 @@ const standInMarker = {
     ctx.lineTo(point.x, area.top - MARKER_GAP_PX)
     ctx.stroke()
     ctx.fillStyle = themeColor(chart.data.datasets[0].tone)
-    ctx.strokeStyle = themeColor("--felt-surface")
+    ctx.strokeStyle = themeColor("--color-base-100")
     ctx.lineWidth = 2
     ctx.beginPath()
     ctx.arc(point.x, point.y, 3.5, 0, 2 * Math.PI)
