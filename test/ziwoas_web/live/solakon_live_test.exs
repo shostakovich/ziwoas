@@ -364,6 +364,32 @@ defmodule ZiwoasWeb.SolakonLiveTest do
       refute_push_event(view, "solakon_history:data", %{})
     end
 
+    test "each reading and snapshot updates status, controls, panels and storage", %{
+      conn: conn
+    } do
+      reading!(battery_soc_pct: 50)
+      {:ok, view, html} = live(conn, ~p"/solakon")
+      doc = LazyHTML.from_fragment(html)
+      assert texts(doc, ".solakon-storage-grid .stat-value") |> hd() == "50 %"
+      assert texts(doc, "#solakon-eps-state") == ["Aus"]
+      assert count(doc, ".solakon-panel-grid .card") == 0
+
+      send(
+        view.pid,
+        {:reading, reading!(battery_soc_pct: 84, battery_power_w: 80, eps_enabled: true)}
+      )
+
+      doc = LazyHTML.from_fragment(render(view))
+      assert texts(doc, ".solakon-status-summary") == ["Akku lädt gerade"]
+      assert texts(doc, ".solakon-details p") |> List.last() == "Außensteckdose bereit"
+      assert texts(doc, "#solakon-eps-state") == ["An"]
+      assert count(doc, "button#solakon-eps-toggle[aria-checked=true]") == 1
+      assert texts(doc, ".solakon-storage-grid .stat-value") |> hd() == "84 %"
+
+      send(view.pid, {:snapshot, snapshot!(pv1_power_w: 210)})
+      assert has_element?(view, ".solakon-panel-grid .card", "Panel 1 210 W")
+    end
+
     test "the chart's data goes to the hook on mount, and afresh with every stored snapshot", %{
       conn: conn
     } do

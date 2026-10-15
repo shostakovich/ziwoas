@@ -12,6 +12,7 @@ defmodule ZiwoasWeb.SolakonLive do
 
   alias Ziwoas.{Clock, Config, Economics, Energy, Plugs, Shading, Solakon, SunCalendar}
   alias Ziwoas.Plugs.{Measurement, Roster}
+  alias Ziwoas.Solakon.{Reading, Snapshot}
   alias ZiwoasWeb.SolakonHistoryComponent
 
   @impl true
@@ -36,7 +37,7 @@ defmodule ZiwoasWeb.SolakonLive do
        live: Energy.live_state(config, now),
        reading: reading,
        snapshot: Solakon.latest_snapshot(),
-       eps_on: reading != nil and reading.eps_enabled == true,
+       eps_on: eps_on?(reading),
        eps_pending: false,
        eps_error: nil,
        control_enabled: control_enabled,
@@ -62,16 +63,29 @@ defmodule ZiwoasWeb.SolakonLive do
     do: {:noreply, assign(socket, :history_range, params["range"])}
 
   @impl true
-  def handle_info({event, _}, socket) when event in [:live, :reading] do
-    {:noreply,
-     assign(socket,
-       live: Energy.live_state(Config.get(), Clock.now()),
-       beat: socket.assigns.beat + 1
-     )}
+  def handle_info({:live, _deltas}, socket), do: {:noreply, assign_live(socket)}
+
+  def handle_info({:reading, %Reading{} = reading}, socket),
+    do: {:noreply, socket |> assign_live() |> assign_reading(reading)}
+
+  def handle_info({:snapshot, %Snapshot{} = snapshot}, socket) do
+    {:noreply, socket |> assign(:snapshot, snapshot) |> update(:history_refresh, &(&1 + 1))}
   end
 
-  def handle_info({:snapshot, _}, socket),
-    do: {:noreply, update(socket, :history_refresh, &(&1 + 1))}
+  defp assign_live(socket) do
+    assign(socket,
+      live: Energy.live_state(Config.get(), Clock.now()),
+      beat: socket.assigns.beat + 1
+    )
+  end
+
+  defp assign_reading(%{assigns: %{eps_pending: true}} = socket, reading),
+    do: assign(socket, :reading, reading)
+
+  defp assign_reading(socket, reading),
+    do: assign(socket, reading: reading, eps_on: eps_on?(reading))
+
+  defp eps_on?(reading), do: reading != nil and reading.eps_enabled == true
 
   @impl true
   def handle_event("toggle_eps", _params, %{assigns: %{eps_pending: true}} = socket),
