@@ -3,6 +3,7 @@ import { renderChart, tonesByOrder, timeScale, timeCategoryScale, timeTooltipTit
 // Below this an hour's yield is the inverter's night-time noise, not production.
 const MIN_PRODUCED_KWH = 0.02
 const GAP_THRESHOLD_MS = 120_000
+const WINDOW_MS = 86_400_000
 
 export default {
   mounted() {
@@ -37,6 +38,8 @@ export default {
 
     if (changed) {
       this.replaceTotalConsumption()
+      const now = Date.now()
+      Object.assign(this.powerChart.options.scales.x, { min: now - WINDOW_MS, max: now })
       this.powerChart.update("none")
     }
   },
@@ -94,7 +97,7 @@ export default {
         maintainAspectRatio: false,
         elements: lineElements(),
         scales: {
-          x: timeScale(Date.now() - 86_400_000, Date.now()),
+          x: timeScale(Date.now() - WINDOW_MS, Date.now()),
           y: { beginAtZero: true, unit: "W" },
         },
         plugins: {
