@@ -88,7 +88,7 @@ defmodule ZiwoasWeb.Components.DailyProfiles do
           </figure>
         </div>
         <p class="note small text-body-secondary mt-3 mb-0">
-          Einstrahlung und wolkenloser Himmel sind mit dem Wirkungsgrad der besten Stunde auf Anlagenleistung umgerechnet. Der Abstand zwischen der gemessenen und der erwarteten Linie ist der Anteil, den Abschattung, Ausrichtung oder Drosselung kosten.
+          Einstrahlung und wolkenloser Himmel sind mit dem Verhältnis von PV-Leistung zu Einstrahlung der besten Stunde auf Anlagenleistung umgerechnet. Der Abstand zwischen der gemessenen und der erwarteten Linie ist der Anteil, den Abschattung, Ausrichtung oder Drosselung kosten.
         </p>
       <% end %>
     </.card>

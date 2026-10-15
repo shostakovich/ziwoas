@@ -132,7 +132,7 @@ export default {
     if (w && Array.isArray(w.solar_kwh_per_m2)) {
       datasets.push({
         type: "line",
-        label: "Sonnenstrahlung",
+        label: "Einstrahlung",
         data: w.solar_kwh_per_m2,
         yAxisID: "ySolar",
         tone: "--felt-warning-emphasis",
@@ -236,7 +236,7 @@ export default {
 
     if (w && Array.isArray(w.solar_w_per_m2)) {
       datasets.push({
-        label: "Sonnenstrahlung",
+        label: "Einstrahlung",
         data: w.solar_w_per_m2,
         yAxisID: "ySolar",
         tone: "--felt-warning-emphasis",

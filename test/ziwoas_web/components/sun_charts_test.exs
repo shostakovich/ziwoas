@@ -338,6 +338,7 @@ defmodule ZiwoasWeb.SunChartsTest do
       assert attrs(doc, ".multiple[data-month='7'] svg", "class") == ["opacity-50"]
       assert attrs(doc, ".multiple[data-month='6'] svg", "class") == []
       assert texts(doc, ".card-subtitle") == ["Mittlere Leistung je Stunde in W"]
+      assert hd(texts(doc, "p.note")) =~ "mit dem Verhältnis von PV-Leistung zu Einstrahlung der"
 
       assert texts(doc, ".legend-item") == [
                "PV gemessen",
