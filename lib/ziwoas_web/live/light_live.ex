@@ -20,16 +20,15 @@ defmodule ZiwoasWeb.LightLive do
     end
 
     {:ok,
-     assign(socket,
+     socket
+     |> assign(lamp_values(snapshot))
+     |> assign(
        page_title: light.name,
        light: light,
        plugs: Lights.lamp_plugs(),
        tabs: tabs_of(light),
        tab: "white",
        power_snapshot: snapshot,
-       brightness: max(Lights.brightness(snapshot), 1),
-       kelvin: Lights.color_temp_k(snapshot),
-       color: if(Lights.white?(snapshot), do: nil, else: color_hex(snapshot)),
        revert: nil,
        toast: %{message: nil, undo: nil},
        toast_timer: nil,
@@ -143,12 +142,28 @@ defmodule ZiwoasWeb.LightLive do
   end
 
   defp keep(socket, {:brightness, value}), do: assign(socket, :brightness, value)
-  defp keep(socket, {:color_temp, kelvin}), do: assign(socket, :kelvin, kelvin)
-  defp keep(socket, {:color, rgb}), do: assign(socket, :color, hex(rgb))
+  defp keep(socket, {:color_temp, kelvin}), do: assign(socket, kelvin: kelvin, color: nil)
+  defp keep(socket, {:color, rgb}), do: assign(socket, color: hex(rgb), kelvin: nil)
   defp keep(socket, _verb), do: socket
 
-  defp refresh_power(socket),
-    do: assign(socket, :power_snapshot, Lights.snapshot(socket.assigns.light))
+  # Only what the lamp reported anew moves the controls, so a value just set stays until then.
+  defp refresh_power(socket) do
+    snapshot = Lights.snapshot(socket.assigns.light)
+    known = lamp_values(socket.assigns.power_snapshot)
+    reported = snapshot |> lamp_values() |> Map.reject(fn {key, value} -> known[key] == value end)
+
+    socket |> assign(:power_snapshot, snapshot) |> assign(reported)
+  end
+
+  defp lamp_values(snapshot) do
+    kelvin = Lights.color_temp_k(snapshot)
+
+    %{
+      brightness: max(Lights.brightness(snapshot), 1),
+      kelvin: if(kelvin && kelvin > 0, do: kelvin),
+      color: if(not Lights.white?(snapshot), do: color_hex(snapshot))
+    }
+  end
 
   defp show_toast(socket, toast) do
     if timer = socket.assigns.toast_timer, do: Process.cancel_timer(timer)

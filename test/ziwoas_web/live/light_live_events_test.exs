@@ -3,7 +3,7 @@ defmodule ZiwoasWeb.LightLiveEventsTest do
 
   import Phoenix.LiveViewTest
 
-  alias Ziwoas.{FakeGoveeBridge, Repo, TestClock}
+  alias Ziwoas.{FakeGoveeBridge, Lights, Repo, TestClock}
   alias Ziwoas.Lights.{Commands, Light, State}
 
   setup do
@@ -191,6 +191,46 @@ defmodule ZiwoasWeb.LightLiveEventsTest do
              view,
              "#light_color_custom[checked] + label.ld-swatch-custom[data-light=wheel][style*='#010203']"
            )
+  end
+
+  test "a colour lets go of the white, and a white of the colour", %{conn: conn} do
+    Repo.update_all(Light, set: [supports_color: true])
+    Repo.update_all(State, set: [color_temp_k: 2700])
+    view = open_page(conn)
+    assert has_element?(view, "#light_panel_white button[aria-pressed=true]", "Gemütlich")
+
+    view |> element("#light_color_0") |> render_click()
+    render_async(view)
+    assert has_element?(view, "#light_color_0[checked]")
+    refute has_element?(view, "#light_panel_white button[aria-pressed=true]")
+
+    view |> element("#light_panel_white button", "Neutral") |> render_click()
+    render_async(view)
+    assert has_element?(view, "#light_panel_white button[aria-pressed=true]", "Neutral")
+    refute has_element?(view, "input[name=light_color][checked]")
+  end
+
+  test "the controls follow what the lamp reports", %{conn: conn} do
+    Repo.update_all(Light, set: [supports_color: true])
+    view = open_page(conn)
+
+    {:ok, _state} =
+      Lights.put_state("UP1", %{
+        on: true,
+        reachable: true,
+        brightness: 30,
+        color: %{r: 255, g: 77, b: 77}
+      })
+
+    assert has_element?(view, "#light_brightness[value='30']")
+    assert has_element?(view, "#light_brightness_form output", "30 %")
+    assert has_element?(view, "#light_color_0[checked]")
+
+    {:ok, _state} =
+      Lights.put_state("UP1", %{on: true, reachable: true, brightness: 30, color_temp_k: 4000})
+
+    assert has_element?(view, "#light_temp[value='4000']")
+    refute has_element?(view, "input[name=light_color][checked]")
   end
 
   test "the tabs show one panel at a time", %{conn: conn} do
