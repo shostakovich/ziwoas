@@ -102,7 +102,12 @@ defmodule ZiwoasWeb.Charts.Plot do
 
   def value_labels(plot, values, gap) do
     for tick <- y_ticks(plot, values) do
-      %Label{x: left(plot) - gap, y: tick.at, text: to_s(tick.value), zero: tick.value == 0}
+      %Label{
+        x: left(plot) - gap,
+        y: tick.at,
+        text: ZiwoasWeb.Format.number(tick.value),
+        zero: tick.value == 0
+      }
     end
   end
 
