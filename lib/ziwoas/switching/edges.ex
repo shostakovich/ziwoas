@@ -44,14 +44,19 @@ defmodule Ziwoas.Switching.Edges do
     |> Enum.map(&List.last/1)
   end
 
-  @doc "Among edges sharing the earliest instant, the one \"last edge wins\" would pick."
-  @spec next_edge_per_plug([Rule.t()], DateTime.t(), DateTime.t(), String.t()) :: [Edge.t()]
-  def next_edge_per_plug(rules, from, to, zone) do
+  @doc """
+  The first edge of one plug's `rules` that switches it out of its state: per instant the edge
+  "last edge wins" picks, past those that keep the state.
+  """
+  @spec next_switch([Rule.t()], boolean, DateTime.t(), DateTime.t(), String.t()) :: Edge.t() | nil
+  def next_switch(rules, on, from, to, zone) do
+    state = if on, do: :on, else: :off
+
     rules
     |> edges_between(from, to, zone)
-    |> Enum.chunk_by(& &1.plug_id)
-    |> group_in_order()
-    |> Enum.map(&tie_winner/1)
+    |> Enum.chunk_by(&DateTime.to_unix(&1.at, :microsecond))
+    |> Enum.map(&List.last/1)
+    |> Enum.find(&(&1.action != state))
   end
 
   defp group_in_order(chunks) do
@@ -62,9 +67,6 @@ defmodule Ziwoas.Switching.Edges do
     end)
     |> then(fn {ids, groups} -> ids |> Enum.reverse() |> Enum.map(&Map.fetch!(groups, &1)) end)
   end
-
-  defp tie_winner([first | _] = edges),
-    do: edges |> Enum.take_while(&(DateTime.compare(&1.at, first.at) == :eq)) |> List.last()
 
   defp edges_for_date(rules, date, zone) do
     cwday = Date.day_of_week(date)

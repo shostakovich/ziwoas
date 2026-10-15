@@ -2,6 +2,7 @@ defmodule ZiwoasWeb.LightLiveEventsTest do
   use ZiwoasWeb.ConnCase
 
   import Phoenix.LiveViewTest
+  import Setzkasten.Test.Confirm
 
   alias Ziwoas.{FakeGoveeBridge, Lights, Repo, TestClock}
   alias Ziwoas.Lights.{Commands, Light, State}
@@ -43,7 +44,7 @@ defmodule ZiwoasWeb.LightLiveEventsTest do
 
     assert_received {:govee, "UP1", {:zone, "powerSwitch", true}}
     assert Repo.get_by(State, light_key: "UP1").on
-    assert has_element?(view, "#light_power button.active[phx-value-on=true]")
+    assert has_element?(view, "#light_power button[aria-pressed=true][phx-value-value=true]")
   end
 
   test "a refused command is a flash and records nothing", %{conn: conn} do
@@ -128,9 +129,9 @@ defmodule ZiwoasWeb.LightLiveEventsTest do
     assert view |> element("#light_toast span") |> render() =~
              "Seite ausgeschaltet · max. 2 Zonen"
 
-    assert has_element?(view, "#light_toast:not([hidden])")
-    assert has_element?(view, "#zone_rippleLightToggle.active")
-    refute has_element?(view, "#zone_sideLightToggle.active")
+    assert has_element?(view, "[role=status] #light_toast")
+    assert has_element?(view, "#zone_rippleLightToggle[aria-pressed=true]")
+    assert has_element?(view, "#zone_sideLightToggle[aria-pressed=false]")
 
     view |> element("#light_toast button", "Rückgängig") |> render_click()
     render_async(view)
@@ -142,7 +143,7 @@ defmodule ZiwoasWeb.LightLiveEventsTest do
                "rippleLightToggle" => false
              }
 
-    assert has_element?(view, "#light_toast[hidden]")
+    refute has_element?(view, "#light_toast")
   end
 
   test "the toast stays until it is closed or the next command runs", %{conn: conn} do
@@ -153,14 +154,14 @@ defmodule ZiwoasWeb.LightLiveEventsTest do
     view |> element("#zone_rippleLightToggle") |> render_click()
     render_async(view)
     view |> element("#light_toast button[aria-label='Schließen']") |> render_click()
-    assert has_element?(view, "#light_toast[hidden]")
+    refute has_element?(view, "#light_toast")
 
     view |> element("#zone_sideLightToggle") |> render_click()
     render_async(view)
-    assert has_element?(view, "#light_toast:not([hidden])")
+    assert has_element?(view, "#light_toast")
 
     view |> form("#light_brightness_form", %{"value" => "42"}) |> render_change()
-    assert has_element?(view, "#light_toast[hidden]")
+    refute has_element?(view, "#light_toast")
   end
 
   test "the brightness slider is a debounced form; the page keeps what it set", %{conn: conn} do
@@ -184,10 +185,10 @@ defmodule ZiwoasWeb.LightLiveEventsTest do
     assert_received {:govee, "UP1", {:color_temp, 4000}}
     assert has_element?(view, "#light_temp[value='4000']")
 
-    view |> element("#light_panel_white button", "Gemütlich") |> render_click()
+    view |> element("#light_presets button", "Gemütlich") |> render_click()
     render_async(view)
     assert_received {:govee, "UP1", {:color_temp, 2700}}
-    assert has_element?(view, "#light_panel_white button.active[aria-pressed=true]", "Gemütlich")
+    assert has_element?(view, "#light_presets button[aria-pressed=true]", "Gemütlich")
   end
 
   test "a swatch and the colour wheel send the colour", %{conn: conn} do
@@ -206,28 +207,24 @@ defmodule ZiwoasWeb.LightLiveEventsTest do
     render_async(view)
 
     assert_received {:govee, "UP1", {:color, %{r: 1, g: 2, b: 3}}}
-    refute has_element?(view, "input[name=light_color][checked]:not(#light_color_custom)")
-
-    assert has_element?(
-             view,
-             "#light_color_custom[checked] + label.ld-swatch-custom[data-light=wheel][style*='#010203']"
-           )
+    refute has_element?(view, "input[name=light_color][checked]")
+    assert has_element?(view, "label[data-light=wheel][data-custom='#010203']")
   end
 
   test "a colour lets go of the white, and a white of the colour", %{conn: conn} do
     Repo.update_all(Light, set: [supports_color: true])
     Repo.update_all(State, set: [color_temp_k: 2700])
     view = open_page(conn)
-    assert has_element?(view, "#light_panel_white button[aria-pressed=true]", "Gemütlich")
+    assert has_element?(view, "#light_presets button[aria-pressed=true]", "Gemütlich")
 
     view |> element("#light_color_0") |> render_click()
     render_async(view)
     assert has_element?(view, "#light_color_0[checked]")
-    refute has_element?(view, "#light_panel_white button[aria-pressed=true]")
+    refute has_element?(view, "#light_presets button[aria-pressed=true]")
 
-    view |> element("#light_panel_white button", "Neutral") |> render_click()
+    view |> element("#light_presets button", "Neutral") |> render_click()
     render_async(view)
-    assert has_element?(view, "#light_panel_white button[aria-pressed=true]", "Neutral")
+    assert has_element?(view, "#light_presets button[aria-pressed=true]", "Neutral")
     refute has_element?(view, "input[name=light_color][checked]")
   end
 
@@ -254,21 +251,29 @@ defmodule ZiwoasWeb.LightLiveEventsTest do
     refute has_element?(view, "input[name=light_color][checked]")
   end
 
-  test "the tabs show one panel at a time", %{conn: conn} do
+  test "the panel switch shows one panel at a time", %{conn: conn} do
     Repo.update_all(Light, set: [supports_color: true])
     view = open_page(conn)
 
-    assert has_element?(view, "#light_tab_white[aria-selected=true]")
+    assert has_element?(
+             view,
+             "#light_panel_switch button[phx-value-value=white][aria-pressed=true]"
+           )
+
     assert has_element?(view, "#light_panel_white:not([hidden])")
     assert has_element?(view, "#light_panel_color[hidden]")
 
-    view |> element("#light_tab_color") |> render_click()
+    view |> element("#light_panel_switch button", "Farbe") |> render_click()
 
-    assert has_element?(view, "#light_tab_color.active[aria-selected=true]")
+    assert has_element?(
+             view,
+             "#light_panel_switch button[phx-value-value=color][aria-pressed=true]"
+           )
+
     assert has_element?(view, "#light_panel_color:not([hidden])")
     assert has_element?(view, "#light_panel_white[hidden]")
 
-    render_click(view, "select_tab", %{"tab" => "nope"})
+    render_click(view, "show_panel", %{"value" => "nope"})
     assert has_element?(view, "#light_panel_color:not([hidden])")
   end
 
@@ -314,11 +319,10 @@ defmodule ZiwoasWeb.LightLiveEventsTest do
 
       assert has_element?(
                view,
-               "#light_settings dialog#light_settings_dialog[phx-hook=SettingsSheet] form[phx-submit=save_settings]"
+               "dialog#light_settings[data-show=true] form#light_form[phx-submit=save_settings]"
              )
 
-      assert has_element?(view, "#light_settings_dialog button.btn-close[data-dismiss=dialog]")
-      assert has_element?(view, "#light_settings_dialog button[data-dismiss=dialog]", "Abbrechen")
+      assert has_element?(view, "#light_settings_cancel", "Abbrechen")
       assert view |> element("input[name='light[name]']") |> render() =~ ~s(value="Uplighter")
 
       options =
@@ -328,7 +332,7 @@ defmodule ZiwoasWeb.LightLiveEventsTest do
         |> LazyHTML.query("select[name='light[shelly_plug_id]'] option")
         |> Enum.map(&String.trim(LazyHTML.text(&1)))
 
-      assert options == ["— keine —", "Kühlschrank"]
+      assert options == ["Keine", "Kühlschrank"]
       refute has_element?(view, "input[name='light[supports_color]']")
     end
 
@@ -338,10 +342,24 @@ defmodule ZiwoasWeb.LightLiveEventsTest do
 
       html = view |> form("#light_form", %{"light" => %{"name" => ""}}) |> render_change()
       assert html =~ "Muss ausgefüllt werden"
+      refute has_element?(view, "#light_form [role=alert]")
 
       html = view |> form("#light_form", %{"light" => %{"name" => ""}}) |> render_submit()
       assert html =~ "Muss ausgefüllt werden"
-      assert has_element?(view, "#light_settings dialog")
+
+      assert has_element?(
+               view,
+               "#light_form > #light_form_errors[role=alert]",
+               "1 Feld ist noch nicht richtig"
+             )
+
+      assert has_element?(
+               view,
+               "#light_form[phx-hook='Setzkasten.Components.Forms.FocusInvalid']"
+             )
+
+      assert has_element?(view, "#light_form input#light_name[aria-invalid=true]")
+      assert has_element?(view, "dialog#light_settings[data-show=true]")
       assert Repo.get_by(Light, key: "UP1").name == "Uplighter"
     end
 
@@ -355,10 +373,10 @@ defmodule ZiwoasWeb.LightLiveEventsTest do
       |> render_submit()
 
       assert %Light{name: "Stehlampe", shelly_plug_id: "fridge"} = Repo.get_by(Light, key: "UP1")
-      refute has_element?(view, "#light_settings dialog")
+      assert has_element?(view, "dialog#light_settings[data-show=false]")
       assert view |> element("h1") |> render() =~ "Stehlampe"
       assert render(view) =~ "Lampe aktualisiert."
-      assert has_element?(view, "#light_power", "Aus · stromlos")
+      assert has_element?(view, "#light_power [data-status]", ~r/Aus\W+stromlos/u)
     end
 
     test "refuses a plug that is no lamp plug", %{conn: conn} do
@@ -405,11 +423,11 @@ defmodule ZiwoasWeb.LightLiveEventsTest do
                Repo.get_by(Light, key: "UP1")
     end
 
-    test "closing the sheet forgets it", %{conn: conn} do
+    test "Abbrechen closes the sheet, and the server forgets it", %{conn: conn} do
       view = open_page(conn)
       open_settings(view)
-      view |> element("#light_settings_dialog") |> render_hook("close_settings", %{})
-      refute has_element?(view, "#light_settings dialog")
+      close_modal(view, "#light_settings_cancel", "light_settings")
+      assert has_element?(view, "dialog#light_settings[data-show=false]")
     end
   end
 end

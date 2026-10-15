@@ -3,6 +3,7 @@ defmodule ZiwoasWeb.SwitchesComponentsTest do
 
   import Phoenix.LiveViewTest
 
+  alias Setzkasten.Components.Data
   alias Ziwoas.Plugs.{Plug, State}
   alias Ziwoas.Switching.{Command, Row, Rule}
   alias Ziwoas.Switching.Edges.Edge
@@ -34,91 +35,83 @@ defmodule ZiwoasWeb.SwitchesComponentsTest do
       render_component(&SwitchesComponents.schedule_entry/1, entry: entry, plug: @plug)
       |> LazyHTML.from_fragment()
 
-  defp classes(doc, selector),
-    do: doc |> LazyHTML.query(selector) |> LazyHTML.attribute("class") |> hd() |> String.split()
-
-  defp squish(text), do: text |> String.split() |> Enum.join(" ")
-
-  test "a Zeitfenster is one filled pill in a row named by its group" do
-    doc = entry(window())
-
-    assert Enum.count(LazyHTML.query(doc, "div#sw_entry_fridge_g-1")) == 1
-    refute "border" in classes(doc, "span.badge")
-    assert Enum.empty?(LazyHTML.query(doc, "span.badge .fw-bold"))
-    assert squish(LazyHTML.text(LazyHTML.query(doc, "span.badge"))) == "Mo–Fr · 10:00–20:00"
-  end
-
-  test "an Einzelschaltung is an open, directed pill in a row named by its rule" do
-    doc = entry(single())
-
-    assert Enum.count(LazyHTML.query(doc, "div#sw_entry_fridge_7")) == 1
-    assert LazyHTML.text(LazyHTML.query(doc, "span.badge.border .fw-bold")) == "→ aus"
-    assert squish(LazyHTML.text(LazyHTML.query(doc, "span.badge"))) == "täglich · 22:00 → aus"
-    assert LazyHTML.text(LazyHTML.query(entry(single(:on)), "span.badge .fw-bold")) == "→ an"
-  end
-
   defp count(doc, selector), do: doc |> LazyHTML.query(selector) |> Enum.count()
 
-  test "the buttons address the group or the rule and name what they act on" do
-    window = entry(window())
-    addressed = "[phx-value-plug_id=fridge][phx-value-kind=window][phx-value-id=g-1]"
+  defp text(doc, selector),
+    do: doc |> LazyHTML.query(selector) |> LazyHTML.text() |> plain()
 
-    assert count(window, "button[phx-click=set_enabled][phx-value-enabled=false]#{addressed}") ==
-             1
+  defp plain(text), do: text |> String.replace(["⁠", " "], " ") |> squish()
+  defp squish(text), do: text |> String.split() |> Enum.join(" ")
 
-    assert count(window, "button[phx-click=edit_entry]#{addressed}") == 1
-    assert count(window, "button[phx-click=delete_entry]#{addressed}") == 1
+  defp label(doc, id), do: doc |> LazyHTML.query("##{id}") |> LazyHTML.attribute("aria-label")
 
-    assert LazyHTML.attribute(LazyHTML.query(window, "[aria-label]"), "aria-label") ==
-             ["Zeitfenster pausieren", "Zeitfenster bearbeiten", "Zeitfenster löschen"]
-
-    single = entry(single())
-
-    assert count(single, "button[phx-click=set_enabled][phx-value-kind=rule][phx-value-id='7']") ==
-             1
-
-    assert LazyHTML.attribute(LazyHTML.query(single, "[aria-label]"), "aria-label") ==
-             ["Schaltzeit pausieren", "Schaltzeit bearbeiten", "Schaltzeit löschen"]
+  defp pushed(doc, id) do
+    [json] = doc |> LazyHTML.query("##{id}") |> LazyHTML.attribute("phx-click")
+    [["push", %{"event" => event, "value" => value}]] = Jason.decode!(json)
+    {event, value}
   end
 
-  test "deleting asks first" do
-    assert LazyHTML.attribute(
-             LazyHTML.query(entry(window()), "button[phx-click=delete_entry]"),
-             "data-confirm"
-           ) == ["Zeitfenster wirklich löschen?"]
+  test "a Zeitfenster is a row named by its group, with days and both times" do
+    doc = entry(window())
 
-    assert LazyHTML.attribute(
-             LazyHTML.query(entry(single()), "button[phx-click=delete_entry]"),
-             "data-confirm"
-           ) == ["Schaltzeit wirklich löschen?"]
+    assert count(doc, "li#sw_entry_fridge_g-1[data-enabled=true]") == 1
+    assert text(doc, "li > .list-col-grow > p.font-medium") == "Mo–Fr · 10:00–20:00"
+    assert text(doc, "li > .list-col-grow > p.text-sm") == "Zeitfenster"
   end
 
-  test "a paused row is struck through, colourless, and its button resumes" do
+  test "an Einzelschaltung is a row named by its rule that says which way it switches" do
+    doc = entry(single())
+
+    assert count(doc, "li#sw_entry_fridge_7") == 1
+    assert text(doc, "li > .list-col-grow > p.font-medium") == "täglich · 22:00"
+    assert text(doc, "li > .list-col-grow > p.text-sm") == "Einzelschaltung · schaltet aus"
+    assert text(entry(single(:on)), "li > .list-col-grow > p.text-sm") =~ "schaltet ein"
+  end
+
+  test "the actions address the group or the rule and name the row they act on" do
+    doc = entry(window())
+    addressed = %{"plug_id" => "fridge", "kind" => "window", "id" => "g-1"}
+
+    assert pushed(doc, "sw_entry_fridge_g-1_toggle") ==
+             {"set_enabled", Map.put(addressed, "enabled", "false")}
+
+    assert pushed(doc, "sw_entry_fridge_g-1_edit") == {"edit_entry", addressed}
+
+    assert label(doc, "sw_entry_fridge_g-1_toggle") == ["Pausieren: Mo–Fr · 10:00–20:00"]
+    assert label(doc, "sw_entry_fridge_g-1_edit") == ["Bearbeiten: Mo–Fr · 10:00–20:00"]
+    assert label(doc, "sw_entry_fridge_g-1_delete") == ["Löschen: Mo–Fr · 10:00–20:00"]
+
+    assert {"set_enabled", %{"kind" => "rule", "id" => "7"}} =
+             pushed(entry(single()), "sw_entry_fridge_7_toggle")
+  end
+
+  test "deleting asks in the confirmation dialog instead of sending the event" do
+    [json] =
+      entry(single())
+      |> LazyHTML.query("#sw_entry_fridge_7_delete")
+      |> LazyHTML.attribute("phx-click")
+
+    ops = Jason.decode!(json)
+
+    refute Enum.any?(ops, &match?(["push", _], &1))
+
+    assert Enum.find_value(ops, fn
+             ["dispatch", %{"detail" => %{"text" => texts}}] -> texts["#confirm-delete-title"]
+             _op -> nil
+           end) == "Schaltzeit löschen?"
+  end
+
+  test "a paused row carries a badge and its button resumes" do
     doc = entry(window(false))
 
-    assert "text-decoration-line-through" in classes(doc, "span.badge")
-    assert Enum.filter(classes(doc, "span.badge"), &String.contains?(&1, "primary")) == []
-
-    assert hd(LazyHTML.attribute(LazyHTML.query(doc, "button[aria-label]"), "aria-label")) ==
-             "Zeitfenster aktivieren"
-
-    assert count(doc, "button[phx-click=set_enabled][phx-value-enabled=true]") == 1
-
-    assert LazyHTML.attribute(LazyHTML.query(doc, "[phx-click=set_enabled] svg"), "data-icon") ==
-             ["play"]
+    assert count(doc, "li[data-enabled=false]") == 1
+    assert text(doc, ".badge") == "Pausiert"
+    assert label(doc, "sw_entry_fridge_g-1_toggle") == ["Fortsetzen: Mo–Fr · 10:00–20:00"]
+    assert {"set_enabled", %{"enabled" => "true"}} = pushed(doc, "sw_entry_fridge_g-1_toggle")
   end
 
-  test "a running pill is primary: filled for a Zeitfenster, outlined for an Einzelschaltung" do
-    filled = classes(entry(window()), "span.badge")
-    outlined = classes(entry(single()), "span.badge")
-
-    assert "bg-primary-subtle" in filled and "text-primary-emphasis" in filled
-    refute "border-primary" in filled
-    assert "border-primary" in outlined and "text-primary-emphasis" in outlined
-    refute "bg-primary-subtle" in outlined
-
-    assert LazyHTML.attribute(LazyHTML.query(entry(single()), ".btn.btn-icon svg"), "data-icon") ==
-             ~w[pause edit delete]
+  test "a running row has no badge" do
+    assert count(entry(single()), ".badge") == 0
   end
 
   describe "helpers" do
@@ -151,7 +144,7 @@ defmodule ZiwoasWeb.SwitchesComponentsTest do
     defp edge(action, hour, minute),
       do: %Edge{plug_id: "fridge", rule_id: 1, action: action, at: at(hour, minute)}
 
-    defp line(row), do: SwitchesComponents.status_line(row, @zone)
+    defp line(row), do: row |> SwitchesComponents.status_line(@zone) |> plain()
 
     test "weekday labels: ranges, singles and the full week" do
       assert SwitchesComponents.weekday_label([1, 2, 3, 4, 5]) == "Mo–Fr"
@@ -173,20 +166,28 @@ defmodule ZiwoasWeb.SwitchesComponentsTest do
 
     test "the status line" do
       assert line(row(command: command(:on, :schedule), edge: edge(:off, 23, 0))) ==
-               "An seit 18:00 (Zeitplan) · nächste Schaltung: 23:00 → aus"
+               "An seit 18:00 (Zeitplan) · schaltet um 23:00 aus"
 
-      assert line(row(on: false, edge: edge(:on, 6, 30))) == "Aus · nächste Schaltung: 06:30 → an"
+      assert line(row(on: false, edge: edge(:on, 6, 30))) == "Aus · schaltet um 06:30 ein"
 
       assert line(row(on: false, command: command(:on, :manual), changed: at(18, 30))) ==
                "Aus seit 18:30 · kein Zeitplan"
     end
 
+    test "the next switching time names its day when it is not today" do
+      tomorrow = %{edge(:on, 6, 30) | at: DateTime.add(at(6, 30), 1, :day)}
+      assert line(row(on: false, edge: tomorrow)) == "Aus · schaltet morgen um 06:30 ein"
+
+      friday_evening = DateTime.new!(~D[2026-06-19], ~T[20:00:00], @zone)
+      monday = %{edge(:on, 7, 0) | at: DateTime.new!(~D[2026-06-22], ~T[07:00:00], @zone)}
+
+      assert line(row(on: false, now: friday_evening, last_seen: friday_evening, edge: monday)) ==
+               "Aus · schaltet Montag um 07:00 ein"
+    end
+
     test "a plug whose every entry is paused says its schedule is paused" do
       assert line(row(on: false, entries: [window(false), single(:off, false)])) ==
                "Aus · Zeitplan pausiert"
-
-      assert line(row(on: false, entries: [window(false), single()])) == "Aus",
-             "a running entry without an edge due adds nothing"
     end
 
     test "a state report newer than the command dates since without a source" do
@@ -194,15 +195,20 @@ defmodule ZiwoasWeb.SwitchesComponentsTest do
                "An seit 18:40 · kein Zeitplan"
     end
 
-    test "the next switching time names its day when it is not today" do
-      tomorrow = %{edge(:on, 6, 30) | at: DateTime.add(at(6, 30), 1, :day)}
-      assert line(row(on: false, edge: tomorrow)) == "Aus · nächste Schaltung: morgen 06:30 → an"
+    test "since names the day when it was not today" do
+      yesterday = %{command(:off, :schedule) | inserted_at: DateTime.add(at(22, 0), -1, :day)}
+      last_week = %{command(:off, :schedule) | inserted_at: DateTime.add(at(22, 0), -5, :day)}
 
-      friday_evening = DateTime.new!(~D[2026-06-19], ~T[20:00:00], @zone)
-      monday = %{edge(:on, 7, 0) | at: DateTime.new!(~D[2026-06-22], ~T[07:00:00], @zone)}
+      assert line(row(on: false, command: yesterday)) ==
+               "Aus seit gestern 22:00 (Zeitplan) · kein Zeitplan"
 
-      assert line(row(on: false, now: friday_evening, last_seen: friday_evening, edge: monday)) ==
-               "Aus · nächste Schaltung: Montag 07:00 → an"
+      assert line(row(on: false, command: last_week)) ==
+               "Aus seit 10.06. 22:00 (Zeitplan) · kein Zeitplan"
+    end
+
+    test "the status line keeps its dot at the end of a line" do
+      assert SwitchesComponents.status_line(row(on: false), @zone) ==
+               Data.join_meta(["Aus", "kein Zeitplan"])
     end
 
     test "an offline plug counts whole minutes of silence" do

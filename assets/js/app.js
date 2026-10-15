@@ -11,7 +11,6 @@ import LightDetail from "./hooks/light_detail.js"
 import LiveFreshness from "./hooks/live_freshness.js"
 import RoomAirChart from "./hooks/room_air_chart.js"
 import SensorsChart from "./hooks/sensors_chart.js"
-import SettingsSheet from "./hooks/settings_sheet.js"
 import SolakonHistory from "./hooks/solakon_history.js"
 import TodayChart from "./hooks/today_chart.js"
 
@@ -26,7 +25,6 @@ const appHooks = {
   LiveFreshness,
   RoomAirChart,
   SensorsChart,
-  SettingsSheet,
   SolakonHistory,
   TodayChart,
 }

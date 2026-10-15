@@ -27,21 +27,24 @@ defmodule Ziwoas.Switching do
       plug_rules = Map.get(rules, plug.id, [])
       measurement = measurements[plug.id]
 
-      %Row{
+      row = %Row{
         plug: plug,
         entries: Schedule.fold(plug_rules),
         state: states[plug.id],
         last_command: commands[plug.id],
-        next_edge:
-          plug_rules
-          |> Enum.filter(& &1.enabled)
-          |> Edges.next_edge_per_plug(now, until, zone)
-          |> List.first(),
+        next_edge: nil,
         watt: measurement.watt,
         last_seen_ts: measurement.last_seen_ts,
         offline: measurement.offline,
         now: now
       }
+
+      next_edge =
+        plug_rules
+        |> Enum.filter(& &1.enabled)
+        |> Edges.next_switch(Row.on?(row), now, until, zone)
+
+      %{row | next_edge: next_edge}
     end
   end
 

@@ -34,7 +34,7 @@ defmodule Ziwoas.Switching.EdgesTest do
   end
 
   defp between(rules, from, to), do: Edges.edges_between(rules, from, to, @zone)
-  defp next(rules, from, to), do: Edges.next_edge_per_plug(rules, from, to, @zone)
+  defp next(rules, on, from, to), do: Edges.next_switch(rules, on, from, to, @zone)
   defp same?(a, b), do: DateTime.compare(a, b) == :eq
 
   test "fires on and off edges on configured weekdays" do
@@ -85,25 +85,25 @@ defmodule Ziwoas.Switching.EdgesTest do
     assert Enum.map(edges, & &1.action) == [:on, :off, :on]
   end
 
-  test "next_edge_per_plug collapses to the earliest edge per plug" do
-    rules =
-      window(plug_id: "lamp", on_at: 1080, off_at: 1140) ++
-        window(plug_id: "fan", on_at: 1100, off_at: 1380)
+  test "the next switch passes edges that keep the state" do
+    from = local(2026, 6, 15, 14, 0)
+    to = local(2026, 6, 16, 14, 0)
 
-    edges = next(rules, local(2026, 6, 15, 17, 0), local(2026, 6, 15, 20, 0))
-    lamp = Enum.find(edges, &(&1.plug_id == "lamp"))
-    fan = Enum.find(edges, &(&1.plug_id == "fan"))
-
-    assert length(edges) == 2
-    assert lamp.action == :on and same?(lamp.at, local(2026, 6, 15, 18, 0))
-    assert fan.action == :on and same?(fan.at, local(2026, 6, 15, 18, 20))
+    assert next(window(on_at: 1080, off_at: 1320), false, from, to).action == :on
+    assert %{action: :off} = edge = next(window(on_at: 1080, off_at: 1320), true, from, to)
+    assert same?(edge.at, local(2026, 6, 15, 22, 0))
+    assert next([rule(action: :on)], true, from, to) == nil
   end
 
-  test "on edge wins a same-timestamp tie in next_edge_per_plug" do
+  test "an instant's on edge wins the tie, so it only switches a plug that is off" do
     rules = window(on_at: 360, off_at: 600) ++ window(on_at: 600, off_at: 840)
-    assert [edge] = next(rules, local(2026, 6, 15, 9, 0), local(2026, 6, 15, 20, 0))
-    assert edge.action == :on
+    from = local(2026, 6, 15, 9, 0)
+    to = local(2026, 6, 15, 20, 0)
+
+    assert %{action: :on} = edge = next(rules, false, from, to)
     assert same?(edge.at, local(2026, 6, 15, 10, 0))
+    assert %{action: :off} = edge = next(rules, true, from, to)
+    assert same?(edge.at, local(2026, 6, 15, 14, 0))
   end
 
   test "fall-back repetition fires the edge only once, on the first pass" do

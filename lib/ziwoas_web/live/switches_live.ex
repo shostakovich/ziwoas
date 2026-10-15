@@ -202,8 +202,11 @@ defmodule ZiwoasWeb.SwitchesLive do
     |> load()
   end
 
-  defp saved({:error, changeset}, socket, plug_id, editor),
-    do: socket |> clear_flash() |> put_editor(plug_id, %{editor | form: to_form(changeset)})
+  defp saved({:error, changeset}, socket, plug_id, editor) do
+    socket
+    |> clear_flash()
+    |> put_editor(plug_id, %{editor | form: to_form(changeset)})
+  end
 
   defp noun(kind) when kind in [:window, "window"], do: "Zeitfenster"
   defp noun(_kind), do: "Schaltzeit"
@@ -242,35 +245,37 @@ defmodule ZiwoasWeb.SwitchesLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} current_path={@current_path}>
+    <Layouts.app flash={@flash} current_path={@current_path} width={:default}>
       <.header>Schalten</.header>
 
-      <div id="sw_page" phx-hook="FocusReturn">
-        <section :if={@rows == []} class="card card-body mb-3">
-          <h2 class="card-title h5">Keine schaltbaren Steckdosen</h2>
-          <p class="text-body-secondary mb-0">
-            Markiere Verbraucher in <code>ziwoas.yml</code> mit <code>switchable: true</code>.
-          </p>
+      <div class="flex flex-col gap-8">
+        <section :if={@snapshots != []} id="sw_lamps" aria-labelledby="sw_lamps_heading">
+          <.section_heading id="sw_lamps_heading">Lampen</.section_heading>
+          <div class="grid items-start gap-4 md:grid-cols-2 md:gap-6">
+            <.light_card
+              :for={snapshot <- @snapshots}
+              snapshot={snapshot}
+              now={@now}
+              pending={MapSet.member?(@pending, {:light_command, snapshot.light.key})}
+            />
+          </div>
         </section>
 
-        <%= if @snapshots != [] do %>
-          <h2 class="h6 text-uppercase text-body-secondary mt-4 mb-2">Lampen</h2>
-          <.light_card
-            :for={snapshot <- @snapshots}
-            snapshot={snapshot}
-            now={@now}
-            pending={MapSet.member?(@pending, {:light_command, snapshot.light.key})}
-          />
-        <% end %>
-
-        <h2 :if={@rows != []} class="h6 text-uppercase text-body-secondary mt-4 mb-2">Steckdosen</h2>
-        <.plug_card
-          :for={row <- @rows}
-          row={row}
-          zone={@zone}
-          editor={@editors[row.plug.id]}
-          pending={MapSet.member?(@pending, {:switch, row.plug.id})}
-        />
+        <section id="sw_plugs" aria-labelledby="sw_plugs_heading" phx-hook="FocusReturn">
+          <.section_heading id="sw_plugs_heading">Steckdosen</.section_heading>
+          <.empty_state :if={@rows == []} plush="plug" title="Keine schaltbaren Steckdosen">
+            Markiere Verbraucher in <code>ziwoas.yml</code> mit <code>switchable: true</code>.
+          </.empty_state>
+          <div :if={@rows != []} class="grid items-start gap-4 md:grid-cols-2 md:gap-6">
+            <.plug_card
+              :for={row <- @rows}
+              row={row}
+              zone={@zone}
+              editor={@editors[row.plug.id]}
+              pending={MapSet.member?(@pending, {:switch, row.plug.id})}
+            />
+          </div>
+        </section>
       </div>
     </Layouts.app>
     """

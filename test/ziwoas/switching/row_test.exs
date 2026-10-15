@@ -53,8 +53,8 @@ defmodule Ziwoas.Switching.RowTest do
     refute Row.offline?(row)
     assert row.watt == 42.0
     assert length(row.entries) == 1
-    assert row.next_edge.action == :on
-    assert DateTime.compare(row.next_edge.at, at(18)) == :eq
+    assert row.next_edge.action == :off
+    assert DateTime.compare(row.next_edge.at, at(23)) == :eq
     assert row.last_command.action == :on
   end
 
