@@ -4,6 +4,7 @@ defmodule ZiwoasWeb.CoreComponentsTest do
   import Phoenix.Component
   import Phoenix.LiveViewTest
 
+  alias Setzkasten.Components.Forms
   alias ZiwoasWeb.CoreComponents
 
   defmodule Item do
@@ -62,131 +63,35 @@ defmodule ZiwoasWeb.CoreComponentsTest do
     end
   end
 
-  describe "input/1" do
-    test "shows German errors for a used field" do
+  describe "Setzkasten's input" do
+    test "shows our German errors for a used field" do
       assigns = %{form: item_form(%{"label" => "", "amount" => "-1"})}
-
-      html =
-        rendered_to_string(~H"""
-        <CoreComponents.input field={@form[:label]} label="Bezeichnung" />
-        <CoreComponents.input field={@form[:amount]} type="number" />
-        """)
-
-      assert html =~ ~s(<label class="form-label" for="item_label">Bezeichnung</label>)
-      assert html =~ ~s(class="form-control is-invalid")
-      assert html =~ "muss ausgefüllt werden"
-      assert html =~ "muss mindestens 0 sein"
-    end
-
-    test "hides errors of a field the user has not touched yet" do
-      assigns = %{form: item_form(%{"amount" => "1"})}
-
-      html =
-        rendered_to_string(~H"""
-        <CoreComponents.input field={@form[:label]} />
-        """)
-
-      refute html =~ "invalid"
-    end
-
-    test "renders a checkbox as a switch with a hidden false" do
-      assigns = %{form: item_form(%{"label" => "a", "enabled" => "true"})}
-
-      html =
-        rendered_to_string(~H"""
-        <CoreComponents.input field={@form[:enabled]} type="checkbox" switch label="Aktiv" />
-        """)
-
-      assert html =~ ~s(class="form-check form-switch mb-3")
-      assert html =~ ~s(<input type="hidden" name="item[enabled]" value="false")
-      assert html =~ "checked"
-      assert html =~ ~s(role="switch")
-    end
-
-    test "renders a select with prompt and the chosen option" do
-      assigns = %{}
-
-      html =
-        rendered_to_string(~H"""
-        <CoreComponents.input
-          name="plug"
-          value="b"
-          type="select"
-          prompt="Bitte wählen"
-          options={[{"A", "a"}, {"B", "b"}]}
-        />
-        """)
-
-      assert html =~ ~r/<select name="plug" class="form-select\s*">/
-      assert html =~ ~s(<option value="">Bitte wählen</option>)
-      assert html =~ ~s(<option selected value="b">B</option>)
-    end
-  end
-
-  describe "button/1" do
-    test "is a button, or a link when it navigates" do
-      assigns = %{}
-
-      assert rendered_to_string(~H"""
-             <CoreComponents.button variant="outline-danger" size="sm" data-confirm="Sicher?">
-               Löschen
-             </CoreComponents.button>
-             """) =~ ~s(class="btn btn-outline-danger btn-sm" data-confirm="Sicher?")
-
-      assert rendered_to_string(~H"""
-             <CoreComponents.button navigate="/">Zurück</CoreComponents.button>
-             """) =~ ~s(href="/")
-    end
-  end
-
-  describe "header/1" do
-    test "an h1 set as h2, with optional controls before and after it" do
-      assigns = %{}
 
       doc =
         rendered_to_string(~H"""
-        <CoreComponents.header title_class="ld-title">
-          <:leading><a href="/back">←</a></:leading>
-          Stehlampe
-          <:actions><button type="button">Einstellungen</button></:actions>
-        </CoreComponents.header>
+        <Forms.input field={@form[:label]} label="Bezeichnung" />
+        <Forms.input field={@form[:amount]} type="number" />
         """)
         |> LazyHTML.from_fragment()
 
-      assert doc |> LazyHTML.query("header.mb-3 > :first-child") |> LazyHTML.attribute("href") ==
-               ["/back"]
+      assert doc |> LazyHTML.query("#item_label[aria-invalid=true]") |> Enum.count() == 1
 
-      assert doc |> LazyHTML.query("header > h1.h2.mb-0.me-auto.ld-title") |> LazyHTML.text() =~
-               "Stehlampe"
+      assert doc |> LazyHTML.query("#item_label-error-0") |> LazyHTML.text() =~
+               "Muss ausgefüllt werden"
 
-      assert doc |> LazyHTML.query("header > :last-child") |> LazyHTML.text() == "Einstellungen"
+      assert doc |> LazyHTML.query("#item_amount-error-0") |> LazyHTML.text() =~
+               "Muss mindestens 0 sein"
     end
   end
 
-  describe "measure_tile/6" do
+  describe "measure_stat/6" do
     test "a dash without unit when unknown, a plus on a signed non-negative value" do
-      assert CoreComponents.measure_tile("t", "Bilanz", nil, "kWh", 2, true) ==
-               %{id: "t", label: "Bilanz", number: "—", unit: nil}
+      assert CoreComponents.measure_stat("t", "Bilanz", nil, "kWh", 2, true) ==
+               %{id: "t", label: "Bilanz", value: "—", unit: nil}
 
-      assert CoreComponents.measure_tile(nil, "Bilanz", 0.0, "kWh", 2, true).number == "+0,00"
-      assert CoreComponents.measure_tile(nil, "Bilanz", -1.5, "kWh", 2, true).number == "−1,50"
-      assert CoreComponents.measure_tile(nil, "Gespart", 1234.5, "€", 2).number == "1.234,50"
-    end
-  end
-
-  describe "flash_group/1" do
-    test "shows info and error messages as alerts" do
-      assigns = %{flash: %{"info" => "Gespeichert.", "error" => "Fehlgeschlagen."}}
-
-      html =
-        rendered_to_string(~H"""
-        <CoreComponents.flash_group flash={@flash} />
-        """)
-
-      assert html =~ "alert-success"
-      assert html =~ "Gespeichert."
-      assert html =~ "alert-danger"
-      assert html =~ "Fehlgeschlagen."
+      assert CoreComponents.measure_stat(nil, "Bilanz", 0.0, "kWh", 2, true).value == "+0,00"
+      assert CoreComponents.measure_stat(nil, "Bilanz", -1.5, "kWh", 2, true).value == "−1,50"
+      assert CoreComponents.measure_stat(nil, "Gespart", 1234.5, "€", 2).value == "1.234,50"
     end
   end
 end

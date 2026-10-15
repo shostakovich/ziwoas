@@ -72,7 +72,7 @@ defmodule ZiwoasWeb.SwitchesLiveTest do
     assert doc
            |> LazyHTML.query("#sw_card_fridge button[phx-click=new_entry]")
            |> Enum.map(&String.trim(LazyHTML.text(&1))) ==
-             ["+ Zeitfenster", "+ Einzelschaltung"]
+             ["Zeitfenster", "Einzelschaltung"]
   end
 
   test "the summary counts Schaltzeiten, not rows; without any it is bare", %{conn: conn} do

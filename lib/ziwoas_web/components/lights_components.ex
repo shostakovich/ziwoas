@@ -297,7 +297,7 @@ defmodule ZiwoasWeb.LightsComponents do
   attr :tabs, :list, required: true, doc: "`[{key, label}]`"
   attr :active, :string, required: true
 
-  def tabs(assigns) do
+  def light_tabs(assigns) do
     ~H"""
     <div class="nav nav-pills nav-fill mb-3" role="tablist" aria-label="Lichtart">
       <button
@@ -661,11 +661,10 @@ defmodule ZiwoasWeb.LightsComponents do
         label="Shelly-Plug"
         options={@options}
         prompt="— keine —"
-        wrapper_class="mb-4"
       />
       <div class="d-flex justify-content-end gap-2">
-        <.button type="button" variant="outline-secondary" data-dismiss="dialog">Abbrechen</.button>
-        <.button>Speichern</.button>
+        <.button data-dismiss="dialog">Abbrechen</.button>
+        <.button type="submit" variant={:primary}>Speichern</.button>
       </div>
     </.form>
     """

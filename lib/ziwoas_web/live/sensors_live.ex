@@ -56,7 +56,7 @@ defmodule ZiwoasWeb.SensorsLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} current_path={@current_path} main_class="app-main-wide">
+    <Layouts.app flash={@flash} current_path={@current_path} width={:default}>
       <.header>Sensoren</.header>
       <%= if @latest == %{} do %>
         <.card title="Noch keine Sensordaten">

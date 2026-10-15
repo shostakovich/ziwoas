@@ -3,10 +3,11 @@ defmodule ZiwoasWeb.DashboardComponentsTest do
 
   import Phoenix.LiveViewTest, only: [render_component: 2]
 
+  alias Setzkasten.Components.Data
   alias Ziwoas.Energy.{Amount, Balance, LiveState}
   alias Ziwoas.Energy.Flow, as: EnergyFlow
   alias Ziwoas.Energy.Flow.Flows
-  alias ZiwoasWeb.{Components, CoreComponents, DashboardComponents}
+  alias ZiwoasWeb.{Components, DashboardComponents}
 
   defp live(plugs \\ [], flow \\ []) do
     %LiveState{
@@ -204,7 +205,7 @@ defmodule ZiwoasWeb.DashboardComponentsTest do
   end
 
   describe "tiles" do
-    defp tile(assigns), do: html(&CoreComponents.tile/1, assigns)
+    defp tile(assigns), do: html(&Data.stat/1, assigns)
 
     defp summary(produced_wh, consumed_wh, self_consumed_wh \\ 0.0, savings_eur \\ 0.0) do
       %Balance{
@@ -218,25 +219,6 @@ defmodule ZiwoasWeb.DashboardComponentsTest do
 
     defp values(tiles), do: Map.new(tiles, &{&1.id, value(&1)})
     defp value(tile), do: tile |> tile() |> text(".stat-value")
-
-    test "a tile carries its id, label and value, the unit set smaller, a caption under it" do
-      doc = tile(id: "tile_x", label: "Label", number: "1", unit: "W")
-      assert text(doc, "div.col#tile_x .card .stat .stat-label") == "Label"
-
-      assert text(
-               doc,
-               ".card.h-100 > .card-body.d-flex.flex-column > .stat.flex-grow-1 > .stat-value.mt-auto"
-             ) == "1 W"
-
-      assert text(doc, ".stat-value span.fs-5") == "W"
-
-      assert count(tile(label: "Bilanz", number: "—"), ".stat-value span") == 0
-      assert count(tile(label: "Bilanz", number: "—"), "div.col[id]") == 0
-
-      captioned = tile(label: "Panel 1", number: "211 W", caption: "41,0 V · 5,12 A")
-      assert text(captioned, ".stat-value + span.small.text-body-secondary") == "41,0 V · 5,12 A"
-      assert count(tile(label: "Panel 1", number: "211 W"), ".stat-value + span") == 0
-    end
 
     test "the day's tiles: German kWh, money, a signed balance and one-decimal shares" do
       values = values(DashboardComponents.summary_tiles(summary(2000.0, 500.0, 375.0, 0.2902)))

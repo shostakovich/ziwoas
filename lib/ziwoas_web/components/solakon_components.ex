@@ -389,12 +389,13 @@ defmodule ZiwoasWeb.SolakonComponents do
 
     ~H"""
     <h2 class="h6 text-uppercase text-body-secondary mt-4 mb-2">Panels</h2>
-    <section class="row row-cols-2 row-cols-md-4 g-2 mb-3 solakon-panel-grid">
-      <.tile
+    <section class="grid grid-cols-2 md:grid-cols-4 gap-4 solakon-panel-grid">
+      <.stat
         :for={panel <- @panels}
         label={"Panel #{panel.index}"}
-        number={number(panel.power_w, unit: "W")}
-        caption={"#{number(panel.voltage_v, precision: 1, unit: "V")} · #{number(panel.current_a, precision: 2, unit: "A")}"}
+        value={number(panel.power_w, unit: "W")}
+        desc={"#{number(panel.voltage_v, precision: 1, unit: "V")} · #{number(panel.current_a, precision: 2, unit: "A")}"}
+        size={:sm}
       />
     </section>
     """
@@ -428,8 +429,14 @@ defmodule ZiwoasWeb.SolakonComponents do
 
     ~H"""
     <h2 class="h6 text-uppercase text-body-secondary mt-4 mb-2">Speicher</h2>
-    <section class="row row-cols-2 row-cols-md-3 g-2 mb-3 solakon-storage-grid">
-      <.tile :for={{label, number, unit} <- @tiles} label={label} number={number} unit={unit} />
+    <section class="grid grid-cols-2 md:grid-cols-3 gap-4 solakon-storage-grid">
+      <.stat
+        :for={{label, value, unit} <- @tiles}
+        label={label}
+        value={value}
+        unit={unit}
+        size={:sm}
+      />
     </section>
     """
   end

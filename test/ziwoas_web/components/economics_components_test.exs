@@ -44,7 +44,7 @@ defmodule ZiwoasWeb.EconomicsComponentsTest do
     doc = card(result())
 
     assert texts(doc, ".card-title") == ["Wirtschaftlichkeit"]
-    assert texts(doc, ".card-subtitle") == ["seit 14.02.2026"]
+    assert texts(doc, ".card-title + p") == ["seit 14.02.2026"]
     assert texts(doc, ".stat-value") == ["1.000,00 €", "200,00 €", "20,0 %", "09.11.2028"]
     assert covered(doc) == ["20"]
 
@@ -125,7 +125,7 @@ defmodule ZiwoasWeb.EconomicsComponentsTest do
   end
 
   test "without any data it names no start date; on its own page it takes a title and no link" do
-    assert texts(card(result(data_start: nil)), ".card-subtitle") == []
+    assert texts(card(result(data_start: nil)), ".card-title + p") == []
 
     own = card(result(), title: "Stand", link: false)
     assert texts(own, ".card-title") == ["Stand"]

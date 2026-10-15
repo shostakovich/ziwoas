@@ -62,7 +62,7 @@ defmodule ZiwoasWeb.DashboardComponents do
     [
       energy("tile_produced", "Erzeugt heute", Amount.kwh(summary.produced)),
       energy("tile_consumed", "Verbraucht heute", Amount.kwh(summary.consumed)),
-      measure_tile("tile_savings", "Gespart heute", summary.savings_eur, "€", 2),
+      measure_stat("tile_savings", "Gespart heute", summary.savings_eur, "€", 2),
       energy(
         "tile_net_today",
         "Bilanz heute",
@@ -83,14 +83,14 @@ defmodule ZiwoasWeb.DashboardComponents do
     any_online = flow.solakon_online or Enum.any?(plugs, & &1.online)
 
     [
-      measure_tile(
+      measure_stat(
         "tile_consumption_now",
         "Verbrauch jetzt",
         if(any_online, do: flow.home_w),
         "W",
         0
       ),
-      measure_tile(
+      measure_stat(
         "tile_netbalance_now",
         "Bilanz jetzt",
         flow.grid_w && -flow.grid_w,
@@ -102,9 +102,9 @@ defmodule ZiwoasWeb.DashboardComponents do
   end
 
   defp energy(id, label, kwh, signed \\ false),
-    do: measure_tile(id, label, kwh, "kWh", 2, signed)
+    do: measure_stat(id, label, kwh, "kWh", 2, signed)
 
-  defp share(id, label, ratio), do: measure_tile(id, label, (ratio || 0) * 100, "%", 1)
+  defp share(id, label, ratio), do: measure_stat(id, label, (ratio || 0) * 100, "%", 1)
 
   # Colours are keyed by config position, so a plug keeps its colour across renders and charts.
   attr :live, LiveState, required: true

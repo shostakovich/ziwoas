@@ -3,7 +3,8 @@ defmodule ZiwoasWeb.StaticAssetsTest do
 
   for path <-
         ~w[/images/zipfelmaus.webp /images/solakon_battery_normal.webp /images/favicon.svg
-           /images/favicon.png /images/apple-touch-icon.png /robots.txt] do
+           /images/favicon.png /images/apple-touch-icon.png /robots.txt
+           /setzkasten/fonts/Figtree-Variable.woff2] do
     test "serves #{path} from priv/static", %{conn: conn} do
       assert get(conn, unquote(path)).status == 200
     end

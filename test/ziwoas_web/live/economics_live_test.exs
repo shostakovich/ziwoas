@@ -125,7 +125,7 @@ defmodule ZiwoasWeb.EconomicsLiveTest do
 
       html = submit_cost(view, %{label: "", amount_eur: "viel", spent_on: ""})
 
-      assert texts(html, "#cost_item_form .invalid-feedback") == [
+      assert texts(html, "#cost_item_form [id*='-error-']") == [
                "Bezeichnung angeben",
                "Betrag als Zahl angeben",
                "Datum angeben"
@@ -158,7 +158,7 @@ defmodule ZiwoasWeb.EconomicsLiveTest do
 
       html = view |> element("#cost_item_form") |> render_change(%{"cost_item" => params})
 
-      assert texts(html, "#cost_item_form .invalid-feedback") == ["Betrag als Zahl angeben"]
+      assert texts(html, "#cost_item_form [id*='-error-']") == ["Betrag als Zahl angeben"]
     end
 
     test "is deleted after a confirmation, with a flash", %{conn: conn} do
@@ -203,7 +203,7 @@ defmodule ZiwoasWeb.EconomicsLiveTest do
 
       html = submit_price(view, %{eur_per_kwh: "0", valid_from: "2026-07-01"})
 
-      assert texts(html, "#price_form .invalid-feedback") == ["Preis muss größer als 0 sein"]
+      assert texts(html, "#price_form [id*='-error-']") == ["Preis muss größer als 0 sein"]
       assert prices() == 0
     end
 
@@ -214,7 +214,7 @@ defmodule ZiwoasWeb.EconomicsLiveTest do
 
       html = submit_price(view, %{eur_per_kwh: "0,25", valid_from: "2026-07-01"})
 
-      assert texts(html, "#price_form .invalid-feedback") == [
+      assert texts(html, "#price_form [id*='-error-']") == [
                "Für dieses Datum gibt es bereits einen Preis"
              ]
 
@@ -227,7 +227,7 @@ defmodule ZiwoasWeb.EconomicsLiveTest do
 
       html = submit_price(view, %{eur_per_kwh: "0,25", valid_from: "2026-10-07"})
 
-      assert texts(html, "#price_form .invalid-feedback") == [
+      assert texts(html, "#price_form [id*='-error-']") == [
                "Für dieses Datum gibt es bereits einen Preis"
              ]
 

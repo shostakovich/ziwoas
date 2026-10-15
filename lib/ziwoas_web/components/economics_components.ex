@@ -60,8 +60,7 @@ defmodule ZiwoasWeb.EconomicsComponents do
 
       <.button
         :if={@link}
-        variant="outline-secondary"
-        size="sm"
+        size={:sm}
         navigate={~p"/solakon/wirtschaftlichkeit"}
       >
         {if @result.costed, do: "Kosten und Preise pflegen", else: "Kosten erfassen"}

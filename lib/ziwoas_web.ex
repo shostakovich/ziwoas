@@ -59,6 +59,7 @@ defmodule ZiwoasWeb do
   defp html_helpers do
     quote do
       import Phoenix.HTML
+      use Setzkasten
       import ZiwoasWeb.CoreComponents
       import ZiwoasWeb.Format
 

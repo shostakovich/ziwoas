@@ -16,6 +16,8 @@ defmodule ZiwoasWeb.Endpoint do
     websocket: [connect_info: [session: @session_options]],
     longpoll: [connect_info: [session: @session_options]]
 
+  plug Plug.Static, at: "/setzkasten", from: {:setzkasten, "priv/static"}, only: ~w(fonts)
+
   plug Plug.Static,
     at: "/",
     from: :ziwoas,

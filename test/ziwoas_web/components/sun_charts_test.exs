@@ -337,7 +337,7 @@ defmodule ZiwoasWeb.SunChartsTest do
       assert attrs(doc, ".multiple.partial", "data-month") == ["7"]
       assert attrs(doc, ".multiple[data-month='7'] svg", "class") == ["opacity-50"]
       assert attrs(doc, ".multiple[data-month='6'] svg", "class") == []
-      assert texts(doc, ".card-subtitle") == ["Mittlere Leistung je Stunde in W"]
+      assert texts(doc, ".card-title + p") == ["Mittlere Leistung je Stunde in W"]
       assert hd(texts(doc, "p.note")) =~ "mit dem Verhältnis von PV-Leistung zu Einstrahlung der"
 
       assert texts(doc, ".legend-item") == [
@@ -373,7 +373,7 @@ defmodule ZiwoasWeb.SunChartsTest do
     test "waits for the first month with a word" do
       doc = render_profiles([])
 
-      assert texts(doc, ".card-subtitle") == []
+      assert texts(doc, ".card-title + p") == []
       assert hd(texts(doc, "p.note")) =~ "sobald ein Monat Stundenwerte hat"
     end
   end
@@ -402,11 +402,11 @@ defmodule ZiwoasWeb.SunChartsTest do
     defp label_ys(doc), do: attrs(doc, "svg.panel-chart-wide .direct-labels text", "y")
 
     test "says since when the days were counted, in the singular for one" do
-      assert texts(render_panels(panels(four())), ".card-subtitle") == [
+      assert texts(render_panels(panels(four())), ".card-title + p") == [
                "seit 27.08.2026 · 16 Tage"
              ]
 
-      assert texts(render_panels(panels(four(), 1)), ".card-subtitle") == [
+      assert texts(render_panels(panels(four(), 1)), ".card-title + p") == [
                "seit 27.08.2026 · 1 Tag"
              ]
     end
@@ -456,7 +456,7 @@ defmodule ZiwoasWeb.SunChartsTest do
       doc = render_panels(panels([pv1: [], pv2: [], pv3: [], pv4: []], 0, nil))
 
       assert count(doc, "svg") == 0
-      assert texts(doc, ".card-subtitle") == []
+      assert texts(doc, ".card-title + p") == []
       assert hd(texts(doc, "p.note")) =~ "sobald alle vier Panels einen Tag lang geliefert haben"
     end
   end

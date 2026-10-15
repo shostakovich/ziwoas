@@ -225,7 +225,7 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
   describe "a new Zeitfenster" do
     test "the editor offers two times and the weekdays as toggle buttons", %{conn: conn} do
       view = open_page(conn)
-      new_entry(view, "+ Zeitfenster")
+      new_entry(view, "Zeitfenster")
 
       assert has_element?(view, "#sw_editor_fridge form[phx-submit=save_entry]")
       assert has_element?(view, "#sw_editor_fridge input#sw_fridge_new_on_at_time[type=time]")
@@ -246,14 +246,14 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
 
     test "refuses as it is typed and on save, then saves, closes and says so", %{conn: conn} do
       view = open_page(conn)
-      new_entry(view, "+ Zeitfenster")
+      new_entry(view, "Zeitfenster")
       form = "#sw_editor_fridge form"
 
       html = view |> form(form, window_params("18:00", "18:00", ["", "1"])) |> render_change()
       assert html =~ "An- und Aus-Zeit müssen sich unterscheiden"
 
       html = view |> form(form, window_params("18:00", "19:00", [""])) |> render_submit()
-      assert html =~ "mindestens ein Wochentag muss gewählt sein"
+      assert html =~ "Mindestens ein Wochentag muss gewählt sein"
       assert rules() == []
 
       view |> form(form, window_params("22:00", "06:00", ["", "1"])) |> render_submit()
@@ -269,7 +269,7 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
 
     test "a refused form keeps what was typed", %{conn: conn} do
       view = open_page(conn)
-      new_entry(view, "+ Zeitfenster")
+      new_entry(view, "Zeitfenster")
 
       view
       |> form("#sw_editor_fridge form", window_params("", "25:00", ["", "1"]))
@@ -282,7 +282,7 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
 
     test "a refused save clears the flash of the one saved before", %{conn: conn} do
       view = open_page(conn)
-      new_entry(view, "+ Zeitfenster")
+      new_entry(view, "Zeitfenster")
 
       view
       |> form("#sw_editor_fridge form", window_params("18:00", "23:00", ["", "1"]))
@@ -290,19 +290,19 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
 
       assert render(view) =~ "Zeitfenster gespeichert."
 
-      new_entry(view, "+ Zeitfenster")
+      new_entry(view, "Zeitfenster")
 
       view
       |> form("#sw_editor_fridge form", window_params("18:00", "19:00", [""]))
       |> render_submit()
 
-      assert render(view) =~ "mindestens ein Wochentag muss gewählt sein"
+      assert render(view) =~ "Mindestens ein Wochentag muss gewählt sein"
       refute has_element?(view, "#flash-info", "Zeitfenster gespeichert.")
     end
 
     test "Abbrechen closes the editor", %{conn: conn} do
       view = open_page(conn)
-      new_entry(view, "+ Zeitfenster")
+      new_entry(view, "Zeitfenster")
       view |> element("#sw_editor_fridge button", "Abbrechen") |> render_click()
       refute has_element?(view, "#sw_editor_fridge form")
     end
@@ -310,13 +310,13 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
     test "focus moves into the editor and back to the button that opened it", %{conn: conn} do
       view = open_page(conn)
       assert has_element?(view, "#sw_page[phx-hook=FocusReturn]")
-      new_entry(view, "+ Einzelschaltung")
+      new_entry(view, "Einzelschaltung")
       assert has_element?(view, "#sw_fridge_new_form[phx-mounted*=focus_first]")
 
       view |> element("#sw_editor_fridge button", "Abbrechen") |> render_click()
 
       assert_push_event(view, "focus_return", %{ids: ["sw_new_rule_fridge"]})
-      assert has_element?(view, "button#sw_new_rule_fridge", "+ Einzelschaltung")
+      assert has_element?(view, "button#sw_new_rule_fridge", "Einzelschaltung")
     end
   end
 
@@ -325,7 +325,7 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
       conn: conn
     } do
       view = open_page(conn)
-      new_entry(view, "+ Einzelschaltung")
+      new_entry(view, "Einzelschaltung")
 
       assert has_element?(
                view,
@@ -346,7 +346,7 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
 
     test "refuses a direction that is neither on nor off", %{conn: conn} do
       view = open_page(conn)
-      new_entry(view, "+ Einzelschaltung")
+      new_entry(view, "Einzelschaltung")
 
       html =
         view

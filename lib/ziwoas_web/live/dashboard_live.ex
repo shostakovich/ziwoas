@@ -99,14 +99,14 @@ defmodule ZiwoasWeb.DashboardLive do
       >
         <.hero live={@live} weather_asset={@weather_asset} weather_alt={@weather_alt} />
 
-        <div class="row row-cols-2 row-cols-md-4 g-2 mb-3 live-dim">
-          <.tile {tile(@summary_tiles, "tile_produced")} />
-          <.tile {tile(@summary_tiles, "tile_consumed")} />
-          <.tile {tile(@summary_tiles, "tile_savings")} />
-          <.tile {tile(@summary_tiles, "tile_net_today")} />
-          <.tile :for={live_tile <- @live_tiles} {live_tile} />
-          <.tile {tile(@summary_tiles, "tile_autarky")} />
-          <.tile {tile(@summary_tiles, "tile_self_consumption")} />
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 live-dim">
+          <.stat {tile(@summary_tiles, "tile_produced")} size={:sm} />
+          <.stat {tile(@summary_tiles, "tile_consumed")} size={:sm} />
+          <.stat {tile(@summary_tiles, "tile_savings")} size={:sm} />
+          <.stat {tile(@summary_tiles, "tile_net_today")} size={:sm} />
+          <.stat :for={live_tile <- @live_tiles} {live_tile} size={:sm} />
+          <.stat {tile(@summary_tiles, "tile_autarky")} size={:sm} />
+          <.stat {tile(@summary_tiles, "tile_self_consumption")} size={:sm} />
         </div>
 
         <.dashboard_tile :if={@room_air} tile={@room_air} />

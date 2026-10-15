@@ -48,7 +48,6 @@ defmodule ZiwoasWeb.ReportsComponents do
           label="Von"
           min={@report.first_date}
           max={@report.last_date}
-          wrapper_class="col-6 col-sm-auto"
         />
         <.input
           field={@form[:end_date]}
@@ -56,10 +55,11 @@ defmodule ZiwoasWeb.ReportsComponents do
           label="Bis"
           min={@report.first_date}
           max={@report.last_date}
-          wrapper_class="col-6 col-sm-auto"
         />
         <div class="col-12 col-sm-auto">
-          <.button type="submit" class="w-100" phx-disable-with="Anwenden">Anwenden</.button>
+          <.button type="submit" variant={:primary} class="w-full" phx-disable-with="Anwenden">
+            Anwenden
+          </.button>
         </div>
       </.form>
     </section>
@@ -72,12 +72,12 @@ defmodule ZiwoasWeb.ReportsComponents do
   defp producer_color, do: "var(--color-solar)"
 
   defp energy_tile(label, kwh, signed \\ false),
-    do: measure_tile(nil, label, kwh, "kWh", 2, signed)
+    do: measure_stat(nil, label, kwh, "kWh", 2, signed)
 
-  defp money_tile(label, eur), do: measure_tile(nil, label, eur, "€", 2)
+  defp money_tile(label, eur), do: measure_stat(nil, label, eur, "€", 2)
 
   defp share_tile(label, ratio),
-    do: measure_tile(nil, label, (ratio || 0) * 100, "%", 1)
+    do: measure_stat(nil, label, (ratio || 0) * 100, "%", 1)
 
   attr :summary, :map, required: true
 
@@ -97,8 +97,8 @@ defmodule ZiwoasWeb.ReportsComponents do
       ])
 
     ~H"""
-    <section class="row row-cols-2 row-cols-md-4 g-2 mb-3" aria-label="Zusammenfassung">
-      <.tile :for={tile <- @tiles} {tile} />
+    <section class="grid grid-cols-2 md:grid-cols-4 gap-4" aria-label="Zusammenfassung">
+      <.stat :for={tile <- @tiles} {tile} size={:sm} />
     </section>
     """
   end

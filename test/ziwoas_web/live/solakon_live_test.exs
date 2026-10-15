@@ -83,8 +83,8 @@ defmodule ZiwoasWeb.SolakonLiveTest do
 
     assert texts(doc, "title") == ["PV"]
     assert texts(doc, "h1") == ["PV"]
-    assert texts(doc, "nav[aria-label=Hauptnavigation] a.active") == ["PV"]
-    assert count(doc, "main.app-main-wide") == 1
+    assert texts(doc, "#app-shell-nav a[aria-current=page]") == ["PV"]
+    assert count(doc, "main#main.max-w-5xl") == 1
     assert attrs(doc, "#live_freshness[phx-hook=LiveFreshness]", "data-beat") == ["0"]
     assert count(doc, "#live_freshness #energy_flow[phx-hook=EnergyFlow][data-state]") == 1
     assert count(doc, "#energy_flow svg#energy_flow_svg[phx-update=ignore]") == 1
@@ -152,7 +152,7 @@ defmodule ZiwoasWeb.SolakonLiveTest do
 
     assert count(doc, ".solakon-control-card") == 2
 
-    assert texts(doc, ".solakon-panel-grid .card") ==
+    assert texts(doc, ".solakon-panel-grid > *") ==
              [
                "Panel 1 211 W 41,7 V · 5,12 A",
                "Panel 2 198 W 40,5 V · 4,88 A",
@@ -165,7 +165,7 @@ defmodule ZiwoasWeb.SolakonLiveTest do
              "Wechselrichtertemperatur 34,1 °C"
            ]
 
-    assert texts(doc, ".solakon-storage-grid .stat-label") == [
+    assert texts(doc, ".solakon-storage-grid .stat-title") == [
              "Ladestand",
              "Batterie­gesundheit",
              "Aktuelle Batterie­leistung",
@@ -247,7 +247,11 @@ defmodule ZiwoasWeb.SolakonLiveTest do
 
     assert hd(texts(doc, ".economics-tiles .stat-value")) == "1.000,00 €"
     assert Enum.at(texts(doc, ".economics-tiles .stat-value"), 1) == "0,60 €"
-    assert attrs(doc, "a.btn-outline-secondary", "href") == ["/solakon/wirtschaftlichkeit"]
+
+    assert attrs(doc, "a[href='/solakon/wirtschaftlichkeit']", "href") == [
+             "/solakon/wirtschaftlichkeit"
+           ]
+
     {solakon, _} = :binary.match(html, "Solakon-Verlauf")
     {economics, _} = :binary.match(html, "Wirtschaftlichkeit")
     {calendar, _} = :binary.match(html, "Sonnenkalender")
@@ -291,7 +295,7 @@ defmodule ZiwoasWeb.SolakonLiveTest do
     assert count(doc, ".shading [data-chart='yield-map'] .fields rect") >= 1
     assert count(doc, ".shading [data-chart='daily-profiles'] .multiple") == 1
     assert count(doc, ".shading [data-chart='panels'] .panel-chart-wide polyline") == 4
-    assert texts(doc, "[data-chart='panels'] .card-subtitle") == ["seit 01.07.2026 · 3 Tage"]
+    assert texts(doc, "[data-chart='panels'] .card-title + p") == ["seit 01.07.2026 · 3 Tage"]
   end
 
   describe "the history page" do
@@ -308,7 +312,7 @@ defmodule ZiwoasWeb.SolakonLiveTest do
       doc = page(conn, ~p"/solakon/history?range=7d")
 
       assert texts(doc, "title") == ["Solakon-Verlauf"]
-      assert texts(doc, "header.visually-hidden h1") == ["Solakon-Verlauf"]
+      assert texts(doc, "h1") == ["Solakon-Verlauf"]
       assert texts(doc, "#solakon_history a.btn.active") == ["Letzte 7 Tage"]
 
       assert attrs(doc, "#solakon_history a.btn", "href") ==
@@ -370,9 +374,9 @@ defmodule ZiwoasWeb.SolakonLiveTest do
       reading!(battery_soc_pct: 50)
       {:ok, view, html} = live(conn, ~p"/solakon")
       doc = LazyHTML.from_fragment(html)
-      assert texts(doc, ".solakon-storage-grid .stat-value") |> hd() == "50 %"
+      assert texts(doc, ".solakon-storage-grid .stat-value") |> hd() == "50%"
       assert texts(doc, "#solakon-eps-state") == ["Aus"]
-      assert count(doc, ".solakon-panel-grid .card") == 0
+      assert count(doc, ".solakon-panel-grid > *") == 0
 
       send(
         view.pid,
@@ -384,10 +388,10 @@ defmodule ZiwoasWeb.SolakonLiveTest do
       assert texts(doc, ".solakon-details p") |> List.last() == "Außensteckdose bereit"
       assert texts(doc, "#solakon-eps-state") == ["An"]
       assert count(doc, "button#solakon-eps-toggle[aria-checked=true]") == 1
-      assert texts(doc, ".solakon-storage-grid .stat-value") |> hd() == "84 %"
+      assert texts(doc, ".solakon-storage-grid .stat-value") |> hd() == "84%"
 
       send(view.pid, {:snapshot, snapshot!(pv1_power_w: 210)})
-      assert has_element?(view, ".solakon-panel-grid .card", "Panel 1 210 W")
+      assert has_element?(view, ".solakon-panel-grid > *", "Panel 1 210 W")
     end
 
     test "the chart's data goes to the hook on mount, and afresh with every stored snapshot", %{

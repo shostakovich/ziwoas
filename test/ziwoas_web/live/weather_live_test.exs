@@ -36,7 +36,7 @@ defmodule ZiwoasWeb.WeatherLiveTest do
     doc = page(conn)
     assert texts(doc, ".card .card-title") == ["Noch keine Wetterdaten"]
     assert hd(texts(doc, ".card p")) =~ "sobald Bright Sky Daten geladen hat"
-    assert texts(doc, "nav[aria-label=Hauptnavigation] a.active") == ["Wetter"]
+    assert texts(doc, "#app-shell-nav a[aria-current=page]") == ["Wetter"]
     assert texts(doc, "title") == ["Wetter"]
   end
 

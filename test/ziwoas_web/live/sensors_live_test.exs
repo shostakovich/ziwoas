@@ -46,7 +46,7 @@ defmodule ZiwoasWeb.SensorsLiveTest do
       doc = page(conn)
 
       assert texts(doc, "title") == ["Sensoren"]
-      assert texts(doc, "nav[aria-label=Hauptnavigation] a.active") == ["Sensoren"]
+      assert texts(doc, "#app-shell-nav a[aria-current=page]") == ["Sensoren"]
       assert texts(doc, "nav.room-air-strip a") == ["Wohnzimmer Bald lüften 1.200 ppm"]
       assert attrs(doc, "nav.room-air-strip a", "href") == ["#room-wohnzimmer"]
 

@@ -337,10 +337,10 @@ defmodule ZiwoasWeb.LightLiveEventsTest do
       open_settings(view)
 
       html = view |> form("#light_form", %{"light" => %{"name" => ""}}) |> render_change()
-      assert html =~ "muss ausgefüllt werden"
+      assert html =~ "Muss ausgefüllt werden"
 
       html = view |> form("#light_form", %{"light" => %{"name" => ""}}) |> render_submit()
-      assert html =~ "muss ausgefüllt werden"
+      assert html =~ "Muss ausgefüllt werden"
       assert has_element?(view, "#light_settings dialog")
       assert Repo.get_by(Light, key: "UP1").name == "Uplighter"
     end
@@ -370,7 +370,7 @@ defmodule ZiwoasWeb.LightLiveEventsTest do
           "light" => %{"name" => "Uplighter", "shelly_plug_id" => "bkw"}
         })
 
-      assert html =~ "ist keine schaltbare Steckdose"
+      assert html =~ "Ist keine schaltbare Steckdose"
       assert Repo.get_by(Light, key: "UP1").shelly_plug_id == nil
     end
 
@@ -383,7 +383,7 @@ defmodule ZiwoasWeb.LightLiveEventsTest do
       open_settings(view)
       view |> form("#light_form", %{"light" => %{"name" => ""}}) |> render_submit()
 
-      assert render(view) =~ "muss ausgefüllt werden"
+      assert render(view) =~ "Muss ausgefüllt werden"
       refute has_element?(view, "#flash-info", "Lampe aktualisiert.")
     end
 

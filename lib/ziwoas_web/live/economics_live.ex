@@ -161,26 +161,14 @@ defmodule ZiwoasWeb.EconomicsLive do
           phx-change="validate_cost_item"
           phx-submit="save_cost_item"
         >
-          <.input
-            field={@cost_form[:label]}
-            label="Bezeichnung"
-            wrapper_class="col-12 col-md-6"
-          />
-          <.input
-            field={@cost_form[:amount_eur]}
-            label="Betrag in €"
-            inputmode="decimal"
-            wrapper_class="col-6 col-md-3"
-          />
-          <.input
-            field={@cost_form[:spent_on]}
-            type="date"
-            label="Datum"
-            wrapper_class="col-6 col-md-3"
-          />
-          <.input field={@cost_form[:note]} label="Notiz (optional)" wrapper_class="col-12" />
+          <.input field={@cost_form[:label]} label="Bezeichnung" />
+          <.input field={@cost_form[:amount_eur]} label="Betrag in €" inputmode="decimal" />
+          <.input field={@cost_form[:spent_on]} type="date" label="Datum" />
+          <.input field={@cost_form[:note]} label="Notiz (optional)" />
           <div class="col-12">
-            <.button type="submit" phx-disable-with="Speichert …">Hinzufügen</.button>
+            <.button type="submit" variant={:primary} phx-disable-with="Speichert …">
+              Hinzufügen
+            </.button>
           </div>
         </.form>
       </.card>
@@ -229,25 +217,17 @@ defmodule ZiwoasWeb.EconomicsLive do
           phx-change="validate_price"
           phx-submit="save_price"
         >
-          <.input
-            field={@price_form[:eur_per_kwh]}
-            label="Preis in €/kWh"
-            inputmode="decimal"
-            wrapper_class="col-6 col-md-4"
-          />
-          <.input
-            field={@price_form[:valid_from]}
-            type="date"
-            label="Gültig ab"
-            wrapper_class="col-6 col-md-4"
-          />
+          <.input field={@price_form[:eur_per_kwh]} label="Preis in €/kWh" inputmode="decimal" />
+          <.input field={@price_form[:valid_from]} type="date" label="Gültig ab" />
           <div class="col-12 col-md-4">
-            <.button type="submit" phx-disable-with="Speichert …">Hinzufügen</.button>
+            <.button type="submit" variant={:primary} phx-disable-with="Speichert …">
+              Hinzufügen
+            </.button>
           </div>
         </.form>
       </.card>
 
-      <.button variant="outline-secondary" navigate={~p"/solakon"}>Zurück zu PV</.button>
+      <.button navigate={~p"/solakon"}>Zurück zu PV</.button>
     </Layouts.app>
     """
   end

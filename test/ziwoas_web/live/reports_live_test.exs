@@ -42,8 +42,8 @@ defmodule ZiwoasWeb.ReportsLiveTest do
     assert texts(doc, "h1") == ["Berichte"]
     assert count(doc, "section[aria-label='Zeitraum']") == 1
     assert texts(doc, "title") == ["Berichte"]
-    assert texts(doc, "nav[aria-label=Hauptnavigation] a.active") == ["Berichte"]
-    assert count(doc, "main.app-main-wide") == 1
+    assert texts(doc, "#app-shell-nav a[aria-current=page]") == ["Berichte"]
+    assert count(doc, "main#main.max-w-5xl") == 1
   end
 
   test "the date fields span the aggregated days, and a range starts no earlier", %{conn: conn} do
@@ -145,10 +145,10 @@ defmodule ZiwoasWeb.ReportsLiveTest do
     doc = page(conn)
     form = LazyHTML.query(doc, "form#range_form[phx-submit='apply_range']")
 
-    assert texts(form, "label.form-label[for='start_date']") == ["Von"]
-    assert texts(form, "label.form-label[for='end_date']") == ["Bis"]
-    assert count(form, "input.form-control#start_date[type='date']") == 1
-    assert count(form, "input.form-control#end_date[type='date']") == 1
+    assert texts(form, "label[for='start_date']") == ["Von"]
+    assert texts(form, "label[for='end_date']") == ["Bis"]
+    assert count(form, "input#start_date[type='date']") == 1
+    assert count(form, "input#end_date[type='date']") == 1
     assert texts(form, "button[type='submit']:not([name])") == ["Anwenden"]
   end
 
@@ -166,7 +166,7 @@ defmodule ZiwoasWeb.ReportsLiveTest do
 
     assert count(doc, "section[aria-label='Zusammenfassung'] .stat") == 8
 
-    assert texts(doc, "section[aria-label='Zusammenfassung'] .stat-label") == [
+    assert texts(doc, "section[aria-label='Zusammenfassung'] .stat-title") == [
              "Ertrag",
              "Verbrauch",
              "Gespart",
@@ -181,7 +181,7 @@ defmodule ZiwoasWeb.ReportsLiveTest do
     refute "Zeitraum" in headings
     refute "Zusammenfassung" in headings
     assert "Steckdosen" in headings
-    assert "kWh je Tag · Ertrag und Verbrauch" in texts(doc, ".card-subtitle")
+    assert "kWh je Tag · Ertrag und Verbrauch" in texts(doc, ".card-title + p")
     assert "Leistung" in texts(doc, ".card-title")
     assert count(doc, ".card .chart-frame") >= 2
     assert count(doc, "ul.list-group[aria-label='Erzeugung'] > li.list-group-item") == 1
@@ -247,7 +247,7 @@ defmodule ZiwoasWeb.ReportsLiveTest do
 
     assert "Watt · Tagesmittel · 01.04.–30.04." in texts(
              page(conn, preset: "last_30"),
-             ".card-subtitle"
+             ".card-title + p"
            )
   end
 
@@ -255,13 +255,13 @@ defmodule ZiwoasWeb.ReportsLiveTest do
     for i <- 0..2, do: total!("bkw", Date.to_iso8601(Date.add(~D[2026-04-01], i)), 2000)
     range = [start_date: "2026-04-01", end_date: "2026-04-03"]
 
-    assert "Watt · 5-Min-Werte · 01.04.–03.04." in texts(page(conn, range), ".card-subtitle")
+    assert "Watt · 5-Min-Werte · 01.04.–03.04." in texts(page(conn, range), ".card-title + p")
 
     TestClock.freeze("2027-01-10T12:00:00+01:00")
 
     assert "Watt · 5-Min-Werte · 01.04.2026–03.04.2026" in texts(
              page(conn, range),
-             ".card-subtitle"
+             ".card-title + p"
            )
   end
 

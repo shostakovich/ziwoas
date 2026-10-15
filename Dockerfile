@@ -59,6 +59,8 @@ RUN mix deps.compile
 
 COPY priv priv
 COPY lib lib
+# ZiwoasWeb.Icons compiles these SVGs in.
+COPY assets/vendor/lucide assets/vendor/lucide
 COPY --from=assets /app/priv/static priv/static
 
 RUN mix compile

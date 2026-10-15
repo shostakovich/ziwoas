@@ -616,54 +616,40 @@ defmodule ZiwoasWeb.RoomAirComponents do
     %{reading: reading, quantities: quantities} = assigns.room
     shown = Enum.filter(@tile_quantities, &(&1 in quantities and reading.values[&1]))
 
-    assigns =
-      assign(assigns, quantities: shown, columns: "row-cols-md-#{tile_columns(length(shown))}")
+    assigns = assign(assigns, quantities: shown, columns: tile_columns(length(shown)))
 
     ~H"""
-    <div :if={@quantities != []} class={["row row-cols-2 g-2 mb-3", @columns]}>
-      <.tile
+    <div :if={@quantities != []} class={["grid grid-cols-2 gap-4", @columns]}>
+      <.stat
         :for={quantity <- @quantities}
         data-quantity={quantity}
-        number={number(@room.reading.values[quantity].value, precision: precision(quantity))}
+        label={tile_label(quantity)}
+        value={number(@room.reading.values[quantity].value, precision: precision(quantity))}
         unit={unit(quantity)}
-        caption={tile_caption(quantity, @room.reading.values[quantity])}
+        size={:sm}
       >
-        <:title><.tile_label quantity={quantity} /></:title>
-        <:badge>
+        <:note>
           <.level_badge quantity={quantity} value={@room.reading.values[quantity].value} />
-        </:badge>
-      </.tile>
+          {tile_caption(quantity, @room.reading.values[quantity])}
+        </:note>
+      </.stat>
     </div>
     """
   end
 
-  defp tile_columns(count) when count in 1..4, do: count
-  defp tile_columns(_count), do: 3
+  defp tile_columns(1), do: "md:grid-cols-1"
+  defp tile_columns(2), do: "md:grid-cols-2"
+  defp tile_columns(4), do: "md:grid-cols-4"
+  defp tile_columns(_count), do: "md:grid-cols-3"
 
-  attr :quantity, :atom, required: true
+  @tile_labels %{
+    pm2_5: "Feinstaub PM2,5",
+    pm10: "Feinstaub PM10",
+    voc_index: "VOC-Index",
+    nox_index: "NOx-Index"
+  }
 
-  # The NOx's x keeps its case under the label's uppercase.
-  defp tile_label(%{quantity: :nox_index} = assigns) do
-    ~H"""
-    NO<span class="text-lowercase">x</span>-Index
-    """
-  end
-
-  defp tile_label(assigns) do
-    assigns =
-      assign(assigns,
-        text:
-          Map.get(
-            %{pm2_5: "Feinstaub PM2,5", pm10: "Feinstaub PM10", voc_index: "VOC-Index"},
-            assigns.quantity,
-            label(assigns.quantity)
-          )
-      )
-
-    ~H"""
-    {@text}
-    """
-  end
+  defp tile_label(quantity), do: Map.get(@tile_labels, quantity, label(quantity))
 
   # The index meanings stand in the charts' subtitles.
   defp tile_caption(_quantity, %{source: :stand_in}), do: "vom Ersatzsensor"

@@ -27,6 +27,9 @@ defmodule ZiwoasWeb.DashboardLiveTest do
   defp count(doc, selector), do: doc |> LazyHTML.query(selector) |> Enum.count()
   defp squish(text), do: text |> String.split() |> Enum.join(" ")
 
+  defp stat(doc, id),
+    do: doc |> LazyHTML.query("##{id}-value > span") |> Enum.map_join(" ", &LazyHTML.text/1)
+
   defp weather!(attrs) do
     defaults = %{kind: :current, lat: 52.52, lon: 13.405, timestamp: Clock.now(), daytime: "day"}
     Repo.insert!(struct!(Record, Map.merge(defaults, Map.new(attrs))))
@@ -37,12 +40,12 @@ defmodule ZiwoasWeb.DashboardLiveTest do
 
     assert texts(doc, "title") == ["Dashboard"]
     assert texts(doc, "h1") == ["Dashboard"]
-    assert texts(doc, "nav[aria-label=Hauptnavigation] a.active") == ["Home"]
+    assert texts(doc, "#app-shell-nav a[aria-current=page]") == ["Home"]
     assert count(doc, ".energy-flow > svg[viewBox='0 0 400 320']") == 1
     assert count(doc, ".energy-flow svg g[fill='none'] > circle") == 4
     assert texts(doc, "p.energy-flow-key") == ["Verbraucher-Ring: Herkunft des Stroms"]
 
-    assert texts(doc, "[id^='tile_'] .stat-label") == [
+    assert texts(doc, "[id^='tile_'] .stat-title") == [
              "Erzeugt heute",
              "Verbraucht heute",
              "Gespart heute",
@@ -70,13 +73,10 @@ defmodule ZiwoasWeb.DashboardLiveTest do
     assert count(doc, "#energy_flow svg#energy_flow_svg[phx-update=ignore]") == 1
   end
 
-  test "the head loads felt-css, then the esbuild bundles: one stylesheet, one script", %{
-    conn: conn
-  } do
+  test "the head loads the bundles: one stylesheet, one script", %{conn: conn} do
     doc = page(conn)
 
-    assert attrs(doc, "link[rel='stylesheet']", "href") ==
-             ["https://felt-css.rocu.de/felt.css", "/assets/css/app.css"]
+    assert attrs(doc, "link[rel='stylesheet']", "href") == ["/assets/css/app.css"]
 
     assert attrs(doc, "script[src]", "src") == ["/assets/js/app.js"]
     assert count(doc, "script[type='importmap']") == 0
@@ -137,10 +137,10 @@ defmodule ZiwoasWeb.DashboardLiveTest do
 
     doc = page(conn)
 
-    assert texts(doc, "#tile_consumption_now .stat-value") == ["82 W"]
-    assert texts(doc, "#tile_netbalance_now .stat-value") == ["—"]
-    assert texts(doc, "#tile_produced .stat-value") == ["0,05 kWh"]
-    assert texts(doc, "#tile_consumed .stat-value") == ["0,01 kWh"]
+    assert stat(doc, "tile_consumption_now") == "82 W"
+    assert stat(doc, "tile_netbalance_now") == "—"
+    assert stat(doc, "tile_produced") == "0,05 kWh"
+    assert stat(doc, "tile_consumed") == "0,01 kWh"
     assert texts(doc, "#dashboard_hero .col:first-child .display-4") == ["413"]
 
     assert texts(doc, "#dashboard_plug_bar [data-role='producer']") == [
@@ -173,7 +173,7 @@ defmodule ZiwoasWeb.DashboardLiveTest do
     test "a plug event re-renders hero, tiles, plug bar and energy flow, and pushes the deltas",
          %{conn: conn} do
       {:ok, view, html} = live(conn, ~p"/")
-      assert texts(from(html), "#tile_consumption_now .stat-value") == ["—"]
+      assert stat(from(html), "tile_consumption_now") == "—"
 
       insert_sample!("fridge", now_ts() - 5, 82.4, 110.0)
       deltas = [%{id: "fridge", avg_power_w: 82.4, bucket_ts: div(now_ts() - 5, 60) * 60}]
@@ -181,7 +181,7 @@ defmodule ZiwoasWeb.DashboardLiveTest do
       send(view.pid, {:live, deltas})
       doc = from(render(view))
 
-      assert texts(doc, "#tile_consumption_now .stat-value") == ["82 W"]
+      assert stat(doc, "tile_consumption_now") == "82 W"
       assert texts(doc, "#dashboard_plug_bar strong") == ["82 W"]
       assert attrs(doc, "#live_freshness", "data-beat") == ["1"]
       assert [state] = attrs(doc, "#energy_flow", "data-state")
@@ -208,11 +208,11 @@ defmodule ZiwoasWeb.DashboardLiveTest do
       insert_sample!("bkw", now_ts() - 5, -412.6, 1500.0)
 
       send(view.pid, {:live, []})
-      assert texts(from(render(view)), "#tile_produced .stat-value") == ["0,00 kWh"]
+      assert stat(from(render(view)), "tile_produced") == "0,00 kWh"
 
       TestClock.freeze(DateTime.add(Clock.parse!(@now), 60))
       send(view.pid, {:live, []})
-      assert texts(from(render(view)), "#tile_produced .stat-value") == ["0,50 kWh"]
+      assert stat(from(render(view)), "tile_produced") == "0,50 kWh"
     end
 
     test "midnight starts the day's tiles afresh and redraws the history", %{conn: conn} do
@@ -225,7 +225,7 @@ defmodule ZiwoasWeb.DashboardLiveTest do
 
       send(view.pid, :midnight)
 
-      assert texts(from(render(view)), "#tile_produced .stat-value") == ["0,50 kWh"]
+      assert stat(from(render(view)), "tile_produced") == "0,50 kWh"
       assert_push_event(view, "history_chart:data", %{points: [%{energy_wh: 700.0}]})
     end
 
@@ -252,7 +252,7 @@ defmodule ZiwoasWeb.DashboardLiveTest do
       insert_sample!("fridge", now_ts() - 5, 12.0, 1.0)
 
       Solakon.notify_reading(%Reading{id: 7})
-      assert texts(from(render(view)), "#tile_consumption_now .stat-value") == ["12 W"]
+      assert stat(from(render(view)), "tile_consumption_now") == "12 W"
 
       Plugs.notify_live([%{id: "fridge"}])
       assert_push_event(view, "today_chart:deltas", %{deltas: [%{id: "fridge"}]})

@@ -26,8 +26,13 @@ defmodule ZiwoasWeb.LightLiveTest do
     state!("ABCDEF01", %{on: true, brightness: 60, color_temp_k: 2700})
     doc = page(conn, "ABCDEF01")
 
-    assert doc |> LazyHTML.query("h1.ld-title") |> LazyHTML.text() |> String.trim() ==
+    assert doc |> LazyHTML.query("#light_detail h1") |> LazyHTML.text() |> String.trim() ==
              "Wohnzimmer Stehlampe"
+
+    assert count(doc, "#light_detail header a[href='/switches']") == 1
+
+    assert doc |> LazyHTML.query("#app-shell-nav a[aria-current=page]") |> LazyHTML.text() =~
+             "Schalten"
 
     assert count(doc, "#light_detail[data-key=ABCDEF01]") == 1
     assert count(doc, "#light_power button[aria-pressed]") == 2

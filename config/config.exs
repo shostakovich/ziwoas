@@ -52,6 +52,11 @@ config :tailwind,
     env: %{"NODE_PATH" => [Path.expand("../deps", __DIR__), Mix.Project.build_path()]}
   ]
 
+config :setzkasten,
+  icons: ZiwoasWeb.Icons,
+  plush: ZiwoasWeb.Plush,
+  translate_error: {ZiwoasWeb.CoreComponents, :translate_error}
+
 config :phoenix, :json_library, JSON
 config :ecto_sqlite3, json_library: JSON
 

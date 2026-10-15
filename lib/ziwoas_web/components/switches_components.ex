@@ -130,27 +130,23 @@ defmodule ZiwoasWeb.SwitchesComponents do
       <div class="d-flex flex-wrap gap-2 mt-2">
         <.button
           id={opener_id(@plug.id, :window)}
-          type="button"
-          variant="outline-secondary"
-          size="sm"
-          class="btn-pill"
+          size={:sm}
+          icon="plus"
           phx-click="new_entry"
           phx-value-plug_id={@plug.id}
           phx-value-kind="window"
         >
-          + Zeitfenster
+          Zeitfenster
         </.button>
         <.button
           id={opener_id(@plug.id, :rule)}
-          type="button"
-          variant="outline-secondary"
-          size="sm"
-          class="btn-pill"
+          size={:sm}
+          icon="plus"
           phx-click="new_entry"
           phx-value-plug_id={@plug.id}
           phx-value-kind="rule"
         >
-          + Einzelschaltung
+          Einzelschaltung
         </.button>
       </div>
     </div>
@@ -310,8 +306,7 @@ defmodule ZiwoasWeb.SwitchesComponents do
             id={"#{@prefix}_on_at_time"}
             type="time"
             label="Einschalten um"
-            class="form-control-sm tabular-nums"
-            wrapper_class=""
+            class="input-sm tabular-nums"
           />
         </div>
         <div class="col">
@@ -320,8 +315,7 @@ defmodule ZiwoasWeb.SwitchesComponents do
             id={"#{@prefix}_off_at_time"}
             type="time"
             label="Ausschalten um"
-            class="form-control-sm tabular-nums"
-            wrapper_class=""
+            class="input-sm tabular-nums"
           />
         </div>
       </div>
@@ -354,8 +348,7 @@ defmodule ZiwoasWeb.SwitchesComponents do
           id={"#{@prefix}_at_minute_time"}
           type="time"
           label="Uhrzeit"
-          class="form-control-sm tabular-nums"
-          wrapper_class=""
+          class="input-sm tabular-nums"
         />
         <.action_choice field={@form[:action]} id_prefix={"#{@prefix}_action"} />
       </div>
@@ -388,7 +381,7 @@ defmodule ZiwoasWeb.SwitchesComponents do
           <label class="btn btn-outline-primary" for={"#{@id_prefix}_#{value}"}>{label}</label>
         <% end %>
       </div>
-      <.error :for={message <- @errors}>{message}</.error>
+      <.field_error id={@id_prefix} errors={@errors} />
     </div>
     """
   end
@@ -422,7 +415,7 @@ defmodule ZiwoasWeb.SwitchesComponents do
           <label class="btn btn-outline-primary px-1" for={"#{@id_prefix}_#{number}"}>{label}</label>
         <% end %>
       </div>
-      <.error :for={message <- @errors}>{message}</.error>
+      <.field_error id={@id_prefix} errors={@errors} />
     </div>
     """
   end
@@ -439,11 +432,9 @@ defmodule ZiwoasWeb.SwitchesComponents do
   defp editor_actions(assigns) do
     ~H"""
     <div class="d-flex flex-wrap align-items-center gap-2">
-      <.button size="sm">Speichern</.button>
+      <.button type="submit" variant={:primary} size={:sm}>Speichern</.button>
       <.button
-        type="button"
-        variant="outline-secondary"
-        size="sm"
+        size={:sm}
         phx-click="close_editor"
         phx-value-plug_id={@plug.id}
       >

@@ -63,7 +63,7 @@ defmodule ZiwoasWeb.ReportsLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} current_path={@current_path} main_class="app-main-wide">
+    <Layouts.app flash={@flash} current_path={@current_path} width={:default}>
       <.header>Berichte</.header>
 
       <div id="energy_report" phx-hook="EnergyReport">

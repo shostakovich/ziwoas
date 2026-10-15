@@ -172,16 +172,7 @@ defmodule ZiwoasWeb.LightLive do
     ~H"""
     <Layouts.app flash={@flash} current_path={@current_path}>
       <div id="light_detail" data-key={@light.key}>
-        <.header title_class="ld-title">
-          <:leading>
-            <.link
-              class="btn btn-icon btn-light flex-shrink-0"
-              aria-label="Zurück"
-              navigate={~p"/switches"}
-            >
-              ←
-            </.link>
-          </:leading>
+        <.header back={~p"/switches"}>
           {@light.name}
           <:actions>
             <button
@@ -204,7 +195,7 @@ defmodule ZiwoasWeb.LightLive do
         <.starting_notice snapshot={@power_snapshot} />
         <.power snapshot={@power_snapshot} />
         <.brightness_panel brightness={@brightness} revert={@revert} />
-        <.tabs tabs={@tabs} active={@tab} />
+        <.light_tabs tabs={@tabs} active={@tab} />
 
         <.white_panel light={@light} kelvin={@kelvin} revert={@revert} hidden={@tab != "white"} />
         <.color_panel

@@ -23,7 +23,7 @@ defmodule ZiwoasWeb.SolakonHistoryLive do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} current_path={@current_path}>
-      <.header class="visually-hidden">Solakon-Verlauf</.header>
+      <.header class="sr-only">Solakon-Verlauf</.header>
       <.live_component
         module={SolakonHistoryComponent}
         id="solakon_history"
