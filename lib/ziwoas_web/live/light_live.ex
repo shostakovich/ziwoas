@@ -7,8 +7,6 @@ defmodule ZiwoasWeb.LightLive do
   alias Ziwoas.{Lights, Plugs}
   alias ZiwoasWeb.LightEvents
 
-  @toast_ms 5_000
-
   @impl true
   def mount(%{"key" => key}, _session, socket) do
     light = Lights.get_by_key!(key)
@@ -30,8 +28,7 @@ defmodule ZiwoasWeb.LightLive do
        tab: "white",
        power_snapshot: snapshot,
        revert: nil,
-       toast: %{message: nil, undo: nil},
-       toast_timer: nil,
+       toast: toast_assigns(light, :clear),
        settings: nil
      )}
   end
@@ -56,22 +53,23 @@ defmodule ZiwoasWeb.LightLive do
     {:noreply, socket |> put_flash(:error, message) |> refresh_power()}
   end
 
-  def handle_info(:hide_toast, socket),
-    do: {:noreply, assign(socket, toast: %{message: nil, undo: nil}, toast_timer: nil)}
-
   @impl true
   def handle_event("light_command", %{"command" => command} = params, socket) do
     if Lights.command?(command) do
       params = Map.put(params, "light_key", socket.assigns.light.key)
 
       {:noreply,
-       start_async(socket, {:light_command, command}, fn -> LightEvents.run(params) end)}
+       socket
+       |> hide_toast()
+       |> start_async({:light_command, command}, fn -> LightEvents.run(params) end)}
     else
       {:noreply, socket}
     end
   end
 
   def handle_event("light_command", _params, socket), do: {:noreply, socket}
+
+  def handle_event("hide_toast", _params, socket), do: {:noreply, hide_toast(socket)}
 
   def handle_event("select_tab", %{"tab" => tab}, socket) do
     if List.keymember?(socket.assigns.tabs, tab, 0),
@@ -112,7 +110,9 @@ defmodule ZiwoasWeb.LightLive do
     case result do
       {:ok, light, {:zones, _keys, toast}} ->
         socket = refresh_power(socket)
-        {:noreply, if(toast, do: show_toast(socket, toast_assigns(light, toast)), else: socket)}
+
+        {:noreply,
+         if(toast, do: assign(socket, :toast, toast_assigns(light, toast)), else: socket)}
 
       {:ok, _light, :power} ->
         {:noreply, refresh_power(socket)}
@@ -165,10 +165,7 @@ defmodule ZiwoasWeb.LightLive do
     }
   end
 
-  defp show_toast(socket, toast) do
-    if timer = socket.assigns.toast_timer, do: Process.cancel_timer(timer)
-    assign(socket, toast: toast, toast_timer: Process.send_after(self(), :hide_toast, @toast_ms))
-  end
+  defp hide_toast(socket), do: assign(socket, :toast, toast_assigns(socket.assigns.light, :clear))
 
   @impl true
   def render(assigns) do

@@ -145,14 +145,21 @@ defmodule ZiwoasWeb.LightLiveEventsTest do
     assert has_element?(view, "#light_toast[hidden]")
   end
 
-  test "the toast hides itself after five seconds", %{conn: conn} do
+  test "the toast stays until it is closed or the next command runs", %{conn: conn} do
     Commands.record_zone_state("UP1", "bottomLightToggle", true)
     Commands.record_zone_state("UP1", "sideLightToggle", true)
     view = open_page(conn)
+
     view |> element("#zone_rippleLightToggle") |> render_click()
     render_async(view)
+    view |> element("#light_toast button[aria-label='Schließen']") |> render_click()
+    assert has_element?(view, "#light_toast[hidden]")
 
-    send(view.pid, :hide_toast)
+    view |> element("#zone_sideLightToggle") |> render_click()
+    render_async(view)
+    assert has_element?(view, "#light_toast:not([hidden])")
+
+    view |> form("#light_brightness_form", %{"value" => "42"}) |> render_change()
     assert has_element?(view, "#light_toast[hidden]")
   end
 

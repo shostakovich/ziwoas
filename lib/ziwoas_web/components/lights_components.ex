@@ -561,7 +561,7 @@ defmodule ZiwoasWeb.LightsComponents do
   attr :message, :string, default: nil
   attr :undo, :map, default: nil, doc: "`%{light_key:, victim:, added:}`"
 
-  # Stays .show: visibility is the hidden attribute's job (LightLive hides it after 5 s).
+  # Stays .show: visibility is the hidden attribute's job.
   def toast(assigns) do
     ~H"""
     <div
@@ -580,6 +580,12 @@ defmodule ZiwoasWeb.LightsComponents do
         >
           Rückgängig
         </button>
+        <button
+          type="button"
+          class="btn-close flex-shrink-0"
+          aria-label="Schließen"
+          phx-click="hide_toast"
+        ></button>
       </div>
     </div>
     """
