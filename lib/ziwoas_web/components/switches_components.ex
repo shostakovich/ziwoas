@@ -481,14 +481,20 @@ defmodule ZiwoasWeb.SwitchesComponents do
           {time, source} -> "#{word} seit #{clock(time, zone)} (#{@source_label[source]})"
         end
 
-      Enum.join([first, schedule_part(row, zone)], " · ")
+      [first, schedule_part(row, zone)] |> Enum.reject(&is_nil/1) |> Enum.join(" · ")
     end
   end
 
   defp offline_line(%Row{last_seen_ts: nil}), do: "Noch keine Statusmeldung"
   defp offline_line(row), do: "Keine Statusmeldung seit #{round(Row.age(row) / 60)} min"
 
-  defp schedule_part(%Row{next_edge: nil}, _zone), do: "kein Zeitplan"
+  defp schedule_part(%Row{next_edge: nil, entries: entries}, _zone) do
+    cond do
+      entries == [] -> "kein Zeitplan"
+      not Enum.any?(entries, &Schedule.enabled?/1) -> "Zeitplan pausiert"
+      true -> nil
+    end
+  end
 
   defp schedule_part(%Row{next_edge: edge, now: now}, zone),
     do:

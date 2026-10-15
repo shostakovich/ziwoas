@@ -130,7 +130,7 @@ defmodule ZiwoasWeb.SwitchesComponentsTest do
 
       %Row{
         plug: @plug,
-        entries: [],
+        entries: Keyword.get(opts, :entries, []),
         state: %State{
           plug_id: "fridge",
           output: Keyword.get(opts, :on, true),
@@ -179,6 +179,14 @@ defmodule ZiwoasWeb.SwitchesComponentsTest do
 
       assert line(row(on: false, command: command(:on, :manual), changed: at(18, 30))) ==
                "Aus seit 18:30 · kein Zeitplan"
+    end
+
+    test "a plug whose every entry is paused says its schedule is paused" do
+      assert line(row(on: false, entries: [window(false), single(:off, false)])) ==
+               "Aus · Zeitplan pausiert"
+
+      assert line(row(on: false, entries: [window(false), single()])) == "Aus",
+             "a running entry without an edge due adds nothing"
     end
 
     test "a state report newer than the command dates since without a source" do
