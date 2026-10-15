@@ -6,7 +6,6 @@ defmodule ZiwoasWeb.Layouts do
 
   embed_templates "layouts/*"
 
-  attr :look, :string, required: true
   attr :current_path, :string, required: true
   attr :main_class, :any, default: nil
   attr :flash, :map, default: %{}
@@ -51,9 +50,6 @@ defmodule ZiwoasWeb.Layouts do
             </li>
           </ul>
         </nav>
-        <div class="d-flex align-items-center ms-auto">
-          <.look_toggle look={@look} />
-        </div>
       </header>
     </div>
 
@@ -76,26 +72,6 @@ defmodule ZiwoasWeb.Layouts do
         </li>
       </ul>
     </nav>
-    """
-  end
-
-  attr :look, :string, required: true
-
-  defp look_toggle(assigns) do
-    assigns = assign(assigns, :next, if(assigns.look == "felt", do: "clean", else: "felt"))
-
-    ~H"""
-    <button
-      class={["btn btn-sm btn-outline-secondary app-look-toggle", @look == "felt" && "active"]}
-      aria-pressed={to_string(@look == "felt")}
-      type="button"
-      phx-click={
-        JS.dispatch("ziwoas:set-look", detail: %{look: @next})
-        |> JS.push("set_look", value: %{look: @next})
-      }
-    >
-      Filz-Look
-    </button>
     """
   end
 

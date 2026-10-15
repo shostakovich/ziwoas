@@ -9,7 +9,7 @@ defmodule ZiwoasWeb.ForwardedSSLTest do
   defp call(conn) do
     conn
     |> ForwardedSSL.call(ForwardedSSL.init([]))
-    |> put_resp_cookie("look", "felt")
+    |> put_resp_cookie("sample", "value")
     |> send_resp(200, "ok")
   end
 

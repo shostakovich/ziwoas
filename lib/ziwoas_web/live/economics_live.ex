@@ -103,7 +103,7 @@ defmodule ZiwoasWeb.EconomicsLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} look={@look} current_path={@current_path}>
+    <Layouts.app flash={@flash} current_path={@current_path}>
       <.header>Wirtschaftlichkeit</.header>
 
       <.overview_card result={@overview} title="Stand" link={false} />

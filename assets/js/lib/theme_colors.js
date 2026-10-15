@@ -68,5 +68,5 @@ function themeChanged() {
 window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", themeChanged)
 new MutationObserver(themeChanged).observe(document.documentElement, {
   attributes: true,
-  attributeFilter: [ "data-look", "data-bs-theme" ]
+  attributeFilter: [ "data-theme" ]
 })

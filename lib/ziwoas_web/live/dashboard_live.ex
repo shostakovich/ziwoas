@@ -88,7 +88,7 @@ defmodule ZiwoasWeb.DashboardLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} look={@look} current_path={@current_path}>
+    <Layouts.app flash={@flash} current_path={@current_path}>
       <.header>Dashboard</.header>
 
       <div

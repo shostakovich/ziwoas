@@ -151,7 +151,7 @@ defmodule ZiwoasWeb.SolakonLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} look={@look} current_path={@current_path} main_class="app-main-wide">
+    <Layouts.app flash={@flash} current_path={@current_path} main_class="app-main-wide">
       <.header>PV</.header>
 
       <div

@@ -2,8 +2,6 @@ import "phoenix_html"
 import { Socket } from "phoenix"
 import { LiveSocket } from "phoenix_live_view"
 
-import { currentLook } from "./lib/look.js"
-
 import EnergyFlow from "./hooks/energy_flow.js"
 import EnergyReport from "./hooks/energy_report.js"
 import FocusReturn from "./hooks/focus_return.js"
@@ -32,9 +30,7 @@ const hooks = {
   TodayChart,
 }
 
-// The look rides along on every join, so a page reached by live navigation knows a switched look.
-const params = () => ({ _csrf_token: csrfToken, look: currentLook() })
-const liveSocket = new LiveSocket("/live", Socket, { params, hooks })
+const liveSocket = new LiveSocket("/live", Socket, { params: { _csrf_token: csrfToken }, hooks })
 
 liveSocket.connect()
 window.liveSocket = liveSocket
