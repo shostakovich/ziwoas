@@ -81,7 +81,24 @@ defmodule ZiwoasWeb.SensorsLiveTest do
       assert attrs(doc, "#sensors_chart [phx-update=ignore] > canvas", "data-series") ==
                ~w[temperature humidity]
 
+      assert texts(doc, "#sensors_chart h3") == ["Temperatur", "Luftfeuchtigkeit"]
       assert count(doc, ".alert:not([hidden])") == 0
+    end
+
+    test "without rooms the sensors' charts sit right under the page heading", %{conn: conn} do
+      TestConfigs.put(
+        Config.from_yaml!("""
+        location:
+          timezone: Europe/Berlin
+        plugs: []
+        sensors:
+          - { id: TEST_OUTDOOR, name: Test Balkon, type: outdoor_meter }
+        """)
+      )
+
+      reading!("TEST_OUTDOOR", 5, temperature: 12.0, humidity: 70.0, battery_pct: 100)
+
+      assert texts(page(conn), "#sensors_chart h2") == ["Temperatur", "Luftfeuchtigkeit"]
     end
 
     test "sensors with a low battery are named", %{conn: conn} do

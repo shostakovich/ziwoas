@@ -7,6 +7,7 @@ defmodule ZiwoasWeb.SensorsComponents do
   attr :sensors, :list, required: true
   attr :latest, :map, required: true
   attr :now, DateTime, required: true
+  attr :level, :integer, default: 2, doc: "the chart cards' heading level"
 
   def sensor_cards(assigns) do
     ~H"""
@@ -22,7 +23,7 @@ defmodule ZiwoasWeb.SensorsComponents do
         <.sensor_card sensor={sensor} reading={@latest[sensor.id]} now={@now} />
       </div>
     </section>
-    <.charts sensors={@sensors} />
+    <.charts sensors={@sensors} level={@level} />
     """
   end
 
@@ -104,6 +105,7 @@ defmodule ZiwoasWeb.SensorsComponents do
   end
 
   attr :sensors, :list, required: true
+  attr :level, :integer, default: 2
 
   def charts(assigns) do
     assigns =
@@ -111,7 +113,12 @@ defmodule ZiwoasWeb.SensorsComponents do
 
     ~H"""
     <div id="sensors_chart" phx-hook="SensorsChart">
-      <.card :if={@co2_sensors != []} title="CO₂" subtitle={chart_subtitle("ppm", @co2_sensors)}>
+      <.card
+        :if={@co2_sensors != []}
+        title="CO₂"
+        subtitle={chart_subtitle("ppm", @co2_sensors)}
+        level={@level}
+      >
         <div class="chart-frame chart-frame-prominent" id="sensors_co2_chart" phx-update="ignore">
           <canvas data-series="co2"></canvas>
         </div>
@@ -119,7 +126,7 @@ defmodule ZiwoasWeb.SensorsComponents do
 
       <div class="row row-cols-1 row-cols-md-2 g-3">
         <div class="col">
-          <.card title="Temperatur" subtitle={chart_subtitle("°C", @sensors)}>
+          <.card title="Temperatur" subtitle={chart_subtitle("°C", @sensors)} level={@level}>
             <div
               class="chart-frame chart-frame-compact"
               id="sensors_temperature_chart"
@@ -131,7 +138,11 @@ defmodule ZiwoasWeb.SensorsComponents do
         </div>
 
         <div class="col">
-          <.card title="Luftfeuchtigkeit" subtitle={chart_subtitle("Prozent", @sensors)}>
+          <.card
+            title="Luftfeuchtigkeit"
+            subtitle={chart_subtitle("Prozent", @sensors)}
+            level={@level}
+          >
             <div
               class="chart-frame chart-frame-compact"
               id="sensors_humidity_chart"

@@ -77,7 +77,12 @@ defmodule ZiwoasWeb.SensorsLive do
         />
         <%= if @other_sensors != [] do %>
           <h2 :if={@rooms != []} class="h4 mb-3">Weitere Sensoren</h2>
-          <.sensor_cards sensors={@other_sensors} latest={@latest} now={@now} />
+          <.sensor_cards
+            sensors={@other_sensors}
+            latest={@latest}
+            now={@now}
+            level={if @rooms != [], do: 3, else: 2}
+          />
         <% end %>
       <% end %>
     </Layouts.app>
