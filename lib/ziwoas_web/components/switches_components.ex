@@ -5,6 +5,7 @@ defmodule ZiwoasWeb.SwitchesComponents do
   alias Ziwoas.Switching.{Row, Schedule}
 
   @day_abbr [{1, "Mo"}, {2, "Di"}, {3, "Mi"}, {4, "Do"}, {5, "Fr"}, {6, "Sa"}, {7, "So"}]
+  @day_names ~w[Montag Dienstag Mittwoch Donnerstag Freitag Samstag Sonntag]
   @source_label %{manual: "manuell", schedule: "Zeitplan"}
 
   # Drawn in the text colour: emoji render as boxes or in their own colours, depending on the device.
@@ -490,7 +491,19 @@ defmodule ZiwoasWeb.SwitchesComponents do
 
   defp schedule_part(%Row{next_edge: nil}, _zone), do: "kein Zeitplan"
 
-  defp schedule_part(%Row{next_edge: edge}, zone),
+  defp schedule_part(%Row{next_edge: edge, now: now}, zone),
     do:
-      "nächste Schaltung: #{clock(edge.at, zone)} → #{if edge.action == :on, do: "an", else: "aus"}"
+      "nächste Schaltung: #{upcoming(edge.at, now, zone)} → #{if edge.action == :on, do: "an", else: "aus"}"
+
+  defp upcoming(time, now, zone) do
+    day = local_date(time, zone)
+
+    case Date.diff(day, local_date(now, zone)) do
+      0 -> clock(time, zone)
+      1 -> "morgen #{clock(time, zone)}"
+      _days -> "#{Enum.at(@day_names, Date.day_of_week(day) - 1)} #{clock(time, zone)}"
+    end
+  end
+
+  defp local_date(time, zone), do: time |> DateTime.shift_zone!(zone) |> DateTime.to_date()
 end

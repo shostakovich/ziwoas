@@ -125,7 +125,7 @@ defmodule ZiwoasWeb.SwitchesComponentsTest do
     defp at(hour, minute), do: DateTime.new!(~D[2026-06-15], Time.new!(hour, minute, 0), @zone)
 
     defp row(opts) do
-      now = at(19, 0)
+      now = Keyword.get(opts, :now, at(19, 0))
       seen = Keyword.get(opts, :last_seen, DateTime.add(now, -60))
 
       %Row{
@@ -176,6 +176,17 @@ defmodule ZiwoasWeb.SwitchesComponentsTest do
 
       assert line(row(on: true, command: %{command(:off, :manual) | inserted_at: at(17, 0)})) ==
                "An · kein Zeitplan"
+    end
+
+    test "the next switching time names its day when it is not today" do
+      tomorrow = %{edge(:on, 6, 30) | at: DateTime.add(at(6, 30), 1, :day)}
+      assert line(row(on: false, edge: tomorrow)) == "Aus · nächste Schaltung: morgen 06:30 → an"
+
+      friday_evening = DateTime.new!(~D[2026-06-19], ~T[20:00:00], @zone)
+      monday = %{edge(:on, 7, 0) | at: DateTime.new!(~D[2026-06-22], ~T[07:00:00], @zone)}
+
+      assert line(row(on: false, now: friday_evening, last_seen: friday_evening, edge: monday)) ==
+               "Aus · nächste Schaltung: Montag 07:00 → an"
     end
 
     test "an offline plug counts whole minutes of silence" do
