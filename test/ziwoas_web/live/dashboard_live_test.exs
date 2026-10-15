@@ -5,7 +5,7 @@ defmodule ZiwoasWeb.DashboardLiveTest do
 
   alias Ziwoas.{Clock, Plugs, Repo, Sensors, Solakon, TestClock, TestConfigs}
   alias Ziwoas.Plugs.DailyTotal
-  alias Ziwoas.Solakon.Reading
+  alias Ziwoas.Solakon.{Reading, Snapshot}
   alias Ziwoas.Weather.Record
 
   @now "2026-10-05T12:00:00+02:00"
@@ -256,6 +256,15 @@ defmodule ZiwoasWeb.DashboardLiveTest do
 
       Plugs.notify_live([%{id: "fridge"}])
       assert_push_event(view, "today_chart:deltas", %{deltas: [%{id: "fridge"}]})
+    end
+
+    test "a stored snapshot leaves the page running", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/")
+
+      Solakon.notify_snapshot(%Snapshot{id: 3})
+
+      assert has_element?(view, "#energy_flow")
+      assert Process.alive?(view.pid)
     end
   end
 

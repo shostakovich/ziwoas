@@ -69,6 +69,8 @@ defmodule ZiwoasWeb.DashboardLive do
 
   def handle_info({:reading, _reading}, socket), do: {:noreply, load_live(socket)}
 
+  def handle_info({:snapshot, _snapshot}, socket), do: {:noreply, socket}
+
   def handle_info({:aggregated, _date}, socket),
     do: {:noreply, push_history_chart(socket, Config.get())}
 
