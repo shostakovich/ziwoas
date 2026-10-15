@@ -89,6 +89,29 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
              )
     end
 
+    test "is busy while the switch runs and drops a second tap", %{conn: conn} do
+      shelly =
+        FakeShelly.serve("fridge", fn _method, _params ->
+          receive do
+            :answer -> {:ok, %{"was_on" => false}}
+          end
+        end)
+
+      view = open_page(conn)
+      knob = element(view, "#sw_head_fridge button[phx-click=switch_plug]")
+      render_click(knob)
+      assert_receive {:shelly_rpc, "fridge", "Switch.Set", %{on: true}}
+      assert has_element?(view, "#sw_head_fridge button[aria-busy=true] .spinner-border")
+
+      render_click(knob)
+      send(shelly, :answer)
+      render_async(view)
+
+      refute_received {:shelly_rpc, "fridge", "Switch.Set", _params}
+      assert [%Command{action: :on}] = Repo.all(Command)
+      refute has_element?(view, "#sw_head_fridge button[aria-busy]")
+    end
+
     test "an unreachable plug is a flash and logs nothing", %{conn: conn} do
       view = open_page(conn)
       view |> element("#sw_head_fridge button[phx-click=switch_plug]") |> render_click()
@@ -151,6 +174,22 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
 
       assert_received {:govee, "ABCDEF01", {:power, true}}
       assert has_element?(view, "#light_card_ABCDEF01 .small", "An · Weiß")
+    end
+
+    test "is busy while its command runs and drops a second tap", %{conn: conn} do
+      stop_supervised!(Ziwoas.FakeGoveeBridge)
+      start_supervised!({Ziwoas.FakeGoveeBridge, test: self(), sleep_ms: 150})
+      view = open_page(conn)
+      knob = element(view, "#light_card_ABCDEF01 button.sw-knob")
+      render_click(knob)
+      assert has_element?(view, "#light_card_ABCDEF01 button[aria-busy=true] .spinner-border")
+
+      render_click(knob)
+      render_async(view, 1_000)
+
+      assert_received {:govee, "ABCDEF01", {:power, true}}
+      refute_received {:govee, "ABCDEF01", _verb}
+      refute has_element?(view, "#light_card_ABCDEF01 button[aria-busy]")
     end
 
     test "a lamp the bridge does not take is a flash", %{conn: conn} do

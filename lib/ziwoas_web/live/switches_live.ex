@@ -19,7 +19,10 @@ defmodule ZiwoasWeb.SwitchesLive do
       Lights.subscribe()
     end
 
-    {:ok, socket |> assign(page_title: "Schalten", editors: %{}, tick: nil) |> load()}
+    {:ok,
+     socket
+     |> assign(page_title: "Schalten", editors: %{}, tick: nil, pending: MapSet.new())
+     |> load()}
   end
 
   @impl true
@@ -47,7 +50,7 @@ defmodule ZiwoasWeb.SwitchesLive do
 
       plug ->
         {:noreply,
-         start_async(socket, {:switch, plug.id}, fn ->
+         start_unless_pending(socket, {:switch, plug.id}, fn ->
            Switching.switch(plug, action, :manual)
          end)}
     end
@@ -55,8 +58,12 @@ defmodule ZiwoasWeb.SwitchesLive do
 
   def handle_event("switch_plug", _params, socket), do: {:noreply, socket}
 
-  def handle_event("light_command", params, socket),
-    do: {:noreply, start_async(socket, :light_command, fn -> LightEvents.run(params) end)}
+  def handle_event("light_command", %{"light_key" => key} = params, socket),
+    do:
+      {:noreply,
+       start_unless_pending(socket, {:light_command, key}, fn -> LightEvents.run(params) end)}
+
+  def handle_event("light_command", _params, socket), do: {:noreply, socket}
 
   def handle_event("new_entry", %{"plug_id" => plug_id, "kind" => kind}, socket) do
     editor =
@@ -129,23 +136,31 @@ defmodule ZiwoasWeb.SwitchesLive do
   end
 
   @impl true
-  def handle_async({:switch, _plug_id}, {:ok, {:ok, _command}}, socket),
-    do: {:noreply, load(socket)}
+  def handle_async(name, result, socket),
+    do: {:noreply, socket |> update(:pending, &MapSet.delete(&1, name)) |> settle(name, result)}
 
-  def handle_async({:switch, plug_id}, result, socket) do
-    name = Enum.find_value(socket.assigns.rows, plug_id, &(&1.plug.id == plug_id && &1.plug.name))
-    {:noreply, put_flash(socket, :error, "#{name}: #{failure(result)}")}
+  defp start_unless_pending(socket, name, fun) do
+    if MapSet.member?(socket.assigns.pending, name),
+      do: socket,
+      else: socket |> update(:pending, &MapSet.put(&1, name)) |> start_async(name, fun)
   end
 
-  def handle_async(:light_command, {:ok, {:ok, _light, _result}}, socket),
-    do: {:noreply, load_lights(socket)}
+  defp settle(socket, {:switch, _plug_id}, {:ok, {:ok, _command}}), do: load(socket)
 
-  def handle_async(:light_command, {:ok, {:error, reason}}, socket)
-      when reason in [:not_found, :invalid],
-      do: {:noreply, socket}
+  defp settle(socket, {:switch, plug_id}, result) do
+    name = Enum.find_value(socket.assigns.rows, plug_id, &(&1.plug.id == plug_id && &1.plug.name))
+    put_flash(socket, :error, "#{name}: #{failure(result)}")
+  end
 
-  def handle_async(:light_command, _unreachable, socket),
-    do: {:noreply, put_flash(socket, :error, LightEvents.failed_message())}
+  defp settle(socket, {:light_command, _key}, {:ok, {:ok, _light, _result}}),
+    do: load_lights(socket)
+
+  defp settle(socket, {:light_command, _key}, {:ok, {:error, reason}})
+       when reason in [:not_found, :invalid],
+       do: socket
+
+  defp settle(socket, {:light_command, _key}, _unreachable),
+    do: put_flash(socket, :error, LightEvents.failed_message())
 
   defp failure({:ok, {:error, {:rejected, _reason}}}), do: @rejected
   defp failure(_result), do: @failed
@@ -230,11 +245,22 @@ defmodule ZiwoasWeb.SwitchesLive do
 
         <%= if @snapshots != [] do %>
           <h2 class="h6 text-uppercase text-body-secondary mt-4 mb-2">Lampen</h2>
-          <.light_card :for={snapshot <- @snapshots} snapshot={snapshot} now={@now} />
+          <.light_card
+            :for={snapshot <- @snapshots}
+            snapshot={snapshot}
+            now={@now}
+            pending={MapSet.member?(@pending, {:light_command, snapshot.light.key})}
+          />
         <% end %>
 
         <h2 :if={@rows != []} class="h6 text-uppercase text-body-secondary mt-4 mb-2">Steckdosen</h2>
-        <.plug_card :for={row <- @rows} row={row} zone={@zone} editor={@editors[row.plug.id]} />
+        <.plug_card
+          :for={row <- @rows}
+          row={row}
+          zone={@zone}
+          editor={@editors[row.plug.id]}
+          pending={MapSet.member?(@pending, {:switch, row.plug.id})}
+        />
       </div>
     </Layouts.app>
     """

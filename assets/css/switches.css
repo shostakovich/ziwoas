@@ -24,3 +24,11 @@
 .sw-lamp-knob .sw-knob-plush { position: relative; --felt-icon-size: 80%; }
 .sw-lamp-knob.off .sw-knob-plush { filter: grayscale(.35); }
 .sw-lamp-hero { width: 112px; height: 112px; }
+
+.sw-knob[aria-busy="true"] { cursor: progress; }
+.sw-knob-pending {
+  position: absolute; top: -.25rem; inset-inline-end: -.25rem;
+  display: grid; place-items: center; width: 1.5rem; height: 1.5rem; border-radius: 50%;
+  background-color: var(--felt-surface-raised); color: var(--felt-secondary-color);
+  border: 1px solid var(--felt-border-color);
+}

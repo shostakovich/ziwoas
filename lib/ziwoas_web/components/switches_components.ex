@@ -20,6 +20,7 @@ defmodule ZiwoasWeb.SwitchesComponents do
 
   attr :row, Row, required: true
   attr :zone, :string, required: true
+  attr :pending, :boolean, default: false, doc: "a switch command is running"
 
   attr :editor, :map,
     default: nil,
@@ -33,7 +34,7 @@ defmodule ZiwoasWeb.SwitchesComponents do
       data-plug-id={@row.plug.id}
     >
       <div class="card-body">
-        <.head row={@row} zone={@zone} />
+        <.head row={@row} zone={@zone} pending={@pending} />
         <%!-- The browser owns `open`: a LiveView patch must not fold the list back up. --%>
         <details class="mt-2" phx-mounted={JS.ignore_attributes(["open"])}>
           <.summary row={@row} />
@@ -46,6 +47,7 @@ defmodule ZiwoasWeb.SwitchesComponents do
 
   attr :row, Row, required: true
   attr :zone, :string, required: true
+  attr :pending, :boolean, default: false
 
   def head(assigns) do
     row = assigns.row
@@ -70,6 +72,7 @@ defmodule ZiwoasWeb.SwitchesComponents do
           type="button"
           class={["btn btn-light btn-icon sw-knob", not @lit && "off"]}
           aria-label={"#{@row.plug.name} #{if @on, do: "ausschalten", else: "einschalten"}"}
+          aria-busy={@pending && "true"}
           disabled={@offline}
           phx-click="switch_plug"
           phx-value-plug_id={@row.plug.id}
@@ -80,6 +83,9 @@ defmodule ZiwoasWeb.SwitchesComponents do
             class="icon sw-knob-plush"
             src={~p"/images/#{"switch_plush_#{if @lit, do: "on", else: "off"}.webp"}"}
           />
+          <span :if={@pending} class="sw-knob-pending" aria-hidden="true">
+            <span class="spinner-border spinner-border-sm"></span>
+          </span>
         </button>
         <span :if={@lit} class="badge border tabular-nums">
           <span class="text-warning me-1" aria-hidden="true">⚡</span>{number(@row.watt || 0)} W

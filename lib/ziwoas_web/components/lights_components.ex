@@ -56,6 +56,7 @@ defmodule ZiwoasWeb.LightsComponents do
 
   attr :snapshot, Snapshot, required: true
   attr :now, DateTime, required: true, doc: "what a starting lamp counts its seconds against"
+  attr :pending, :boolean, default: false, doc: "a command for the lamp is running"
 
   def light_card(assigns) do
     snapshot = assigns.snapshot
@@ -101,9 +102,13 @@ defmodule ZiwoasWeb.LightsComponents do
             type="button"
             class={["btn btn-light btn-icon sw-knob sw-lamp-knob", not @lit && "off"]}
             aria-label={"#{@light.name} umschalten"}
+            aria-busy={@pending && "true"}
             {command(@light.key, "turn", on: not @lit)}
           >
             <img alt="" class="icon sw-knob-plush" src={~p"/images/#{plush_image(@light, @lit)}"} />
+            <span :if={@pending} class="sw-knob-pending" aria-hidden="true">
+              <span class="spinner-border spinner-border-sm"></span>
+            </span>
           </button>
 
           <span :if={@starting} class="spinner-border spinner-border-sm text-warning" role="status">
