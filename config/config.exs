@@ -39,10 +39,17 @@ config :esbuild,
     args: ~w(js/app.js --bundle --target=es2022 --outdir=../priv/static/assets/js),
     cd: Path.expand("../assets", __DIR__),
     env: %{"NODE_PATH" => [Path.expand("../deps", __DIR__), Mix.Project.build_path()]}
-  ],
-  ziwoas_css: [
-    args: ~w(css/app.css --bundle --outdir=../priv/static/assets/css),
-    cd: Path.expand("../assets", __DIR__)
+  ]
+
+config :tailwind,
+  version: "4.3.3",
+  ziwoas: [
+    args: ~w(
+      --input=assets/css/app.css
+      --output=priv/static/assets/css/app.css
+    ),
+    cd: Path.expand("..", __DIR__),
+    env: %{"NODE_PATH" => [Path.expand("../deps", __DIR__), Mix.Project.build_path()]}
   ]
 
 config :phoenix, :json_library, JSON

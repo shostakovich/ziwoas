@@ -43,6 +43,6 @@ jobs:
       - name: Run tests
         run: mix test
 
-      # esbuild fails on an import that does not resolve; the tests never load the bundles.
+      # Tailwind and esbuild fail on an import that does not resolve; the tests never load the bundles.
       - name: Build assets
         run: mix assets.setup && mix assets.deploy

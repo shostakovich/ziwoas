@@ -25,11 +25,14 @@ COPY mix.exs mix.lock ./
 RUN mix deps.get --only $MIX_ENV
 
 COPY config/config.exs config/${MIX_ENV}.exs config/
+RUN mix deps.compile && mix assets.setup
+
 COPY assets assets
 COPY priv priv
 COPY lib lib
 
-RUN mix assets.setup && mix assets.deploy
+# assets.deploy compiles first: app.js imports the hooks Setzkasten's compilation writes.
+RUN mix assets.deploy
 
 FROM ${BUILDER_IMAGE} AS build
 

@@ -40,6 +40,15 @@ defmodule Ziwoas.MixProject do
       {:websock_adapter, "~> 0.6"},
       {:req, "~> 0.7.4"},
       {:esbuild, "~> 0.10", runtime: Mix.env() == :dev},
+      {:tailwind, "~> 0.5", runtime: Mix.env() == :dev},
+      {:daisyui,
+       github: "saadeghi/daisyui",
+       tag: "v5.5.20",
+       sparse: "packages/bundle",
+       app: false,
+       compile: false,
+       depth: 1},
+      {:setzkasten, github: "shostakovich/setzkasten"},
       {:credo, "~> 1.7", only: [:dev, :test], runtime: false},
       {:lazy_html, ">= 0.1.0", only: :test}
     ]
@@ -50,9 +59,14 @@ defmodule Ziwoas.MixProject do
       setup: ["deps.get", "ecto.setup", "assets.setup", "assets.build"],
       "ecto.setup": ["ecto.create", "ecto.migrate"],
       test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"],
-      "assets.setup": ["esbuild.install --if-missing"],
-      "assets.build": ["compile", "esbuild ziwoas", "esbuild ziwoas_css"],
-      "assets.deploy": ["esbuild ziwoas --minify", "esbuild ziwoas_css --minify", "phx.digest"]
+      "assets.setup": ["tailwind.install --if-missing", "esbuild.install --if-missing"],
+      "assets.build": ["compile", "tailwind ziwoas", "esbuild ziwoas"],
+      "assets.deploy": [
+        "compile",
+        "tailwind ziwoas --minify",
+        "esbuild ziwoas --minify",
+        "phx.digest"
+      ]
     ]
   end
 end
