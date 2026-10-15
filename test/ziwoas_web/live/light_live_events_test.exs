@@ -95,6 +95,20 @@ defmodule ZiwoasWeb.LightLiveEventsTest do
     refute view |> element("#light_temp") |> render() == first
   end
 
+  test "after a refused colour the swatches go back to the lamp's colour", %{conn: conn} do
+    Repo.update_all(Light, set: [supports_color: true])
+    Repo.update_all(State, set: [on: true, color_r: 255, color_g: 77, color_b: 77])
+    bridge!({:error, :unknown_lamp})
+    view = open_page(conn)
+
+    view |> element("#light_color_2") |> render_click()
+    render_async(view)
+
+    assert has_element?(view, "#flash-error", "Lampe nicht erreichbar")
+    assert has_element?(view, "#light_color_0[checked][phx-patch-focused]")
+    assert has_element?(view, "#light_color_2:not([checked])[phx-patch-focused]")
+  end
+
   test "after a command the bridge took the sliders leave a focused thumb be", %{conn: conn} do
     view = open_page(conn)
     view |> form("#light_brightness_form", %{"value" => "42"}) |> render_change()

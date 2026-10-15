@@ -134,7 +134,7 @@ defmodule ZiwoasWeb.LightLive do
   def handle_async({:light_command, _command}, {:exit, _reason}, socket),
     do: {:noreply, failed(socket)}
 
-  # The thumbs moved on the client; a new `revert` sends them back.
+  # The thumbs and swatches moved on the client; a new `revert` sends them back.
   defp failed(socket) do
     socket
     |> put_flash(:error, LightEvents.failed_message())
@@ -213,6 +213,7 @@ defmodule ZiwoasWeb.LightLive do
         <.color_panel
           :if={@light.supports_color}
           color={@color}
+          revert={@revert}
           zone_lamp={Lights.zone_lamp?(@power_snapshot)}
           hidden={@tab != "color"}
         />

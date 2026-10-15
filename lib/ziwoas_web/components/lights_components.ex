@@ -412,6 +412,7 @@ defmodule ZiwoasWeb.LightsComponents do
   end
 
   attr :color, :string, default: nil, doc: "the colour last set as `#rrggbb`, nil for white"
+  attr :revert, :integer, default: nil, doc: "set anew to put a focused swatch back"
   attr :zone_lamp, :boolean, default: false
   attr :hidden, :boolean, default: false
 
@@ -448,6 +449,7 @@ defmodule ZiwoasWeb.LightsComponents do
               autocomplete="off"
               checked={@color == swatch}
               data-color={swatch}
+              phx-patch-focused={@revert}
               phx-click="light_command"
               phx-value-command="color"
               {rgb_values(swatch)}
