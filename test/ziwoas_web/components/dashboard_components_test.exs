@@ -413,6 +413,8 @@ defmodule ZiwoasWeb.DashboardComponentsTest do
                "Gesamtverbrauch"
              ]
 
+      assert count(today_charts(@chart), "#today_power ul li svg.stroke-chart-1") == 1
+
       many = today_charts(@chart, for(i <- 1..9, do: {"d#{i}", "Dose #{i}"}))
       items = texts(many, "#today_energy ul li")
 

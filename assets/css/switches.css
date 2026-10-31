@@ -43,12 +43,12 @@
 }
 
 .sw-knob:is([aria-pressed="true"], [data-on="true"]) {
-  border-color: var(--color-success);
-  background-color: color-mix(in oklab, var(--color-success) 12%, var(--color-base-100));
-  box-shadow: 0 0 0.875rem color-mix(in oklab, var(--color-success) 35%, transparent);
+  border-color: var(--color-switch-on);
+  background-color: color-mix(in oklab, var(--color-switch-on) 12%, var(--color-base-100));
+  box-shadow: 0 0 0.875rem color-mix(in oklab, var(--color-switch-on) 45%, transparent);
 
   @variant dark {
-    background-color: color-mix(in oklab, var(--color-success) 22%, var(--color-base-200));
+    background-color: color-mix(in oklab, var(--color-switch-on) 22%, var(--color-base-200));
   }
 }
 

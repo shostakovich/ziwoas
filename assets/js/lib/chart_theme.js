@@ -201,7 +201,7 @@ export function lineElements() {
   return { line: { borderWidth: isPhone() ? 1.75 : 2 } }
 }
 
-// A series token with a "-fill" twin fills bars in it and keeps the line for their outline.
+// A series token with a "-fill" twin fills bars and areas in it.
 const fillTones = new Map()
 function fillTone(tone) {
   if (!fillTones.has(tone)) {
@@ -230,7 +230,7 @@ function setDefaults() {
   Chart.defaults.font.family = getComputedStyle(document.body).fontFamily
   Chart.defaults.locale = document.documentElement.lang || "de"
   Chart.defaults.elements.bar.borderRadius = 3
-  Chart.defaults.elements.bar.borderWidth = 1
+  Chart.defaults.elements.bar.borderWidth = 0
   Chart.defaults.plugins.filler.drawTime = "beforeDatasetsDraw"
 }
 

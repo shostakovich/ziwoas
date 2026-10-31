@@ -6,7 +6,7 @@ defmodule ZiwoasWeb.DashboardComponents do
   alias Ziwoas.Energy.{Amount, Balance, Flow, LiveState}
   alias Ziwoas.Plugs.Roster
   alias ZiwoasWeb.Charts
-  alias ZiwoasWeb.Charts.Categories
+  alias ZiwoasWeb.Charts.{Categories, Series}
   alias ZiwoasWeb.Components.EnergyFlow
 
   attr :live, LiveState, required: true
@@ -289,7 +289,10 @@ defmodule ZiwoasWeb.DashboardComponents do
   defp payload(data, chart, fun), do: %{"data-chart" => chart, "data-payload" => fun.(data)}
 
   defp power_legend(producers, consumers) do
-    total = if consumers != [], do: [%{label: "Gesamtverbrauch", color: :neutral, marker: :line}]
+    total =
+      if consumers != [],
+        do: [%{label: "Gesamtverbrauch", color: Series.of(:consumption), marker: :line}]
+
     Enum.map(producers, &%{label: &1, color: 2}) ++ List.wrap(total)
   end
 

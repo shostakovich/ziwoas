@@ -326,7 +326,8 @@ defmodule ZiwoasWeb.ReportsComponents do
 
       :five_minutes ->
         total =
-          if consumers != [], do: [%{label: "Gesamtverbrauch", color: :neutral, marker: :line}]
+          if consumers != [],
+            do: [%{label: "Gesamtverbrauch", color: Series.of(:consumption), marker: :line}]
 
         produced ++ List.wrap(total) ++ if(weather, do: [@irradiance_detail], else: [])
     end

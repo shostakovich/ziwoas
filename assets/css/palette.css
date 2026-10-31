@@ -19,6 +19,17 @@
     --setzkasten-alert-tint: 14%;
     --color-selected: oklch(86.00% 0.130 85.00);
     --color-selected-content: oklch(32.00% 0.070 65.00);
+    /* Brighter than Setzkasten's 3:1 series on purpose: the honey sun and the light greys read by their legends. */
+    --color-chart-1: oklch(57.00% 0.175 256.00);
+    --color-chart-2: oklch(78.00% 0.165 70.00);
+    --color-chart-3: oklch(68.00% 0.150 172.00);
+    --color-chart-4: oklch(62.00% 0.205 27.00);
+    --color-chart-5: oklch(61.00% 0.190 298.00);
+    --color-chart-6: oklch(70.00% 0.130 220.00);
+    --color-chart-7: oklch(66.00% 0.200 350.00);
+    --color-chart-8: oklch(72.00% 0.170 135.00);
+    --color-chart-other: oklch(80.00% 0.010 255.00);
+    --color-switch-on: oklch(70.00% 0.190 145.00);
   }
 
   /* daisyUI draws text, focus and checked marks with the fill, so dark fills stay light (4.5:1 on base-200). */
@@ -36,6 +47,16 @@
       --color-error-content: oklch(22.00% 0.070 33.00);
       --color-selected: oklch(74.00% 0.140 72.00);
       --color-selected-content: oklch(22.00% 0.050 60.00);
+      --color-chart-1: oklch(68.00% 0.160 256.00);
+      --color-chart-2: oklch(80.00% 0.160 72.00);
+      --color-chart-3: oklch(74.00% 0.140 172.00);
+      --color-chart-4: oklch(68.00% 0.190 27.00);
+      --color-chart-5: oklch(70.00% 0.160 298.00);
+      --color-chart-6: oklch(70.00% 0.130 220.00);
+      --color-chart-7: oklch(66.00% 0.200 350.00);
+      --color-chart-8: oklch(72.00% 0.170 135.00);
+      --color-chart-other: oklch(58.00% 0.010 255.00);
+      --color-switch-on: oklch(74.00% 0.180 145.00);
     }
   }
 
@@ -53,5 +74,15 @@
     --color-error-content: oklch(22.00% 0.070 33.00);
     --color-selected: oklch(74.00% 0.140 72.00);
     --color-selected-content: oklch(22.00% 0.050 60.00);
+    --color-chart-1: oklch(68.00% 0.160 256.00);
+    --color-chart-2: oklch(80.00% 0.160 72.00);
+    --color-chart-3: oklch(74.00% 0.140 172.00);
+    --color-chart-4: oklch(68.00% 0.190 27.00);
+    --color-chart-5: oklch(70.00% 0.160 298.00);
+    --color-chart-6: oklch(70.00% 0.130 220.00);
+    --color-chart-7: oklch(66.00% 0.200 350.00);
+    --color-chart-8: oklch(72.00% 0.170 135.00);
+    --color-chart-other: oklch(58.00% 0.010 255.00);
+    --color-switch-on: oklch(74.00% 0.180 145.00);
   }
 }
