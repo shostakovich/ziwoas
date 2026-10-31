@@ -47,17 +47,18 @@ Real data only exists on the home server (Docker). Local SQLite is not a copy of
 - Pages pass `width` to `Layouts.app`: `:default`, forms `:narrow`; the top bar stays
   `:default`. Live pages mark stale data on the server with `ZiwoasWeb.LiveFreshness` (badge and
   time in the header, `stale` stats), never by fading.
-- ZiWoAS's palette in `assets/css/palette.css`; own CSS in `assets/css/` only for ZiWoAS
-  widgets, on Tailwind/daisyUI tokens, never hex. Data colours: the tokens in
+- ZiWoAS's palette and its own chart series in `assets/css/palette.css`; own CSS in
+  `assets/css/` only for ZiWoAS widgets and `phone.css` (denser Setzkasten cards, tiles,
+  headings and dock below `md`), on Tailwind/daisyUI tokens, never hex. Data colours: the tokens in
   `application.css` (`--color-solar`, `--color-grid`, `--color-battery`, `--color-chart-N`, …),
   painted on charts by `assets/js/lib/chart_theme.js`. Categories take the series their chart
   leaves free: consumer plugs by their 30-day energy (`Ziwoas.Plugs.consumer_rank/2`, passed to
   `Charts.Categories` and to the hooks as `consumer_order`), sensors in config order;
   `tonesByOrder(ids, semantic)` and `consumer_series.js` in JS, `ZiwoasWeb.Charts.Series` in
-  Elixir. The rest is one "Weitere" in Setzkasten's `chart-other` (`OTHER_TONE`, `color: :other`
+  Elixir. The rest is one "Weitere" in `chart-other` (`OTHER_TONE`, `color: :other`
   in a legend) whose tooltip names its plugs; Home's share bar names each of them in
-  `chart-other` instead. The total line takes `--color-chart-total`, which matches the legend's
-  `:neutral`.
+  `chart-other` instead. The total consumption line takes `--color-chart-total`, the consumption
+  colour, keyed in a legend as `color: Series.of(:consumption)` with `marker: :line`.
 - Plush images by name via `ZiwoasWeb.Plush`, Lucide icons via `ZiwoasWeb.Icons`
   (`assets/vendor/lucide`).
 - Comments in English and sparse — speaking names over commentary. UI text is German.
