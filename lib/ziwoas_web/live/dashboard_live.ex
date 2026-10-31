@@ -106,32 +106,31 @@ defmodule ZiwoasWeb.DashboardLive do
       <.live_header stale={@stale} live_at={@live_at} zone={@zone}>Home</.live_header>
 
       <div class="flex flex-col gap-8">
-        <div class="flex flex-col gap-4 md:gap-6">
-          <div class="grid grid-cols-2 gap-4 md:gap-6 lg:grid-cols-4">
-            <.hero
-              live={@live}
-              weather_plush={@weather_plush}
-              weather_alt={@weather_alt}
-              class="col-span-2"
-            />
-            <.stat :for={tile <- @live_tiles} {tile} size={:sm} stale={@stale} />
-          </div>
-
-          <div class="grid gap-4 md:gap-6 lg:grid-cols-2">
-            <.energy_flow live={@live} class="min-w-0" />
-            <div class="flex min-w-0 flex-col gap-4 md:gap-6">
-              <.plug_bar live={@live} rank={@rank} class={@room_air && "flex-1"} />
-              <div :if={@room_air}><.dashboard_tile tile={@room_air} /></div>
-            </div>
-          </div>
+        <div class="grid grid-cols-2 gap-3 md:gap-6 lg:grid-cols-4">
+          <.hero
+            live={@live}
+            weather_plush={@weather_plush}
+            weather_alt={@weather_alt}
+            class="col-span-2"
+          />
+          <.stat :for={tile <- @live_tiles} {tile} size={:sm} stale={@stale} />
         </div>
 
         <section aria-labelledby="today_heading">
           <.section_heading id="today_heading">Heute</.section_heading>
-          <div class="flex flex-col gap-4 md:gap-6">
-            <div class="setzkasten-stat-grid grid grid-cols-2 gap-4 md:grid-cols-3 md:gap-6">
-              <.stat :for={tile <- @summary_tiles} {tile} size={:sm} />
-            </div>
+          <div class="setzkasten-stat-grid grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-6">
+            <.stat :for={tile <- @summary_tiles} {tile} size={:sm} />
+          </div>
+        </section>
+
+        <div class="grid gap-3 md:gap-6 lg:grid-cols-2">
+          <.energy_flow live={@live} class="min-w-0" />
+          <.plug_bar live={@live} rank={@rank} class="min-w-0" />
+        </div>
+
+        <section aria-labelledby="history_heading">
+          <.section_heading id="history_heading">Verlauf</.section_heading>
+          <div class="flex flex-col gap-3 md:gap-6">
             <.today_charts
               chart={@today_chart}
               producers={@producers}
@@ -140,13 +139,13 @@ defmodule ZiwoasWeb.DashboardLive do
               roster={@roster}
               zone={@zone}
             />
+            <.history_chart :if={@producers != []} points={@history} />
           </div>
         </section>
 
-        <section :if={@producers != []} aria-labelledby="history_heading">
-          <.section_heading id="history_heading">Verlauf</.section_heading>
-          <.history_chart points={@history} />
-        </section>
+        <div :if={@room_air} class="grid gap-3 md:gap-6 lg:grid-cols-2">
+          <.dashboard_tile tile={@room_air} />
+        </div>
       </div>
     </Layouts.app>
     """
