@@ -5,7 +5,7 @@ defmodule ZiwoasWeb.ReportsComponents do
   alias Ziwoas.Energy
   alias Ziwoas.Energy.{Amount, DailyPoint, Report}
   alias Ziwoas.Plugs.Roster
-  alias ZiwoasWeb.Charts.Categories
+  alias ZiwoasWeb.Charts.{Categories, Series}
   alias ZiwoasWeb.DashboardComponents
 
   @presets [{:last_7, "Letzte 7 Tage"}, {:last_30, "Letzte 30 Tage"}]
@@ -100,7 +100,7 @@ defmodule ZiwoasWeb.ReportsComponents do
 
     ~H"""
     <section
-      class="setzkasten-stat-grid grid grid-cols-2 gap-4 md:grid-cols-4 md:gap-6"
+      class="setzkasten-stat-grid grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-6"
       aria-label="Zusammenfassung"
     >
       <.stat :for={tile <- @tiles} {tile} size={:sm} />
@@ -114,11 +114,11 @@ defmodule ZiwoasWeb.ReportsComponents do
   def ranking(assigns) do
     groups =
       [
-        {"producers", "Erzeugung", assigns.producers, false},
-        {"consumers", "Verbrauch", assigns.consumers, true}
+        {"producers", "Erzeugung", assigns.producers, false, :solar},
+        {"consumers", "Verbrauch", assigns.consumers, true, :consumption}
       ]
-      |> Enum.reject(fn {_id, _label, rows, _ranked} -> rows == [] end)
-      |> Enum.map(fn {id, label, rows, ranked} ->
+      |> Enum.reject(fn {_id, _label, rows, _ranked, _role} -> rows == [] end)
+      |> Enum.map(fn {id, label, rows, ranked, role} ->
         total = rows |> Enum.map(& &1.kwh) |> Enum.sum()
 
         %{
@@ -128,7 +128,11 @@ defmodule ZiwoasWeb.ReportsComponents do
             rows
             |> Enum.with_index(1)
             |> Enum.map(fn {row, place} ->
-              Map.merge(row, %{share: share(row.kwh, total), place: ranked && place})
+              Map.merge(row, %{
+                share: share(row.kwh, total),
+                place: ranked && place,
+                series: Series.of(role)
+              })
             end)
         }
       end)
@@ -152,7 +156,7 @@ defmodule ZiwoasWeb.ReportsComponents do
           <.bar
             label={row.name}
             value={row.share}
-            tone={:neutral}
+            color={row.series}
             show_value
             value_label={number(row.share, unit: "%")}
             data-role="share"
@@ -182,7 +186,7 @@ defmodule ZiwoasWeb.ReportsComponents do
 
   def charts(assigns) do
     ~H"""
-    <div class="flex flex-col gap-4 md:gap-6">
+    <div class="flex flex-col gap-3 md:gap-6">
       <.chart_card
         id="report_daily"
         title="Energie"
@@ -322,7 +326,8 @@ defmodule ZiwoasWeb.ReportsComponents do
 
       :five_minutes ->
         total =
-          if consumers != [], do: [%{label: "Gesamtverbrauch", color: :neutral, marker: :line}]
+          if consumers != [],
+            do: [%{label: "Gesamtverbrauch", color: Series.of(:consumption), marker: :line}]
 
         produced ++ List.wrap(total) ++ if(weather, do: [@irradiance_detail], else: [])
     end

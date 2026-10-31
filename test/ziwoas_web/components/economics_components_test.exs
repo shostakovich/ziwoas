@@ -57,6 +57,11 @@ defmodule ZiwoasWeb.EconomicsComponentsTest do
     assert covered(doc) == ["20"]
     assert texts(doc, "#economics-covered progress[aria-label]") == [""]
     assert hd(texts(doc, "#economics-covered")) == "Zurückverdient 20,0 %"
+
+    assert [solar] =
+             doc |> LazyHTML.query("#economics-covered progress") |> LazyHTML.attribute("class")
+
+    assert solar =~ "text-chart-2-fill"
     assert hd(texts(doc, "p")) =~ ~r/^Seit 14.02.2026\. Gerechnet wird nur/
     assert hint(doc) == ["Hochrechnung aus 200 Tagen."]
     assert texts(doc, "a.btn") == ["Kosten und Preise pflegen"]

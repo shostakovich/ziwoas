@@ -9,7 +9,7 @@
   --color-battery-fill: var(--color-chart-3-fill);
 
   --color-chart-muted: color-mix(in oklab, var(--color-base-content) 50%, var(--color-base-100));
-  --color-chart-total: color-mix(in oklab, var(--color-base-content) 70%, var(--color-base-100));
+  --color-chart-total: var(--color-consumption);
   --color-chart-gridline: color-mix(in oklab, var(--color-base-content) 10%, transparent);
   --color-chart-halo: color-mix(in oklab, var(--color-base-100) 60%, transparent);
   --color-chart-band: color-mix(in oklab, var(--color-base-content) 7%, transparent);

@@ -1,4 +1,4 @@
-import { renderChart, AREA_ALPHA, timeCategoryScale, roundedFloor, dropOffStepBound, formatTime } from "../lib/chart_theme.js"
+import { renderChart, AREA_ALPHA, timeCategoryScale, roundedFloor, dropOffStepBound, formatTime, isPhone, snugTop } from "../lib/chart_theme.js"
 
 // A night's standby dips a few watts below zero: end on the next hundred, not a whole tick step.
 const FLOOR_STEP_W = 100
@@ -53,6 +53,9 @@ function config(chart, range) {
     legend: false,
   }
 
+  const values = series.flatMap((dataset) => dataset.data)
+  const min = roundedFloor(values, FLOOR_STEP_W)
+
   return {
     type: "line",
     data: { labels: times, datasets: [ ...series, zero ] },
@@ -61,7 +64,7 @@ function config(chart, range) {
       maintainAspectRatio: false,
       scales: {
         x: timeCategoryScale(times),
-        y: { unit: "W", min: roundedFloor(series.flatMap((dataset) => dataset.data), FLOOR_STEP_W), afterBuildTicks: dropOffStepBound },
+        y: { unit: "W", min, afterBuildTicks: dropOffStepBound, ...(isPhone() ? snugTop(values, 4, min) : {}) },
       },
       plugins: {
         legend: { display: false },

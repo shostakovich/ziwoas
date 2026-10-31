@@ -1,0 +1,52 @@
+/* Setzkasten's spacing is sized for a desk; a phone shows more with tighter cards, tiles and headings. */
+@media (width < 48rem) {
+  #main {
+    --card-p: 1rem;
+    padding-top: 1rem;
+  }
+
+  #main header:has(h1) {
+    padding-bottom: 0.75rem;
+  }
+
+  #main h1 {
+    font-size: 1.25rem;
+  }
+
+  #main h2:not(.card-title) {
+    font-size: 1.0625rem;
+  }
+
+  #main .stat {
+    padding-block: 0.75rem;
+    padding-inline: 1rem;
+  }
+
+  #main .stat-value {
+    font-size: 1.375rem;
+  }
+}
+
+.dock {
+  gap: 0.125rem;
+  padding-inline: 0.25rem;
+}
+
+.dock > * {
+  flex: 1 1 0;
+  padding-inline: 0;
+  border-radius: 0.875rem;
+}
+
+.dock .plush {
+  width: 1.875rem;
+  height: 1.875rem;
+}
+
+.dock > .dock-active {
+  background-color: color-mix(in oklab, var(--color-selected) 30%, var(--color-base-100));
+}
+
+.dock > .dock-active::after {
+  display: none;
+}

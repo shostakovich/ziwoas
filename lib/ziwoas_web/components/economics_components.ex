@@ -3,6 +3,7 @@ defmodule ZiwoasWeb.EconomicsComponents do
   use ZiwoasWeb, :html
 
   alias Ziwoas.Economics.Overview
+  alias ZiwoasWeb.Charts.Series
 
   @min_projection_days 90
 
@@ -28,8 +29,8 @@ defmodule ZiwoasWeb.EconomicsComponents do
     ~H"""
     <section id="economics" aria-labelledby={@heading && "economics-heading"}>
       <.overview_heading :if={@heading} costed={@result.costed} />
-      <div class="flex flex-col gap-4">
-        <div class="setzkasten-stat-grid grid grid-cols-2 md:grid-cols-3 gap-4">
+      <div class="flex flex-col gap-3 md:gap-4">
+        <div class="setzkasten-stat-grid grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
           <.stat id="economics-cost" label="Anschaffungs­kosten" size={:sm}>
             <.euro value={@result.acquisition_cost_eur} />
           </.stat>
@@ -49,7 +50,7 @@ defmodule ZiwoasWeb.EconomicsComponents do
           id="economics-covered"
           label="Zurückverdient"
           value={min(@covered_pct, 100)}
-          tone={:neutral}
+          color={Series.of(:solar)}
           show_value
           value_label={number(@covered_pct, precision: 1, unit: "%")}
           data-economics-covered-pct={round(@covered_pct)}

@@ -15,7 +15,7 @@ defmodule ZiwoasWeb.SensorsComponents do
 
   def sensor_cards(assigns) do
     ~H"""
-    <div class="setzkasten-stat-grid grid gap-4 sm:grid-cols-2 md:gap-6 lg:grid-cols-3">
+    <div class="setzkasten-stat-grid grid gap-3 sm:grid-cols-2 md:gap-6 lg:grid-cols-3">
       <.sensor_card
         :for={sensor <- @sensors}
         sensor={sensor}
@@ -114,7 +114,7 @@ defmodule ZiwoasWeb.SensorsComponents do
       )
 
     ~H"""
-    <div id="sensors_chart" class="grid gap-4 md:grid-cols-2 md:gap-6">
+    <div id="sensors_chart" class="grid gap-3 md:grid-cols-2 md:gap-6">
       <.chart_card
         :if={@co2_sensors != []}
         id="sensors-co2"

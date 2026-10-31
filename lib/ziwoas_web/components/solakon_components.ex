@@ -341,7 +341,7 @@ defmodule ZiwoasWeb.SolakonComponents do
     ~H"""
     <section id="solakon-controls" aria-labelledby="solakon-controls-heading">
       <.section_heading id="solakon-controls-heading">Steuerung</.section_heading>
-      <div class="grid gap-4 md:grid-cols-2 md:gap-6">
+      <div class="grid gap-3 md:grid-cols-2 md:gap-6">
         <.card id="solakon-eps" title="Außensteckdose" level={3}>
           <:actions>
             <.switch
@@ -447,7 +447,10 @@ defmodule ZiwoasWeb.SolakonComponents do
       <.empty_state :if={@panels == []} title="Noch keine Panelwerte">
         Sie erscheinen mit der ersten Messung des Wechselrichters.
       </.empty_state>
-      <div :if={@panels != []} class="setzkasten-stat-grid grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div
+        :if={@panels != []}
+        class="setzkasten-stat-grid grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4"
+      >
         <.stat
           :for={panel <- @panels}
           id={"solakon-panel-#{panel.index}"}
@@ -500,7 +503,7 @@ defmodule ZiwoasWeb.SolakonComponents do
     ~H"""
     <section id="solakon-storage" aria-labelledby="solakon-storage-heading">
       <.section_heading id="solakon-storage-heading">Speicher</.section_heading>
-      <div class="setzkasten-stat-grid grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div class="setzkasten-stat-grid grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
         <.stat
           id="solakon-storage-soc"
           label="Ladestand"

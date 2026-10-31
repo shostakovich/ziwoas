@@ -71,6 +71,20 @@ defmodule ZiwoasWeb.DashboardLiveTest do
     assert count(doc, "[phx-hook=TodayChart], [phx-hook=HistoryChart]") == 0
   end
 
+  test "without a producer Verlauf keeps the 24 h charts and drops the yield history", %{
+    conn: conn
+  } do
+    config = TestConfigs.plugs()
+    TestConfigs.put(%{config | plugs: Enum.reject(config.plugs, &(&1.role == :producer))})
+
+    doc = page(conn)
+
+    assert "Verlauf" in texts(doc, "main h2")
+    assert attrs(doc, "section.card[aria-busy=true]", "id") == ~w[today_energy today_power]
+    assert count(doc, "#history, #history_empty") == 0
+    refute "Ertrag je Tag" in texts(doc, ".card-title")
+  end
+
   test "the energy flow card is the EnergyFlow hook; its SVG keeps its running dots", %{
     conn: conn
   } do
@@ -352,6 +366,19 @@ defmodule ZiwoasWeb.DashboardLiveTest do
 
       assert attrs(doc, "#room_air_tile a", "href") == ["/sensors#room-wohnzimmer"]
       assert attrs(doc, "#room_air_tile a", "data-phx-link") == ["redirect"]
+    end
+
+    test "closes the page, after now, today, the energy flow, the plugs and the charts",
+         %{conn: conn} do
+      Repo.insert!(%Sensors.Reading{device_id: "TEST_INDOOR", taken_at: Clock.now(), co2: 800})
+
+      landmarks =
+        ~w[dashboard_hero today_heading energy_flow dashboard_plug_bar history_heading
+           today_energy today_power history room_air_tile]
+
+      ids = attrs(page(conn), Enum.map_join(landmarks, ", ", &"##{&1}"), "id")
+
+      assert ids == landmarks
     end
 
     test "follows each stored sensor reading, and a silent sensor on the next refresh",

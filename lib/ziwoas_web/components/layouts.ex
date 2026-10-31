@@ -34,20 +34,8 @@ defmodule ZiwoasWeb.Layouts do
       <:nav key={:home} label="Home" plush="house" navigate={~p"/"} />
       <:nav key={:solakon} label="PV" plush="sun" navigate={~p"/solakon"} />
       <:nav key={:switches} label="Schalten" plush="plug" navigate={~p"/switches"} />
-      <:nav
-        key={:reports}
-        label="Berichte"
-        plush="chart-column"
-        navigate={~p"/reports"}
-        dock={false}
-      />
-      <:nav
-        key={:weather}
-        label="Wetter"
-        plush="cloud-sun-rain"
-        navigate={~p"/weather"}
-        dock={false}
-      />
+      <:nav key={:reports} label="Berichte" plush="chart-column" navigate={~p"/reports"} />
+      <:nav key={:weather} label="Wetter" plush="cloud-sun-rain" navigate={~p"/weather"} />
       <:nav key={:sensors} label="Sensoren" plush="traffic-light" navigate={~p"/sensors"} />
       <:account><.theme_toggle compact /></:account>
       {render_slot(@inner_block)}

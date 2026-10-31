@@ -374,7 +374,7 @@ defmodule ZiwoasWeb.RoomAirComponents do
       id={@room.id}
       aria-labelledby={"#{@room.id}-name"}
     >
-      <div class="flex flex-col gap-4 md:gap-6">
+      <div class="flex flex-col gap-3 md:gap-6">
         <div>
           <.section_heading id={"#{@room.id}-name"} class="mb-1">{@room.name}</.section_heading>
           <.sources room={@room} latest={@latest} now={@now} zone={@zone} />
@@ -386,7 +386,7 @@ defmodule ZiwoasWeb.RoomAirComponents do
         <.tiles room={@room} />
       </div>
 
-      <section aria-labelledby={"#{@room.id}-history"} class="flex flex-col gap-4 md:gap-6">
+      <section aria-labelledby={"#{@room.id}-history"} class="flex flex-col gap-3 md:gap-6">
         <.section_heading id={"#{@room.id}-history"} level={3} class="mb-0">
           Verlauf <span class="font-normal text-base-content/70">letzte 24 h</span>
         </.section_heading>
@@ -570,7 +570,7 @@ defmodule ZiwoasWeb.RoomAirComponents do
       )
 
     ~H"""
-    <div class="setzkasten-stat-grid grid gap-4 md:grid-cols-2 md:gap-6">
+    <div class="setzkasten-stat-grid grid gap-3 md:grid-cols-2 md:gap-6">
       <.stat
         id={"#{@room.id}-co2-now"}
         label="CO₂"
@@ -663,7 +663,7 @@ defmodule ZiwoasWeb.RoomAirComponents do
     ~H"""
     <div
       :if={@quantities != []}
-      class={["setzkasten-stat-grid grid grid-cols-2 gap-4 md:gap-6", @columns]}
+      class={["setzkasten-stat-grid grid grid-cols-2 gap-3 md:gap-6", @columns]}
     >
       <.stat
         :for={quantity <- @quantities}
@@ -786,7 +786,7 @@ defmodule ZiwoasWeb.RoomAirComponents do
       )
 
     ~H"""
-    <div id={"#{@room.id}-charts"} class="grid gap-4 md:grid-cols-2 md:gap-6">
+    <div id={"#{@room.id}-charts"} class="grid gap-3 md:grid-cols-2 md:gap-6">
       <.chart_card
         :for={card <- @cards}
         id={"#{@room.id}-#{card.key}"}
