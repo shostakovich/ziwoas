@@ -17,6 +17,8 @@
     --color-error-ink: var(--color-error);
     --color-info-ink: var(--color-info);
     --setzkasten-alert-tint: 14%;
+    --color-selected: oklch(86.00% 0.130 85.00);
+    --color-selected-content: oklch(32.00% 0.070 65.00);
   }
 
   /* daisyUI draws text, focus and checked marks with the fill, so dark fills stay light (4.5:1 on base-200). */
@@ -32,6 +34,8 @@
       --color-warning-content: oklch(26.00% 0.059 60.77);
       --color-error: oklch(71.00% 0.160 33.00);
       --color-error-content: oklch(22.00% 0.070 33.00);
+      --color-selected: oklch(74.00% 0.140 72.00);
+      --color-selected-content: oklch(22.00% 0.050 60.00);
     }
   }
 
@@ -47,5 +51,7 @@
     --color-warning-content: oklch(26.00% 0.059 60.77);
     --color-error: oklch(71.00% 0.160 33.00);
     --color-error-content: oklch(22.00% 0.070 33.00);
+    --color-selected: oklch(74.00% 0.140 72.00);
+    --color-selected-content: oklch(22.00% 0.050 60.00);
   }
 }
