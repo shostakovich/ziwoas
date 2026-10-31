@@ -138,17 +138,23 @@ export function dropOffStepBound(scale) {
   if (second.value - first.value < third.value - second.value - 1e-9) scale.ticks.shift()
 }
 
-// Chart.js' own 1–2–5 steps would top a peak of 1.020 at 1.500, a third of the plot empty.
-const SNUG_FACTORS = [ 1, 2, 2.5, 5, 10 ]
-export function snugTop(values, spaces = 5) {
+// Steps snug to the peak, unlike Chart.js' 1–2–5; with a floor the top follows the step, as a fixed max bends it.
+const SNUG_FACTORS = [ 1, 2, 2.5, 5, 10, 20 ]
+export function snugTop(values, spaces = 5, min = 0) {
   const peak = values.map(Number).reduce((high, value) => (Number.isFinite(value) ? Math.max(high, value) : high), 0)
   if (peak <= 0) return {}
-  const magnitude = 10 ** Math.floor(Math.log10(peak / spaces))
+  const floor = Math.min(min, 0)
+  const magnitude = 10 ** Math.floor(Math.log10((peak - floor) / spaces))
   for (const factor of SNUG_FACTORS) {
     const step = factor * magnitude
-    const count = Math.ceil(peak / step - 1e-9)
-    if (count <= spaces) return { max: count * step, ticks: { stepSize: step, maxTicksLimit: count + 1 } }
+    const above = Math.ceil(peak / step - 1e-9)
+    const below = Math.ceil(-floor / step - 1e-9)
+    // An off-step floor stays unlabelled (dropOffStepBound), so only whole steps count.
+    if (above + Math.floor(-floor / step + 1e-9) > spaces) continue
+    const ticks = { stepSize: step, maxTicksLimit: above + below + 1 }
+    return below ? { ticks } : { max: above * step, ticks }
   }
+  return {}
 }
 
 // Series that mean the same wherever a chart shows them; ZiwoasWeb.Charts.Series mirrors this.
