@@ -15,10 +15,19 @@ defmodule Ziwoas.Plugs.AggregatorJob do
 
     Logger.info("aggregator: starting scheduled run")
 
-    Plugs.aggregate(zone, config.plugs, today: today)
-    if dir = opts[:backup_dir], do: Plugs.backup!(dir, today)
-    PvHourAggregator.run_once(zone, today)
+    step(:plugs, fn -> Plugs.aggregate(zone, config.plugs, today: today) end)
+    if dir = opts[:backup_dir], do: step(:backup, fn -> Plugs.backup!(dir, today) end)
+    step(:pv_hours, fn -> PvHourAggregator.run_once(zone, today) end)
 
     Logger.info("aggregator: done")
+  end
+
+  defp step(name, fun) do
+    fun.()
+  rescue
+    error ->
+      Logger.error(
+        "aggregator: #{name} failed: " <> Exception.format(:error, error, __STACKTRACE__)
+      )
   end
 end

@@ -33,7 +33,7 @@ defmodule Ziwoas.Plugs.AggregatorJobTest do
     assert Repo.get_by(DailySummary, date: ~D[2026-04-10])
   end
 
-  test "condenses the inverter readings of finished days into PV hours" do
+  defp seed_readings do
     from = ~U[2026-04-10 10:00:00.000000Z]
 
     for i <- 0..19 do
@@ -45,10 +45,43 @@ defmodule Ziwoas.Plugs.AggregatorJobTest do
         battery_soc_pct: 50
       })
     end
+  end
+
+  test "condenses the inverter readings of finished days into PV hours" do
+    seed_readings()
 
     perform()
 
     assert [%PvHour{started_at: ~U[2026-04-10 10:00:00.000000Z], pv_power_w: 300.0}] =
              Repo.all(PvHour)
+  end
+
+  @tag :tmp_dir
+  test "still writes the PV hours when the backup fails", %{tmp_dir: tmp_dir} do
+    seed_readings()
+    blocked = Path.join(tmp_dir, "not-a-dir")
+    File.write!(blocked, "")
+
+    log =
+      ExUnit.CaptureLog.capture_log(fn ->
+        AggregatorJob.perform(config: TestConfigs.plugs(), backup_dir: blocked)
+      end)
+
+    assert log =~ "aggregator: backup failed"
+    assert [%PvHour{pv_power_w: 300.0}] = Repo.all(PvHour)
+  end
+
+  test "still writes the PV hours when the plug aggregation fails" do
+    seed_day()
+    seed_readings()
+    config = %{TestConfigs.plugs() | plugs: :broken}
+
+    log =
+      ExUnit.CaptureLog.capture_log(fn ->
+        AggregatorJob.perform(config: config, backup_dir: nil)
+      end)
+
+    assert log =~ "aggregator: plugs failed"
+    assert [%PvHour{pv_power_w: 300.0}] = Repo.all(PvHour)
   end
 end
