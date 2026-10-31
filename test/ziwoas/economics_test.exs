@@ -109,7 +109,7 @@ defmodule Ziwoas.EconomicsTest do
     end
 
     test "refuses an amount the column cannot hold" do
-      for amount <- ["1e400", "100000000", "-100000000"] do
+      for amount <- ["1e400", "100000000", "-100000000", "99999999,995"] do
         attrs = %{"label" => "Module", "amount_eur" => amount, "spent_on" => "2026-03-01"}
         assert {:error, changeset} = Economics.create_cost_item(attrs)
         assert errors(changeset) == %{amount_eur: "Betrag ist zu groß"}, amount
@@ -172,10 +172,12 @@ defmodule Ziwoas.EconomicsTest do
     end
 
     test "refuses a price the column cannot hold" do
-      assert {:error, changeset} =
-               Economics.create_price(%{"eur_per_kwh" => "1000", "valid_from" => "2026-07-01"})
+      for price <- ["1e400", "1000", "999,999995"] do
+        assert {:error, changeset} =
+                 Economics.create_price(%{"eur_per_kwh" => price, "valid_from" => "2026-07-01"})
 
-      assert errors(changeset) == %{eur_per_kwh: "Preis ist zu hoch"}
+        assert errors(changeset) == %{eur_per_kwh: "Preis ist zu hoch"}, price
+      end
     end
 
     test "one per date" do

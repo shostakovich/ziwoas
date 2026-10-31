@@ -8,6 +8,9 @@ defmodule Ziwoas.Economics.CostItem do
 
   @type t :: %__MODULE__{}
 
+  # DECIMAL(10, 2): eight digits before the point.
+  @amount_limit 100_000_000
+
   schema "cost_items" do
     field :amount_eur, :decimal
     field :label, :string
@@ -25,13 +28,12 @@ defmodule Ziwoas.Economics.CostItem do
     |> validate_required(:label, message: "Bezeichnung angeben")
     |> validate_required(:amount_eur, message: "Betrag als Zahl angeben")
     |> validate_required(:spent_on, message: "Datum angeben")
-    |> update_change(:amount_eur, &Decimal.round(&1, 2))
+    |> update_change(:amount_eur, &DecimalInput.round_below(&1, 2, @amount_limit))
     |> validate_change(:amount_eur, &within_column/2)
   end
 
-  # DECIMAL(10, 2): eight digits before the point.
   defp within_column(field, amount) do
-    if Decimal.lt?(Decimal.abs(amount), 100_000_000),
+    if Decimal.lt?(Decimal.abs(amount), @amount_limit),
       do: [],
       else: [{field, "Betrag ist zu groß"}]
   end
