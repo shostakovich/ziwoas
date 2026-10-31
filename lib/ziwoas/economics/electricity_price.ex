@@ -10,6 +10,8 @@ defmodule Ziwoas.Economics.ElectricityPrice do
 
   @price_message "Preis muss größer als 0 sein"
   @date_message "Datum angeben"
+  # DECIMAL(8, 5): three digits before the point.
+  @price_limit 1000
 
   schema "electricity_prices" do
     field :eur_per_kwh, :decimal
@@ -28,10 +30,9 @@ defmodule Ziwoas.Economics.ElectricityPrice do
     )
     |> validate_required(:eur_per_kwh, message: @price_message)
     |> validate_required(:valid_from, message: @date_message)
-    |> update_change(:eur_per_kwh, &Decimal.round(&1, 5))
+    |> update_change(:eur_per_kwh, &DecimalInput.round_below(&1, 5, @price_limit))
     |> validate_number(:eur_per_kwh, greater_than: 0, message: @price_message)
-    # DECIMAL(8, 5): three digits before the point.
-    |> validate_number(:eur_per_kwh, less_than: 1000, message: "Preis ist zu hoch")
+    |> validate_number(:eur_per_kwh, less_than: @price_limit, message: "Preis ist zu hoch")
     |> unique_constraint(:valid_from, message: "Für dieses Datum gibt es bereits einen Preis")
   end
 end
