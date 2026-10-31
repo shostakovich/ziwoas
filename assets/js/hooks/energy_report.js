@@ -4,6 +4,8 @@ import { consumerSeries } from "../lib/consumer_series.js"
 const DAILY_ICONS_PADDING = 44
 const DETAIL_ICONS_PADDING = 38
 const IRRADIANCE_DASH = [ 4, 3 ]
+// Thinner than the measured lines, so the weather stays the backdrop.
+const IRRADIANCE_WIDTH = 1.25
 
 export default {
   mounted() {
@@ -122,6 +124,7 @@ export default {
         yAxisID: "ySolar",
         tone: "--color-solar",
         borderDash: IRRADIANCE_DASH,
+        borderWidth: IRRADIANCE_WIDTH,
         pointRadius: 3,
         tension: 0.2,
         spanGaps: true,
@@ -189,6 +192,7 @@ export default {
         yAxisID: "ySolar",
         tone: "--color-solar",
         borderDash: IRRADIANCE_DASH,
+        borderWidth: IRRADIANCE_WIDTH,
         stepped: "before",
         fill: false,
         pointRadius: 0,

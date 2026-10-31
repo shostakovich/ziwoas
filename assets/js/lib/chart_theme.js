@@ -192,7 +192,7 @@ export function thresholdLine(xBounds, { value, name, tone, textTone }) {
 }
 
 export function lineElements() {
-  return { line: { borderWidth: isPhone() ? 0.75 : 1.25 } }
+  return { line: { borderWidth: isPhone() ? 1.75 : 2 } }
 }
 
 // A series token with a "-fill" twin fills bars in it and keeps the line for their outline.
