@@ -251,7 +251,7 @@ defmodule ZiwoasWeb.SwitchesLive do
       <div class="flex flex-col gap-8">
         <section :if={@snapshots != []} id="sw_lamps" aria-labelledby="sw_lamps_heading">
           <.section_heading id="sw_lamps_heading">Lampen</.section_heading>
-          <div class="grid items-start gap-4 md:grid-cols-2 md:gap-6">
+          <div class="grid items-start gap-3 md:grid-cols-2 md:gap-6">
             <.light_card
               :for={snapshot <- @snapshots}
               snapshot={snapshot}
@@ -266,7 +266,7 @@ defmodule ZiwoasWeb.SwitchesLive do
           <.empty_state :if={@rows == []} plush="plug" title="Keine schaltbaren Steckdosen">
             Markiere Verbraucher in <code>ziwoas.yml</code> mit <code>switchable: true</code>.
           </.empty_state>
-          <div :if={@rows != []} class="grid items-start gap-4 md:grid-cols-2 md:gap-6">
+          <div :if={@rows != []} class="grid items-start gap-3 md:grid-cols-2 md:gap-6">
             <.plug_card
               :for={row <- @rows}
               row={row}

@@ -166,7 +166,7 @@ defmodule ZiwoasWeb.WeatherComponents do
     ~H"""
     <section :if={@days != []} id="weather-forecast" aria-labelledby="weather-forecast-heading">
       <.section_heading id="weather-forecast-heading">Nächste Tage</.section_heading>
-      <div class="flex flex-col gap-4 md:gap-6">
+      <div class="flex flex-col gap-3 md:gap-6">
         <.day :for={day <- @days} day={day} zone={@zone} open={@open} />
       </div>
     </section>

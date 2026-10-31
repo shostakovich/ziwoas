@@ -85,7 +85,7 @@ defmodule ZiwoasWeb.SensorsLive do
           aria-labelledby={@rooms != [] && "other-sensors-heading"}
           aria-label={@rooms == [] && "Sensoren"}
           class={[
-            "flex flex-col gap-4 md:gap-6",
+            "flex flex-col gap-3 md:gap-6",
             @rooms != [] && "border-t border-base-content/10 pt-8"
           ]}
         >

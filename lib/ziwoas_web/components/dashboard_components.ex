@@ -229,7 +229,7 @@ defmodule ZiwoasWeb.DashboardComponents do
     >
       Die Diagramme füllen sich, sobald die Steckdosen wieder melden.
     </.empty_state>
-    <div :if={@measured} class="flex flex-col gap-4 md:gap-6">
+    <div :if={@measured} class="flex flex-col gap-3 md:gap-6">
       <.chart_card
         id="today_energy"
         title="Energie je Stunde"

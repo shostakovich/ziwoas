@@ -21,7 +21,7 @@ defmodule ZiwoasWeb.Components.Shading do
       <.empty_state :if={Shading.Report.empty?(@report)} plush="sun" title="Noch keine Ausbeute">
         Die Karte erscheint, sobald die ersten Stundenwerte der PV-Leistung vorliegen.
       </.empty_state>
-      <div :if={!Shading.Report.empty?(@report)} class="flex flex-col gap-4 md:gap-6">
+      <div :if={!Shading.Report.empty?(@report)} class="flex flex-col gap-3 md:gap-6">
         <.yield_map map={@report.map} />
         <.daily_profiles profiles={@report.profiles} />
         <.panel_curves panels={@report.panels} />

@@ -93,7 +93,7 @@ defmodule ZiwoasWeb.LightsComponents do
       id={"light_card_#{@light.key}"}
       data-light-key={@light.key}
       as="article"
-      class="max-sm:[--card-p:1rem] has-[a:focus-visible]:outline-2 has-[a:focus-visible]:outline-offset-2 has-[a:focus-visible]:outline-primary"
+      class="has-[a:focus-visible]:outline-2 has-[a:focus-visible]:outline-offset-2 has-[a:focus-visible]:outline-primary"
     >
       <div class="flex items-start gap-4">
         <div class="min-w-0 flex-1 self-center">

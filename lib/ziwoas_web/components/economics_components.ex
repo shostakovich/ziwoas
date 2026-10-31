@@ -29,8 +29,8 @@ defmodule ZiwoasWeb.EconomicsComponents do
     ~H"""
     <section id="economics" aria-labelledby={@heading && "economics-heading"}>
       <.overview_heading :if={@heading} costed={@result.costed} />
-      <div class="flex flex-col gap-4">
-        <div class="setzkasten-stat-grid grid grid-cols-2 md:grid-cols-3 gap-4">
+      <div class="flex flex-col gap-3 md:gap-4">
+        <div class="setzkasten-stat-grid grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
           <.stat id="economics-cost" label="Anschaffungs­kosten" size={:sm}>
             <.euro value={@result.acquisition_cost_eur} />
           </.stat>

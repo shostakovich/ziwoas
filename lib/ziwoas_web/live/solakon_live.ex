@@ -180,7 +180,7 @@ defmodule ZiwoasWeb.SolakonLive do
           <:loading>
             <section data-async="loading" aria-labelledby="economics-heading">
               <.overview_heading />
-              <div class="setzkasten-stat-grid grid grid-cols-2 md:grid-cols-3 gap-4">
+              <div class="setzkasten-stat-grid grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
                 <.stat label="Anschaffungs­kosten" size={:sm} loading />
                 <.stat label="Ersparnis" size={:sm} loading />
                 <.stat

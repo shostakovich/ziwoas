@@ -70,7 +70,6 @@ defmodule ZiwoasWeb.SwitchesComponents do
       id={"sw_card_#{@plug.id}"}
       data-plug-id={@plug.id}
       as="article"
-      class="max-sm:[--card-p:1rem]"
     >
       <div class="flex items-start gap-4" id={"sw_head_#{@plug.id}"}>
         <div class="min-w-0 flex-1 self-center">

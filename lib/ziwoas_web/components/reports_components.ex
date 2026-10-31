@@ -100,7 +100,7 @@ defmodule ZiwoasWeb.ReportsComponents do
 
     ~H"""
     <section
-      class="setzkasten-stat-grid grid grid-cols-2 gap-4 md:grid-cols-4 md:gap-6"
+      class="setzkasten-stat-grid grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-6"
       aria-label="Zusammenfassung"
     >
       <.stat :for={tile <- @tiles} {tile} size={:sm} />
@@ -186,7 +186,7 @@ defmodule ZiwoasWeb.ReportsComponents do
 
   def charts(assigns) do
     ~H"""
-    <div class="flex flex-col gap-4 md:gap-6">
+    <div class="flex flex-col gap-3 md:gap-6">
       <.chart_card
         id="report_daily"
         title="Energie"

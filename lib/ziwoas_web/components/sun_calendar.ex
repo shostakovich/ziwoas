@@ -32,7 +32,7 @@ defmodule ZiwoasWeb.Components.SunCalendar do
       aria-labelledby={"#{@id}-heading"}
     >
       <.section_heading id={"#{@id}-heading"}>Sonnenkalender {@cal.year}</.section_heading>
-      <div class="flex flex-col gap-4 md:gap-6">
+      <div class="flex flex-col gap-3 md:gap-6">
         <.chart_card
           :for={strip <- @cal.strips}
           id={"#{@id}-#{strip.key}"}
