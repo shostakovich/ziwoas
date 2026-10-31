@@ -29,15 +29,12 @@ defmodule ZiwoasWeb.LayoutsTest do
         assert has_element?(view, "#app-shell-nav a[data-phx-link=redirect][href='#{path}']")
       end
 
-      for path <- ~w[/ /solakon /switches /sensors] do
+      for path <- ~w[/ /solakon /switches /reports /weather /sensors] do
         assert has_element?(view, "#{@dock} a[data-phx-link=redirect][href='#{path}']")
       end
 
-      refute has_element?(view, "#{@dock} a[href='/reports']")
-      refute has_element?(view, "#{@dock} a[href='/weather']")
-      assert has_element?(view, "#{@dock} button[aria-haspopup=dialog]", "Mehr")
-      assert has_element?(view, "#app-shell-more a[href='/reports']")
-      assert has_element?(view, "#app-shell-more a[href='/weather']")
+      refute has_element?(view, "#{@dock} button[aria-haspopup=dialog]")
+      refute has_element?(view, "#app-shell-more")
       assert has_element?(view, "#app-shell-nav a[aria-current=page]", "Sensoren")
     end
 
