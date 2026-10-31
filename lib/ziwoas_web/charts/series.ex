@@ -12,10 +12,14 @@ defmodule ZiwoasWeb.Charts.Series do
 
   @type semantic :: :grid | :consumption | :solar | :warning | :battery | :danger
 
+  @doc "The series a semantic one takes, e.g. for `<.bar color>`."
+  @spec of(semantic) :: pos_integer
+  def of(semantic), do: Map.fetch!(@semantic, semantic)
+
   @doc "The series numbers left for categories in a chart that shows `semantic`."
   @spec free([semantic]) :: [pos_integer]
   def free(semantic) do
-    taken = Enum.map(semantic, &Map.fetch!(@semantic, &1))
+    taken = Enum.map(semantic, &of/1)
     Enum.reject(1..@count, &(&1 in taken))
   end
 

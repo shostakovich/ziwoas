@@ -18,7 +18,14 @@ defmodule ZiwoasWeb.Charts.SeriesTest do
     assert Series.other() == "var(--color-chart-other)"
   end
 
+  test "a semantic series' own number" do
+    assert Series.of(:solar) == 2
+    assert Series.of(:consumption) == 1
+    assert Series.of(:battery) == 3
+  end
+
   test "an unknown semantic series is an error, not a silent collision" do
     assert_raise KeyError, fn -> Series.free([:sun]) end
+    assert_raise KeyError, fn -> Series.of(:sun) end
   end
 end

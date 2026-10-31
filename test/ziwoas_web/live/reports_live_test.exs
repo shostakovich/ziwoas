@@ -220,7 +220,7 @@ defmodule ZiwoasWeb.ReportsLiveTest do
     assert length(payload(doc, "ratios")["ratios"]) == 7
   end
 
-  test "the ranking: producers and consumers as groups, consumers by place, shares in one tone",
+  test "the ranking: producers and consumers as groups, consumers by place, shares by role",
        %{conn: conn} do
     TestConfigs.put(
       TestConfigs.plugs("""
@@ -249,6 +249,12 @@ defmodule ZiwoasWeb.ReportsLiveTest do
     assert texts(fridge, "td") == ["2", "Fridge 39 %", "0,50 kWh"]
     assert attr(fridge, "[data-role=share] progress", "aria-label") == ["Fridge"]
     assert count(doc, "[data-role=share][data-series]") == 0
+
+    assert [solar] = attr(doc, "tbody#ranking-producers progress", "class")
+    assert solar =~ "text-chart-2-fill"
+
+    assert [_, _] = consumption = attr(doc, "tbody#ranking-consumers progress", "class")
+    assert Enum.all?(consumption, &(&1 =~ "text-chart-1-fill"))
   end
 
   test "the power chart names its resolution and range", %{conn: conn} do
