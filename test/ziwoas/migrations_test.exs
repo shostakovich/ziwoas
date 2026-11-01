@@ -11,7 +11,8 @@ defmodule Ziwoas.MigrationsTest do
     20_261_006_120_000,
     20_261_006_130_000,
     20_261_006_140_000,
-    20_261_008_120_000
+    20_261_008_120_000,
+    20_261_101_120_000
   ]
 
   defp open!(path) do
@@ -69,5 +70,19 @@ defmodule Ziwoas.MigrationsTest do
 
     assert Repo.query!("SELECT humidity, typeof(humidity) FROM sensor_readings").rows ==
              [[48.2, "real"]]
+  end
+
+  test "every lamp already stored is a Govee lamp", %{tmp_dir: dir} do
+    repo = open!(Path.join(dir, "vendor.sqlite3"))
+    TestMigrations.run!(repo, to: 20_261_008_120_000)
+
+    Repo.query!("""
+    INSERT INTO lights (key, name, inserted_at, updated_at)
+    VALUES ('K1', 'Stehlampe', '2026-10-08T12:00:00.000000Z', '2026-10-08T12:00:00.000000Z')
+    """)
+
+    TestMigrations.run!(repo)
+
+    assert Repo.query!("SELECT vendor FROM lights").rows == [["govee"]]
   end
 end

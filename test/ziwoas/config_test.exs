@@ -444,4 +444,13 @@ defmodule Ziwoas.ConfigTest do
              "K1" => %{name: "Lampe"}
            }
   end
+
+  test "hue takes the bridge's host and the application key, which never shows" do
+    cfg = load(@minimal <> "hue:\n  host: 192.0.2.10\n  application_key: hue-secret\n")
+
+    assert %{host: "192.0.2.10", application_key: "hue-secret"} = cfg.hue
+    refute inspect(cfg.hue) =~ "hue-secret"
+    assert load(@minimal).hue == nil
+    assert error(@minimal <> "hue: bridge\n") =~ "hue must be a mapping"
+  end
 end

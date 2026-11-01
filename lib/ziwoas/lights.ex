@@ -61,6 +61,9 @@ defmodule Ziwoas.Lights do
   @spec get_by_key!(String.t()) :: Light.t()
   def get_by_key!(key), do: Repo.get_by!(Light, key: key)
 
+  @spec keys(:govee | :hue) :: [String.t()]
+  def keys(vendor), do: Repo.all(from l in Light, where: l.vendor == ^vendor, select: l.key)
+
   @spec snapshots() :: [Snapshot.t()]
   def snapshots, do: Repo.all(from l in Light, order_by: l.name) |> snapshots_of()
 
@@ -125,6 +128,7 @@ defmodule Ziwoas.Lights do
         zones: blank_to_nil(lamp[:zones]),
         firmware_scenes: blank_to_nil(lamp[:scenes])
       }
+      |> put_unless_nil(:vendor, lamp[:vendor])
       |> put_unless_nil(:sku, present(lamp[:sku]))
       |> put_unless_nil(:color_temp_min_k, lamp[:color_temp_min_k])
       |> put_unless_nil(:color_temp_max_k, lamp[:color_temp_max_k])

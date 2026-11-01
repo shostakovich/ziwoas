@@ -32,6 +32,9 @@ defmodule Ziwoas.CollectorTest do
             control_enabled: true
           govee:
             api_key: k
+          hue:
+            host: 192.0.2.10
+            application_key: hue-key
           sensors:
             - id: "19B8E27966467D7A"
               name: Raumluft
@@ -46,6 +49,7 @@ defmodule Ziwoas.CollectorTest do
     @config
     | solakon: nil,
       govee: nil,
+      hue: nil,
       sensors: [],
       plugs: Enum.reject(@config.plugs, &(&1.driver == :fritz_dect))
   }
@@ -64,6 +68,7 @@ defmodule Ziwoas.CollectorTest do
              {Ziwoas.Fritz.Bridge, "washer"},
              {Task.Supervisor, nil},
              {Ziwoas.Govee.Bridge, nil},
+             {Ziwoas.Hue.Bridge, nil},
              {Task.Supervisor, nil},
              {Ziwoas.Lights.PowerUp, nil},
              {Ziwoas.Sensors.Sen66, "19B8E27966467D7A"}
@@ -127,5 +132,30 @@ defmodule Ziwoas.CollectorTest do
       end)
 
     assert log =~ "missing govee.api_key"
+  end
+
+  test "the Hue bridge gets its host and key" do
+    assert {Ziwoas.Hue.Bridge, hue: %{host: "192.0.2.10", application_key: "hue-key"}} =
+             Enum.find(Collector.children(@config), &match?({Ziwoas.Hue.Bridge, _}, &1))
+  end
+
+  test "Hue lamps alone get the power-up too" do
+    assert ids(Collector.children(%{@bare | hue: @config.hue})) == [
+             Ziwoas.Shelly.Server,
+             {Ziwoas.Hue.Bridge, nil},
+             {Task.Supervisor, nil},
+             {Ziwoas.Lights.PowerUp, nil}
+           ]
+  end
+
+  test "a Hue config without host or key starts no bridge" do
+    for hue <- [%{@config.hue | host: nil}, %{@config.hue | application_key: ""}] do
+      log =
+        capture_log(fn ->
+          assert Collector.children(%{@bare | hue: hue}) == [hd(Collector.children(@bare))]
+        end)
+
+      assert log =~ "hue.host and hue.application_key are both needed"
+    end
   end
 end

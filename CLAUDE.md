@@ -1,7 +1,7 @@
 # CLAUDE.md – ZiWoAS
 
 Self-hosted energy and home automation: Solakon inverter, Shelly plugs, Fritz!Box DECT,
-Govee lights, sensors, weather. Domain vocabulary lives in [`CONTEXT.md`](CONTEXT.md),
+Govee and Hue lights, sensors, weather. Domain vocabulary lives in [`CONTEXT.md`](CONTEXT.md),
 decisions in [`docs/adr/`](docs/adr/).
 
 ## Setup

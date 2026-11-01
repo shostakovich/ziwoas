@@ -226,6 +226,21 @@ defmodule Ziwoas.Config do
     end
   end
 
+  defmodule Hue do
+    @moduledoc false
+    use Ecto.Schema
+    import Ecto.Changeset
+    alias Ziwoas.Config.Types
+
+    @primary_key false
+    embedded_schema do
+      field :host, Types.Text
+      field :application_key, Types.Text, redact: true
+    end
+
+    def changeset(hue, params), do: cast(hue, params, [:host, :application_key])
+  end
+
   @primary_key false
   embedded_schema do
     embeds_one :location, Location
@@ -237,6 +252,7 @@ defmodule Ziwoas.Config do
     embeds_one :trmnl, Trmnl
     embeds_one :solakon, Solakon
     embeds_one :govee, Govee
+    embeds_one :hue, Hue
   end
 
   @type t :: %__MODULE__{
@@ -248,7 +264,8 @@ defmodule Ziwoas.Config do
           sensors: [Sensor.t()],
           trmnl: %Trmnl{},
           solakon: %Solakon{} | nil,
-          govee: %Govee{} | nil
+          govee: %Govee{} | nil,
+          hue: %Hue{} | nil
         }
 
   @spec fetch() :: {:ok, t} | {:error, String.t()}
@@ -351,6 +368,7 @@ defmodule Ziwoas.Config do
     |> cast_embed(:trmnl, invalid_message: "must be a mapping")
     |> cast_embed(:solakon, invalid_message: "must be a mapping")
     |> cast_embed(:govee, invalid_message: "must be a mapping")
+    |> cast_embed(:hue, invalid_message: "must be a mapping")
     |> validate_plugs_given(raw)
     |> validate_unique(:plugs, "plug")
     |> validate_unique(:sensors, "sensor")

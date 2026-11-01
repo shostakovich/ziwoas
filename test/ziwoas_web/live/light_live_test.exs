@@ -121,6 +121,23 @@ defmodule ZiwoasWeb.LightLiveTest do
              1
   end
 
+  test "no white tab without white support; such a lamp opens on colour, or on its scenes",
+       %{conn: conn} do
+    light!(%{key: "C1", supports_color: true, supports_color_temp: false})
+    doc = page(conn, "C1")
+
+    assert count(doc, "#light_panel_white") == 0
+    assert count(doc, "#light_panel_switch button[phx-value-value=white]") == 0
+    assert count(doc, "#light_panel_switch button[phx-value-value=color][aria-pressed=true]") == 1
+
+    light!(%{key: "P1", supports_color: false, supports_color_temp: false})
+
+    assert count(
+             page(conn, "P1"),
+             "#light_panel_switch button[phx-value-value=scenes][aria-pressed=true]"
+           ) == 1
+  end
+
   test "scenes: a button per firmware scene, or a hint", %{conn: conn} do
     light!(%{key: "ABCDEF05", firmware_scenes: ["Forest", "Aurora"]})
     doc = page(conn, "ABCDEF05")

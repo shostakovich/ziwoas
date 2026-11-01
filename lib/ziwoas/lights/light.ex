@@ -16,6 +16,7 @@ defmodule Ziwoas.Lights.Light do
     field :sku, :string
     field :supports_color, :boolean, default: false
     field :supports_color_temp, :boolean, default: false
+    field :vendor, Ecto.Enum, values: [:govee, :hue], default: :govee
     field :zones, {:array, :string}
     timestamps()
   end

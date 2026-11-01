@@ -1,7 +1,6 @@
 defmodule Ziwoas.Lights.Power do
   @moduledoc false
-  alias Ziwoas.Govee.Bridge
-  alias Ziwoas.Lights.Light
+  alias Ziwoas.Lights.{Bridge, Light}
   alias Ziwoas.Plugs
   alias Ziwoas.Plugs.Plug
 
@@ -29,7 +28,7 @@ defmodule Ziwoas.Lights.Power do
   defp of_plug(light, plug) do
     cond do
       relay_off?(Plugs.states([plug.id])[plug.id]) -> {:unpowered, plug}
-      Bridge.silent?(light.key) -> {:silent, plug}
+      Bridge.silent?(light) -> {:silent, plug}
       true -> :powered
     end
   end
