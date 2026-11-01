@@ -29,6 +29,9 @@ defmodule ZiwoasWeb.HueLampsTest do
     for name <- ["Stehlampe", "Kerzenlampe", "Twilight Back", "Twilight Front", "Farblicht"],
         do: assert(has_element?(view, "[id^=light_card_]", name))
 
+    assert has_element?(view, "#light_card_#{key(twilight_back())} img[src*='lamp_bedside_']")
+    assert has_element?(view, "#light_card_#{key(colour_only())} img[src*='lamp_cone_off']")
+
     view |> element("#light_card_ABCDEF01 button[aria-pressed]") |> render_click()
     render_async(view)
     assert_received {:govee, "ABCDEF01", {:power, true}}

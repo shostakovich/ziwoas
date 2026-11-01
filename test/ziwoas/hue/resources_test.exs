@@ -29,6 +29,7 @@ defmodule Ziwoas.Hue.ResourcesTest do
                lamps[name]
 
       assert "fire" in lamps[name].scenes
+      assert lamps[name].sku == "LGT001"
     end
   end
 
@@ -54,7 +55,7 @@ defmodule Ziwoas.Hue.ResourcesTest do
     index = Resources.index(["x", %{"id" => 1, "type" => "light"}, light, device])
 
     assert Map.keys(index) == ["d1", "l1"]
-    assert [%{key: "l1", name: nil}] = Resources.lamps(index)
+    assert [%{key: "l1", name: nil, sku: nil}] = Resources.lamps(index)
   end
 
   describe "an update" do

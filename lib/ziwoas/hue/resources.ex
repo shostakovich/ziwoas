@@ -44,8 +44,11 @@ defmodule Ziwoas.Hue.Resources do
         _single -> own
       end
 
-    Light.lamp(light, name)
+    light |> Light.lamp(name) |> Map.put(:sku, model_id(device))
   end
+
+  defp model_id(%{"product_data" => %{"model_id" => model_id}}), do: model_id
+  defp model_id(_device), do: nil
 
   @spec state(t, String.t()) :: map
   def state(resources, id), do: Light.state(resources[id], reachable?(resources, id))

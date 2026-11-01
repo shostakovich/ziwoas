@@ -25,7 +25,10 @@ defmodule ZiwoasWeb.LightsComponents do
     "H60B0" => "lamp-uplighter",
     "H607C" => "lamp-floor",
     "H6038" => "lamp-sconce",
-    "H60A6" => "lamp-ceiling"
+    "H60A6" => "lamp-ceiling",
+    "LGT001" => "lamp-bedside",
+    "LLC001" => "lamp-cone",
+    "LLC020" => "lamp-bowl"
   }
 
   @zone_labels %{
