@@ -20,7 +20,8 @@ defmodule Ziwoas.Hue.BridgeTest do
       put_state: fn key, state ->
         send(test, {:state, key, state})
         {:ok, state}
-      end
+      end,
+      stored_keys: fn -> [] end
     ]
 
     HueStub.start_bridge!(Keyword.merge(defaults, opts))
@@ -127,6 +128,15 @@ defmodule Ziwoas.Hue.BridgeTest do
 
     :sys.get_state(bridge)
     assert_received {:hue, :get, "/clip/v2/resource"}
+  end
+
+  test "a stored lamp the bridge no longer has is stored off and unreachable" do
+    start_bridge!(stored_keys: fn -> ["GONE", key(candle())] end)
+
+    assert_received {:state, "GONE", %{on: false, reachable: false}}
+    candle = key(candle())
+    assert_received {:state, ^candle, %{on: true}}
+    refute_received {:state, ^candle, %{on: false}}
   end
 
   test "an added resource ZiWoAS does not keep reads nothing" do

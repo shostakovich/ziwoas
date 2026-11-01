@@ -61,6 +61,9 @@ defmodule Ziwoas.Lights do
   @spec get_by_key!(String.t()) :: Light.t()
   def get_by_key!(key), do: Repo.get_by!(Light, key: key)
 
+  @spec keys(:govee | :hue) :: [String.t()]
+  def keys(vendor), do: Repo.all(from l in Light, where: l.vendor == ^vendor, select: l.key)
+
   @spec snapshots() :: [Snapshot.t()]
   def snapshots, do: Repo.all(from l in Light, order_by: l.name) |> snapshots_of()
 

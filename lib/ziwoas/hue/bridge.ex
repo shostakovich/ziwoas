@@ -61,6 +61,7 @@ defmodule Ziwoas.Hue.Bridge do
       client: Client.new(hue.host, hue.application_key, Keyword.get(opts, :req, [])),
       put_lamp: Keyword.get(opts, :put_lamp, &Lights.put_lamp/1),
       put_state: Keyword.get(opts, :put_state, &Lights.put_state/2),
+      stored_keys: Keyword.get(opts, :stored_keys, fn -> Lights.keys(:hue) end),
       resources: %{},
       watchers: %{},
       stream: nil,
@@ -186,8 +187,17 @@ defmodule Ziwoas.Hue.Bridge do
         {:error, reason} <- [state.put_lamp.(lamp)],
         do: Logger.warning("Hue bridge: lamp #{lamp.key} refused: #{inspect(reason)}")
 
-    publish(state, Resources.light_ids(state.resources))
+    light_ids = Resources.light_ids(state.resources)
+    publish(state, light_ids)
+    unreach_removed(state, MapSet.new(light_ids, &Light.key/1))
     state
+  end
+
+  defp unreach_removed(state, present) do
+    for key <- state.stored_keys.(),
+        not MapSet.member?(present, key),
+        {:error, reason} <- [state.put_state.(key, %{on: false, reachable: false})],
+        do: Logger.error("Hue bridge: state of #{key} not stored: #{inspect(reason)}")
   end
 
   defp stream_part(_part, %{stream: nil} = state), do: state

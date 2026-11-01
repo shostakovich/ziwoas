@@ -40,7 +40,8 @@ defmodule Ziwoas.Lights.BridgeTest do
     setup do
       HueStub.start_bridge!(
         put_lamp: fn _lamp -> {:ok, nil} end,
-        put_state: fn _key, state -> {:ok, state} end
+        put_state: fn _key, state -> {:ok, state} end,
+        stored_keys: fn -> [] end
       )
 
       :ok
