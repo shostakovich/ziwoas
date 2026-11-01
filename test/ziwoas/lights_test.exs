@@ -51,6 +51,11 @@ defmodule Ziwoas.LightsTest do
       assert Repo.aggregate(Light, :count) == 1
     end
 
+    test "a lamp the Govee bridge reports is a Govee lamp" do
+      Lights.put_lamp(@lamp)
+      assert [%Light{vendor: :govee}] = Repo.all(Light)
+    end
+
     test "a lamp whose values do not fit is refused" do
       assert {:error, %Ecto.Changeset{}} = Lights.put_lamp(%{@lamp | color_temp_min_k: "warm"})
       assert Repo.all(Light) == []

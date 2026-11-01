@@ -14,18 +14,14 @@ defmodule Ziwoas.Govee.Bridge do
   @silent_after_polls 3
   @watch_poll_ms 2_000
 
-  @type verb ::
-          {:power, boolean}
-          | {:brightness, 1..100}
-          | {:color, %{r: 0..255, g: 0..255, b: 0..255}}
-          | {:color_temp, pos_integer}
-          | {:zone, String.t(), boolean}
-          | {:scene, String.t()}
+  @behaviour Ziwoas.Lights.Bridge
 
   def start_link(opts),
     do: GenServer.start_link(__MODULE__, opts, name: Keyword.get(opts, :name, __MODULE__))
 
-  @spec command(String.t(), verb, GenServer.server()) :: :ok | {:error, term}
+  @impl Ziwoas.Lights.Bridge
+  @spec command(String.t(), Ziwoas.Lights.Bridge.verb(), GenServer.server()) ::
+          :ok | {:error, term}
   def command(key, verb, server \\ __MODULE__) do
     case GenServer.whereis(server) do
       nil -> {:error, :unavailable}
@@ -38,6 +34,7 @@ defmodule Ziwoas.Govee.Bridge do
   end
 
   @doc "Only a lamp once heard on the LAN can fall silent; without a bridge none is."
+  @impl Ziwoas.Lights.Bridge
   @spec silent?(String.t(), GenServer.server()) :: boolean
   def silent?(key, server \\ __MODULE__) do
     case call(server, {:silent?, key}) do
@@ -47,10 +44,12 @@ defmodule Ziwoas.Govee.Bridge do
   end
 
   @doc "The watcher gets `{:lamp_heard, key, telemetry | nil}` for every LAN reply of the lamp."
+  @impl Ziwoas.Lights.Bridge
   @spec watch(String.t(), GenServer.server(), pid) :: :ok | {:error, :unavailable}
   def watch(key, server \\ __MODULE__, watcher \\ self()),
     do: call(server, {:watch, key, watcher})
 
+  @impl Ziwoas.Lights.Bridge
   @spec unwatch(String.t(), GenServer.server()) :: :ok
   def unwatch(key, server \\ __MODULE__) do
     call(server, {:unwatch, key})

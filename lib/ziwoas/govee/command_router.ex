@@ -10,7 +10,7 @@ defmodule Ziwoas.Govee.CommandRouter do
 
   @type route :: {:lan, [tuple]} | {:api, keyword}
 
-  @spec route(Device.t(), Ziwoas.Govee.Bridge.verb()) :: {:ok, route} | {:error, :unknown_scene}
+  @spec route(Device.t(), Ziwoas.Lights.Bridge.verb()) :: {:ok, route} | {:error, :unknown_scene}
   def route(device, {:power, on}) do
     if lan?(device),
       do: lan(device, {:turn, device.ip, on}),
@@ -54,7 +54,7 @@ defmodule Ziwoas.Govee.CommandRouter do
     end
   end
 
-  @spec changes(Ziwoas.Govee.Bridge.verb(), map | nil) :: map
+  @spec changes(Ziwoas.Lights.Bridge.verb(), map | nil) :: map
   def changes({:power, on}, _published), do: %{on: on}
   def changes({:brightness, value}, _published), do: %{on: true, brightness: value}
   def changes({:color, rgb}, _published), do: %{on: true, color: rgb, color_temp_k: nil}

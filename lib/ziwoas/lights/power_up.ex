@@ -5,8 +5,7 @@ defmodule Ziwoas.Lights.PowerUp do
   require Logger
 
   alias Ziwoas.{Clock, Lights, Switching}
-  alias Ziwoas.Govee.Bridge
-  alias Ziwoas.Lights.{Commands, Light}
+  alias Ziwoas.Lights.{Bridge, Commands, Light}
   alias Ziwoas.Plugs.Plug
 
   @deadline_s 90
@@ -102,7 +101,7 @@ defmodule Ziwoas.Lights.PowerUp do
   end
 
   defp start_attempt(state, light, plug, command) do
-    case Bridge.watch(light.key) do
+    case Bridge.watch(light) do
       :ok ->
         attempt = %{
           light: light,
@@ -152,7 +151,7 @@ defmodule Ziwoas.Lights.PowerUp do
 
     cond do
       DateTime.diff(Clock.now(), attempt.started_at) < @deadline_s ->
-        Bridge.watch(key)
+        Bridge.watch(attempt.light)
         attempt = if attempt.heard, do: deliver(attempt), else: attempt
         put_attempt(state, %{attempt | tick: schedule_tick(state, key, attempt.tick)})
 
@@ -207,9 +206,10 @@ defmodule Ziwoas.Lights.PowerUp do
 
   # The news goes out before the watch ends: whoever sees the watch end has been told.
   defp drop(state, key, tell) do
-    Process.cancel_timer(state.attempts[key].tick)
+    attempt = state.attempts[key]
+    Process.cancel_timer(attempt.tick)
     tell.(key)
-    Bridge.unwatch(key)
+    Bridge.unwatch(attempt.light)
     %{state | attempts: Map.delete(state.attempts, key)}
   end
 

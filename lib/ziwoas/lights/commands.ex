@@ -4,8 +4,7 @@ defmodule Ziwoas.Lights.Commands do
   import Ecto.Query
 
   alias Ziwoas.{Config, Repo}
-  alias Ziwoas.Govee.Bridge
-  alias Ziwoas.Lights.{Light, Power, PowerUp, State}
+  alias Ziwoas.Lights.{Bridge, Light, Power, PowerUp, State}
 
   @types %{
     "turn" => %{on: :boolean},
@@ -163,7 +162,7 @@ defmodule Ziwoas.Lights.Commands do
   end
 
   defp send_verb(light, verb) do
-    case Bridge.command(light.key, verb) do
+    case Bridge.command(light, verb) do
       :ok -> :ok
       {:error, _reason} -> {:error, :unreachable}
     end
