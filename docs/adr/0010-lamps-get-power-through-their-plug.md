@@ -37,3 +37,24 @@ command (#176).
 - A lamp the LAN never hears (cloud only) is never reachable by this rule; on a plug that is off
   it times out after 90 s.
 - The plug that powers a lamp keeps its own schedule, which knows nothing of the lamp.
+
+## Addendum: Hue lamps (#203)
+
+Hue lamps hang on Shelly plugs too, and the rule applies to them unchanged; only heard and silent
+are defined through the Hue Bridge instead of the LAN.
+
+- **The relay stays the first signal.** The bridge notices a lamp without power only after a
+  while and keeps reporting its last state meanwhile, so a lamp whose relay is off is unpowered,
+  whatever the bridge says.
+- **Silent** means the bridge reports the lamp's Zigbee connection as anything but `connected`.
+- **Heard** means the first event the bridge sends for the lamp, its light or its device's Zigbee
+  connection, that leaves it connected. An event reporting it not connected is not hearing it,
+  and neither is the full read after a reconnect, which may still show a lamp just cut off as
+  connected.
+- Hearing carries the lamp's state, so the commands, sent after the first event, are confirmed
+  by the event that reports the lamp on.
+
+### Consequences
+
+- A lamp whose plug was off too briefly for the bridge to notice may come back without the
+  bridge sending an event for it; it then times out after 90 s like a lamp never heard.

@@ -6,7 +6,7 @@ A project by [zipfelmaus.com](https://zipfelmaus.com).
 
 ZiWoAS is self-hosted energy and home automation: it measures consumption and generation
 through Shelly and Fritz!DECT plugs, reads and controls the Solakon ONE inverter over
-Modbus TCP, switches plugs on a schedule, controls Govee lamps, collects SwitchBot sensors and the
+Modbus TCP, switches plugs on a schedule, controls Govee and Philips Hue lamps, collects SwitchBot sensors and the
 weather (Bright Sky) and sends widgets to TRMNL. All in one Phoenix 1.8 app with LiveView and
 SQLite. The UI is in German.
 
@@ -15,7 +15,7 @@ SQLite. The UI is in German.
 - Erlang/OTP and Elixir in the versions from [`.tool-versions`](.tool-versions)
   (e.g. with `asdf` or `mise`). No Node needed.
 - For real devices: Shelly Gen2+ plugs, optionally a Fritz!Box, a Solakon ONE, a Govee API key,
-  a SwitchBot token, TRMNL webhooks.
+  a Hue Bridge (API v2), a SwitchBot token, TRMNL webhooks.
 
 ## Setup and start
 

@@ -43,6 +43,14 @@ location:
 #       name: Uplighter
 #       room: Wohnzimmer
 
+# Philips Hue Bridge (local API v2, ADR-0012). Omit to disable; the bridge starts only with
+# both keys. Get the application key once: press the bridge's link button, then within 30 s
+#   curl -k -X POST https://<bridge host>/api -d '{"devicetype":"ziwoas#home","generateclientkey":true}'
+# and copy "username" from the answer.
+# hue:
+#   host: 192.168.1.60
+#   application_key: "your-hue-application-key"
+
 # Shelly: set Settings → Outbound Websocket to ws://<ziwoas host>:<SHELLY_PORT>/shelly/<id>.
 plugs:
   - id: bkw
