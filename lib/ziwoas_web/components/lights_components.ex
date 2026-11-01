@@ -42,6 +42,20 @@ defmodule ZiwoasWeb.LightsComponents do
 
   @zone_columns %{1 => "grid-cols-1", 2 => "grid-cols-2"}
 
+  @hue_effects %{
+    "no_effect" => "Kein Effekt",
+    "candle" => "Kerze",
+    "fire" => "Kaminfeuer",
+    "prism" => "Prisma",
+    "sparkle" => "Funkeln",
+    "opal" => "Opal",
+    "glisten" => "Glitzern",
+    "underwater" => "Unterwasser",
+    "cosmos" => "Kosmos",
+    "sunbeam" => "Sonnenstrahl",
+    "enchant" => "Zauber"
+  }
+
   @palettes [
     {~r/aurora|nordlicht|northern/u,
      ["hsl(150 70% 45%)", "hsl(175 70% 42%)", "hsl(270 55% 55%)"]},
@@ -66,7 +80,8 @@ defmodule ZiwoasWeb.LightsComponents do
      ["hsl(235 50% 32%)", "hsl(265 45% 48%)"]},
     {~r/snow|schnee|\bice\b|\beis\b|winter|frost/u, ["hsl(195 60% 88%)", "hsl(210 55% 68%)"]},
     {~r/christmas|weihnacht|xmas/u, ["hsl(355 75% 48%)", "hsl(140 55% 35%)"]},
-    {~r/autumn|herbst|\bfall\b/u, ["hsl(25 80% 50%)", "hsl(45 85% 52%)"]}
+    {~r/autumn|herbst|\bfall\b/u, ["hsl(25 80% 50%)", "hsl(45 85% 52%)"]},
+    {~r/\Ano_effect\z/u, ["hsl(45 35% 92%)", "hsl(40 25% 78%)"]}
   ]
 
   attr :snapshot, Snapshot, required: true
@@ -492,16 +507,21 @@ defmodule ZiwoasWeb.LightsComponents do
   attr :hidden, :boolean, default: false
 
   def scenes(assigns) do
-    assigns = assign(assigns, :scenes, Lights.scenes(assigns.light))
+    assigns =
+      assign(assigns,
+        scenes: Lights.scenes(assigns.light),
+        kind: scenes_kind(assigns.light),
+        vendor: vendor_name(assigns.light)
+      )
 
     ~H"""
     <div id="light_panel_scenes" data-panel="scenes" hidden={@hidden}>
       <%= if @scenes != [] do %>
-        <p id="light_scenes_label" class="mb-3 text-sm font-medium">Govee-Szenen</p>
+        <p id="light_scenes_label" class="mb-3 text-sm font-medium">{@vendor}-{@kind}</p>
         <.list class="ld-scenes" aria-labelledby="light_scenes_label">
           <.list_row
             :for={scene <- @scenes}
-            title={scene}
+            title={scene_label(@light, scene)}
             on_click={JS.push("light_command", value: %{command: "effect", effect: scene})}
           >
             <:leading>
@@ -510,11 +530,29 @@ defmodule ZiwoasWeb.LightsComponents do
           </.list_row>
         </.list>
       <% else %>
-        <.empty_state title="Keine Szenen">Diese Lampe meldet keine Govee-Szenen.</.empty_state>
+        <.empty_state title={"Keine #{@kind}"}>
+          Diese Lampe meldet keine {@vendor}-{@kind}.
+        </.empty_state>
       <% end %>
     </div>
     """
   end
+
+  @doc "What a lamp's vendor calls the presets that take the place of Govee's scenes."
+  @spec scenes_kind(Ziwoas.Lights.Light.t()) :: String.t()
+  def scenes_kind(%{vendor: :hue}), do: "Effekte"
+  def scenes_kind(_light), do: "Szenen"
+
+  defp vendor_name(%{vendor: :hue}), do: "Hue"
+  defp vendor_name(_light), do: "Govee"
+
+  defp scene_label(%{vendor: :hue}, effect),
+    do:
+      Map.get_lazy(@hue_effects, effect, fn ->
+        effect |> String.replace("_", " ") |> String.capitalize()
+      end)
+
+  defp scene_label(_light, scene), do: scene
 
   defp scene_gradient(name),
     do: "linear-gradient(135deg, #{Enum.join(scene_colours(name), ", ")})"

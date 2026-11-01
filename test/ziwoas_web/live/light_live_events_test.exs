@@ -16,6 +16,7 @@ defmodule ZiwoasWeb.LightLiveEventsTest do
         key: "UP1",
         name: "Uplighter",
         sku: "H60B0",
+        supports_color_temp: true,
         zones: ~w[rippleLightToggle sideLightToggle bottomLightToggle],
         firmware_scenes: ["Lesen"]
       })

@@ -18,6 +18,7 @@ defmodule ZiwoasWeb.LightLive do
     end
 
     values = lamp_values(snapshot)
+    panels = panels_of(light)
 
     {:ok,
      socket
@@ -26,8 +27,8 @@ defmodule ZiwoasWeb.LightLive do
        page_title: light.name,
        light: light,
        plugs: Lights.lamp_plugs(),
-       panels: panels_of(light),
-       panel: if(values.color && light.supports_color, do: "color", else: "white"),
+       panels: panels,
+       panel: if(values.color && light.supports_color, do: "color", else: elem(hd(panels), 1)),
        power_snapshot: snapshot,
        revert: nil,
        toast: toast_assigns(light, :clear),
@@ -37,9 +38,9 @@ defmodule ZiwoasWeb.LightLive do
   end
 
   defp panels_of(light) do
-    [{"Weiß", "white"}] ++
+    if(light.supports_color_temp, do: [{"Weiß", "white"}], else: []) ++
       if(light.supports_color, do: [{"Farbe", "color"}], else: []) ++
-      [{"Szenen", "scenes"}]
+      [{scenes_kind(light), "scenes"}]
   end
 
   @impl true
@@ -213,6 +214,7 @@ defmodule ZiwoasWeb.LightLive do
 
           <.light_panels panels={@panels} active={@panel}>
             <.white_panel
+              :if={@light.supports_color_temp}
               light={@light}
               kelvin={@kelvin}
               revert={@revert}

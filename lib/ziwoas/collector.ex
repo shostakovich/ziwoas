@@ -22,7 +22,9 @@ defmodule Ziwoas.Collector do
 
   @spec children(Config.t()) :: [Supervisor.child_spec()]
   def children(%Config{} = config),
-    do: shelly(config) ++ solakon(config) ++ fritz(config) ++ govee(config) ++ sen66(config)
+    do:
+      shelly(config) ++
+        solakon(config) ++ fritz(config) ++ lights(govee(config) ++ hue(config)) ++ sen66(config)
 
   defp shelly(config) do
     if Enum.any?(config.plugs, &(&1.driver == :shelly)),
@@ -77,10 +79,26 @@ defmodule Ziwoas.Collector do
   defp govee(%Config{govee: govee}),
     do: [
       {Task.Supervisor, name: Ziwoas.Govee.Tasks},
-      {Ziwoas.Govee.Bridge, govee: govee},
-      {Task.Supervisor, name: Ziwoas.Lights.Tasks},
-      {Ziwoas.Lights.PowerUp, []}
+      {Ziwoas.Govee.Bridge, govee: govee}
     ]
+
+  defp lights([]), do: []
+
+  defp lights(bridges),
+    do: bridges ++ [{Task.Supervisor, name: Ziwoas.Lights.Tasks}, {Ziwoas.Lights.PowerUp, []}]
+
+  defp hue(%Config{hue: nil}), do: []
+
+  defp hue(%Config{hue: %{host: host, application_key: key}})
+       when host in [nil, ""] or key in [nil, ""] do
+    Logger.warning(
+      "Hue bridge disabled: hue.host and hue.application_key are both needed in ziwoas.yml"
+    )
+
+    []
+  end
+
+  defp hue(%Config{hue: hue}), do: [{Ziwoas.Hue.Bridge, hue: hue}]
 
   defp sen66(config),
     do:

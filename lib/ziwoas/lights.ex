@@ -125,6 +125,7 @@ defmodule Ziwoas.Lights do
         zones: blank_to_nil(lamp[:zones]),
         firmware_scenes: blank_to_nil(lamp[:scenes])
       }
+      |> put_unless_nil(:vendor, lamp[:vendor])
       |> put_unless_nil(:sku, present(lamp[:sku]))
       |> put_unless_nil(:color_temp_min_k, lamp[:color_temp_min_k])
       |> put_unless_nil(:color_temp_max_k, lamp[:color_temp_max_k])

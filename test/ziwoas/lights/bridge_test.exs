@@ -1,7 +1,9 @@
 defmodule Ziwoas.Lights.BridgeTest do
   use ExUnit.Case, async: false
 
-  alias Ziwoas.FakeGoveeBridge
+  import Ziwoas.HueFixtures
+
+  alias Ziwoas.{FakeGoveeBridge, HueStub}
   alias Ziwoas.Lights.{Bridge, Light}
 
   @light %Light{key: "FL1", vendor: :govee}
@@ -33,6 +35,32 @@ defmodule Ziwoas.Lights.BridgeTest do
       assert_received {:govee_unwatch, "FL1"}
     end
   end
+
+  describe "a Hue lamp" do
+    setup do
+      HueStub.start_bridge!(
+        put_lamp: fn _lamp -> {:ok, nil} end,
+        put_state: fn _key, state -> {:ok, state} end
+      )
+
+      :ok
+    end
+
+    test "gets its commands through the Hue bridge" do
+      assert Bridge.command(hue(candle()), {:power, true}) == :ok
+
+      candle = candle()
+      assert_received {:hue_put, ^candle, %{"on" => %{"on" => true}}}
+    end
+
+    test "is silent as the Hue bridge has it, and watched through it" do
+      assert Bridge.silent?(hue(colour_only()))
+      refute Bridge.silent?(hue(candle()))
+      assert Bridge.watch(hue(candle())) == :ok
+    end
+  end
+
+  defp hue(id), do: %Light{key: key(id), vendor: :hue}
 
   test "without a running bridge a lamp is unavailable and never silent" do
     assert Bridge.command(@light, {:power, true}) == {:error, :unavailable}

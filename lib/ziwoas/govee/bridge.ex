@@ -56,14 +56,7 @@ defmodule Ziwoas.Govee.Bridge do
     :ok
   end
 
-  defp call(server, request) do
-    case GenServer.whereis(server) do
-      nil -> {:error, :unavailable}
-      pid -> GenServer.call(pid, request, @command_timeout_ms)
-    end
-  catch
-    :exit, _reason -> {:error, :unavailable}
-  end
+  defp call(server, request), do: Lights.Bridge.call(server, request, @command_timeout_ms)
 
   @impl true
   def init(opts) do
@@ -124,13 +117,12 @@ defmodule Ziwoas.Govee.Bridge do
   end
 
   def handle_call({:watch, key, watcher}, _from, state) do
-    state = drop_watcher(state, key)
-    ref = Process.monitor(watcher)
-    state = %{state | watchers: Map.put(state.watchers, key, {watcher, ref})}
+    state = %{state | watchers: Lights.Bridge.add_watcher(state.watchers, key, watcher)}
     {:reply, :ok, start_watch_poll(state)}
   end
 
-  def handle_call({:unwatch, key}, _from, state), do: {:reply, :ok, drop_watcher(state, key)}
+  def handle_call({:unwatch, key}, _from, state),
+    do: {:reply, :ok, %{state | watchers: Lights.Bridge.drop_watcher(state.watchers, key)}}
 
   @impl true
   def handle_info(:bootstrap, state),
@@ -186,10 +178,8 @@ defmodule Ziwoas.Govee.Bridge do
     {:noreply, state}
   end
 
-  def handle_info({:DOWN, ref, :process, _pid, _reason}, state) do
-    watchers = Map.reject(state.watchers, fn {_key, {_watcher, watch}} -> watch == ref end)
-    {:noreply, %{state | watchers: watchers}}
-  end
+  def handle_info({:DOWN, ref, :process, _pid, _reason}, state),
+    do: {:noreply, %{state | watchers: Lights.Bridge.watcher_down(state.watchers, ref)}}
 
   def handle_info(:listen, %{socket: nil} = state), do: {:noreply, listen(state)}
 
@@ -355,17 +345,6 @@ defmodule Ziwoas.Govee.Bridge do
   defp start_watch_poll(state) do
     send(self(), :watch_poll)
     %{state | watch_polling: true}
-  end
-
-  defp drop_watcher(state, key) do
-    case Map.pop(state.watchers, key) do
-      {nil, _watchers} ->
-        state
-
-      {{_watcher, ref}, watchers} ->
-        Process.demonitor(ref, [:flush])
-        %{state | watchers: watchers}
-    end
   end
 
   defp apply_lan(state, device, telemetry) do

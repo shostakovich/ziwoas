@@ -6,7 +6,7 @@ defmodule Ziwoas.Http do
   @spec new(module, keyword) :: Req.Request.t()
   def new(client, opts) do
     stubs =
-      if @stubs and not Keyword.has_key?(opts, :plug),
+      if @stubs and not Keyword.has_key?(opts, :plug) and not Keyword.has_key?(opts, :adapter),
         do: [plug: {Req.Test, client}],
         else: []
 
