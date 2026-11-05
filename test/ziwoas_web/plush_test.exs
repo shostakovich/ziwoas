@@ -13,6 +13,8 @@ defmodule ZiwoasWeb.PlushTest do
   test "names follow Lucide, the off image of a pair and the weather by condition and daytime" do
     assert Plush.src("house", :light) == "/images/nav_dashboard_plush.webp"
     assert Plush.src("lamp-ceiling-off", :light) == "/images/lamp_ceiling_off.webp"
+    assert Plush.src("heater", :light) == "/images/heater_on.webp"
+    assert Plush.src("heater-off", :light) == "/images/heater_off.webp"
 
     assert Plush.src("weather-partly-cloudy-night", :light) ==
              "/images/weather_partly_cloudy_night.webp"

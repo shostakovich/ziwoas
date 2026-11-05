@@ -15,6 +15,10 @@ location:
 #   monitoring_enabled: true
 #   control_enabled: false
 
+# Fritz!Box for fritz_dect plugs and heaters. Every FRITZ!DECT 301 radiator thermostat
+# paired with the box appears in the Schalten tab by itself, no entry needed. ZiWoAS owns
+# their schedule: clear each thermostat's heating times in the Fritz!Box once, or the box
+# overrides ZiWoAS at its own switch times. fritz_poll is needed only for fritz_dect plugs.
 # fritz_box:
 #   host: 192.168.178.1
 #   user: fritz6584

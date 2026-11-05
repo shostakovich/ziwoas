@@ -22,3 +22,20 @@ human action wins.
 
 _Note (Phoenix, ADR-0007):_ the plug state is `Ziwoas.Plugs.State` today, the scheduler
 `Ziwoas.Switching.ScheduleTickJob` with its grace in `grace_s/0`.
+
+## Addendum: heaters (#205)
+
+Heaters follow the same edges, latest edge wins (ADR-0013), with two differences.
+
+- **No grace.** After downtime the latest due edge applies at once, however late. Switching a
+  heater late is harmless; heating all night because an edge was missed is not.
+- **Manual heating is capped at four hours.** Four hours after a press to heat, the heater
+  switches to frost protection, unless a window is active then. Every evening at 22:00 it
+  does the same, with the same exception.
+- **Overlapping windows are one.** A window's end switches to frost protection only if no
+  other window is active then.
+
+### Consequences
+
+- The minute tick decides the state from all edges up to now, not from the edges since its
+  last run, and writes only when the state changes; it keeps no watermark.

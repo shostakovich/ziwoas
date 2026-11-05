@@ -11,7 +11,7 @@ Phoenix 1.8 · LiveView · Ecto + SQLite · Bandit. Erlang/OTP and Elixir are pi
 
 | Path | What |
 | --- | --- |
-| `lib/ziwoas/` | Domain, device clients, collector and scheduler; `lights/`, `plugs/`, `switching/`, `sensors/`, `energy_report/`, `economics/`, `solakon/` are the functional seams |
+| `lib/ziwoas/` | Domain, device clients, collector and scheduler; `lights/`, `plugs/`, `switching/`, `sensors/`, `energy_report/`, `economics/`, `solakon/`, `heating/` are the functional seams |
 | `lib/ziwoas_web/` | Router, controllers, LiveViews, components |
 | `config/ziwoas.yml` | **Not in the repo** — device config incl. the plug list. Template: `config/ziwoas.example.yml`, tests use `test/fixtures/ziwoas.test.yml`. Cost items and the electricity price live in the database instead (ADR-0004) |
 | `assets/` | `css/app.css` (Tailwind entry: daisyUI, Setzkasten, `palette.css`, area files), JS (LiveView hooks in `js/hooks/`), vendored Chart.js and Lucide icons; the standalone Tailwind and esbuild build into `priv/static/assets/` |

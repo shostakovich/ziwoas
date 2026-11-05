@@ -11,6 +11,10 @@ defmodule Ziwoas.LocalDay do
     end
   end
 
+  @spec date(DateTime.t(), String.t()) :: Date.t()
+  def date(%DateTime{} = instant, zone),
+    do: instant |> DateTime.shift_zone!(zone) |> DateTime.to_date()
+
   @spec midnight_unix(Date.t(), String.t()) :: integer
   def midnight_unix(date, zone), do: date |> midnight(zone) |> DateTime.to_unix()
 

@@ -5,11 +5,13 @@ defmodule ZiwoasWeb.SwitchesLive do
   import ZiwoasWeb.LightsComponents
   import ZiwoasWeb.SwitchesComponents
 
-  alias Ziwoas.{Clock, Config, Lights, Plugs, Switching}
+  alias Ziwoas.{Clock, Config, Heating, Lights, Plugs, Switching}
   alias ZiwoasWeb.LightEvents
 
   @failed "Schalten fehlgeschlagen — Steckdose nicht erreichbar"
   @rejected "Schalten fehlgeschlagen — Steckdose lehnt ab"
+  @heater_failed "Schalten fehlgeschlagen — Heizung nicht erreichbar"
+  @heat_c_failed "Heiztemperatur nicht geändert — Heizung nicht erreichbar"
   def failed_message, do: @failed
 
   @impl true
@@ -17,11 +19,13 @@ defmodule ZiwoasWeb.SwitchesLive do
     if connected?(socket) do
       Plugs.subscribe()
       Lights.subscribe()
+      Heating.subscribe()
     end
 
     {:ok,
      socket
      |> assign(page_title: "Schalten", editors: %{}, tick: nil, pending: MapSet.new())
+     |> assign(readings: Heating.readings())
      |> load()}
   end
 
@@ -29,6 +33,9 @@ defmodule ZiwoasWeb.SwitchesLive do
   def handle_info({:live, _deltas}, socket), do: {:noreply, load(socket)}
 
   def handle_info({:updated, _key}, socket), do: {:noreply, load_lights(socket)}
+
+  def handle_info({:heaters, readings}, socket),
+    do: {:noreply, socket |> assign(readings: readings) |> load_heaters()}
 
   def handle_info({:power_up_failed, {key, failure}}, socket) do
     name = Enum.find_value(socket.assigns.snapshots, key, &(&1.light.key == key && &1.light.name))
@@ -40,6 +47,22 @@ defmodule ZiwoasWeb.SwitchesLive do
     do: {:noreply, socket |> assign(now: Clock.now(), tick: nil) |> tick_while_starting()}
 
   @impl true
+  def handle_event("switch_heater", %{"heater_key" => key, "state" => state}, socket)
+      when state in ~w[heat frost] do
+    heater_state = if state == "heat", do: :heat, else: :frost
+
+    {:noreply,
+     start_for_heater(socket, {:switch_heater, key}, fn -> Heating.switch(key, heater_state) end)}
+  end
+
+  def handle_event("heat_c", %{"heater_key" => key, "step" => step}, socket)
+      when step in ~w[up down] do
+    direction = if step == "up", do: :up, else: :down
+
+    {:noreply,
+     start_for_heater(socket, {:heat_c, key}, fn -> Heating.step_heat_c(key, direction) end)}
+  end
+
   def handle_event("switch_plug", %{"plug_id" => plug_id, "state" => state}, socket)
       when state in ~w[on off] do
     action = if state == "on", do: :on, else: :off
@@ -56,88 +79,93 @@ defmodule ZiwoasWeb.SwitchesLive do
     end
   end
 
-  def handle_event("switch_plug", _params, socket), do: {:noreply, socket}
-
   def handle_event("light_command", %{"light_key" => key} = params, socket),
     do:
       {:noreply,
        start_unless_pending(socket, {:light_command, key}, fn -> LightEvents.run(params) end)}
 
-  def handle_event("light_command", _params, socket), do: {:noreply, socket}
-
-  def handle_event("new_entry", %{"plug_id" => plug_id, "kind" => kind}, socket) do
-    editor =
-      case kind do
-        "window" -> editor(:window, nil, Switching.change_window())
-        _ -> editor(:rule, nil, Switching.change_single())
-      end
-
-    {:noreply, open_editor(socket, plug_id, editor)}
-  end
-
-  def handle_event("edit_entry", %{"plug_id" => plug_id, "kind" => kind, "id" => id}, socket) do
-    editor =
-      case kind do
-        "window" ->
-          if window = Switching.window(plug_id, id),
-            do: editor(:window, id, Switching.change_window(window))
-
-        _ ->
-          if rule = Switching.single(plug_id, id),
-            do: editor(:rule, id, Switching.change_single(rule))
-      end
-
-    {:noreply, if(editor, do: open_editor(socket, plug_id, editor), else: socket)}
-  end
-
-  def handle_event("close_editor", %{"plug_id" => plug_id}, socket),
-    do: {:noreply, close_editor(socket, plug_id)}
-
-  def handle_event("validate_entry", %{"plug_id" => plug_id} = params, socket) do
-    case socket.assigns.editors[plug_id] do
-      nil ->
-        {:noreply, socket}
-
-      editor ->
-        changeset = editor |> change(plug_id, params) |> Map.put(:action, :validate)
-        {:noreply, put_editor(socket, plug_id, %{editor | form: to_form(changeset)})}
-    end
-  end
-
-  def handle_event("save_entry", %{"plug_id" => plug_id} = params, socket) do
-    with %{} = editor <- socket.assigns.editors[plug_id],
-         %{} <- plug(socket, plug_id) do
-      {:noreply, save(socket, plug_id, editor, params)}
+  def handle_event("new_entry", %{"kind" => kind} = params, socket) do
+    with {:ok, owner} <- owner(socket, params),
+         {:ok, kind} <- kind(owner, kind) do
+      {:noreply, put_editor(socket, owner, editor(kind, nil, change(owner, kind, nil, %{})))}
     else
       _ -> {:noreply, socket}
     end
   end
 
-  def handle_event("set_enabled", params, socket) do
-    case rules_of(socket, params) do
-      [] ->
-        {:noreply, socket}
-
-      rules ->
-        Switching.set_enabled(rules, params["enabled"] == "true")
-        {:noreply, load(socket)}
+  def handle_event("edit_entry", %{"kind" => kind, "id" => id} = params, socket)
+      when is_binary(id) do
+    with {:ok, owner} <- owner(socket, params),
+         {:ok, kind} <- kind(owner, kind),
+         entry when not is_nil(entry) <- find(owner, kind, id) do
+      {:noreply, put_editor(socket, owner, editor(kind, id, change(owner, kind, entry, %{})))}
+    else
+      _ -> {:noreply, socket}
     end
   end
 
-  def handle_event("delete_entry", params, socket) do
-    case rules_of(socket, params) do
-      [] ->
-        {:noreply, socket}
-
-      rules ->
-        Switching.delete_rules(rules)
-        {:noreply, socket |> put_flash(:info, "#{noun(params["kind"])} gelöscht.") |> load()}
+  def handle_event("close_editor", params, socket) do
+    case owner(socket, params) do
+      {:ok, owner} -> {:noreply, close_editor(socket, owner)}
+      :error -> {:noreply, socket}
     end
   end
+
+  def handle_event("validate_entry", params, socket) do
+    with {:ok, owner} <- owner(socket, params),
+         %{} = editor <- socket.assigns.editors[owner] do
+      changeset =
+        owner
+        |> change(editor.kind, stored(owner, editor), attrs(params, editor.kind))
+        |> Map.put(:action, :validate)
+
+      {:noreply, put_editor(socket, owner, %{editor | form: to_form(changeset)})}
+    else
+      _ -> {:noreply, socket}
+    end
+  end
+
+  def handle_event("save_entry", params, socket) do
+    with {:ok, owner} <- owner(socket, params),
+         %{} = editor <- socket.assigns.editors[owner] do
+      {:noreply, save(socket, owner, editor, params)}
+    else
+      _ -> {:noreply, socket}
+    end
+  end
+
+  def handle_event("set_enabled", %{"kind" => kind, "id" => id} = params, socket)
+      when is_binary(id) do
+    with {:ok, owner} <- owner(socket, params),
+         {:ok, kind} <- kind(owner, kind),
+         entry when not is_nil(entry) <- find(owner, kind, id) do
+      enable(owner, kind, entry, params["enabled"] == "true")
+      {:noreply, load(socket)}
+    else
+      _ -> {:noreply, socket}
+    end
+  end
+
+  def handle_event("delete_entry", %{"kind" => kind, "id" => id} = params, socket)
+      when is_binary(id) do
+    with {:ok, owner} <- owner(socket, params),
+         {:ok, kind} <- kind(owner, kind),
+         entry when not is_nil(entry) <- find(owner, kind, id) do
+      remove(owner, kind, entry)
+      {:noreply, socket |> put_flash(:info, "#{noun(kind)} gelöscht.") |> load()}
+    else
+      _ -> {:noreply, socket}
+    end
+  end
+
+  def handle_event(_event, _params, socket), do: {:noreply, socket}
 
   @impl true
   def handle_async(name, result, socket),
     do: {:noreply, socket |> update(:pending, &MapSet.delete(&1, name)) |> settle(name, result)}
+
+  defp start_for_heater(socket, {_kind, key} = name, fun),
+    do: if(heater(socket, key), do: start_unless_pending(socket, name, fun), else: socket)
 
   defp start_unless_pending(socket, name, fun) do
     if MapSet.member?(socket.assigns.pending, name),
@@ -150,6 +178,22 @@ defmodule ZiwoasWeb.SwitchesLive do
   defp settle(socket, {:switch, plug_id}, result) do
     name = Enum.find_value(socket.assigns.rows, plug_id, &(&1.plug.id == plug_id && &1.plug.name))
     put_flash(socket, :error, "#{name}: #{failure(result)}")
+  end
+
+  defp settle(socket, {kind, _key}, {:ok, {:ok, _result}}) when kind in [:switch_heater, :heat_c],
+    do: load_heaters(socket)
+
+  defp settle(socket, {kind, _key}, {:ok, {:error, reason}})
+       when kind in [:switch_heater, :heat_c] and reason in [:limit, :not_found],
+       do: load_heaters(socket)
+
+  defp settle(socket, {kind, key}, _failed) when kind in [:switch_heater, :heat_c] do
+    message = if kind == :switch_heater, do: @heater_failed, else: @heat_c_failed
+
+    name =
+      Enum.find_value(socket.assigns.heater_rows, key, &(&1.heater.key == key && &1.heater.name))
+
+    socket |> put_flash(:error, "#{name}: #{message}") |> load_heaters()
   end
 
   defp settle(socket, {:light_command, _key}, {:ok, {:ok, _light, _result}}),
@@ -165,82 +209,105 @@ defmodule ZiwoasWeb.SwitchesLive do
   defp failure({:ok, {:error, {:rejected, _reason}}}), do: @rejected
   defp failure(_result), do: @failed
 
+  defp owner(socket, %{"heater_key" => key}),
+    do: if(heater(socket, key), do: {:ok, {:heater, key}}, else: :error)
+
+  defp owner(socket, %{"plug_id" => plug_id}),
+    do: if(plug(socket, plug_id), do: {:ok, {:plug, plug_id}}, else: :error)
+
+  defp owner(_socket, _params), do: :error
+
+  defp kind(_owner, "window"), do: {:ok, :window}
+  defp kind({:plug, _plug_id}, _kind), do: {:ok, :rule}
+  defp kind({:heater, _key}, _kind), do: :error
+
+  defp attrs(params, kind) do
+    case params[to_string(kind)] do
+      %{} = attrs -> attrs
+      _ -> %{}
+    end
+  end
+
   defp editor(kind, id, changeset), do: %{kind: kind, id: id, form: to_form(changeset)}
 
-  defp change(%{kind: :window, id: id}, plug_id, params),
-    do: Switching.change_window(id && Switching.window(plug_id, id), params["window"] || %{})
+  defp stored(_owner, %{id: nil}), do: nil
+  defp stored(owner, %{kind: kind, id: id}), do: find(owner, kind, id)
 
-  defp change(%{kind: :rule, id: id}, plug_id, params),
-    do: Switching.change_single(id && Switching.single(plug_id, id), params["rule"] || %{})
+  defp find({:plug, plug_id}, :window, id), do: Switching.window(plug_id, id)
+  defp find({:plug, plug_id}, :rule, id), do: Switching.single(plug_id, id)
+  defp find({:heater, key}, :window, id), do: Heating.window(key, id)
 
-  defp save(socket, plug_id, %{kind: :window, id: id} = editor, params) do
-    if id && is_nil(Switching.window(plug_id, id)) do
-      socket |> close_editor(plug_id) |> load()
+  defp change({:plug, _plug_id}, :window, window, attrs),
+    do: Switching.change_window(window, attrs)
+
+  defp change({:plug, _plug_id}, :rule, rule, attrs), do: Switching.change_single(rule, attrs)
+  defp change({:heater, _key}, :window, window, attrs), do: Heating.change_window(window, attrs)
+
+  defp store({:plug, plug_id}, %{kind: :window, id: id}, _window, attrs),
+    do: Switching.save_window(plug_id, attrs, id)
+
+  defp store({:plug, plug_id}, %{kind: :rule}, rule, attrs),
+    do: Switching.save_single(plug_id, attrs, rule)
+
+  defp store({:heater, key}, %{kind: :window}, window, attrs),
+    do: Heating.save_window(key, attrs, window)
+
+  defp enable({:plug, plug_id}, :window, window, enabled),
+    do: Switching.set_enabled(Switching.group(plug_id, window.group_id), enabled)
+
+  defp enable({:plug, _plug_id}, :rule, rule, enabled), do: Switching.set_enabled([rule], enabled)
+
+  defp enable({:heater, _key}, :window, window, enabled),
+    do: Heating.set_window_enabled(window, enabled)
+
+  defp remove({:plug, plug_id}, :window, window),
+    do: Switching.delete_rules(Switching.group(plug_id, window.group_id))
+
+  defp remove({:plug, _plug_id}, :rule, rule), do: Switching.delete_rules([rule])
+  defp remove({:heater, _key}, :window, window), do: Heating.delete_window(window)
+
+  defp save(socket, owner, editor, params) do
+    entry = stored(owner, editor)
+
+    if editor.id && is_nil(entry) do
+      socket |> close_editor(owner) |> load()
     else
-      plug_id
-      |> Switching.save_window(params["window"] || %{}, id)
-      |> saved(socket, plug_id, editor)
+      case store(owner, editor, entry, attrs(params, editor.kind)) do
+        {:ok, _saved} ->
+          socket
+          |> close_editor(owner)
+          |> put_flash(:info, "#{noun(editor.kind)} gespeichert.")
+          |> load()
+
+        {:error, changeset} ->
+          socket |> clear_flash() |> put_editor(owner, %{editor | form: to_form(changeset)})
+      end
     end
   end
 
-  defp save(socket, plug_id, %{kind: :rule, id: id} = editor, params) do
-    rule = id && Switching.single(plug_id, id)
+  defp noun(:window), do: "Zeitfenster"
+  defp noun(:rule), do: "Schaltzeit"
 
-    if id && is_nil(rule) do
-      socket |> close_editor(plug_id) |> load()
-    else
-      plug_id
-      |> Switching.save_single(params["rule"] || %{}, rule)
-      |> saved(socket, plug_id, editor)
-    end
-  end
+  defp put_editor(socket, owner, editor),
+    do: update(socket, :editors, &Map.put(&1, owner, editor))
 
-  defp saved({:ok, _saved}, socket, plug_id, editor) do
-    socket
-    |> close_editor(plug_id)
-    |> put_flash(:info, "#{noun(editor.kind)} gespeichert.")
-    |> load()
-  end
-
-  defp saved({:error, changeset}, socket, plug_id, editor) do
-    socket
-    |> clear_flash()
-    |> put_editor(plug_id, %{editor | form: to_form(changeset)})
-  end
-
-  defp noun(kind) when kind in [:window, "window"], do: "Zeitfenster"
-  defp noun(_kind), do: "Schaltzeit"
-
-  defp rules_of(socket, %{"plug_id" => plug_id, "kind" => kind, "id" => id}) do
-    cond do
-      is_nil(plug(socket, plug_id)) -> []
-      kind == "window" -> Switching.group(plug_id, id)
-      true -> plug_id |> Switching.single(id) |> List.wrap()
-    end
-  end
-
-  defp rules_of(_socket, _params), do: []
-
-  defp open_editor(socket, plug_id, editor),
-    do: if(plug(socket, plug_id), do: put_editor(socket, plug_id, editor), else: socket)
-
-  defp put_editor(socket, plug_id, editor),
-    do: update(socket, :editors, &Map.put(&1, plug_id, editor))
-
-  defp close_editor(socket, plug_id) do
-    case socket.assigns.editors[plug_id] do
+  defp close_editor(socket, owner) do
+    case socket.assigns.editors[owner] do
       nil ->
         socket
 
       editor ->
         socket
-        |> update(:editors, &Map.delete(&1, plug_id))
-        |> push_event("focus_return", %{ids: focus_return(plug_id, editor)})
+        |> update(:editors, &Map.delete(&1, owner))
+        |> push_event("focus_return", %{ids: focus_return(owner, editor)})
     end
   end
 
   defp plug(socket, plug_id),
     do: Enum.find_value(socket.assigns.rows, &(&1.plug.id == plug_id && &1.plug))
+
+  defp heater(socket, key),
+    do: Enum.find_value(socket.assigns.heater_rows, &(&1.heater.key == key && &1.heater))
 
   @impl true
   def render(assigns) do
@@ -261,6 +328,25 @@ defmodule ZiwoasWeb.SwitchesLive do
           </div>
         </section>
 
+        <section
+          :if={@heater_rows != []}
+          id="sw_heaters"
+          aria-labelledby="sw_heaters_heading"
+          phx-hook="FocusReturn"
+        >
+          <.section_heading id="sw_heaters_heading">Heizungen</.section_heading>
+          <div class="grid items-start gap-3 md:grid-cols-2 md:gap-6">
+            <.heater_card
+              :for={row <- @heater_rows}
+              row={row}
+              zone={@zone}
+              editor={@editors[{:heater, row.heater.key}]}
+              pending={MapSet.member?(@pending, {:switch_heater, row.heater.key})}
+              heat_pending={MapSet.member?(@pending, {:heat_c, row.heater.key})}
+            />
+          </div>
+        </section>
+
         <section id="sw_plugs" aria-labelledby="sw_plugs_heading" phx-hook="FocusReturn">
           <.section_heading id="sw_plugs_heading">Steckdosen</.section_heading>
           <.empty_state :if={@rows == []} plush="plug" title="Keine schaltbaren Steckdosen">
@@ -271,7 +357,7 @@ defmodule ZiwoasWeb.SwitchesLive do
               :for={row <- @rows}
               row={row}
               zone={@zone}
-              editor={@editors[row.plug.id]}
+              editor={@editors[{:plug, row.plug.id}]}
               pending={MapSet.member?(@pending, {:switch, row.plug.id})}
             />
           </div>
@@ -288,8 +374,15 @@ defmodule ZiwoasWeb.SwitchesLive do
 
     socket
     |> assign(zone: zone, rows: Switching.rows(plugs, Clock.now(), zone))
+    |> load_heaters()
     |> load_lights()
   end
+
+  defp load_heaters(socket),
+    do:
+      assign(socket,
+        heater_rows: Heating.rows(socket.assigns.readings, Clock.now(), socket.assigns.zone)
+      )
 
   defp load_lights(socket) do
     socket

@@ -108,14 +108,16 @@ defmodule Ziwoas.Switching do
   end
 
   @spec window(String.t(), String.t()) :: Window.t() | nil
-  def window(plug_id, group_id) do
+  def window(plug_id, group_id) when is_binary(group_id) do
     with {on, off} <- halves(group(plug_id, group_id)),
          do: Window.from_rules(group_id, on, off)
   end
 
+  def window(_plug_id, _group_id), do: nil
+
   @spec single(String.t(), term) :: Rule.t() | nil
-  def single(plug_id, id) do
-    with {id, ""} <- Integer.parse(to_string(id)),
+  def single(plug_id, id) when is_binary(id) do
+    with {id, ""} <- Integer.parse(id),
          %Rule{} = rule <- Repo.one(from r in Rule, where: r.plug_id == ^plug_id and r.id == ^id),
          false <- half_of_a_window?(rule) do
       rule
@@ -123,6 +125,8 @@ defmodule Ziwoas.Switching do
       _ -> nil
     end
   end
+
+  def single(_plug_id, _id), do: nil
 
   defp half_of_a_window?(%Rule{group_id: nil}), do: false
 

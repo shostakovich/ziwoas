@@ -10,7 +10,7 @@ defmodule Ziwoas.Energy do
   @spec today(Config.t(), DateTime.t()) :: Balance.t()
   def today(%Config{} = config, now \\ Clock.now()) do
     zone = config.location.timezone
-    today = now |> DateTime.shift_zone!(zone) |> DateTime.to_date()
+    today = LocalDay.date(now, zone)
     {start_ts, end_ts} = LocalDay.window(today, zone)
     roster = Config.plug_roster(config)
 

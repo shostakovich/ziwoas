@@ -136,6 +136,7 @@ defmodule Ziwoas.SwitchingTest do
                Switching.window("fridge", group_id)
 
       assert Switching.window("other", group_id) == nil
+      assert Switching.window("fridge", %{"id" => group_id}) == nil
     end
   end
 
@@ -251,6 +252,8 @@ defmodule Ziwoas.SwitchingTest do
       assert Switching.single("other", to_string(off.id)) == nil
       assert Switching.single("fridge", "abc") == nil
       assert Switching.single("fridge", "#{off.id}x") == nil
+      assert Switching.single("fridge", %{}) == nil
+      assert Switching.single("fridge", [to_string(off.id)]) == nil
       assert Switching.window("fridge", group_id) == nil
     end
 

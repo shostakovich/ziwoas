@@ -24,7 +24,9 @@ defmodule Ziwoas.Collector do
   def children(%Config{} = config),
     do:
       shelly(config) ++
-        solakon(config) ++ fritz(config) ++ lights(govee(config) ++ hue(config)) ++ sen66(config)
+        solakon(config) ++
+        fritz(config) ++
+        heaters(config) ++ lights(govee(config) ++ hue(config)) ++ sen66(config)
 
   defp shelly(config) do
     if Enum.any?(config.plugs, &(&1.driver == :shelly)),
@@ -56,18 +58,27 @@ defmodule Ziwoas.Collector do
         []
 
       plugs ->
-        client =
-          DectClient.new(
-            host: config.fritz_box.host,
-            user: config.fritz_box.user,
-            password: config.fritz_box.password,
-            timeout_s: config.fritz_poll.timeout_seconds
-          )
+        client = fritz_client(config.fritz_box, config.fritz_poll.timeout_seconds)
 
         for plug <- plugs,
             do: {Ziwoas.Fritz.Bridge, plug: plug, client: client, poll: config.fritz_poll}
     end
   end
+
+  # fritz_poll's timeout is tuned for a plug's single value, not the whole device list.
+  @heater_timeout_s 10
+
+  defp heaters(%Config{fritz_box: nil}), do: []
+
+  defp heaters(config),
+    do: [
+      {Ziwoas.Fritz.Heaters,
+       client: fritz_client(config.fritz_box, @heater_timeout_s), zone: config.location.timezone}
+    ]
+
+  defp fritz_client(box, timeout_s),
+    do:
+      DectClient.new(host: box.host, user: box.user, password: box.password, timeout_s: timeout_s)
 
   defp govee(%Config{govee: nil}), do: []
 
