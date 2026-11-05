@@ -48,6 +48,8 @@ defmodule Ziwoas.CollectorTest do
   @bare %{
     @config
     | solakon: nil,
+      fritz_box: nil,
+      fritz_poll: nil,
       govee: nil,
       hue: nil,
       sensors: [],
@@ -66,6 +68,7 @@ defmodule Ziwoas.CollectorTest do
              Ziwoas.Shelly.Server,
              {Ziwoas.Solakon.Monitor, nil},
              {Ziwoas.Fritz.Bridge, "washer"},
+             {Ziwoas.Fritz.Heaters, nil},
              {Task.Supervisor, nil},
              {Ziwoas.Govee.Bridge, nil},
              {Ziwoas.Hue.Bridge, nil},
@@ -116,6 +119,30 @@ defmodule Ziwoas.CollectorTest do
 
     assert opts[:plug].id == "washer"
     assert %Ziwoas.Fritz.DectClient{host: "fritz.box", user: "u", timeout_s: 2} = opts[:client]
+  end
+
+  test "the heaters need only the Fritz!Box section" do
+    config =
+      Config.from_yaml!("""
+      location:
+        timezone: Europe/Berlin
+      fritz_box:
+        host: fritz.box
+        user: u
+        password: p
+      plugs: []
+      """)
+
+    assert [{Ziwoas.Fritz.Heaters, opts}] = Collector.children(config)
+    assert opts[:zone] == "Europe/Berlin"
+    assert %Ziwoas.Fritz.DectClient{host: "fritz.box", user: "u", timeout_s: 10} = opts[:client]
+  end
+
+  test "the heaters wait 10 s for the box, whatever the Fritz poll says" do
+    assert {Ziwoas.Fritz.Heaters, opts} =
+             Enum.find(Collector.children(@config), &match?({Ziwoas.Fritz.Heaters, _}, &1))
+
+    assert opts[:client].timeout_s == 10
   end
 
   test "each SEN66 gets its own reader, SwitchBot sensors none" do

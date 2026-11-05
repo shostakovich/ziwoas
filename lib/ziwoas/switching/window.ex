@@ -17,14 +17,16 @@ defmodule Ziwoas.Switching.Window do
   @type t :: %__MODULE__{}
 
   @spec from_rules(String.t(), Rule.t(), Rule.t()) :: t
-  def from_rules(group_id, on, off) do
-    %__MODULE__{
+  def from_rules(group_id, on, off), do: new(group_id, on.at_minute, off.at_minute, on.days)
+
+  @spec new(String.t(), non_neg_integer, non_neg_integer, [integer]) :: t
+  def new(group_id, on_minute, off_minute, days),
+    do: %__MODULE__{
       group_id: group_id,
-      on_at_time: Rule.at_minute_time(on),
-      off_at_time: Rule.at_minute_time(off),
-      days: on.days
+      on_at_time: Rule.at_minute_time(on_minute),
+      off_at_time: Rule.at_minute_time(off_minute),
+      days: days
     }
-  end
 
   @spec changeset(t, map) :: Ecto.Changeset.t()
   def changeset(window, attrs) do
