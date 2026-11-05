@@ -32,7 +32,10 @@ defmodule ZiwoasWeb.SwitchesComponentsTest do
 
   defp entry(entry),
     do:
-      render_component(&SwitchesComponents.schedule_entry/1, entry: entry, plug: @plug)
+      render_component(&SwitchesComponents.schedule_entry/1,
+        entry: entry,
+        owner: {:plug, "fridge"}
+      )
       |> LazyHTML.from_fragment()
 
   defp count(doc, selector), do: doc |> LazyHTML.query(selector) |> Enum.count()
@@ -215,6 +218,49 @@ defmodule ZiwoasWeb.SwitchesComponentsTest do
       assert line(row(last_seen: at(17, 30))) == "Keine Statusmeldung seit 90 min"
       assert line(row(last_seen: at(18, 35))) == "Keine Statusmeldung seit 25 min"
       assert line(row(last_seen: nil)) == "Noch keine Statusmeldung"
+    end
+  end
+
+  describe "heater_status/2" do
+    alias Ziwoas.Heating
+
+    @thursday ~U[2026-11-05 22:30:00Z]
+
+    defp heater_line(decision, heat_c \\ 21.0, written \\ []) do
+      heater = struct!(%Heating.Heater{key: "1", name: "Wohnzimmer", heat_c: heat_c}, written)
+
+      row = %Heating.Row{
+        heater: heater,
+        entries: [],
+        decision: struct!(Heating.Decision, decision),
+        thermostat: nil,
+        now: @thursday
+      }
+
+      SwitchesComponents.heater_status(row, @zone)
+    end
+
+    test "manual heating that ends after midnight names the day" do
+      assert heater_line(state: :heat, cause: :manual, until: ~U[2026-11-06 02:30:00Z]) ==
+               "Heizt auf 21 °C · manuell bis Fr 03:30"
+    end
+
+    test "a half degree shows its decimal" do
+      assert heater_line([state: :heat, cause: :window, until: ~U[2026-11-05 22:45:00Z]], 21.5) ==
+               "Heizt auf 21,5 °C · bis 23:45"
+    end
+
+    test "heating says the temperature on the thermostat, also one set by hand" do
+      assert heater_line(
+               [state: :heat, cause: :manual, until: ~U[2026-11-05 22:45:00Z]],
+               21.0,
+               written_mode: :heat,
+               written_c: 23.0
+             ) == "Heizt auf 23 °C · manuell bis 23:45"
+    end
+
+    test "heating with nothing ahead says only the temperature" do
+      assert heater_line(state: :heat, cause: :window, until: nil) == "Heizt auf 21 °C"
     end
   end
 end

@@ -25,6 +25,8 @@ defmodule ZiwoasWeb.Plush do
     "battery-warning" => "solakon_battery_fault.webp",
     "battery-hot" => "solakon_battery_hot.webp",
     "battery-cold" => "solakon_battery_cold.webp",
+    "heater" => "heater_on.webp",
+    "heater-off" => "heater_off.webp",
     "lamp" => "lamp_generic_on.webp",
     "lamp-off" => "lamp_generic_off.webp",
     "lamp-bedside" => "lamp_bedside_on.webp",

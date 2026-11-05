@@ -67,6 +67,16 @@
   }
 }
 
+.sw-knob-heater[aria-pressed="true"] {
+  border-color: var(--color-error);
+  background-color: color-mix(in oklab, var(--color-error) 14%, var(--color-base-100));
+  box-shadow: 0 0 1rem color-mix(in oklab, var(--color-error) 50%, transparent);
+
+  @variant dark {
+    background-color: color-mix(in oklab, var(--color-error) 24%, var(--color-base-200));
+  }
+}
+
 .sw-knob-plush {
   width: 68%;
   height: 68%;
