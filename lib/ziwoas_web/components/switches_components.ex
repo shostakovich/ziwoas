@@ -4,6 +4,7 @@ defmodule ZiwoasWeb.SwitchesComponents do
 
   import ZiwoasWeb.ErrorSummary, only: [error_summary: 1]
 
+  alias Ziwoas.LocalDay
   alias Ziwoas.Switching.{Row, Schedule}
 
   @day_abbr [{1, "Mo"}, {2, "Di"}, {3, "Mi"}, {4, "Do"}, {5, "Fr"}, {6, "Sa"}, {7, "So"}]
@@ -435,9 +436,9 @@ defmodule ZiwoasWeb.SwitchesComponents do
   defp offline_line(row), do: "Keine Statusmeldung seit #{round(Row.age(row) / 60)} min"
 
   defp since(time, now, zone) do
-    day = local_date(time, zone)
+    day = LocalDay.date(time, zone)
 
-    case Date.diff(local_date(now, zone), day) do
+    case Date.diff(LocalDay.date(now, zone), day) do
       0 -> clock(time, zone)
       1 -> "gestern #{clock(time, zone)}"
       _days -> "#{day_month(day)} #{clock(time, zone)}"
@@ -445,16 +446,14 @@ defmodule ZiwoasWeb.SwitchesComponents do
   end
 
   defp upcoming(time, now, zone) do
-    day = local_date(time, zone)
+    day = LocalDay.date(time, zone)
 
-    case Date.diff(day, local_date(now, zone)) do
+    case Date.diff(day, LocalDay.date(now, zone)) do
       0 -> "um #{clock(time, zone)}"
       1 -> "morgen um #{clock(time, zone)}"
       _days -> "#{Enum.at(@day_names, Date.day_of_week(day) - 1)} um #{clock(time, zone)}"
     end
   end
-
-  defp local_date(time, zone), do: time |> DateTime.shift_zone!(zone) |> DateTime.to_date()
 
   defp schedule_part(%Row{next_edge: nil, entries: entries}, _zone) do
     cond do

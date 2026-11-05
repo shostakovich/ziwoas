@@ -1,5 +1,6 @@
 defmodule Ziwoas.Switching.Edges do
   @moduledoc false
+  alias Ziwoas.LocalDay
   alias Ziwoas.Switching.Rule
 
   defmodule Edge do
@@ -23,8 +24,8 @@ defmodule Ziwoas.Switching.Edges do
     if DateTime.compare(to, from) != :gt do
       []
     else
-      first = from |> DateTime.shift_zone!(zone) |> DateTime.to_date()
-      last = to |> DateTime.shift_zone!(zone) |> DateTime.to_date()
+      first = LocalDay.date(from, zone)
+      last = LocalDay.date(to, zone)
 
       Date.range(first, last)
       |> Enum.flat_map(&edges_for_date(rules, &1, zone))
@@ -81,22 +82,9 @@ defmodule Ziwoas.Switching.Edges do
     end
   end
 
-  # An ambiguous time takes the earlier offset, a time in a gap the offset before it.
-  defp local_time(date, minutes, zone) do
-    naive = NaiveDateTime.new!(date, Time.new!(div(minutes, 60), rem(minutes, 60), 0))
-
-    case DateTime.from_naive(naive, zone) do
-      {:ok, datetime} ->
-        datetime
-
-      {:ambiguous, earlier, _later} ->
-        earlier
-
-      {:gap, just_before, _just_after} ->
-        naive
-        |> NaiveDateTime.add(-(just_before.utc_offset + just_before.std_offset))
-        |> DateTime.from_naive!("Etc/UTC")
-        |> DateTime.shift_zone!(zone)
-    end
-  end
+  defp local_time(date, minutes, zone),
+    do:
+      date
+      |> NaiveDateTime.new!(Time.new!(div(minutes, 60), rem(minutes, 60), 0))
+      |> LocalDay.to_instant(zone)
 end

@@ -5,6 +5,11 @@ defmodule Ziwoas.LocalDayTest do
 
   @zone "Europe/Berlin"
 
+  test "date is the local calendar day of an instant" do
+    assert LocalDay.date(~U[2026-11-05 23:30:00Z], @zone) == ~D[2026-11-06]
+    assert LocalDay.date(~U[2026-11-05 22:59:59Z], @zone) == ~D[2026-11-05]
+  end
+
   test "to_instant resolves a gap an hour later and an ambiguous time to summer time" do
     assert LocalDay.to_instant(~N[2026-03-29 02:30:00], @zone) |> utc() ==
              ~U[2026-03-29 01:30:00Z]

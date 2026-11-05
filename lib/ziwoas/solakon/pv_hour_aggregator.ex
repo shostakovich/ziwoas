@@ -70,9 +70,9 @@ defmodule Ziwoas.Solakon.PvHourAggregator do
         filled =
           from(h in PvHour, select: h.started_at)
           |> Repo.all()
-          |> MapSet.new(&local_date(&1, zone))
+          |> MapSet.new(&LocalDay.date(&1, zone))
 
-        for date <- Date.range(local_date(first, zone), Date.add(today, -1), 1),
+        for date <- Date.range(LocalDay.date(first, zone), Date.add(today, -1), 1),
             date not in filled,
             do: aggregate_day(zone, date)
 
@@ -119,6 +119,4 @@ defmodule Ziwoas.Solakon.PvHourAggregator do
     )
     |> Map.new()
   end
-
-  defp local_date(time, zone), do: time |> DateTime.shift_zone!(zone) |> DateTime.to_date()
 end
