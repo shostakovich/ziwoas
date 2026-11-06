@@ -4,7 +4,7 @@ defmodule Ziwoas.Govee.Bridge do
 
   require Logger
 
-  alias Ziwoas.Govee.{CommandRouter, DeviceRegistry, Lan, PlatformApi, States}
+  alias Ziwoas.Govee.{CommandRouter, Device, DeviceRegistry, Lan, PlatformApi, States}
   alias Ziwoas.Lights
 
   @listen_backoff_min_ms 1_000
@@ -61,6 +61,7 @@ defmodule Ziwoas.Govee.Bridge do
   @impl true
   def init(opts) do
     govee = Keyword.fetch!(opts, :govee)
+    stored_lamps = Keyword.get(opts, :stored_lamps, fn -> Lights.lights(:govee) end)
 
     state = %{
       govee: govee,
@@ -83,15 +84,28 @@ defmodule Ziwoas.Govee.Bridge do
       watch_polling: false,
       socket: nil,
       listen_port: Keyword.get(opts, :listen_port, Lan.listen_port()),
-      listen_backoff_ms: @listen_backoff_min_ms,
-      bootstrapped: false
+      listen_backoff_ms: @listen_backoff_min_ms
     }
 
-    send(self(), :bootstrap)
+    send(self(), :list_cloud_devices)
     send(self(), :lan_poll)
     Process.send_after(self(), :api_poll, govee.api_poll_seconds * 1000)
-    Logger.info("Govee bridge: starting")
-    {:ok, listen(state)}
+    {:ok, listen(state), {:continue, {:seed, stored_lamps}}}
+  end
+
+  @impl true
+  def handle_continue({:seed, stored_lamps}, state) do
+    lamps = read_stored_lamps(stored_lamps)
+    Logger.info("Govee bridge: starting with #{length(lamps)} stored lamps")
+    {:noreply, %{state | registry: DeviceRegistry.seed(state.registry, lamps)}}
+  end
+
+  defp read_stored_lamps(stored_lamps) do
+    stored_lamps.()
+  rescue
+    error ->
+      Logger.warning("Govee bridge: stored lamps unreadable: #{Exception.message(error)}")
+      []
   end
 
   def listen_port(server \\ __MODULE__), do: GenServer.call(server, :listen_port)
@@ -118,7 +132,7 @@ defmodule Ziwoas.Govee.Bridge do
     do: {:reply, :ok, %{state | watchers: Lights.Bridge.drop_watcher(state.watchers, key)}}
 
   @impl true
-  def handle_info(:bootstrap, state),
+  def handle_info(:list_cloud_devices, state),
     do: {:noreply, async(state, :refreshed, fn -> refresh(state) end)}
 
   def handle_info(:lan_poll, state) do
@@ -184,10 +198,16 @@ defmodule Ziwoas.Govee.Bridge do
     {:noreply, state}
   end
 
-  defp finished(state, :refreshed, result) do
-    state = adopt_refresh(state, result)
-    if state.bootstrapped, do: state, else: bootstrap(state)
+  defp finished(state, :refreshed, {:ok, registry}) do
+    state = adopt_refresh(state, registry)
+
+    if DeviceRegistry.cloud_list_loaded?(state.registry),
+      do: announce_cloud_list(state),
+      else: retry_cloud_list(state, "lists no lamps")
   end
+
+  defp finished(state, :refreshed, {:error, reason}),
+    do: retry_cloud_list(state, "failed: #{inspect(reason)}")
 
   defp finished(state, {:api_states, commands}, {:ok, results}) do
     Enum.reduce(results, state, fn {device, result}, state ->
@@ -222,36 +242,38 @@ defmodule Ziwoas.Govee.Bridge do
   end
 
   # IPs found while the refresh ran win over the snapshot it started from.
-  defp adopt_refresh(state, {:ok, registry}) do
+  defp adopt_refresh(state, registry) do
     registry =
       Enum.reduce(DeviceRegistry.all(state.registry), registry, fn device, acc ->
         if device.ip, do: DeviceRegistry.record_lan_ip(acc, device.key, device.ip), else: acc
       end)
 
-    %{state | registry: registry}
+    # A reply heard before the lamp was listed asked for no zones, so its next one must.
+    newly_listed =
+      for device <- DeviceRegistry.all(state.registry),
+          not Device.cloud_listed?(device),
+          Device.cloud_listed?(DeviceRegistry.find(registry, device.key)),
+          do: device.key
+
+    %{state | registry: registry, lan_replies: Map.drop(state.lan_replies, newly_listed)}
   end
 
-  defp adopt_refresh(state, {:error, reason}) do
-    Logger.warning("Govee.DeviceRegistry: refresh failed: #{inspect(reason)}")
+  defp retry_cloud_list(state, outcome) do
+    Logger.warning(
+      "Govee bridge: cloud device list #{outcome}; retrying in #{state.govee.api_poll_seconds}s"
+    )
+
+    Process.send_after(self(), :list_cloud_devices, state.govee.api_poll_seconds * 1000)
     state
   end
 
-  defp bootstrap(state) do
-    case DeviceRegistry.all(state.registry) do
-      [] ->
-        Logger.warning(
-          "Govee bridge: no devices after refresh; retrying in #{state.govee.api_poll_seconds}s"
-        )
-
-        Process.send_after(self(), :bootstrap, state.govee.api_poll_seconds * 1000)
-        state
-
-      devices ->
-        lan(state, :discover)
-        Enum.each(devices, &announce_device(state, &1))
-        Logger.info("Govee bridge: bootstrapped #{length(devices)} devices")
-        %{state | bootstrapped: true}
-    end
+  defp announce_cloud_list(state) do
+    devices = Enum.filter(DeviceRegistry.all(state.registry), &Device.cloud_listed?/1)
+    # Lamps new to the database had their scan replies dropped until now.
+    lan(state, :discover)
+    Enum.each(devices, &announce_device(state, &1))
+    Logger.info("Govee bridge: the cloud listed #{length(devices)} devices")
+    state
   end
 
   defp announce_device(state, device) do
@@ -356,7 +378,9 @@ defmodule Ziwoas.Govee.Bridge do
   end
 
   defp polled?(state, device),
-    do: device.zones != [] or lan_presence(state, device.key) == :not_heard
+    do:
+      Device.cloud_listed?(device) and
+        (device.zones != [] or lan_presence(state, device.key) == :not_heard)
 
   defp heard_lately?(state, key) do
     case state.heard_at[key] do
@@ -381,7 +405,8 @@ defmodule Ziwoas.Govee.Bridge do
   end
 
   defp ask_for_zones(state, device) do
-    if device.zones == [] or MapSet.member?(state.asking_for_zones, device.key) do
+    if device.zones == [] or not Device.cloud_listed?(device) or
+         MapSet.member?(state.asking_for_zones, device.key) do
       state
     else
       api = state.api

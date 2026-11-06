@@ -72,6 +72,23 @@ defmodule Ziwoas.Govee.CommandRouterTest do
     end
   end
 
+  describe "before the cloud lists the lamp" do
+    test "cloud routes are unavailable" do
+      lamp = device(api_id: nil, ip: nil, scene_index: %{"Forest" => %{id: 7, param_id: 99}})
+
+      for verb <- [
+            {:power, true},
+            {:brightness, 55},
+            {:color, %{r: 1, g: 2, b: 3}},
+            {:color_temp, 2700},
+            {:zone, "b", true},
+            {:scene, "Forest"},
+            {:scene, "Disco"}
+          ],
+          do: assert(CommandRouter.route(lamp, verb) == {:error, :unavailable})
+    end
+  end
+
   describe "changes" do
     test "brightness, colour and white switch the lamp on; colour and white clear each other" do
       assert CommandRouter.changes({:power, false}, nil) == %{on: false}

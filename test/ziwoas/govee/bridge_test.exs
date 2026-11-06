@@ -2,7 +2,8 @@ defmodule Ziwoas.Govee.BridgeTest do
   use ExUnit.Case, async: true
 
   alias Ziwoas.Config.Govee
-  alias Ziwoas.Govee.Bridge
+  alias Ziwoas.Govee.{Bridge, DeviceRegistry}
+  alias Ziwoas.Lights.Light
 
   @moduletag :capture_log
 
@@ -97,7 +98,8 @@ defmodule Ziwoas.Govee.BridgeTest do
       tasks: start_supervised!(Task.Supervisor),
       send: &send(test, {:datagram, &1}),
       put_lamp: &send(test, {:lamp, &1}),
-      put_state: &send(test, {:state, &1, &2})
+      put_state: &send(test, {:state, &1, &2}),
+      stored_lamps: fn -> [] end
     ]
 
     start_supervised!({Bridge, Keyword.merge(defaults, opts)})
@@ -130,7 +132,7 @@ defmodule Ziwoas.Govee.BridgeTest do
 
   defp asked_for(body), do: JSON.decode!(body)["payload"]["device"]
 
-  test "bootstrap, LAN replies and commands" do
+  test "a lamp the cloud lists is stored, heard on the LAN and commanded" do
     bridge = start_bridge!(listen_port: 0)
 
     assert_receive {:lamp, lamp}, 1_000
@@ -680,6 +682,208 @@ defmodule Ziwoas.Govee.BridgeTest do
       settled(bridge)
 
       refute_received {:state, @key, %{zone_states: %{"rippleLightToggle" => false}}}
+    end
+  end
+
+  describe "while the cloud does not list the lamps" do
+    defp stored_lamp,
+      do: %Light{
+        key: @key,
+        name: "Uplighter",
+        sku: "H60B0",
+        supports_color: true,
+        supports_color_temp: true,
+        color_temp_min_k: 2700,
+        color_temp_max_k: 6500,
+        zones: ["rippleLightToggle"],
+        firmware_scenes: ["Forest"]
+      }
+
+    @forest ~s({"code":200,"payload":{"capabilities":[{"parameters":{"options":[{"name":"Forest","value":{"id":7,"paramId":70}}]}}]}})
+
+    defp cloud_listing(test, listed?) do
+      fn conn ->
+        case conn.request_path do
+          "/router/api/v1/user/devices" -> device_list(conn, test, listed?.())
+          "/router/api/v1/device/scenes" -> Plug.Conn.send_resp(conn, 200, @forest)
+          _path -> api(test).(conn)
+        end
+      end
+    end
+
+    defp device_list(conn, test, true), do: api(test).(conn)
+    defp device_list(conn, test, :empty), do: api(test, devices: listing([])).(conn)
+    defp device_list(conn, _test, :timeout), do: Req.Test.transport_error(conn, :timeout)
+
+    defp device_list(conn, _test, false),
+      do: Plug.Conn.send_resp(conn, 200, ~s({"code":500,"message":"down"}))
+
+    defp unlisted_bridge!(opts) do
+      listing = Keyword.get(opts, :listing, fn -> false end)
+
+      start_bridge!(
+        Keyword.merge(
+          [
+            listen_port: 0,
+            stored_lamps: fn -> [stored_lamp()] end,
+            api_req: [plug: cloud_listing(self(), listing)]
+          ],
+          opts
+        )
+      )
+    end
+
+    defp registered(bridge), do: DeviceRegistry.find(:sys.get_state(bridge).registry, @key)
+
+    test "a stored lamp is heard and switched on the LAN while the device list times out" do
+      bridge = unlisted_bridge!(listing: fn -> :timeout end)
+      port = Bridge.listen_port(bridge)
+
+      scan(port)
+      udp(port, status(%{"onOff" => 0, "brightness" => 30}))
+      assert_receive {:state, @key, %{on: false, reachable: true, brightness: 30}}, 1_000
+
+      assert Bridge.command(@key, {:power, true}, bridge) == :ok
+
+      assert_received {:datagram,
+                       %{host: "127.0.0.1", data: ~s({"msg":{"cmd":"turn","data":{"value":1}}})}}
+
+      refute_received {:lamp, _lamp}
+    end
+
+    test "a device list that fails is retried; it brings cloud id and scenes and keeps the IP" do
+      listed = start_supervised!({Agent, fn -> false end})
+
+      bridge =
+        unlisted_bridge!(
+          govee: %{@govee | api_poll_seconds: 1},
+          listing: fn -> Agent.get(listed, & &1) end,
+          stored_lamps: fn -> [stored_lamp(), %Light{key: "GONE", name: "Weg"}] end
+        )
+
+      scan(Bridge.listen_port(bridge))
+      await(fn -> registered(bridge).ip == "127.0.0.1" end, 1_000)
+      Agent.update(listed, fn _ -> true end)
+
+      assert_receive {:lamp, %{key: @key, scenes: ["Forest"]}}, 2_500
+      :sys.get_state(bridge)
+      refute_received {:lamp, _unlisted}
+      assert %{api_id: @mac, ip: "127.0.0.1"} = registered(bridge)
+
+      assert Bridge.command(@key, {:zone, "rippleLightToggle", true}, bridge) == :ok
+      assert_receive {:api, "/router/api/v1/device/control", zone}, 1_000
+      assert asked_for(zone) == @mac
+
+      assert Bridge.command(@key, {:scene, "Forest"}, bridge) == :ok
+      assert_receive {:api, "/router/api/v1/device/control", scene}, 1_000
+      assert scene =~ ~s("value":{"id":7,"paramId":70})
+
+      assert_received {:api, "/router/api/v1/user/devices", _list}
+      refute_receive {:api, "/router/api/v1/user/devices", _again}, 1_500
+    end
+
+    test "a device list that fails is logged once" do
+      log =
+        ExUnit.CaptureLog.capture_log(fn ->
+          bridge = unlisted_bridge!(listen_port: false)
+          :sys.get_state(bridge)
+          settled(bridge)
+        end)
+
+      assert [_once] = Regex.scan(~r/cloud device list/, log)
+    end
+
+    test "a device list that lists no lamps is retried" do
+      listed = start_supervised!({Agent, fn -> :empty end})
+
+      unlisted_bridge!(
+        govee: %{@govee | api_poll_seconds: 1},
+        listing: fn -> Agent.get(listed, & &1) end
+      )
+
+      assert_receive {:api, "/router/api/v1/user/devices", _empty}, 1_000
+      Agent.update(listed, fn _ -> true end)
+
+      assert_receive {:lamp, %{key: @key}}, 2_500
+    end
+
+    test "the cloud's list scans the LAN again" do
+      listed = start_supervised!({Agent, fn -> false end})
+
+      bridge =
+        unlisted_bridge!(listen_port: false, listing: fn -> Agent.get(listed, & &1) end)
+
+      assert_receive {:datagram, %{host: "239.255.255.250", port: 4001}}, 1_000
+      :sys.get_state(bridge)
+      settled(bridge)
+
+      Agent.update(listed, fn _ -> true end)
+      send(bridge, :list_cloud_devices)
+
+      assert_receive {:lamp, %{key: @key}}, 1_000
+      assert_received {:datagram, %{host: "239.255.255.250", port: 4001}}
+    end
+
+    test "a zone lamp heard before the cloud lists it asks for its zones on its next reply" do
+      listed = start_supervised!({Agent, fn -> false end})
+      bridge = unlisted_bridge!(listing: fn -> Agent.get(listed, & &1) end)
+      port = Bridge.listen_port(bridge)
+      reading = status(%{"onOff" => 1, "brightness" => 30})
+
+      scan(port)
+      udp(port, reading)
+      assert_receive {:state, @key, %{brightness: 30}}, 1_000
+
+      Agent.update(listed, fn _ -> true end)
+      send(bridge, :list_cloud_devices)
+      assert_receive {:lamp, %{key: @key}}, 1_000
+
+      udp(port, reading)
+      assert_receive {:api, "/router/api/v1/device/state", body}, 1_000
+      assert asked_for(body) == @mac
+    end
+
+    test "stored lamps that cannot be read leave the bridge to the cloud's list" do
+      log =
+        ExUnit.CaptureLog.capture_log(fn ->
+          bridge =
+            start_bridge!(listen_port: false, stored_lamps: fn -> raise "database is locked" end)
+
+          assert_receive {:lamp, %{key: @key}}, 1_000
+          assert registered(bridge).api_id == @mac
+        end)
+
+      assert log =~ "database is locked"
+    end
+
+    test "a cloud-only command for a stored lamp is unavailable and asks no cloud" do
+      bridge = unlisted_bridge!([])
+
+      assert Bridge.command(@key, {:power, true}, bridge) == {:error, :unavailable}
+
+      scan(Bridge.listen_port(bridge))
+      await(fn -> registered(bridge).ip end, 1_000)
+
+      assert Bridge.command(@key, {:zone, "rippleLightToggle", true}, bridge) ==
+               {:error, :unavailable}
+
+      assert Bridge.command(@key, {:scene, "Forest"}, bridge) == {:error, :unavailable}
+      refute_receive {:api, "/router/api/v1/device/control", _body}, 100
+    end
+
+    test "a stored lamp the cloud has not listed is asked about neither by the poll nor for zones" do
+      bridge = unlisted_bridge!([])
+      port = Bridge.listen_port(bridge)
+
+      scan(port)
+      udp(port, status(%{"onOff" => 1, "brightness" => 30}))
+      assert_receive {:state, @key, %{on: true, brightness: 30}}, 1_000
+
+      send(bridge, :api_poll)
+      :sys.get_state(bridge)
+      settled(bridge)
+
+      refute_receive {:api, "/router/api/v1/device/state", _body}, 100
     end
   end
 

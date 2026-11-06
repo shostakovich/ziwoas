@@ -73,6 +73,12 @@ defmodule Ziwoas.LightsTest do
     assert Lights.keys(:hue) == ["H"]
   end
 
+  test "lights of one vendor are the stored lamps of that vendor" do
+    Repo.insert!(%Light{key: "G", name: "Govee"})
+    Repo.insert!(%Light{key: "H", name: "Hue", vendor: :hue})
+    assert [%Light{key: "G"}] = Lights.lights(:govee)
+  end
+
   describe "put_state/2" do
     test "records power, readings and zone bits, merged into the stored zones" do
       Repo.insert!(%State{light_key: "K", zone_states: %{"sideLightToggle" => true}})

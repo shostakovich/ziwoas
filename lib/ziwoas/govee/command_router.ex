@@ -10,7 +10,9 @@ defmodule Ziwoas.Govee.CommandRouter do
 
   @type route :: {:lan, [tuple]} | {:api, keyword}
 
-  @spec route(Device.t(), Ziwoas.Lights.Bridge.verb()) :: {:ok, route} | {:error, :unknown_scene}
+  @doc "A lamp the cloud has not listed yet has no cloud id, so a cloud route is unavailable."
+  @spec route(Device.t(), Ziwoas.Lights.Bridge.verb()) ::
+          {:ok, route} | {:error, :unknown_scene | :unavailable}
   def route(device, {:power, on}) do
     if lan?(device),
       do: lan(device, {:turn, device.ip, on}),
@@ -44,6 +46,8 @@ defmodule Ziwoas.Govee.CommandRouter do
   def route(device, {:zone, name, on}),
     do: api(device, @toggle, name, if(on, do: 1, else: 0))
 
+  def route(%Device{api_id: nil}, {:scene, _name}), do: {:error, :unavailable}
+
   def route(device, {:scene, name}) do
     case device.scene_index[name] do
       nil ->
@@ -73,6 +77,8 @@ defmodule Ziwoas.Govee.CommandRouter do
   defp lan?(%Device{ip: ip, power_only: power_only}), do: not is_nil(ip) and not power_only
 
   defp lan(device, command), do: {:ok, {:lan, [command, {:request_status, device.ip}]}}
+
+  defp api(%Device{api_id: nil}, _type, _instance, _value), do: {:error, :unavailable}
 
   defp api(device, type, instance, value),
     do:
