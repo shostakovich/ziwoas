@@ -377,13 +377,13 @@ defmodule Ziwoas.Govee.Bridge do
         %{state | store: store}
 
       :error ->
-        Logger.warning("Govee.Reconciler: API state of #{device.key} does not coerce")
+        Logger.warning("Govee bridge: API state of #{device.key} does not coerce")
         state
     end
   end
 
   defp apply_api(state, {device, {:error, reason}}) do
-    Logger.warning("Govee.Reconciler: api state #{device.key}: #{inspect(reason)}")
+    Logger.warning("Govee bridge: API state of #{device.key}: #{inspect(reason)}")
     state
   end
 
