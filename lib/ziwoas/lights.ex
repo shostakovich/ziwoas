@@ -2,7 +2,7 @@ defmodule Ziwoas.Lights do
   @moduledoc false
   import Ecto.Query
 
-  alias Ziwoas.{Clock, Config, Repo}
+  alias Ziwoas.{Clock, Config, Repo, Rooms}
   alias Ziwoas.Lights.{Commands, Light, Power, PowerUp, State}
   alias Ziwoas.Plugs.Plug
 
@@ -64,8 +64,11 @@ defmodule Ziwoas.Lights do
   @spec keys(:govee | :hue) :: [String.t()]
   def keys(vendor), do: Repo.all(from l in Light, where: l.vendor == ^vendor, select: l.key)
 
+  @spec lights() :: [Light.t()]
+  def lights, do: Repo.all(from l in Light, order_by: l.name)
+
   @spec snapshots() :: [Snapshot.t()]
-  def snapshots, do: Repo.all(from l in Light, order_by: l.name) |> snapshots_of()
+  def snapshots, do: snapshots_of(lights())
 
   @spec snapshot(Light.t()) :: Snapshot.t()
   def snapshot(light), do: hd(snapshots_of([light]))
@@ -96,7 +99,10 @@ defmodule Ziwoas.Lights do
 
   @spec change_settings(Light.t(), map) :: Ecto.Changeset.t()
   def change_settings(light, params \\ %{}),
-    do: Light.settings_changeset(light, params, Enum.map(lamp_plugs(), & &1.id))
+    do:
+      light
+      |> Light.settings_changeset(params, Enum.map(lamp_plugs(), & &1.id))
+      |> Rooms.validate_room()
 
   @spec update_settings(Light.t(), map) :: {:ok, Light.t()} | {:error, Ecto.Changeset.t()}
   def update_settings(light, params), do: light |> change_settings(params) |> Repo.update()

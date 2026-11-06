@@ -22,6 +22,7 @@ defmodule Ziwoas.Heating.Heater do
     field :written_c, :float
     field :pressed_state, Ecto.Enum, values: [:heat, :frost]
     field :pressed_at, :utc_datetime_usec
+    belongs_to :room, Ziwoas.Rooms.Room
     timestamps()
   end
 
@@ -61,6 +62,9 @@ defmodule Ziwoas.Heating.Heater do
   def heating_c(%__MODULE__{written_mode: :heat, written_c: celsius}), do: celsius
   def heating_c(%__MODULE__{written_mode: :on}), do: :max
   def heating_c(%__MODULE__{heat_c: celsius}), do: celsius
+
+  @spec room_changeset(t, map) :: Ecto.Changeset.t()
+  def room_changeset(heater, params), do: cast(heater, params, [:room_id])
 
   @spec written_changeset(t, Thermostat.target()) :: Ecto.Changeset.t()
   def written_changeset(heater, {:heat, celsius}),
