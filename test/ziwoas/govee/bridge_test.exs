@@ -332,6 +332,40 @@ defmodule Ziwoas.Govee.BridgeTest do
     assert_receive {:state, @key, %{on: true, reachable: true, brightness: 70}}, 1_000
   end
 
+  test "a change made elsewhere that the LAN reports is reported as the API clarifies it" do
+    test = self()
+    cloud = start_supervised!({Agent, fn -> %{on: 1, brightness: 72} end})
+
+    plug = fn conn ->
+      if conn.request_path == "/router/api/v1/device/state" do
+        %{on: on, brightness: brightness} = Agent.get(cloud, & &1)
+
+        Plug.Conn.send_resp(
+          conn,
+          200,
+          ~s({"code":200,"payload":{"capabilities":[{"instance":"powerSwitch","state":{"value":#{on}}},{"instance":"brightness","state":{"value":#{brightness}}}]}})
+        )
+      else
+        api(test).(conn)
+      end
+    end
+
+    bridge = start_bridge!(listen_port: 0, api_req: [plug: plug])
+    assert_receive {:lamp, _lamp}, 1_000
+    port = Bridge.listen_port(bridge)
+    scan(port)
+
+    udp(port, status(%{"onOff" => 0, "brightness" => 30}))
+    assert_receive {:state, @key, %{on: false, brightness: 30}}, 1_000
+
+    udp(port, status(%{"onOff" => 1, "brightness" => 70}))
+    assert_receive {:state, @key, %{on: true, brightness: 72}}, 1_000
+
+    Agent.update(cloud, &%{&1 | brightness: 41})
+    udp(port, status(%{"onOff" => 1, "brightness" => 40}))
+    assert_receive {:state, @key, %{on: true, brightness: 41}}, 1_000
+  end
+
   test "an API poll whose task exits is logged and the next poll still comes" do
     test = self()
 
