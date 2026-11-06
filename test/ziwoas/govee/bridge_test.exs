@@ -16,43 +16,70 @@ defmodule Ziwoas.Govee.BridgeTest do
     names: %{}
   }
 
-  @devices JSON.encode!(%{
-             "code" => 200,
-             "data" => [
-               %{
-                 "sku" => "H60B0",
-                 "device" => @mac,
-                 "deviceName" => "Uplighter",
-                 "capabilities" => [
-                   %{"instance" => "colorRgb"},
-                   %{"instance" => "rippleLightToggle"},
-                   %{
-                     "instance" => "colorTemperatureK",
-                     "parameters" => %{"range" => %{"min" => 2700, "max" => 6500}}
-                   }
-                 ]
-               }
-             ]
-           })
+  defp devices(capabilities), do: listing([{@mac, capabilities}])
 
-  defp api(test) do
+  defp listing(lamps),
+    do:
+      JSON.encode!(%{
+        "code" => 200,
+        "data" =>
+          for {mac, capabilities} <- lamps do
+            %{
+              "sku" => "H60B0",
+              "device" => mac,
+              "deviceName" => "Uplighter",
+              "capabilities" => capabilities
+            }
+          end
+      })
+
+  @colour [
+    %{"instance" => "colorRgb"},
+    %{
+      "instance" => "colorTemperatureK",
+      "parameters" => %{"range" => %{"min" => 2700, "max" => 6500}}
+    }
+  ]
+
+  @zones [%{"instance" => "rippleLightToggle"} | @colour]
+
+  defp zone_lamp, do: devices(@zones)
+  defp plain_lamp, do: devices(@colour)
+
+  defp cloud(values) do
+    capabilities =
+      for {instance, value} <- values,
+          do: %{"instance" => instance, "state" => %{"value" => value}}
+
+    JSON.encode!(%{"code" => 200, "payload" => %{"capabilities" => capabilities}})
+  end
+
+  defp cloud_on, do: cloud(%{"powerSwitch" => 1, "brightness" => 70})
+
+  defp answered_by_test(test) do
+    fn ->
+      send(test, {:asked, self()})
+
+      receive do
+        {:answer, body} -> body
+      end
+    end
+  end
+
+  defp api(test, opts \\ []) do
+    devices = Keyword.get_lazy(opts, :devices, &zone_lamp/0)
+    state = Keyword.get(opts, :state, &cloud_on/0)
+
     fn conn ->
       {:ok, body, conn} = Plug.Conn.read_body(conn)
       send(test, {:api, conn.request_path, body})
 
       response =
         case conn.request_path do
-          "/router/api/v1/user/devices" ->
-            @devices
-
-          "/router/api/v1/device/scenes" ->
-            ~s({"code":200,"payload":{"capabilities":[]}})
-
-          "/router/api/v1/device/state" ->
-            ~s({"code":200,"payload":{"capabilities":[{"instance":"powerSwitch","state":{"value":1}},{"instance":"brightness","state":{"value":70}}]}})
-
-          "/router/api/v1/device/control" ->
-            ~s({"code":200,"msg":"success"})
+          "/router/api/v1/user/devices" -> devices
+          "/router/api/v1/device/scenes" -> ~s({"code":200,"payload":{"capabilities":[]}})
+          "/router/api/v1/device/state" -> state.()
+          "/router/api/v1/device/control" -> ~s({"code":200,"msg":"success"})
         end
 
       Plug.Conn.send_resp(conn, 200, response)
@@ -61,11 +88,12 @@ defmodule Ziwoas.Govee.BridgeTest do
 
   defp start_bridge!(opts) do
     test = self()
+    {cloud, opts} = Keyword.pop(opts, :cloud, [])
 
     defaults = [
       name: nil,
       govee: @govee,
-      api_req: [plug: api(test)],
+      api_req: [plug: api(test, cloud)],
       tasks: start_supervised!(Task.Supervisor),
       send: &send(test, {:datagram, &1}),
       put_lamp: &send(test, {:lamp, &1}),
@@ -90,6 +118,17 @@ defmodule Ziwoas.Govee.BridgeTest do
   end
 
   defp status(data), do: JSON.encode!(%{"msg" => %{"cmd" => "devStatus", "data" => data}})
+
+  defp from(bridge, ip, payload),
+    do: send(bridge, {:udp, :sys.get_state(bridge).socket, ip, 4003, payload})
+
+  defp heard_at!(bridge, mac, ip) do
+    scan = %{"ip" => ip |> :inet.ntoa() |> List.to_string(), "device" => mac}
+    from(bridge, ip, JSON.encode!(%{"msg" => %{"cmd" => "scan", "data" => scan}}))
+    from(bridge, ip, status(%{"onOff" => 1}))
+  end
+
+  defp asked_for(body), do: JSON.decode!(body)["payload"]["device"]
 
   test "bootstrap, LAN replies and commands" do
     bridge = start_bridge!(listen_port: 0)
@@ -323,47 +362,325 @@ defmodule Ziwoas.Govee.BridgeTest do
     refute_received {:state, _, _}
   end
 
-  test "an API poll reports the cloud's state" do
-    bridge = start_bridge!(listen_port: false)
-    assert_receive {:lamp, _lamp}, 1_000
-
-    send(bridge, :api_poll)
-
-    assert_receive {:state, @key, %{on: true, reachable: true, brightness: 70}}, 1_000
-  end
-
-  test "a change made elsewhere that the LAN reports is reported as the API clarifies it" do
-    test = self()
-    cloud = start_supervised!({Agent, fn -> %{on: 1, brightness: 72} end})
-
-    plug = fn conn ->
-      if conn.request_path == "/router/api/v1/device/state" do
-        %{on: on, brightness: brightness} = Agent.get(cloud, & &1)
-
-        Plug.Conn.send_resp(
-          conn,
-          200,
-          ~s({"code":200,"payload":{"capabilities":[{"instance":"powerSwitch","state":{"value":#{on}}},{"instance":"brightness","state":{"value":#{brightness}}}]}})
-        )
-      else
-        api(test).(conn)
-      end
+  describe "the lamp's LAN reply wins over the cloud" do
+    defp heard_lamp!(opts) do
+      bridge = start_bridge!([listen_port: 0] ++ opts)
+      assert_receive {:lamp, _lamp}, 1_000
+      port = Bridge.listen_port(bridge)
+      scan(port)
+      await(fn -> :sys.get_state(bridge).heard_at[@key] end, 1_000)
+      {bridge, port}
     end
 
-    bridge = start_bridge!(listen_port: 0, api_req: [plug: plug])
-    assert_receive {:lamp, _lamp}, 1_000
-    port = Bridge.listen_port(bridge)
-    scan(port)
+    defp settled(bridge), do: await(fn -> :sys.get_state(bridge).pending == %{} end, 1_000)
 
-    udp(port, status(%{"onOff" => 0, "brightness" => 30}))
-    assert_receive {:state, @key, %{on: false, brightness: 30}}, 1_000
+    test "a lamp heard on the LAN shows its change at once, without asking the cloud" do
+      {_bridge, port} = heard_lamp!(cloud: [devices: plain_lamp()])
 
-    udp(port, status(%{"onOff" => 1, "brightness" => 70}))
-    assert_receive {:state, @key, %{on: true, brightness: 72}}, 1_000
+      udp(port, status(%{"onOff" => 0, "brightness" => 30}))
+      assert_receive {:state, @key, %{on: false, reachable: true, brightness: 30}}, 1_000
 
-    Agent.update(cloud, &%{&1 | brightness: 41})
-    udp(port, status(%{"onOff" => 1, "brightness" => 40}))
-    assert_receive {:state, @key, %{on: true, brightness: 41}}, 1_000
+      udp(port, status(%{"onOff" => 1, "brightness" => 55}))
+      assert_receive {:state, @key, %{on: true, reachable: true, brightness: 55}}, 1_000
+
+      refute_receive {:api, "/router/api/v1/device/state", _body}, 100
+    end
+
+    test "a LAN reply in colour clears the colour temperature" do
+      {_bridge, port} = heard_lamp!(cloud: [devices: plain_lamp()])
+
+      udp(port, status(%{"onOff" => 1, "colorTemInKelvin" => 2700}))
+      assert_receive {:state, @key, %{color_temp_k: 2700}}, 1_000
+
+      udp(
+        port,
+        status(%{
+          "onOff" => 1,
+          "colorTemInKelvin" => 0,
+          "color" => %{"r" => 255, "g" => 0, "b" => 0}
+        })
+      )
+
+      assert_receive {:state, @key, %{color: %{r: 255, g: 0, b: 0}, color_temp_k: nil}}, 1_000
+    end
+
+    test "a colour command clears the colour temperature" do
+      {bridge, _port} = heard_lamp!(cloud: [devices: plain_lamp()])
+
+      assert Bridge.command(@key, {:color_temp, 3000}, bridge) == :ok
+      assert_receive {:state, @key, %{color_temp_k: 3000}}, 1_000
+
+      assert Bridge.command(@key, {:color, %{r: 0, g: 0, b: 255}}, bridge) == :ok
+      assert_receive {:state, @key, %{color: %{r: 0, g: 0, b: 255}, color_temp_k: nil}}, 1_000
+    end
+
+    test "while the LAN and the cloud keep disagreeing, LAN readings do not ask again" do
+      {bridge, port} = heard_lamp!([])
+      assert Bridge.watch(@key, bridge) == :ok
+      reading = status(%{"onOff" => 1, "brightness" => 30})
+
+      udp(port, reading)
+      assert_receive {:state, @key, %{on: true, brightness: 30}}, 1_000
+      assert_receive {:api, "/router/api/v1/device/state", _body}, 1_000
+      assert_receive {:lamp_heard, @key, %{brightness: 30}}, 1_000
+      settled(bridge)
+
+      for _reading <- 1..3 do
+        udp(port, reading)
+        assert_receive {:lamp_heard, @key, %{brightness: 30}}, 1_000
+      end
+
+      settled(bridge)
+      refute_receive {:api, "/router/api/v1/device/state", _body}, 100
+      refute_received {:state, @key, %{brightness: 70}}
+    end
+
+    test "a zone lamp has one cloud request in flight at a time" do
+      {bridge, port} = heard_lamp!(cloud: [state: answered_by_test(self())])
+      assert Bridge.watch(@key, bridge) == :ok
+
+      udp(port, status(%{"onOff" => 1, "brightness" => 30}))
+      assert_receive {:asked, asker}, 1_000
+
+      udp(port, status(%{"onOff" => 1, "brightness" => 40}))
+      assert_receive {:lamp_heard, @key, %{brightness: 40}}, 1_000
+      :sys.get_state(bridge)
+      refute_receive {:asked, _asker}, 100
+
+      send(asker, {:answer, cloud(%{})})
+      settled(bridge)
+
+      udp(port, status(%{"onOff" => 1, "brightness" => 50}))
+      assert_receive {:asked, _asker}, 1_000
+    end
+
+    test "a zone lamp whose LAN reply changes takes its zone states from the cloud" do
+      zone = start_supervised!({Agent, fn -> 0 end})
+
+      ripple = fn ->
+        cloud(%{
+          "powerSwitch" => 1,
+          "brightness" => 70,
+          "rippleLightToggle" => Agent.get(zone, & &1)
+        })
+      end
+
+      {_bridge, port} = heard_lamp!(cloud: [state: ripple])
+
+      udp(port, status(%{"onOff" => 1, "brightness" => 30}))
+
+      assert_receive {:state, @key,
+                      %{brightness: 30, zone_states: %{"rippleLightToggle" => false}}},
+                     1_000
+
+      Agent.update(zone, fn _ -> 1 end)
+      udp(port, status(%{"onOff" => 1, "brightness" => 40}))
+
+      assert_receive {:state, @key,
+                      %{brightness: 40, zone_states: %{"rippleLightToggle" => true}}},
+                     1_000
+    end
+
+    test "a cloud answer of offline leaves a lamp heard on the LAN on and reachable" do
+      offline = fn -> cloud(%{"online" => false, "powerSwitch" => 0}) end
+      {bridge, port} = heard_lamp!(cloud: [state: offline])
+
+      udp(port, status(%{"onOff" => 1, "brightness" => 30}))
+      assert_receive {:state, @key, %{on: true, reachable: true, brightness: 30}}, 1_000
+
+      send(bridge, :api_poll)
+      :sys.get_state(bridge)
+      settled(bridge)
+
+      refute_received {:state, @key, %{on: false}}
+      refute_received {:state, @key, %{reachable: false}}
+    end
+
+    test "a lamp gone silent on the LAN takes its full state from the poll" do
+      now = start_supervised!({Agent, fn -> 0 end})
+      offline = fn -> cloud(%{"online" => false, "powerSwitch" => 0}) end
+
+      {bridge, port} =
+        heard_lamp!(
+          govee: %{@govee | lan_poll_seconds: 8},
+          clock: fn -> Agent.get(now, & &1) end,
+          cloud: [devices: plain_lamp(), state: offline]
+        )
+
+      udp(port, status(%{"onOff" => 1, "brightness" => 30}))
+      assert_receive {:state, @key, %{on: true, reachable: true}}, 1_000
+
+      Agent.update(now, fn _ -> 25 end)
+      send(bridge, :api_poll)
+
+      assert_receive {:state, @key, %{on: false, reachable: false}}, 1_000
+    end
+
+    test "the poll asks nothing for a plain lamp heard on the LAN" do
+      plain = "14:AB:DB:48:44:06:4B:61"
+      never_heard = "14:AB:DB:48:44:06:4B:62"
+
+      bridge =
+        start_bridge!(
+          listen_port: 0,
+          cloud: [devices: listing([{@mac, @zones}, {plain, @colour}, {never_heard, @colour}])]
+        )
+
+      for _lamp <- 1..3, do: assert_receive({:lamp, _lamp}, 1_000)
+      heard_at!(bridge, @mac, {10, 0, 0, 1})
+      heard_at!(bridge, plain, {10, 0, 0, 2})
+      assert_receive {:api, "/router/api/v1/device/state", body}, 1_000
+      assert asked_for(body) == @mac
+      settled(bridge)
+
+      send(bridge, :api_poll)
+      assert_receive {:api, "/router/api/v1/device/state", first}, 1_000
+      assert_receive {:api, "/router/api/v1/device/state", second}, 1_000
+      settled(bridge)
+
+      assert Enum.sort([asked_for(first), asked_for(second)]) == [@mac, never_heard]
+      refute_received {:api, "/router/api/v1/device/state", _body}
+    end
+
+    test "a lamp seen only by a scan takes its full state from the poll" do
+      {bridge, _port} = heard_lamp!(cloud: [devices: plain_lamp()])
+
+      send(bridge, :api_poll)
+
+      assert_receive {:state, @key, %{on: true, reachable: true, brightness: 70}}, 1_000
+    end
+
+    test "an API poll reports the full state of a lamp never heard on the LAN" do
+      bridge = start_bridge!(listen_port: false)
+      assert_receive {:lamp, _lamp}, 1_000
+
+      send(bridge, :api_poll)
+
+      assert_receive {:state, @key, %{on: true, reachable: true, brightness: 70}}, 1_000
+    end
+
+    test "a polled answer requested before a command does not undo it" do
+      now = start_supervised!({Agent, fn -> 0 end})
+
+      bridge =
+        start_bridge!(
+          listen_port: false,
+          clock: fn -> Agent.get(now, & &1) end,
+          cloud: [state: answered_by_test(self())]
+        )
+
+      assert_receive {:lamp, _lamp}, 1_000
+      send(bridge, :api_poll)
+      assert_receive {:asked, asker}, 1_000
+
+      assert Bridge.command(@key, {:power, false}, bridge) == :ok
+      assert_receive {:state, @key, %{on: false}}, 1_000
+
+      Agent.update(now, fn _ -> 60 end)
+      send(asker, {:answer, cloud_on()})
+      settled(bridge)
+
+      refute_received {:state, @key, %{on: true}}
+    end
+
+    test "a polled answer requested between two commands does not undo the second" do
+      now = start_supervised!({Agent, fn -> 0 end})
+
+      bridge =
+        start_bridge!(
+          listen_port: false,
+          clock: fn -> Agent.get(now, & &1) end,
+          cloud: [state: answered_by_test(self())]
+        )
+
+      assert_receive {:lamp, _lamp}, 1_000
+      assert Bridge.command(@key, {:power, true}, bridge) == :ok
+      assert_receive {:state, @key, %{on: true}}, 1_000
+      settled(bridge)
+
+      send(bridge, :api_poll)
+      assert_receive {:asked, asker}, 1_000
+
+      assert Bridge.command(@key, {:power, false}, bridge) == :ok
+      assert_receive {:state, @key, %{on: false}}, 1_000
+
+      Agent.update(now, fn _ -> 60 end)
+      send(asker, {:answer, cloud_on()})
+      settled(bridge)
+
+      refute_received {:state, @key, %{on: true}}
+    end
+
+    test "a command to one lamp does not discard the polled answer for another" do
+      other_mac = "14:AB:DB:48:44:06:4B:61"
+      other_key = "14ABDB4844064B61"
+
+      bridge =
+        start_bridge!(
+          listen_port: false,
+          cloud: [
+            devices: listing([{@mac, @colour}, {other_mac, @colour}]),
+            state: answered_by_test(self())
+          ]
+        )
+
+      for _lamp <- 1..2, do: assert_receive({:lamp, _lamp}, 1_000)
+      send(bridge, :api_poll)
+      assert_receive {:asked, asker}, 1_000
+
+      assert Bridge.command(@key, {:power, false}, bridge) == :ok
+      assert_receive {:state, @key, %{on: false}}, 1_000
+
+      send(asker, {:answer, cloud_on()})
+      assert_receive {:asked, asker}, 1_000
+      send(asker, {:answer, cloud_on()})
+
+      assert_receive {:state, ^other_key, %{on: true, brightness: 70}}, 1_000
+      settled(bridge)
+      refute_received {:state, @key, %{on: true}}
+    end
+
+    test "zone states asked for before a command do not undo it" do
+      now = start_supervised!({Agent, fn -> 0 end})
+
+      {bridge, port} =
+        heard_lamp!(
+          clock: fn -> Agent.get(now, & &1) end,
+          cloud: [state: answered_by_test(self())]
+        )
+
+      udp(port, status(%{"onOff" => 1, "brightness" => 30}))
+      assert_receive {:asked, asker}, 1_000
+
+      assert Bridge.command(@key, {:zone, "rippleLightToggle", true}, bridge) == :ok
+      assert_receive {:state, @key, %{zone_states: %{"rippleLightToggle" => true}}}, 1_000
+
+      Agent.update(now, fn _ -> 60 end)
+      send(asker, {:answer, cloud(%{"powerSwitch" => 1, "rippleLightToggle" => 0})})
+      settled(bridge)
+
+      refute_received {:state, @key, %{zone_states: %{"rippleLightToggle" => false}}}
+    end
+
+    test "zone states the cloud lags behind on do not undo a zone command in its window" do
+      stale = fn -> cloud(%{"powerSwitch" => 1, "rippleLightToggle" => 0}) end
+      {bridge, port} = heard_lamp!(clock: fn -> 0 end, cloud: [state: stale])
+
+      udp(port, status(%{"onOff" => 1, "brightness" => 30}))
+      assert_receive {:api, "/router/api/v1/device/state", _body}, 1_000
+      assert_receive {:state, @key, %{zone_states: %{"rippleLightToggle" => false}}}, 1_000
+      settled(bridge)
+
+      assert Bridge.command(@key, {:zone, "rippleLightToggle", true}, bridge) == :ok
+      assert_receive {:state, @key, %{zone_states: %{"rippleLightToggle" => true}}}, 1_000
+      settled(bridge)
+
+      udp(port, status(%{"onOff" => 1, "brightness" => 40}))
+      assert_receive {:api, "/router/api/v1/device/state", _body}, 1_000
+      settled(bridge)
+
+      refute_received {:state, @key, %{zone_states: %{"rippleLightToggle" => false}}}
+    end
   end
 
   test "an API poll whose task exits is logged and the next poll still comes" do

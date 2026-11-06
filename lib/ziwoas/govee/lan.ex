@@ -115,7 +115,10 @@ defmodule Ziwoas.Govee.Lan do
         Map.put(telemetry, :color_temp_k, status.color_temp_k)
 
       not is_nil(status.color_r) ->
-        Map.put(telemetry, :color, %{r: status.color_r, g: status.color_g, b: status.color_b})
+        Map.merge(telemetry, %{
+          color: %{r: status.color_r, g: status.color_g, b: status.color_b},
+          color_temp_k: nil
+        })
 
       true ->
         telemetry
