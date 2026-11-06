@@ -75,6 +75,9 @@ defmodule Ziwoas.Govee.Bridge do
       tasks: Keyword.get(opts, :tasks, Ziwoas.Govee.Tasks),
       pending: %{},
       heard_at: %{},
+      lan_replies: %{},
+      asking_for_zones: MapSet.new(),
+      commands: %{},
       watchers: %{},
       watch_poll_ms: Keyword.get(opts, :watch_poll_ms, @watch_poll_ms),
       watch_polling: false,
@@ -104,17 +107,7 @@ defmodule Ziwoas.Govee.Bridge do
     {:reply, reply, state}
   end
 
-  def handle_call({:silent?, key}, _from, state) do
-    silent_after = @silent_after_polls * state.govee.lan_poll_seconds
-
-    silent =
-      case state.heard_at[key] do
-        nil -> false
-        heard_at -> state.clock.() - heard_at > silent_after
-      end
-
-    {:reply, silent, state}
-  end
+  def handle_call({:silent?, key}, _from, state), do: {:reply, silent_on_lan?(state, key), state}
 
   def handle_call({:watch, key, watcher}, _from, state) do
     state = %{state | watchers: Lights.Bridge.add_watcher(state.watchers, key, watcher)}
@@ -142,11 +135,11 @@ defmodule Ziwoas.Govee.Bridge do
   # Re-armed before the task starts: however the task ends, the next poll comes.
   def handle_info(:api_poll, state) do
     Process.send_after(self(), :api_poll, state.govee.api_poll_seconds * 1000)
-    devices = DeviceRegistry.all(state.registry)
+    devices = Enum.filter(DeviceRegistry.all(state.registry), &polled?(state, &1))
     api = state.api
 
     {:noreply,
-     async(state, :api_states, fn ->
+     async(state, {:api_states, state.commands}, fn ->
        {:ok, Enum.map(devices, &{&1, PlatformApi.state(api, &1.sku, &1.api_id)})}
      end)}
   end
@@ -196,16 +189,21 @@ defmodule Ziwoas.Govee.Bridge do
     if state.bootstrapped, do: state, else: bootstrap(state)
   end
 
-  defp finished(state, :api_states, {:ok, results}),
-    do: Enum.reduce(results, state, &apply_api(&2, &1))
+  defp finished(state, {:api_states, commands}, {:ok, results}) do
+    Enum.reduce(results, state, fn {device, result}, state ->
+      apply_unless_outdated(state, device, result, commands)
+    end)
+  end
 
-  defp finished(state, :api_states, {:error, reason}) do
+  defp finished(state, {:api_states, _commands}, {:error, reason}) do
     Logger.warning("Govee bridge: API poll failed: #{inspect(reason)}")
     state
   end
 
-  defp finished(state, {:clarified, device}, result),
-    do: apply_api(state, {device, result})
+  defp finished(state, {:zones, device, commands}, result) do
+    state = %{state | asking_for_zones: MapSet.delete(state.asking_for_zones, device.key)}
+    apply_unless_outdated(state, device, result, commands)
+  end
 
   defp finished(state, {:controlled, key, verb}, {:ok, _}), do: record(state, key, verb)
 
@@ -347,33 +345,73 @@ defmodule Ziwoas.Govee.Bridge do
     %{state | watch_polling: true}
   end
 
-  defp apply_lan(state, device, telemetry) do
-    state = heard(state, device.key, telemetry)
+  defp silent_on_lan?(state, key),
+    do: Map.has_key?(state.heard_at, key) and not heard_lately?(state, key)
 
-    {result, store} =
-      States.apply_telemetry(state.store, device.key, telemetry, :lan, state.clock.())
+  # A scan reply carries no state, so only a lamp whose status replies arrive is heard.
+  defp lan_presence(state, key) do
+    if heard_lately?(state, key) and is_map_key(state.lan_replies, key),
+      do: :heard,
+      else: :not_heard
+  end
 
-    state = %{state | store: store}
-    if result.changed, do: report_state(state, device.key, result.published)
+  defp polled?(state, device),
+    do: device.zones != [] or lan_presence(state, device.key) == :not_heard
 
-    if result.needs_api_clarification do
-      api = state.api
-
-      async(state, {:clarified, device}, fn ->
-        PlatformApi.state(api, device.sku, device.api_id)
-      end)
-    else
-      state
+  defp heard_lately?(state, key) do
+    case state.heard_at[key] do
+      nil -> false
+      heard_at -> state.clock.() - heard_at <= @silent_after_polls * state.govee.lan_poll_seconds
     end
   end
 
-  defp apply_api(state, {device, {:ok, map}}) do
+  defp apply_lan(state, device, telemetry) do
+    previous = state.lan_replies[device.key]
+    state = heard(state, device.key, telemetry)
+    {result, store} = States.apply_lan(state.store, device.key, telemetry, state.clock.())
+
+    state = %{
+      state
+      | store: store,
+        lan_replies: Map.put(state.lan_replies, device.key, telemetry)
+    }
+
+    report_change(state, device.key, result)
+    if telemetry == previous, do: state, else: ask_for_zones(state, device)
+  end
+
+  defp ask_for_zones(state, device) do
+    if device.zones == [] or MapSet.member?(state.asking_for_zones, device.key) do
+      state
+    else
+      api = state.api
+      state = %{state | asking_for_zones: MapSet.put(state.asking_for_zones, device.key)}
+
+      async(state, {:zones, device, state.commands}, fn ->
+        PlatformApi.state(api, device.sku, device.api_id)
+      end)
+    end
+  end
+
+  defp apply_unless_outdated(state, device, result, commands_when_asked) do
+    if commands_when_asked[device.key] == state.commands[device.key],
+      do: apply_api(state, device, result),
+      else: state
+  end
+
+  defp apply_api(state, device, {:ok, map}) do
     case PlatformApi.telemetry(map, device.zones) do
       {:ok, telemetry} ->
         {result, store} =
-          States.apply_telemetry(state.store, device.key, telemetry, :api, state.clock.())
+          States.apply_api(
+            state.store,
+            device.key,
+            telemetry,
+            lan_presence(state, device.key),
+            state.clock.()
+          )
 
-        if result.changed, do: report_state(state, device.key, result.published)
+        report_change(state, device.key, result)
         %{state | store: store}
 
       :error ->
@@ -382,10 +420,15 @@ defmodule Ziwoas.Govee.Bridge do
     end
   end
 
-  defp apply_api(state, {device, {:error, reason}}) do
+  defp apply_api(state, device, {:error, reason}) do
     Logger.warning("Govee bridge: API state of #{device.key}: #{inspect(reason)}")
     state
   end
+
+  defp report_change(state, key, %{changed: true, published: published}),
+    do: report_state(state, key, published)
+
+  defp report_change(_state, _key, _result), do: :ok
 
   defp run_command(state, key, verb) do
     with %{} = device <- DeviceRegistry.find(state.registry, key) || {:error, :unknown_lamp},
@@ -422,7 +465,7 @@ defmodule Ziwoas.Govee.Bridge do
     changes = CommandRouter.changes(verb, States.published(state.store, key))
     {published, store} = States.record_command(state.store, key, changes, state.clock.())
     report_state(state, key, published)
-    %{state | store: store}
+    %{state | store: store, commands: Map.update(state.commands, key, 1, &(&1 + 1))}
   end
 
   defp lan(state, command), do: state.send.(Lan.datagram(command))
@@ -430,7 +473,8 @@ defmodule Ziwoas.Govee.Bridge do
   defp report_state(state, key, published) do
     lamp_state =
       for {field, value} <- Map.take(published, @state_fields),
-          not is_nil(value),
+          # A nil kelvin tells Lights the lamp left white mode.
+          not is_nil(value) or field == :color_temp_k,
           into: %{on: false, reachable: true},
           do: {field, value}
 

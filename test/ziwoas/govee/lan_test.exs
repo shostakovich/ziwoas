@@ -170,9 +170,9 @@ defmodule Ziwoas.Govee.LanTest do
                %{on: true, reachable: true, brightness: 50, color_temp_k: 2700}
     end
 
-    test "else the colour, when the lamp sent one" do
+    test "else the colour, when the lamp sent one, clearing the colour temperature" do
       assert Lan.telemetry(status(%{color_temp_k: 0, color_r: 1, color_g: 2, color_b: 3})) ==
-               %{on: true, reachable: true, color: %{r: 1, g: 2, b: 3}}
+               %{on: true, reachable: true, color: %{r: 1, g: 2, b: 3}, color_temp_k: nil}
 
       assert Lan.telemetry(status(%{on: false})) == %{on: false, reachable: true}
     end
