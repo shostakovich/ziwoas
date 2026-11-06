@@ -40,137 +40,136 @@ defmodule Ziwoas.Govee.StatesTest do
     assert published == %{on: true, color: %{r: 1, g: 2, b: 3}, color_temp_k: nil}
   end
 
-  describe "within the pending window" do
-    test "a reading that matches confirms" do
+  describe "a LAN reading within the pending window" do
+    test "that matches confirms" do
       {result, store} =
-        States.apply_telemetry(
+        States.apply_lan(
           commanded(%{on: true, brightness: 40}),
           @key,
           %{on: true, brightness: 40, reachable: true},
-          :lan,
           102.0
         )
 
+      assert result == %{published: %{on: true, brightness: 40, reachable: true}, changed: true}
+      assert States.status(store, @key) == :synced
+    end
+
+    test "that deviates is the lamp not having applied it yet" do
+      {result, store} =
+        States.apply_lan(commanded(%{on: true, brightness: 40}), @key, %{on: false}, 104.9)
+
+      assert result == %{published: %{on: true, brightness: 40}, changed: false}
+      assert States.status(store, @key) == :pending
+    end
+
+    test "lacking a field does not deviate in it" do
+      {result, _store} =
+        States.apply_lan(commanded(%{on: true, brightness: 40}), @key, %{on: true}, 101.0)
+
+      assert result == %{published: %{on: true, brightness: 40}, changed: false}
+    end
+  end
+
+  describe "a LAN reading after the window" do
+    test "is adopted as the lamp reports it" do
+      {result, store} =
+        States.apply_lan(
+          commanded(%{on: true, brightness: 40}),
+          @key,
+          %{on: true, brightness: 10, color_temp_k: 2700},
+          105.0
+        )
+
       assert result == %{
-               published: %{on: true, brightness: 40, reachable: true},
-               changed: true,
-               needs_api_clarification: false
+               published: %{on: true, brightness: 10, color_temp_k: 2700},
+               changed: true
              }
 
       assert States.status(store, @key) == :synced
     end
 
-    test "a reading that deviates is the lamp not having applied it yet" do
-      store = commanded(%{on: true, brightness: 40})
-
-      for source <- [:lan, :api] do
-        {result, after_reading} =
-          States.apply_telemetry(store, @key, %{on: true, brightness: 10}, source, 104.9)
-
-        assert result == %{
-                 published: %{on: true, brightness: 40},
-                 changed: false,
-                 needs_api_clarification: false
-               }
-
-        assert States.status(after_reading, @key) == :pending
-      end
-    end
-
-    test "a field the reading lacks is no deviation" do
-      {result, _store} =
-        States.apply_telemetry(
-          commanded(%{on: true, brightness: 40}),
-          @key,
-          %{on: true},
-          :lan,
-          101.0
-        )
-
-      assert result.published == %{on: true, brightness: 40}
+    test "that matches changes nothing" do
+      {result, _store} = States.apply_lan(commanded(%{on: true}), @key, %{on: true}, 200.0)
       refute result.changed
     end
   end
 
-  describe "after the window" do
-    test "off is adopted at once" do
-      {result, store} =
-        States.apply_telemetry(
-          commanded(%{on: true, brightness: 40}),
+  test "a lamp's first LAN reading is adopted" do
+    {result, _store} = States.apply_lan(store(), @key, %{on: true, reachable: true}, 0.0)
+    assert result == %{published: %{on: true, reachable: true}, changed: true}
+  end
+
+  describe "a cloud answer for a lamp heard on the LAN" do
+    test "fills in only the zone states" do
+      {_result, store} = States.apply_lan(store(), @key, %{on: true, reachable: true}, 0.0)
+
+      {result, _store} =
+        States.apply_api(
+          store,
           @key,
-          %{on: false},
-          :lan,
-          105.0
+          %{on: false, reachable: false, brightness: 70, zone_states: %{"z" => true}},
+          :heard,
+          1.0
         )
 
-      assert result.published == %{on: false, brightness: 40}
-      assert result.changed
-      refute result.needs_api_clarification
-      assert States.status(store, @key) == :synced
+      assert result == %{
+               published: %{on: true, reachable: true, zone_states: %{"z" => true}},
+               changed: true
+             }
     end
 
-    test "a deviating LAN reading asks the API and changes nothing yet" do
+    test "within the pending window changes nothing" do
       {result, store} =
-        States.apply_telemetry(
+        States.apply_api(
+          commanded(%{zone_states: %{"z" => true}}),
+          @key,
+          %{zone_states: %{"z" => false}},
+          :heard,
+          101.0
+        )
+
+      assert result == %{published: %{zone_states: %{"z" => true}}, changed: false}
+      assert States.status(store, @key) == :pending
+    end
+
+    test "without zone states changes nothing" do
+      {result, _store} =
+        States.apply_api(commanded(%{on: true}), @key, %{on: false}, :heard, 200.0)
+
+      assert result == %{published: %{on: true}, changed: false}
+    end
+  end
+
+  describe "a cloud answer for a lamp not heard on the LAN" do
+    test "is adopted in full, its reachability too" do
+      {result, store} =
+        States.apply_api(
           commanded(%{on: true, brightness: 40}),
           @key,
-          %{on: true, brightness: 10},
-          :lan,
+          %{on: false, reachable: false, zone_states: %{"z" => false}},
+          :not_heard,
           106.0
         )
 
       assert result == %{
-               published: %{on: true, brightness: 40},
-               changed: false,
-               needs_api_clarification: true
+               published: %{
+                 on: false,
+                 reachable: false,
+                 brightness: 40,
+                 zone_states: %{"z" => false}
+               },
+               changed: true
              }
 
-      assert States.status(store, @key) == :reconciling
-    end
-
-    test "the API is the truth" do
-      store = commanded(%{on: true, brightness: 40})
-
-      {_result, store} =
-        States.apply_telemetry(store, @key, %{on: true, brightness: 10}, :lan, 106.0)
-
-      {result, store} =
-        States.apply_telemetry(store, @key, %{on: true, brightness: 10}, :api, 107.0)
-
-      assert result.published == %{on: true, brightness: 10}
-      assert result.changed
       assert States.status(store, @key) == :synced
     end
 
-    test "a matching reading changes nothing" do
+    test "that deviates within the pending window is ignored" do
       {result, _store} =
-        States.apply_telemetry(commanded(%{on: true}), @key, %{on: true}, :lan, 200.0)
+        States.apply_api(commanded(%{on: true}), @key, %{on: false}, :not_heard, 101.0)
 
-      refute result.changed
-      refute result.needs_api_clarification
+      assert result == %{published: %{on: true}, changed: false}
     end
-  end
-
-  test "a lamp first heard on: the LAN asks the API, the API is adopted" do
-    {result, _store} = States.apply_telemetry(store(), @key, %{on: true}, :lan, 0.0)
-    assert result == %{published: %{}, changed: false, needs_api_clarification: true}
-
-    {result, store} =
-      States.apply_telemetry(store(), @key, %{on: true, reachable: true}, :api, 0.0)
-
-    assert result.changed
-    assert States.published(store, @key) == %{on: true, reachable: true}
-  end
-
-  test "a lamp first heard off is adopted from the LAN" do
-    {result, _store} =
-      States.apply_telemetry(store(), @key, %{on: false, reachable: true}, :lan, 0.0)
-
-    assert result == %{
-             published: %{on: false, reachable: true},
-             changed: true,
-             needs_api_clarification: false
-           }
   end
 
   test "lamps are kept apart" do

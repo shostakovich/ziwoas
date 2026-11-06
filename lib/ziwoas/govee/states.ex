@@ -1,11 +1,12 @@
 defmodule Ziwoas.Govee.States do
-  @moduledoc false
+  @moduledoc "What a lamp heard on the LAN reports wins; the cloud fills in what the LAN cannot see."
   @compare [:on, :brightness, :color, :color_temp_k]
+  @lan_blind [:zone_states]
 
   defstruct window_s: 5.0, entries: %{}
 
   @type t :: %__MODULE__{}
-  @type result :: %{published: map, changed: boolean, needs_api_clarification: boolean}
+  @type result :: %{published: map, changed: boolean}
 
   def new(window_s), do: %__MODULE__{window_s: window_s}
 
@@ -26,36 +27,38 @@ defmodule Ziwoas.Govee.States do
     {entry.published, put(store, key, entry)}
   end
 
-  @spec apply_telemetry(t, String.t(), map, :lan | :api, number) :: {result, t}
-  def apply_telemetry(store, key, telemetry, source, now) do
-    entry = entry(store, key)
-    before = entry.published
+  @spec apply_lan(t, String.t(), map, number) :: {result, t}
+  def apply_lan(store, key, telemetry, now), do: apply_reading(store, key, telemetry, now)
 
-    {entry, needs_api} =
-      cond do
-        entry.status == :pending and now < entry.pending_until ->
-          if matches?(entry.published, telemetry),
-            do: {adopt(entry, telemetry), false},
-            else: {entry, false}
+  @spec apply_api(t, String.t(), map, :heard | :not_heard, number) :: {result, t}
+  def apply_api(store, key, telemetry, :not_heard, now),
+    do: apply_reading(store, key, telemetry, now)
 
-        telemetry[:on] == false ->
-          {adopt(entry, telemetry), false}
-
-        source == :lan and not matches?(entry.published, telemetry) ->
-          {%{entry | status: :reconciling}, true}
-
-        true ->
-          {adopt(entry, telemetry), false}
-      end
-
-    result = %{
-      published: entry.published,
-      changed: entry.published != before,
-      needs_api_clarification: needs_api
-    }
-
-    {result, put(store, key, entry)}
+  def apply_api(store, key, telemetry, :heard, now) do
+    update(store, key, fn entry ->
+      if pending?(entry, now),
+        do: entry,
+        else: %{entry | published: Map.merge(entry.published, Map.take(telemetry, @lan_blind))}
+    end)
   end
+
+  defp apply_reading(store, key, telemetry, now) do
+    update(store, key, fn entry ->
+      if pending?(entry, now) and not matches?(entry.published, telemetry),
+        do: entry,
+        else: adopt(entry, telemetry)
+    end)
+  end
+
+  defp update(store, key, fun) do
+    before = entry(store, key)
+    entry = fun.(before)
+
+    {%{published: entry.published, changed: entry.published != before.published},
+     put(store, key, entry)}
+  end
+
+  defp pending?(entry, now), do: entry.status == :pending and now < entry.pending_until
 
   defp adopt(entry, telemetry),
     do: %{entry | published: Map.merge(entry.published, telemetry), status: :synced}
