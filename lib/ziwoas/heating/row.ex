@@ -23,4 +23,8 @@ defmodule Ziwoas.Heating.Row do
   @spec set_to_heat?(t) :: boolean
   def set_to_heat?(%__MODULE__{heater: heater, decision: %Decision{state: state}}),
     do: (Heater.written_state(heater) || state) == :heat
+
+  @doc "Heating, as far as anyone can tell: set to heat and the thermostat reachable."
+  @spec heating?(t) :: boolean
+  def heating?(row), do: set_to_heat?(row) and not offline?(row)
 end

@@ -38,4 +38,3 @@ govee:
   devices:
     - key: 14ABDB4844064B60
       name: Uplighter
-      room: Wohnzimmer

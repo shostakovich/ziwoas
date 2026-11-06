@@ -45,7 +45,6 @@ location:
 #   devices:
 #     - key: 14ABDB4844064B60   # MAC, colons stripped, uppercase
 #       name: Uplighter
-#       room: Wohnzimmer
 
 # Philips Hue Bridge (local API v2, ADR-0012). Omit to disable; the bridge starts only with
 # both keys. Get the application key once: press the bridge's link button, then within 30 s
@@ -64,8 +63,7 @@ plugs:
   # - id: kuehlschrank
   #   name: Kuehlschrank
   #   role: consumer
-  #   room: Küche
-  #   # switchable: true   # zeigt den Plug im "Schalten"-Tab (nur Shelly)
+  #   # switchable: true   # zeigt den Plug im "Schalten"-Tab (nur Shelly); den Raum wählst du dort
   #
   # - id: waschmaschine
   #   name: Waschmaschine

@@ -23,6 +23,9 @@ defmodule ZiwoasWeb.Router do
       live "/reports", ReportsLive
       live "/sensors", SensorsLive
       live "/switches", SwitchesLive
+      live "/switches/rooms", RoomsLive
+      live "/switches/plugs/:id", DeviceLive, :plug
+      live "/switches/heaters/:key", DeviceLive, :heater
       live "/lights/:key", LightLive
     end
   end

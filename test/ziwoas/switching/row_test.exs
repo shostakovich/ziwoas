@@ -130,9 +130,12 @@ defmodule Ziwoas.Switching.RowTest do
            ]
   end
 
-  test "the count is Schaltzeiten, not rows" do
-    window()
-    Repo.insert!(%Rule{plug_id: "fridge", action: :off, at_minute: 60, days: [1]})
-    assert Row.rule_count(build(Clock.now())) == 3
+  test "lit? is switched on and still reporting" do
+    on = %Ziwoas.Plugs.State{plug_id: "fridge", output: true, updated_at: Clock.now()}
+    row = %{build(Clock.now()) | last_command: nil, state: on, offline: false}
+
+    assert Row.lit?(row)
+    refute Row.lit?(%{row | offline: true})
+    refute Row.lit?(%{row | state: %{on | output: false}})
   end
 end
