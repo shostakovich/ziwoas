@@ -23,11 +23,19 @@ what the LAN cannot see.
   being powered up has answered, while the stored reachability of a lamp not heard on the LAN
   comes from the cloud.
 - **Between polls the cloud is asked only for zone lamps**, and only when their LAN reply differs
-  from the one before, the first reply after a start included. One such request per lamp is in
-  flight at a time; a change while it runs asks nothing more.
+  from the one before; the first reply after a start, or after the cloud lists the lamp, counts
+  as differing. One such request per lamp is in flight at a time; a change while it runs asks
+  nothing more.
 - **Outdated answers are discarded.** Every cloud answer, from the poll or from such a request,
   is dropped if the lamp was commanded after the request went out. A LAN command counts when it
   is sent, a cloud-routed command once its control call succeeds.
+- **The bridge starts from the stored lamps**, so a cloud that does not answer at start no
+  longer silences the LAN; a database that cannot be read starts it with none. The cloud's
+  device list is retried every API poll until it lists a lamp. A lamp it lists replaces the
+  stored one (capabilities, zones, colour temperature range, power-only) or is added, and its
+  stored row is written as before, the stored name kept; what the cloud adds is the cloud id
+  and the scene ids. Until then, and for a lamp the list leaves out until the next start, a
+  lamp's cloud-routed commands are unavailable and the cloud is not asked about it.
 
 ## Consequences
 
