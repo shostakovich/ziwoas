@@ -67,6 +67,9 @@ defmodule Ziwoas.Lights do
   @spec lights() :: [Light.t()]
   def lights, do: Repo.all(from l in Light, order_by: l.name)
 
+  @spec lights(:govee | :hue) :: [Light.t()]
+  def lights(vendor), do: Repo.all(from l in Light, where: l.vendor == ^vendor, order_by: l.name)
+
   @spec snapshots() :: [Snapshot.t()]
   def snapshots, do: snapshots_of(lights())
 

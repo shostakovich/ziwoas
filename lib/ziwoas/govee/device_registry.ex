@@ -3,6 +3,7 @@ defmodule Ziwoas.Govee.DeviceRegistry do
   require Logger
 
   alias Ziwoas.Govee.Device
+  alias Ziwoas.Lights.Light
 
   @zone_keys ~w[bottomLightToggle rippleLightToggle sideLightToggle baseLightToggle
                 pillarLightToggle leftLightToggle rightLightToggle mainLightToggle
@@ -26,6 +27,30 @@ defmodule Ziwoas.Govee.DeviceRegistry do
   def find(%__MODULE__{devices: devices}, key), do: Enum.find(devices, &(&1.key == key))
   def find_by_ip(%__MODULE__{devices: devices}, ip), do: Enum.find(devices, &(&1.ip == ip))
 
+  @spec seed(t, [Light.t()]) :: t
+  def seed(%__MODULE__{} = registry, lights),
+    do: %{registry | devices: Enum.map(lights, &from_light/1)}
+
+  defp from_light(light) do
+    %Device{
+      key: light.key,
+      api_id: nil,
+      sku: light.sku,
+      name: light.name,
+      supports_color: light.supports_color,
+      supports_color_temp: light.supports_color_temp,
+      color_temp_min_k: light.color_temp_min_k,
+      color_temp_max_k: light.color_temp_max_k,
+      zones: Light.zones(light),
+      scenes: Light.firmware_scenes(light)
+    }
+  end
+
+  @spec cloud_list_loaded?(t) :: boolean
+  def cloud_list_loaded?(%__MODULE__{devices: devices}),
+    do: Enum.any?(devices, &Device.cloud_listed?/1)
+
+  @doc "Listed lamps replace the known ones and keep their IP; unlisted ones stay."
   @spec refresh(t, [map], (map -> {:ok, [map]} | {:error, term})) :: t
   def refresh(%__MODULE__{} = registry, raw_devices, scenes) do
     built =
@@ -36,14 +61,19 @@ defmodule Ziwoas.Govee.DeviceRegistry do
         end
       end
 
-    # A repeated key keeps its first place and its last value.
-    devices =
-      built
-      |> Enum.map(& &1.key)
-      |> Enum.uniq()
-      |> Enum.map(fn key -> built |> Enum.filter(&(&1.key == key)) |> List.last() end)
+    listed = last_of_each_key(built)
+    by_key = Map.new(listed, &{&1.key, &1})
+    known = Enum.map(registry.devices, &Map.get(by_key, &1.key, &1))
+    added = Enum.reject(listed, &find(registry, &1.key))
+    %{registry | devices: known ++ added}
+  end
 
-    %{registry | devices: devices}
+  # A repeated key keeps its first place and its last value.
+  defp last_of_each_key(devices) do
+    devices
+    |> Enum.map(& &1.key)
+    |> Enum.uniq()
+    |> Enum.map(fn key -> devices |> Enum.filter(&(&1.key == key)) |> List.last() end)
   end
 
   @spec record_lan_ip(t, String.t(), String.t()) :: t
@@ -68,7 +98,10 @@ defmodule Ziwoas.Govee.DeviceRegistry do
       caps = if is_list(raw["capabilities"]), do: raw["capabilities"], else: []
       instances = Enum.map(caps, & &1["instance"])
       power_only = instances == ["powerSwitch"]
-      {scene_names, index} = if power_only, do: {[], %{}}, else: load_scenes(raw, scenes)
+
+      {scene_names, index} =
+        if power_only, do: {[], %{}}, else: load_scenes(registry, key, raw, scenes)
+
       ct_cap = Enum.find(caps, &(&1["instance"] == "colorTemperatureK"))
       range = get_in(ct_cap || %{}, ["parameters", "range"])
 
@@ -93,7 +126,7 @@ defmodule Ziwoas.Govee.DeviceRegistry do
   defp range_value(range, key) when is_map(range), do: range[key]
   defp range_value(_range, _key), do: nil
 
-  defp load_scenes(raw, scenes) do
+  defp load_scenes(registry, key, raw, scenes) do
     case scenes.(raw) do
       {:ok, options} ->
         Enum.reduce(List.wrap(options), {[], %{}}, &add_scene/2)
@@ -103,7 +136,15 @@ defmodule Ziwoas.Govee.DeviceRegistry do
           "Govee.DeviceRegistry: scenes for #{raw["device"]} failed: #{inspect(reason)}"
         )
 
-        {[], %{}}
+        # Without ids the known names cannot be played, but the stored scenes are not wiped.
+        {known_scenes(registry, key), %{}}
+    end
+  end
+
+  defp known_scenes(registry, key) do
+    case find(registry, key) do
+      %Device{scenes: scenes} -> scenes
+      nil -> []
     end
   end
 

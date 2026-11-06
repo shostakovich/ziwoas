@@ -17,5 +17,9 @@ defmodule Ziwoas.Govee.Device do
     power_only: false
   ]
 
-  @type t :: %__MODULE__{}
+  @typedoc "A lamp seeded from the database has no `api_id` until the cloud lists it."
+  @type t :: %__MODULE__{api_id: String.t() | nil}
+
+  @spec cloud_listed?(t) :: boolean
+  def cloud_listed?(%__MODULE__{api_id: api_id}), do: not is_nil(api_id)
 end

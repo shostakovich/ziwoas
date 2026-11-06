@@ -4,6 +4,7 @@ defmodule Ziwoas.Govee.DeviceRegistryTest do
   import ExUnit.CaptureLog
 
   alias Ziwoas.Govee.{Device, DeviceRegistry}
+  alias Ziwoas.Lights.Light
 
   @mac "14:AB:DB:48:44:06:4B:60"
   @key "14ABDB4844064B60"
@@ -106,7 +107,7 @@ defmodule Ziwoas.Govee.DeviceRegistryTest do
            }
   end
 
-  test "failing scenes leave the lamp without scenes" do
+  test "failing scenes leave a lamp new to the registry without scenes" do
     log =
       capture_log(fn ->
         [device] =
@@ -159,7 +160,94 @@ defmodule Ziwoas.Govee.DeviceRegistryTest do
     assert %Device{ip: nil} = DeviceRegistry.find(registry, "AABB")
 
     registry = refresh([raw(%{"deviceName" => "Neu"})], registry)
-    assert [%Device{name: "Neu", ip: "10.0.0.5"}] = DeviceRegistry.all(registry)
+    assert [%Device{name: "Neu", ip: "10.0.0.5"}, _other] = DeviceRegistry.all(registry)
+  end
+
+  describe "seeded from the stored lamps" do
+    defp stored(attrs \\ []) do
+      struct!(
+        %Light{
+          key: @key,
+          name: "Stehlampe",
+          sku: "H60B0",
+          supports_color: true,
+          supports_color_temp: true,
+          color_temp_min_k: 2700,
+          color_temp_max_k: 6500,
+          zones: ["rippleLightToggle"],
+          firmware_scenes: ["Forest"]
+        },
+        attrs
+      )
+    end
+
+    defp seeded(lights), do: DeviceRegistry.seed(DeviceRegistry.new(), lights)
+
+    test "a stored lamp becomes a device without a cloud id" do
+      assert DeviceRegistry.all(seeded([stored()])) == [
+               %Device{
+                 key: @key,
+                 api_id: nil,
+                 sku: "H60B0",
+                 name: "Stehlampe",
+                 supports_color: true,
+                 supports_color_temp: true,
+                 color_temp_min_k: 2700,
+                 color_temp_max_k: 6500,
+                 zones: ["rippleLightToggle"],
+                 scenes: ["Forest"]
+               }
+             ]
+    end
+
+    test "a stored lamp without zones or scenes has empty ones" do
+      assert [%Device{zones: [], scenes: []}] =
+               DeviceRegistry.all(seeded([stored(zones: nil, firmware_scenes: nil)]))
+    end
+
+    test "the cloud's list has loaded once it lists a lamp" do
+      refute DeviceRegistry.cloud_list_loaded?(seeded([stored()]))
+      refute DeviceRegistry.cloud_list_loaded?(refresh([], seeded([stored()])))
+      assert DeviceRegistry.cloud_list_loaded?(refresh([raw()], seeded([stored()])))
+    end
+
+    test "the cloud's list enriches a stored lamp and keeps its LAN IP" do
+      scenes = fn _raw -> {:ok, [%{"name" => "Aurora", "value" => %{"id" => 1}}]} end
+
+      registry =
+        [stored()]
+        |> seeded()
+        |> DeviceRegistry.record_lan_ip(@mac, "10.0.0.5")
+        |> then(&refresh([raw()], &1, scenes))
+
+      assert [
+               %Device{
+                 api_id: @mac,
+                 ip: "10.0.0.5",
+                 zones: ["rippleLightToggle", "sideLightToggle"],
+                 scenes: ["Aurora"],
+                 scene_index: %{"Aurora" => %{id: 1, param_id: nil}}
+               }
+             ] = DeviceRegistry.all(registry)
+    end
+
+    test "a scene call that fails keeps the stored scenes, an empty answer clears them" do
+      failing = fn _raw -> {:error, "HTTP 429"} end
+
+      capture_log(fn ->
+        assert [%Device{api_id: @mac, scenes: ["Forest"], scene_index: %{}}] =
+                 DeviceRegistry.all(refresh([raw()], seeded([stored()]), failing))
+      end)
+
+      assert [%Device{scenes: []}] = DeviceRegistry.all(refresh([raw()], seeded([stored()])))
+    end
+
+    test "a stored lamp the cloud does not list stays, a lamp new to the database is added" do
+      registry = refresh([raw(%{"device" => "AA:BB"})], seeded([stored()]))
+
+      assert [%Device{key: @key, api_id: nil}, %Device{key: "AABB", api_id: "AA:BB"}] =
+               DeviceRegistry.all(registry)
+    end
   end
 
   test "an IP for an unknown MAC and lookups that miss change nothing" do
