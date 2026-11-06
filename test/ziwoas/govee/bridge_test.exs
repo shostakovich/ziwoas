@@ -386,6 +386,34 @@ defmodule Ziwoas.Govee.BridgeTest do
       refute_receive {:api, "/router/api/v1/device/state", _body}, 100
     end
 
+    test "a LAN reply in colour clears the colour temperature" do
+      {_bridge, port} = heard_lamp!(cloud: [devices: plain_lamp()])
+
+      udp(port, status(%{"onOff" => 1, "colorTemInKelvin" => 2700}))
+      assert_receive {:state, @key, %{color_temp_k: 2700}}, 1_000
+
+      udp(
+        port,
+        status(%{
+          "onOff" => 1,
+          "colorTemInKelvin" => 0,
+          "color" => %{"r" => 255, "g" => 0, "b" => 0}
+        })
+      )
+
+      assert_receive {:state, @key, %{color: %{r: 255, g: 0, b: 0}, color_temp_k: nil}}, 1_000
+    end
+
+    test "a colour command clears the colour temperature" do
+      {bridge, _port} = heard_lamp!(cloud: [devices: plain_lamp()])
+
+      assert Bridge.command(@key, {:color_temp, 3000}, bridge) == :ok
+      assert_receive {:state, @key, %{color_temp_k: 3000}}, 1_000
+
+      assert Bridge.command(@key, {:color, %{r: 0, g: 0, b: 255}}, bridge) == :ok
+      assert_receive {:state, @key, %{color: %{r: 0, g: 0, b: 255}, color_temp_k: nil}}, 1_000
+    end
+
     test "while the LAN and the cloud keep disagreeing, LAN readings do not ask again" do
       {bridge, port} = heard_lamp!([])
       assert Bridge.watch(@key, bridge) == :ok

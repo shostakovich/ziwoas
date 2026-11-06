@@ -473,7 +473,8 @@ defmodule Ziwoas.Govee.Bridge do
   defp report_state(state, key, published) do
     lamp_state =
       for {field, value} <- Map.take(published, @state_fields),
-          not is_nil(value),
+          # A nil kelvin tells Lights the lamp left white mode.
+          not is_nil(value) or field == :color_temp_k,
           into: %{on: false, reachable: true},
           do: {field, value}
 
