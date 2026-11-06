@@ -424,6 +424,61 @@ defmodule ZiwoasWeb.LightLiveEventsTest do
                Repo.get_by(Light, key: "UP1")
     end
 
+    test "offers the rooms and saves the lamp into one, and out again", %{conn: conn} do
+      {:ok, _bath} = Ziwoas.Rooms.create(%{"name" => "Bad"})
+      {:ok, living} = Ziwoas.Rooms.create(%{"name" => "Wohnzimmer"})
+      view = open_page(conn)
+      open_settings(view)
+
+      options =
+        view
+        |> render()
+        |> LazyHTML.from_document()
+        |> LazyHTML.query("select[name='light[room_id]'] option")
+        |> Enum.map(&String.trim(LazyHTML.text(&1)))
+
+      assert options == ["Ohne Raum", "Bad", "Wohnzimmer"]
+
+      view
+      |> form("#light_form", %{"light" => %{"name" => "Uplighter", "room_id" => living.id}})
+      |> render_submit()
+
+      assert Repo.get_by(Light, key: "UP1").room_id == living.id
+      assert render(view) =~ "Lampe aktualisiert."
+
+      {:ok, switches, _html} = live(conn, ~p"/switches")
+      assert has_element?(switches, "#room-#{living.id} #light_card_UP1")
+
+      open_settings(view)
+
+      assert has_element?(
+               view,
+               "select[name='light[room_id]'] option[value='#{living.id}'][selected]"
+             )
+
+      view
+      |> form("#light_form", %{"light" => %{"name" => "Uplighter", "room_id" => ""}})
+      |> render_submit()
+
+      assert Repo.get_by(Light, key: "UP1").room_id == nil
+    end
+
+    test "refuses a room deleted while the sheet was open", %{conn: conn} do
+      {:ok, bath} = Ziwoas.Rooms.create(%{"name" => "Bad"})
+      view = open_page(conn)
+      open_settings(view)
+      Ziwoas.Rooms.delete(bath)
+
+      html =
+        render_submit(element(view, "#light_form"), %{
+          "light" => %{"name" => "Uplighter", "room_id" => to_string(bath.id)}
+        })
+
+      assert html =~ "Diesen Raum gibt es nicht mehr"
+      assert Repo.get_by(Light, key: "UP1").room_id == nil
+      assert has_element?(view, "dialog#light_settings[data-show=true]")
+    end
+
     test "Abbrechen closes the sheet, and the server forgets it", %{conn: conn} do
       view = open_page(conn)
       open_settings(view)

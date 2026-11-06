@@ -50,6 +50,11 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
     view
   end
 
+  defp open_device(conn) do
+    {:ok, view, _html} = live(conn, ~p"/switches/plugs/fridge")
+    view
+  end
+
   defp new_entry(view, label),
     do: view |> element("#sw_rules_fridge button", label) |> render_click()
 
@@ -76,20 +81,54 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
   end
 
   describe "the plug button" do
-    test "switches by hand, logs a manual command and redraws the head", %{conn: conn} do
+    test "switches by hand, logs a manual command and redraws the tile", %{conn: conn} do
       FakeShelly.serve("fridge")
       view = open_page(conn)
-      view |> element("#sw_head_fridge button[phx-click=switch_plug]") |> render_click()
+      view |> element("#sw_card_fridge button[phx-click=switch_plug]") |> render_click()
       render_async(view)
 
       assert_received {:shelly_rpc, "fridge", "Switch.Set", %{on: true}}
       assert [%Command{action: :on, source: :manual}] = Repo.all(Command)
-      assert has_element?(view, "#sw_head_fridge [data-status]", "An seit 17:00 (manuell)")
+      assert has_element?(view, "#sw_card_fridge [data-status]", ~r/^\s*An\s*$/)
 
       assert has_element?(
                view,
-               "#sw_head_fridge button[phx-click=switch_plug][phx-value-state=off]"
+               "#sw_card_fridge button[phx-click=switch_plug][phx-value-state=off]"
              )
+    end
+
+    test "on the plug's page switches too and says since when and from where", %{conn: conn} do
+      FakeShelly.serve("fridge")
+      view = open_device(conn)
+      assert has_element?(view, "#device_state [data-status]", "Aus")
+      view |> element("#device_state button[phx-click=switch_plug]") |> render_click()
+      render_async(view)
+
+      assert_received {:shelly_rpc, "fridge", "Switch.Set", %{on: true}}
+      assert [%Command{action: :on, source: :manual}] = Repo.all(Command)
+
+      assert has_element?(
+               view,
+               "#device_state [data-status]",
+               ~r/An seit 17:00 \(manuell\)\W+kein Zeitplan/u
+             )
+
+      assert has_element?(view, "#device_state [data-headline]", "An")
+      assert has_element?(view, "#device_state button[phx-value-state=off][aria-pressed=true]")
+    end
+
+    test "on the plug's page an unreachable plug is a flash without the name", %{conn: conn} do
+      view = open_device(conn)
+      view |> element("#device_state button[phx-click=switch_plug]") |> render_click()
+      render_async(view)
+
+      assert has_element?(
+               view,
+               "#flash-error",
+               "Schalten fehlgeschlagen — Steckdose nicht erreichbar"
+             )
+
+      assert Repo.all(Command) == []
     end
 
     test "is busy while the switch runs and drops a second tap", %{conn: conn} do
@@ -101,10 +140,10 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
         end)
 
       view = open_page(conn)
-      knob = element(view, "#sw_head_fridge button[phx-click=switch_plug]")
+      knob = element(view, "#sw_card_fridge button[phx-click=switch_plug]")
       render_click(knob)
       assert_receive {:shelly_rpc, "fridge", "Switch.Set", %{on: true}}
-      assert has_element?(view, "#sw_head_fridge button[aria-busy=true]")
+      assert has_element?(view, "#sw_card_fridge button[aria-busy=true]")
 
       render_click(knob)
       send(shelly, :answer)
@@ -112,12 +151,12 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
 
       refute_received {:shelly_rpc, "fridge", "Switch.Set", _params}
       assert [%Command{action: :on}] = Repo.all(Command)
-      refute has_element?(view, "#sw_head_fridge button[aria-busy]")
+      refute has_element?(view, "#sw_card_fridge button[aria-busy]")
     end
 
     test "an unreachable plug is a flash and logs nothing", %{conn: conn} do
       view = open_page(conn)
-      view |> element("#sw_head_fridge button[phx-click=switch_plug]") |> render_click()
+      view |> element("#sw_card_fridge button[phx-click=switch_plug]") |> render_click()
 
       render_async(view)
 
@@ -133,7 +172,7 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
     test "a plug that rejects the switch is a flash of its own and logs nothing", %{conn: conn} do
       FakeShelly.serve("fridge", fn _method, _params -> {:error, {:rpc, -103, "busy"}} end)
       view = open_page(conn)
-      view |> element("#sw_head_fridge button[phx-click=switch_plug]") |> render_click()
+      view |> element("#sw_card_fridge button[phx-click=switch_plug]") |> render_click()
 
       render_async(view)
 
@@ -227,7 +266,7 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
 
   describe "a new Zeitfenster" do
     test "the editor offers two times and the weekdays as a multiple choice", %{conn: conn} do
-      view = open_page(conn)
+      view = open_device(conn)
       new_entry(view, "Zeitfenster")
 
       assert has_element?(view, "#sw_editor_fridge form[phx-submit=save_entry]")
@@ -249,7 +288,7 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
     end
 
     test "refuses as it is typed and on save, then saves, closes and says so", %{conn: conn} do
-      view = open_page(conn)
+      view = open_device(conn)
       new_entry(view, "Zeitfenster")
       form = "#sw_editor_fridge form"
 
@@ -280,13 +319,12 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
                rules()
 
       refute has_element?(view, "#sw_editor_fridge form")
-      assert render(view) =~ "Mo · 22:00–06:00"
+      assert has_element?(view, "#device_schedule li[id^=sw_entry_fridge_]", "Mo · 22:00–06:00")
       assert render(view) =~ "Zeitfenster gespeichert."
-      assert has_element?(view, "#sw_schedule_fridge > summary > span", "2")
     end
 
     test "a refused form keeps what was typed", %{conn: conn} do
-      view = open_page(conn)
+      view = open_device(conn)
       new_entry(view, "Zeitfenster")
 
       view
@@ -299,7 +337,7 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
     end
 
     test "a refused save clears the flash of the one saved before", %{conn: conn} do
-      view = open_page(conn)
+      view = open_device(conn)
       new_entry(view, "Zeitfenster")
 
       view
@@ -319,15 +357,15 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
     end
 
     test "Abbrechen closes the editor", %{conn: conn} do
-      view = open_page(conn)
+      view = open_device(conn)
       new_entry(view, "Zeitfenster")
       view |> element("#sw_editor_fridge button", "Abbrechen") |> render_click()
       refute has_element?(view, "#sw_editor_fridge form")
     end
 
     test "focus moves into the editor and back to the button that opened it", %{conn: conn} do
-      view = open_page(conn)
-      assert has_element?(view, "#sw_plugs[phx-hook=FocusReturn]")
+      view = open_device(conn)
+      assert has_element?(view, "#device[phx-hook=FocusReturn]")
       new_entry(view, "Einzelschaltung")
       assert has_element?(view, "#sw_fridge_new_form[phx-mounted*=focus_first]")
 
@@ -342,7 +380,7 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
     test "offers the direction, off by default, and saves one rule without a group", %{
       conn: conn
     } do
-      view = open_page(conn)
+      view = open_device(conn)
       new_entry(view, "Einzelschaltung")
 
       assert has_element?(
@@ -377,7 +415,7 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
     end
 
     test "refuses a direction that is neither on nor off", %{conn: conn} do
-      view = open_page(conn)
+      view = open_device(conn)
       new_entry(view, "Einzelschaltung")
 
       html =
@@ -400,7 +438,7 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
     test "is edited in place, keeping its rule ids", %{conn: conn} do
       group = a_window()
       ids = Enum.map(rules(), & &1.id)
-      view = open_page(conn)
+      view = open_device(conn)
 
       view |> entry_button(group, "edit") |> render_click()
       assert has_element?(view, "#sw_entry_fridge_#{group} form[phx-submit=save_entry]")
@@ -418,7 +456,7 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
 
     test "past midnight shows the times and days that were typed", %{conn: conn} do
       group = a_window("22:00", "06:00", [1, 2, 3, 4, 5])
-      view = open_page(conn)
+      view = open_device(conn)
       view |> entry_button(group, "edit") |> render_click()
 
       assert checked_days(view, "#sw_entry_fridge_#{group}") == ~w[1 2 3 4 5]
@@ -426,7 +464,7 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
 
     test "a refused update stays in its row and changes nothing", %{conn: conn} do
       group = a_window()
-      view = open_page(conn)
+      view = open_device(conn)
       view |> entry_button(group, "edit") |> render_click()
 
       html =
@@ -441,7 +479,7 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
 
     test "pauses and resumes both halves, and is deleted as a whole", %{conn: conn} do
       group = a_window()
-      view = open_page(conn)
+      view = open_device(conn)
 
       view |> entry_button(group, "toggle") |> render_click()
       assert Enum.map(rules(), & &1.enabled) == [false, false]
@@ -455,7 +493,7 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
 
     test "a closed editor hands focus back to its row's actions", %{conn: conn} do
       group = a_window()
-      view = open_page(conn)
+      view = open_device(conn)
       view |> entry_button(group, "edit") |> render_click()
       assert has_element?(view, "#sw_fridge_#{group}_form[phx-mounted*=focus_first]")
 
@@ -472,7 +510,7 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
 
     test "a group that left this plug or lost a half is no Zeitfenster here", %{conn: conn} do
       group = a_window()
-      view = open_page(conn)
+      view = open_device(conn)
       Repo.update_all(Rule, set: [plug_id: "gone"])
 
       params = %{"plug_id" => "fridge", "kind" => "window", "id" => group}
@@ -495,7 +533,7 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
     test "is edited in place and stays paused", %{conn: conn} do
       rule = a_single()
       Switching.set_enabled([rule], false)
-      view = open_page(conn)
+      view = open_device(conn)
 
       view |> entry_button(rule.id, "edit") |> render_click()
 
@@ -508,7 +546,7 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
 
     test "pauses, resumes and is deleted", %{conn: conn} do
       rule = a_single()
-      view = open_page(conn)
+      view = open_device(conn)
 
       view |> entry_button(rule.id, "toggle") |> render_click()
       refute Repo.get!(Rule, rule.id).enabled
@@ -523,7 +561,7 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
     test "one half of an intact Zeitfenster is not addressable as one", %{conn: conn} do
       a_window()
       half = Repo.one(from r in Rule, where: r.action == :off)
-      view = open_page(conn)
+      view = open_device(conn)
 
       params = %{"plug_id" => "fridge", "kind" => "rule", "id" => to_string(half.id)}
       render_hook(view, "edit_entry", params)
@@ -539,7 +577,7 @@ defmodule ZiwoasWeb.SwitchesLiveEventsTest do
       group = a_window()
       Repo.delete_all(from r in Rule, where: r.group_id == ^group and r.action == :on)
       orphan = Repo.one(Rule)
-      view = open_page(conn)
+      view = open_device(conn)
 
       view |> entry_button(orphan.id, "edit") |> render_click()
       assert has_element?(view, "#sw_entry_fridge_#{orphan.id} form[phx-submit=save_entry]")

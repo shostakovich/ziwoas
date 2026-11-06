@@ -9,7 +9,7 @@ defmodule Ziwoas.Heating do
   alias Ecto.Changeset
   alias Ziwoas.Fritz.{Heaters, Thermostat}
   alias Ziwoas.Heating.{Decision, Heater, Row, Window}
-  alias Ziwoas.Repo
+  alias Ziwoas.{Repo, Rooms}
   alias Ziwoas.Switching.Rule
   alias Ziwoas.Switching.Window, as: WindowForm
 
@@ -37,6 +37,14 @@ defmodule Ziwoas.Heating do
     |> Changeset.change(ain: ain, name: name)
     |> Repo.insert_or_update!()
   end
+
+  @spec change_room(Heater.t(), map) :: Changeset.t()
+  def change_room(heater, params \\ %{}),
+    do: heater |> Heater.room_changeset(params) |> Rooms.validate_room()
+
+  @doc "Puts the heater into a room; a blank room takes it out of any."
+  @spec put_room(Heater.t(), map) :: {:ok, Heater.t()} | {:error, Changeset.t()}
+  def put_room(heater, params), do: heater |> change_room(params) |> Repo.update()
 
   @spec put_written!(Heater.t(), Thermostat.target()) :: Heater.t()
   def put_written!(heater, target),

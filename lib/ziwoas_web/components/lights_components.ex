@@ -3,7 +3,7 @@ defmodule ZiwoasWeb.LightsComponents do
   use ZiwoasWeb, :html
 
   import ZiwoasWeb.ErrorSummary, only: [error_summary: 1]
-  import ZiwoasWeb.SwitchesComponents, only: [knob: 1]
+  import ZiwoasWeb.SwitchesComponents, only: [knob: 1, tile_title: 1]
 
   alias Ziwoas.Lights
   alias Ziwoas.Lights.Snapshot
@@ -91,7 +91,8 @@ defmodule ZiwoasWeb.LightsComponents do
   attr :now, DateTime, required: true, doc: "what a starting lamp counts its seconds against"
   attr :pending, :boolean, default: false, doc: "a command for the lamp is running"
 
-  def light_card(assigns) do
+  @doc "A lamp on Schalten: the knob switches it, the name opens its page."
+  def lamp_tile(assigns) do
     snapshot = assigns.snapshot
     starting = Lights.starting?(snapshot)
     on = Lights.on?(snapshot) and not starting
@@ -107,59 +108,43 @@ defmodule ZiwoasWeb.LightsComponents do
       )
 
     ~H"""
-    <.card
+    <article
       id={"light_card_#{@light.key}"}
       data-light-key={@light.key}
-      as="article"
-      class="has-[a:focus-visible]:outline-2 has-[a:focus-visible]:outline-offset-2 has-[a:focus-visible]:outline-primary"
+      class="sw-tile"
+      data-lit={@lit && "lamp"}
     >
-      <div class="flex items-start gap-4">
-        <div class="min-w-0 flex-1 self-center">
-          <h3 class="card-title block">
-            <.link
-              navigate={~p"/lights/#{@light.key}"}
-              class="after:absolute after:inset-0 focus-visible:outline-none"
-            >
-              {@light.name}
-            </.link><.icon
-              name="chevron-right"
-              class="ms-1 inline-block align-[-0.125em] text-base-content/70"
-            />
-          </h3>
-          <p
-            :for={{line, index} <- Enum.with_index(@summary)}
-            class="mt-1 flex items-center gap-2 text-sm text-base-content/70"
-            data-status
-          >
-            <span
-              :if={@starting and index == 0}
-              class="loading loading-spinner loading-xs motion-reduce:hidden"
-              aria-hidden="true"
-            ></span>
-            {line}
-          </p>
-        </div>
+      <div class="sw-tile-top">
         <.knob
           tone={:lamp}
           on={@lit}
           plush={plush_name(@light, @lit)}
           label={@light.name}
           busy={@pending}
-          class="z-10"
           {command(@light.key, "turn", on: not @lit)}
-        >
-          <:readout :if={@brightness}>
-            <.badge style={:plain} class="tabular-nums" data-brightness>
-              <span
-                class={["ld-swatch-dot", !@color && "ld-swatch-dot-white"]}
-                style={@color && "background-color: #{@color}"}
-                aria-hidden="true"
-              ></span>{number(@brightness, unit: "%")}
-            </.badge>
-          </:readout>
-        </.knob>
+        />
+        <.badge :if={@brightness} style={:plain} class="tabular-nums" data-brightness>
+          <span
+            class={["ld-swatch-dot", !@color && "ld-swatch-dot-white"]}
+            style={@color && "background-color: #{@color}"}
+            aria-hidden="true"
+          ></span>{number(@brightness, unit: "%")}
+        </.badge>
       </div>
-    </.card>
+      <.tile_title navigate={~p"/lights/#{@light.key}"}>{@light.name}</.tile_title>
+      <p
+        :for={{line, index} <- Enum.with_index(@summary)}
+        class="sw-tile-status flex items-center gap-1.5"
+        data-status
+      >
+        <span
+          :if={@starting and index == 0}
+          class="loading loading-spinner loading-xs motion-reduce:hidden"
+          aria-hidden="true"
+        ></span>
+        {line}
+      </p>
+    </article>
     """
   end
 
@@ -632,6 +617,7 @@ defmodule ZiwoasWeb.LightsComponents do
   attr :form, Phoenix.HTML.Form, default: nil, doc: "kept after closing, so the exit shows it"
   attr :open, :boolean, required: true
   attr :plugs, :list, required: true
+  attr :rooms, :list, required: true
 
   def settings_sheet(assigns) do
     ~H"""
@@ -641,13 +627,14 @@ defmodule ZiwoasWeb.LightsComponents do
       show={@open}
       on_cancel={JS.push("close_settings")}
     >
-      <.light_form :if={@form} form={@form} plugs={@plugs} />
+      <.light_form :if={@form} form={@form} plugs={@plugs} rooms={@rooms} />
     </.modal>
     """
   end
 
   attr :form, Phoenix.HTML.Form, required: true
   attr :plugs, :list, required: true
+  attr :rooms, :list, required: true
 
   def light_form(assigns) do
     assigns = assign(assigns, :options, Enum.map(assigns.plugs, &{&1.name, &1.id}))
@@ -662,6 +649,14 @@ defmodule ZiwoasWeb.LightsComponents do
     >
       <.error_summary id="light_form_errors" form={@form} class="mb-2" />
       <.input field={@form[:name]} label="Name" />
+      <.input
+        field={@form[:room_id]}
+        type="select"
+        label="Raum"
+        options={Enum.map(@rooms, &{&1.name, &1.id})}
+        prompt="Ohne Raum"
+        help="Unter diesem Raum steht die Lampe auf Schalten."
+      />
       <.input
         field={@form[:shelly_plug_id]}
         type="select"

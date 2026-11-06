@@ -3,9 +3,11 @@ defmodule ZiwoasWeb.SwitchesLiveTest do
 
   import Phoenix.LiveViewTest
 
-  alias Ziwoas.{Clock, Repo, TestClock, TestConfigs}
+  alias Ziwoas.{Clock, FakeGoveeBridge, FakeShelly, Repo, Rooms, Sensors, TestClock, TestConfigs}
+  alias Ziwoas.Heating.Heater
   alias Ziwoas.Lights.{Light, State}
   alias Ziwoas.Plugs
+  alias Ziwoas.Sensors.Reading
   alias Ziwoas.Switching
   alias Ziwoas.Switching.Rule
 
@@ -19,21 +21,47 @@ defmodule ZiwoasWeb.SwitchesLiveTest do
     %{light: light}
   end
 
-  defp page(conn),
-    do: conn |> get(~p"/switches") |> html_response(200) |> LazyHTML.from_document()
+  defp page(conn, path \\ ~p"/switches"),
+    do: conn |> get(path) |> html_response(200) |> LazyHTML.from_document()
 
   defp count(doc, selector), do: doc |> LazyHTML.query(selector) |> Enum.count()
 
   defp text(doc, selector),
     do: doc |> LazyHTML.query(selector) |> LazyHTML.text() |> plain()
 
+  defp texts(doc, selector),
+    do: doc |> LazyHTML.query(selector) |> Enum.map(&plain(LazyHTML.text(&1)))
+
+  defp ids(doc, selector), do: doc |> LazyHTML.query(selector) |> LazyHTML.attribute("id")
+
+  defp hrefs(doc, selector), do: doc |> LazyHTML.query(selector) |> LazyHTML.attribute("href")
+
   defp plain(text),
-    do: text |> String.replace(["\u2060", "\u00A0"], " ") |> String.split() |> Enum.join(" ")
+    do: text |> String.replace(["⁠", " "], " ") |> String.split() |> Enum.join(" ")
 
   defp unix_now, do: Clock.parse!(@now) |> DateTime.to_unix()
 
   defp state!(output),
     do: Repo.insert!(%Plugs.State{plug_id: "fridge", output: output})
+
+  defp room!(name) do
+    {:ok, room} = Rooms.create(%{"name" => name})
+    room
+  end
+
+  defp lamp!(key, name, on, room \\ nil) do
+    light = Repo.insert!(%Light{key: key, name: name, sku: "H607C", room_id: room && room.id})
+    Repo.insert!(%State{light_key: key, on: on, brightness: 50})
+    light
+  end
+
+  defp heater!(key, name, room \\ nil),
+    do: Repo.insert!(%Heater{key: key, ain: key, name: name, room_id: room && room.id})
+
+  defp reading!(attrs) do
+    taken_at = @now |> Clock.parse!() |> DateTime.add(-5 * 60, :second)
+    Repo.insert!(struct!(%Reading{device_id: "TEST_INDOOR", taken_at: taken_at}, attrs))
+  end
 
   test "lamp tile links to the detail page and exposes a toggle knob", %{conn: conn} do
     doc = page(conn)
@@ -62,7 +90,7 @@ defmodule ZiwoasWeb.SwitchesLiveTest do
     refute body =~ "Balkonkraftwerk"
   end
 
-  test "shows the plug's schedule and the two editors' links", %{conn: conn} do
+  test "a plug tile links to the plug's page, which holds the schedule", %{conn: conn} do
     Switching.save_window("fridge", %{
       on_at_time: "18:00",
       off_at_time: "23:00",
@@ -71,25 +99,9 @@ defmodule ZiwoasWeb.SwitchesLiveTest do
 
     doc = page(conn)
 
-    assert text(doc, "#sw_card_fridge li[id^=sw_entry_fridge_]") =~ "Mo–Fr · 18:00–23:00"
-
-    assert doc
-           |> LazyHTML.query("#sw_card_fridge button[phx-click=new_entry]")
-           |> Enum.map(&String.trim(LazyHTML.text(&1))) ==
-             ["Zeitfenster", "Einzelschaltung"]
-  end
-
-  test "the summary counts Schaltzeiten, not rows; without any it is bare", %{conn: conn} do
-    doc = page(conn)
-    assert text(doc, "#sw_schedule_fridge > summary") == "Schaltzeiten"
-    assert count(doc, "#sw_schedule_fridge > summary > span") == 0
-
-    Switching.save_window("fridge", %{on_at_time: "18:00", off_at_time: "23:00", days: [1]})
-
-    for at <- ["01:00", "02:00"],
-        do: Switching.save_single("fridge", %{at_minute_time: at, action: :off, days: [1]})
-
-    assert text(page(conn), "#sw_schedule_fridge > summary > span") == "4"
+    assert text(doc, "#sw_card_fridge a[href='/switches/plugs/fridge']") == "Kühlschrank"
+    assert count(doc, "li[id^=sw_entry_fridge_]") == 0
+    assert count(doc, "button[phx-click=new_entry]") == 0
   end
 
   test "rules of a plug that left ziwoas.yml stay out of sight, not deleted", %{conn: conn} do
@@ -98,41 +110,43 @@ defmodule ZiwoasWeb.SwitchesLiveTest do
     assert Repo.aggregate(Rule, :count) == 1
   end
 
-  test "a plug that reports power shows its watts under a lit knob", %{conn: conn} do
+  test "a plug that reports power shows its watts beside a lit knob", %{conn: conn} do
     insert_sample!("fridge", unix_now(), 84.4, 1)
     state!(true)
     doc = page(conn)
 
     assert count(
              doc,
-             "#sw_head_fridge button[aria-label='Kühlschrank'][aria-pressed=true][phx-value-state=off] img[src*='switch_plush_on']"
+             "#sw_card_fridge button[aria-label='Kühlschrank'][aria-pressed=true][phx-value-state=off] img[src*='switch_plush_on']"
            ) == 1
 
-    assert text(doc, "#sw_head_fridge [data-watt]") == "84 W"
-    refute text(doc, "#sw_head_fridge") =~ "Offline"
+    assert text(doc, "#sw_card_fridge [data-watt]") == "84 W"
+    refute text(doc, "#sw_card_fridge") =~ "Offline"
   end
 
   test "the watt chip groups thousands the German way", %{conn: conn} do
     insert_sample!("fridge", unix_now(), 1980.2, 1)
     state!(true)
-    assert text(page(conn), "#sw_head_fridge [data-watt]") == "1.980 W"
+    assert text(page(conn), "#sw_card_fridge [data-watt]") == "1.980 W"
   end
 
   test "a silent plug is marked offline, its knob disabled and without watts", %{conn: conn} do
     doc = page(conn)
-    assert text(doc, "#sw_head_fridge .badge") == "Offline"
+    assert text(doc, "#sw_card_fridge .badge") == "Offline"
 
     assert count(
              doc,
-             "#sw_head_fridge button[aria-pressed=false][disabled] img[src*='switch_plush_off']"
+             "#sw_card_fridge button[aria-pressed=false][disabled] img[src*='switch_plush_off']"
            ) == 1
 
-    assert count(doc, "#sw_head_fridge [data-watt]") == 0
-    assert text(doc, "#sw_head_fridge [data-status]") == "Noch keine Statusmeldung"
+    assert count(doc, "#sw_card_fridge [data-watt]") == 0
+    assert text(doc, "#sw_card_fridge [data-status]") == "Noch keine Statusmeldung"
   end
 
-  test "the status line says since when, where from and what comes next", %{conn: conn} do
+  test "a plug tile's status is short: the state and what comes next", %{conn: conn} do
     insert_sample!("fridge", unix_now() - 10, 5, 1)
+    assert text(page(conn), "#sw_card_fridge [data-status]") == "Aus"
+
     Switching.save_window("fridge", %{on_at_time: "06:00", off_at_time: "18:00", days: [1]})
 
     Repo.insert!(%Ziwoas.Switching.Command{
@@ -143,27 +157,10 @@ defmodule ZiwoasWeb.SwitchesLiveTest do
       updated_at: Clock.parse!("2026-06-14T22:00:00+02:00")
     })
 
-    assert text(page(conn), "#sw_head_fridge [data-status]") ==
-             "An seit gestern 22:00 (manuell) · schaltet um 18:00 aus"
+    assert text(page(conn), "#sw_card_fridge [data-status]") == "An · schaltet um 18:00 aus"
   end
 
-  test "an edge that keeps the state gives way to the one that switches", %{conn: conn} do
-    insert_sample!("fridge", unix_now() - 10, 5, 1)
-    Switching.save_window("fridge", %{on_at_time: "18:00", off_at_time: "22:00", days: [1]})
-
-    Repo.insert!(%Ziwoas.Switching.Command{
-      plug_id: "fridge",
-      action: :on,
-      source: :manual,
-      inserted_at: Clock.parse!("2026-06-15T14:00:00+02:00"),
-      updated_at: Clock.parse!("2026-06-15T14:00:00+02:00")
-    })
-
-    assert text(page(conn), "#sw_head_fridge [data-status]") ==
-             "An seit 14:00 (manuell) · schaltet um 22:00 aus"
-  end
-
-  test "a plug update rebuilds the plug heads", %{conn: conn} do
+  test "a plug update rebuilds the plug tiles", %{conn: conn} do
     {:ok, view, _html} = live(conn, ~p"/switches")
     refute render(view) =~ "84 W"
 
@@ -202,13 +199,343 @@ defmodule ZiwoasWeb.SwitchesLiveTest do
     assert has_element?(lamp, "header a[data-phx-link=redirect][href='/switches']")
   end
 
-  test "without switchable plugs the plug section says how to get one", %{conn: conn} do
+  test "without switchable plugs there is no plug tile and no Steckdosen summary", %{conn: conn} do
     TestConfigs.put(TestConfigs.plugs())
     doc = page(conn)
 
-    assert text(doc, "#sw_plugs") =~ "Keine schaltbaren Steckdosen"
-    assert text(doc, "#sw_plugs") =~ "switchable: true"
-    assert count(doc, "#sw_plugs article") == 0
-    assert count(doc, "#sw_lamps article") == 1
+    assert count(doc, "article[data-plug-id]") == 0
+    assert count(doc, "#sw_summary_steckdosen") == 0
+    assert count(doc, "#light_card_ABCDEF01") == 1
+  end
+
+  test "with nothing to switch the page says how to get a plug", %{conn: conn} do
+    TestConfigs.put(TestConfigs.plugs())
+    Repo.delete_all(State)
+    Repo.delete_all(Light)
+    doc = page(conn)
+
+    assert text(doc, "main") =~ "Noch nichts zu schalten"
+    assert text(doc, "main") =~ "switchable: true"
+    assert count(doc, "#sw_summary") == 0
+    assert count(doc, "section.sw-room") == 0
+  end
+
+  describe "rooms" do
+    test "without rooms everything stands under „Ohne Raum“", %{conn: conn} do
+      doc = page(conn)
+
+      assert ids(doc, "section.sw-room") == ["room-none"]
+      assert text(doc, "#room-none_heading") =~ "Ohne Raum"
+      assert text(doc, "#room-none") =~ "Neu erkannte Geräte landen hier"
+      assert texts(doc, "#sw_rooms_nav a") == ["Ohne Raum"]
+      assert ids(doc, "#room-none article") == ["light_card_ABCDEF01", "sw_card_fridge"]
+    end
+
+    test "groups devices by room in the rooms' order, empty rooms left out", %{
+      conn: conn,
+      light: light
+    } do
+      bath = room!("Bad")
+      living = room!("Wohnzimmer")
+      _empty = room!("Keller")
+
+      Repo.update_all(Light, set: [room_id: living.id])
+      heater!("h1", "Badheizung", bath)
+      {:ok, _placed} = Rooms.place_plug("fridge", bath.id)
+      lamp!("LAMP2", "Leselampe", false)
+      Rooms.move(living, :up)
+
+      doc = page(conn)
+
+      assert ids(doc, "section.sw-room") == ["room-#{living.id}", "room-#{bath.id}", "room-none"]
+      assert texts(doc, "#sw_rooms_nav a") == ["Wohnzimmer", "Bad", "Ohne Raum"]
+
+      assert hrefs(doc, "#sw_rooms_nav a") ==
+               ["#room-#{living.id}", "#room-#{bath.id}", "#room-none"]
+
+      assert ids(doc, "#room-#{living.id} article") == ["light_card_#{light.key}"]
+      assert ids(doc, "#room-#{bath.id} article") == ["sw_heater_h1", "sw_card_fridge"]
+      assert ids(doc, "#room-none article") == ["light_card_LAMP2"]
+      refute text(doc, "#room-#{bath.id}") =~ "Neu erkannte Geräte"
+    end
+
+    test "with every device in a room there is no „Ohne Raum“", %{conn: conn} do
+      room = room!("Küche")
+      Repo.update_all(Light, set: [room_id: room.id])
+      {:ok, _placed} = Rooms.place_plug("fridge", room.id)
+
+      doc = page(conn)
+      assert ids(doc, "section.sw-room") == ["room-#{room.id}"]
+      assert texts(doc, "#sw_rooms_nav a") == ["Küche"]
+    end
+
+    test "within a room heaters come first, then lamps, then plugs", %{conn: conn} do
+      room = room!("Wohnzimmer")
+      Repo.update_all(Light, set: [room_id: room.id])
+      heater!("h1", "Heizung", room)
+      {:ok, _placed} = Rooms.place_plug("fridge", room.id)
+
+      assert ids(page(conn), "#room-#{room.id} article") ==
+               ["sw_heater_h1", "light_card_ABCDEF01", "sw_card_fridge"]
+    end
+
+    test "a room's heading counts what is on, or says everything is off", %{conn: conn} do
+      room = room!("Wohnzimmer")
+      Repo.update_all(Light, set: [room_id: room.id])
+      lamp!("LAMP2", "Leselampe", true, room)
+      lamp!("LAMP3", "Nachtlicht", false, room)
+      insert_sample!("fridge", unix_now(), 84.4, 1)
+      state!(true)
+      {:ok, _placed} = Rooms.place_plug("fridge", room.id)
+
+      doc = page(conn)
+      assert text(doc, "#room-#{room.id}_heading [data-on-count]") == "3 an"
+      assert count(doc, "#sw_rooms_nav a[data-room='room-#{room.id}'] .sw-room-dot-on") == 1
+
+      Repo.update_all(State, set: [on: false])
+      Repo.update_all(Plugs.State, set: [output: false])
+      doc = page(conn)
+
+      assert text(doc, "#room-#{room.id}_heading [data-on-count]") == "alles aus"
+      assert count(doc, "#sw_rooms_nav .sw-room-dot-on") == 0
+      assert count(doc, "#room-#{room.id}_lamps_off") == 0
+    end
+  end
+
+  describe "the summaries" do
+    test "say per kind what is on and link to the kind's filter", %{conn: conn} do
+      heater!("h1", "Badheizung")
+      insert_sample!("fridge", unix_now(), 84.4, 1)
+      state!(true)
+      doc = page(conn)
+
+      assert ids(doc, "#sw_summary a") ==
+               ~w[sw_summary_lampen sw_summary_heizungen sw_summary_steckdosen]
+
+      assert text(doc, "#sw_summary_lampen") == "Lampen 1 an"
+      assert text(doc, "#sw_summary_heizungen") == "Heizungen Frostschutz"
+      assert text(doc, "#sw_summary_steckdosen") == "Steckdosen 1 an · 84 W"
+
+      assert hrefs(doc, "#sw_summary a") ==
+               ~w[/switches?nur=lampen /switches?nur=heizungen /switches?nur=steckdosen]
+
+      assert count(doc, "#sw_summary a[aria-current]") == 0
+    end
+
+    test "say „alle aus“ when nothing of a kind is on", %{conn: conn} do
+      Repo.update_all(State, set: [on: false])
+      insert_sample!("fridge", unix_now(), 0, 1)
+      state!(false)
+      doc = page(conn)
+
+      assert text(doc, "#sw_summary_lampen [data-summary]") == "alle aus"
+      assert text(doc, "#sw_summary_steckdosen [data-summary]") == "alle aus"
+      assert count(doc, "#sw_summary_heizungen") == 0
+    end
+  end
+
+  describe "the kind filter" do
+    test "?nur=lampen shows only lamps, in all their rooms", %{conn: conn} do
+      room = room!("Wohnzimmer")
+      Repo.update_all(Light, set: [room_id: room.id])
+      lamp!("LAMP2", "Leselampe", false)
+      heater!("h1", "Heizung", room)
+
+      doc = page(conn, ~p"/switches?nur=lampen")
+
+      assert text(doc, "#sw_filter") =~ "Nur Lampen, alle Räume"
+      assert ids(doc, "article") == ["light_card_ABCDEF01", "light_card_LAMP2"]
+      assert ids(doc, "section.sw-room") == ["room-#{room.id}", "room-none"]
+      assert count(doc, "#sw_summary_lampen[aria-current=true][href='/switches']") == 1
+      assert text(doc, "#sw_all_lamps_off") == "Alle Lampen aus"
+      assert count(doc, "#sw_filter a[href='/switches']") == 1
+    end
+
+    test "?nur=steckdosen and ?nur=heizungen show only their kind", %{conn: conn} do
+      heater!("h1", "Heizung")
+
+      assert ids(page(conn, ~p"/switches?nur=steckdosen"), "article") == ["sw_card_fridge"]
+      assert ids(page(conn, ~p"/switches?nur=heizungen"), "article") == ["sw_heater_h1"]
+
+      doc = page(conn, ~p"/switches?nur=steckdosen")
+      assert text(doc, "#sw_filter") =~ "Nur Steckdosen, alle Räume"
+      assert count(doc, "#sw_all_lamps_off") == 0
+    end
+
+    test "„Alle Lampen aus“ needs a lit lamp; an unknown filter shows everything", %{conn: conn} do
+      Repo.update_all(State, set: [on: false])
+      assert count(page(conn, ~p"/switches?nur=lampen"), "#sw_all_lamps_off") == 0
+
+      doc = page(conn, ~p"/switches?nur=quatsch")
+      assert count(doc, "#sw_filter") == 0
+      assert ids(doc, "article") == ["light_card_ABCDEF01", "sw_card_fridge"]
+    end
+
+    test "a summary patches the filter in and out", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/switches")
+
+      view |> element("#sw_summary_steckdosen") |> render_click()
+      assert_patched(view, ~p"/switches?nur=steckdosen")
+      refute has_element?(view, "#light_card_ABCDEF01")
+      assert has_element?(view, "#sw_card_fridge")
+
+      view |> element("#sw_summary_steckdosen") |> render_click()
+      assert_patched(view, ~p"/switches")
+      assert has_element?(view, "#light_card_ABCDEF01")
+    end
+  end
+
+  describe "Lampen aus" do
+    setup do
+      start_supervised!({FakeGoveeBridge, test: self()})
+      :ok
+    end
+
+    test "turns off only the lit lamps of its room", %{conn: conn} do
+      living = room!("Wohnzimmer")
+      bath = room!("Bad")
+      Repo.update_all(Light, set: [room_id: living.id])
+      lamp!("LIT2", "Leselampe", true, living)
+      lamp!("DARK", "Nachtlicht", false, living)
+      lamp!("BATH", "Spiegel", true, bath)
+      lamp!("NONE", "Flur", true)
+
+      {:ok, view, _html} = live(conn, ~p"/switches")
+      view |> element("#room-#{living.id}_lamps_off") |> render_click()
+      render_async(view)
+
+      assert_received {:govee, "ABCDEF01", {:power, false}}
+      assert_received {:govee, "LIT2", {:power, false}}
+      refute_received {:govee, _key, _verb}
+
+      refute has_element?(view, "#room-#{living.id}_lamps_off")
+      assert has_element?(view, "#room-#{living.id}_heading [data-on-count]", "alles aus")
+      assert has_element?(view, "#room-#{bath.id}_lamps_off")
+      assert has_element?(view, "#room-none_lamps_off")
+    end
+
+    test "„Ohne Raum“ turns off the lamps without a room", %{conn: conn} do
+      room = room!("Bad")
+      lamp!("BATH", "Spiegel", true, room)
+
+      {:ok, view, _html} = live(conn, ~p"/switches")
+      view |> element("#room-none_lamps_off") |> render_click()
+      render_async(view)
+
+      assert_received {:govee, "ABCDEF01", {:power, false}}
+      refute_received {:govee, "BATH", _verb}
+    end
+
+    test "„Alle Lampen aus“ turns off every lit lamp", %{conn: conn} do
+      room = room!("Bad")
+      lamp!("BATH", "Spiegel", true, room)
+      lamp!("DARK", "Nachtlicht", false, room)
+
+      {:ok, view, _html} = live(conn, ~p"/switches?nur=lampen")
+      view |> element("#sw_all_lamps_off") |> render_click()
+      render_async(view)
+
+      assert_received {:govee, "ABCDEF01", {:power, false}}
+      assert_received {:govee, "BATH", {:power, false}}
+      refute_received {:govee, _key, _verb}
+      refute has_element?(view, "#sw_all_lamps_off")
+    end
+
+    test "never switches a plug, not even the one that powers a lit lamp", %{conn: conn} do
+      FakeShelly.serve("fridge")
+      state!(true)
+      insert_sample!("fridge", unix_now(), 84.0, 1)
+      living = room!("Wohnzimmer")
+      Repo.update_all(Light, set: [room_id: living.id, shelly_plug_id: "fridge"])
+      {:ok, _placed} = Rooms.place_plug("fridge", living.id)
+
+      {:ok, view, _html} = live(conn, ~p"/switches")
+      view |> element("#room-#{living.id}_lamps_off") |> render_click()
+      render_hook(view, "lamps_off", %{"room" => "all"})
+      render_hook(view, "lamps_off", %{"room" => "none"})
+      render_async(view)
+
+      assert_received {:govee, "ABCDEF01", {:power, false}}
+      refute_received {:shelly_rpc, "fridge", "Switch.Set", _params}
+      assert has_element?(view, "#sw_card_fridge button[aria-pressed=true]")
+    end
+
+    test "„Ohne Raum“ also takes a lamp whose room the page does not know yet", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/switches")
+      room = room!("Flur")
+      Repo.update_all(Light, set: [room_id: room.id])
+      send(view.pid, {:updated, "ABCDEF01"})
+      assert has_element?(view, "#room-none #light_card_ABCDEF01")
+
+      view |> element("#room-none_lamps_off") |> render_click()
+      render_async(view)
+
+      assert_received {:govee, "ABCDEF01", {:power, false}}
+    end
+
+    test "a room without a lit lamp has no button, and a crafted press does nothing", %{
+      conn: conn
+    } do
+      room = room!("Bad")
+      lamp!("DARK", "Nachtlicht", false, room)
+
+      {:ok, view, _html} = live(conn, ~p"/switches")
+      refute has_element?(view, "#room-#{room.id}_lamps_off")
+
+      render_hook(view, "lamps_off", %{"room" => to_string(room.id)})
+      render_hook(view, "lamps_off", %{"room" => "nope"})
+      render_async(view)
+
+      refute_received {:govee, _key, _verb}
+    end
+  end
+
+  test "a filter for a kind the home has none of shows everything", %{conn: conn} do
+    doc = page(conn, ~p"/switches?nur=heizungen")
+
+    assert count(doc, "#sw_filter") == 0
+    assert count(doc, "#light_card_ABCDEF01") == 1
+    assert count(doc, "#sw_card_fridge") == 1
+  end
+
+  describe "room air" do
+    test "shows under a room named like a sensor's room", %{conn: conn} do
+      reading!(temperature: 21.0, humidity: 50.0, co2: 1200, battery_pct: 90)
+      living = room!("Wohnzimmer")
+      kitchen = room!("Küche")
+      Repo.update_all(Light, set: [room_id: living.id])
+      {:ok, _placed} = Rooms.place_plug("fridge", kitchen.id)
+
+      doc = page(conn)
+
+      assert text(doc, "#room-#{living.id} [data-air] a[href='/sensors']") ==
+               "21,0 °C · CO₂ 1.200 ppm"
+
+      assert text(doc, "#room-#{living.id} [data-air] .badge") == "Bald lüften"
+      assert count(doc, "#room-#{kitchen.id} [data-air]") == 0
+      assert count(doc, "#room-none [data-air]") == 0
+    end
+
+    test "good air shows the values without a badge", %{conn: conn} do
+      reading!(temperature: 20.5, humidity: 45.0, co2: 600, battery_pct: 90)
+      living = room!("Wohnzimmer")
+      Repo.update_all(Light, set: [room_id: living.id])
+
+      doc = page(conn)
+      assert text(doc, "#room-#{living.id} [data-air]") == "20,5 °C · CO₂ 600 ppm"
+      assert count(doc, "#room-#{living.id} [data-air] .badge") == 0
+    end
+
+    test "a new reading updates the room's air on an open page", %{conn: conn} do
+      living = room!("Wohnzimmer")
+      Repo.update_all(Light, set: [room_id: living.id])
+      {:ok, view, _html} = live(conn, ~p"/switches")
+      refute has_element?(view, "#room-#{living.id} [data-air]")
+
+      {:ok, _reading} =
+        Sensors.create_reading("TEST_INDOOR", Clock.parse!(@now), %{temperature: 19.5, co2: 700})
+
+      assert has_element?(view, "#room-#{living.id} [data-air]", ~r/19,5 °C\W+CO₂ 700 ppm/u)
+    end
   end
 end

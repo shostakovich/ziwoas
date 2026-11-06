@@ -17,13 +17,11 @@ defmodule ZiwoasWeb.SwitchesComponents do
   attr :label, :string, required: true, doc: "the device's name; `aria-pressed` says the state"
   attr :tone, :atom, default: :plug, values: [:plug, :lamp, :heater]
   attr :busy, :boolean, default: false, doc: "its command is still running"
-  attr :class, :any, default: nil
   attr :rest, :global, include: ~w(disabled)
-  slot :readout, doc: "a badge on the knob's lower edge, e.g. the power"
 
   def knob(assigns) do
     ~H"""
-    <div class={["sw-knob-wrap", @class]}>
+    <div class="sw-knob-wrap">
       <button
         type="button"
         class={["sw-knob", @tone == :lamp && "sw-knob-lamp", @tone == :heater && "sw-knob-heater"]}
@@ -38,7 +36,6 @@ defmodule ZiwoasWeb.SwitchesComponents do
           <.icon name="ellipsis" class="size-4 motion-safe:hidden" />
         </span>
       </button>
-      <div :if={@readout != []} class="sw-knob-readout">{render_slot(@readout)}</div>
     </div>
     """
   end
@@ -47,40 +44,29 @@ defmodule ZiwoasWeb.SwitchesComponents do
   attr :zone, :string, required: true
   attr :pending, :boolean, default: false, doc: "a switch command is running"
 
-  attr :editor, :map,
-    default: nil,
-    doc: "the open editor: `%{kind: :window | :rule, id: nil | entry id, form: form}`"
-
-  def plug_card(assigns) do
+  @doc "A plug on Schalten: the knob switches it, the name opens its page."
+  def plug_tile(assigns) do
     row = assigns.row
     offline = Row.offline?(row)
     on = Row.on?(row)
-    count = Row.rule_count(row)
 
     assigns =
       assign(assigns,
         plug: row.plug,
         on: on,
-        lit: on and not offline,
+        lit: Row.lit?(row),
         offline: offline,
-        status: status_line(row, assigns.zone),
-        count: if(count > 0, do: count)
+        status: tile_status(row, assigns.zone)
       )
 
     ~H"""
-    <.card
+    <article
       id={"sw_card_#{@plug.id}"}
       data-plug-id={@plug.id}
-      as="article"
+      class="sw-tile"
+      data-lit={@lit && "plug"}
     >
-      <div class="flex items-start gap-4" id={"sw_head_#{@plug.id}"}>
-        <div class="min-w-0 flex-1 self-center">
-          <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <h3 class="card-title">{@plug.name}</h3>
-            <.badge :if={@offline} tone={:warning}>Offline</.badge>
-          </div>
-          <p class="mt-1 text-sm text-base-content/70" data-status>{@status}</p>
-        </div>
+      <div class="sw-tile-top">
         <.knob
           on={@lit}
           plush={if @lit, do: "shelly-plug", else: "shelly-plug-off"}
@@ -90,25 +76,15 @@ defmodule ZiwoasWeb.SwitchesComponents do
           phx-click="switch_plug"
           phx-value-plug_id={@plug.id}
           phx-value-state={if @on, do: "off", else: "on"}
-        >
-          <:readout :if={@lit}>
-            <.badge icon="zap" class="tabular-nums" data-watt>
-              {number(@row.watt || 0, unit: "W")}
-            </.badge>
-          </:readout>
-        </.knob>
+        />
+        <.badge :if={@offline} tone={:warning}>Offline</.badge>
+        <.badge :if={@lit} icon="zap" class="tabular-nums" data-watt>
+          {number(@row.watt || 0, unit: "W")}
+        </.badge>
       </div>
-      <.disclosure
-        id={"sw_schedule_#{@plug.id}"}
-        variant={:button}
-        icon="clock"
-        summary="Schaltzeiten"
-        count={@count}
-        class="sm:mt-2"
-      >
-        <.entries owner={{:plug, @plug.id}} entries={@row.entries} editor={@editor} />
-      </.disclosure>
-    </.card>
+      <.tile_title navigate={~p"/switches/plugs/#{@plug.id}"}>{@plug.name}</.tile_title>
+      <p class="sw-tile-status" data-status>{@status}</p>
+    </article>
     """
   end
 
@@ -116,14 +92,12 @@ defmodule ZiwoasWeb.SwitchesComponents do
   attr :zone, :string, required: true
   attr :pending, :boolean, default: false, doc: "a press is running"
   attr :heat_pending, :boolean, default: false, doc: "a new Heiztemperatur is being set"
-  attr :editor, :map, default: nil, doc: "the open window editor, as for `plug_card/1`"
 
-  def heater_card(assigns) do
+  @doc "A heater on Schalten, two tiles wide: knob, name, status and the Heiztemperatur."
+  def heater_tile(assigns) do
     row = assigns.row
     offline = Heating.Row.offline?(row)
-    set_to_heat = Heating.Row.set_to_heat?(row)
-    heating = set_to_heat and not offline
-    thermostat = if offline, do: nil, else: row.thermostat
+    heating = Heating.Row.heating?(row)
 
     assigns =
       assign(assigns,
@@ -131,53 +105,141 @@ defmodule ZiwoasWeb.SwitchesComponents do
         key: row.heater.key,
         offline: offline,
         heating: heating,
-        set_to_heat: set_to_heat,
-        thermostat: thermostat,
-        status: heater_status(row, assigns.zone),
-        count: if(row.entries != [], do: length(row.entries))
+        set_to_heat: Heating.Row.set_to_heat?(row),
+        thermostat: if(offline, do: nil, else: row.thermostat),
+        status: heater_status(row, assigns.zone)
       )
 
     ~H"""
-    <.card id={"sw_heater_#{@key}"} data-heater-key={@key} as="article">
-      <div class="flex items-start gap-4" id={"sw_heater_head_#{@key}"}>
-        <div class="min-w-0 flex-1 self-center">
-          <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <h3 class="card-title">{@heater.name}</h3>
-            <.badge :if={@offline} tone={:warning}>Offline</.badge>
-            <.battery :if={@thermostat && @thermostat.battery_pct} thermostat={@thermostat} />
-          </div>
-          <p class="mt-1 text-sm text-base-content/70" data-status>{@status}</p>
+    <article
+      id={"sw_heater_#{@key}"}
+      data-heater-key={@key}
+      class="sw-tile sw-tile-wide"
+      data-lit={@heating && "heater"}
+    >
+      <div class="flex items-center gap-3">
+        <.heater_knob
+          heater={@heater}
+          heating={@heating}
+          set_to_heat={@set_to_heat}
+          offline={@offline}
+          pending={@pending}
+        />
+        <div class="min-w-0 flex-1">
+          <.tile_title navigate={~p"/switches/heaters/#{@key}"}>{@heater.name}</.tile_title>
+          <p class="sw-tile-status" data-status>{@status}</p>
         </div>
-        <.knob
-          on={@heating}
-          plush={if @heating, do: "heater", else: "heater-off"}
-          label={@heater.name}
-          tone={:heater}
-          disabled={@offline}
-          busy={@pending}
-          phx-click="switch_heater"
-          phx-value-heater_key={@key}
-          phx-value-state={if @set_to_heat, do: "frost", else: "heat"}
-        >
-          <:readout :if={@thermostat && @thermostat.measured_c}>
-            <.badge icon="thermometer" class="tabular-nums" data-temperature>
-              {number(@thermostat.measured_c, precision: 1, unit: "°C")}
-            </.badge>
-          </:readout>
-        </.knob>
+        <div class="flex shrink-0 flex-col items-end gap-1">
+          <.badge :if={@offline} tone={:warning}>Offline</.badge>
+          <.badge
+            :if={@thermostat && @thermostat.measured_c}
+            icon="thermometer"
+            class="tabular-nums"
+            data-temperature
+          >
+            {number(@thermostat.measured_c, precision: 1, unit: "°C")}
+          </.badge>
+          <.battery :if={@thermostat && @thermostat.battery_low} thermostat={@thermostat} />
+        </div>
       </div>
-      <.heat_stepper key={@key} heat_c={@heater.heat_c} disabled={@heat_pending or @offline} />
-      <.disclosure
-        id={"sw_heater_schedule_#{@key}"}
-        variant={:button}
-        icon="clock"
-        summary="Zeitfenster"
-        count={@count}
-        class="sm:mt-2"
-      >
-        <.entries owner={{:heater, @key}} singles={false} entries={@row.entries} editor={@editor} />
-      </.disclosure>
-    </.card>
+      <.heat_stepper
+        key={@key}
+        heat_c={@heater.heat_c}
+        disabled={@heat_pending or @offline}
+        class="sw-tile-stepper"
+      />
+    </article>
+    """
+  end
+
+  attr :row, Heating.Row, required: true
+  attr :zone, :string, required: true
+  attr :pending, :boolean, default: false
+  attr :heat_pending, :boolean, default: false
+
+  @doc "A heater's state on its own page: knob, status, temperature, battery and Heiztemperatur."
+  def heater_body(assigns) do
+    row = assigns.row
+    offline = Heating.Row.offline?(row)
+
+    assigns =
+      assign(assigns,
+        heater: row.heater,
+        offline: offline,
+        heating: Heating.Row.heating?(row),
+        set_to_heat: Heating.Row.set_to_heat?(row),
+        thermostat: if(offline, do: nil, else: row.thermostat)
+      )
+
+    ~H"""
+    <div class="flex items-center gap-4">
+      <.heater_knob
+        heater={@heater}
+        heating={@heating}
+        set_to_heat={@set_to_heat}
+        offline={@offline}
+        pending={@pending}
+      />
+      <div class="min-w-0">
+        <p class="text-lg font-semibold" data-status>
+          {if @offline, do: "Nicht erreichbar", else: heater_status(@row, @zone)}
+        </p>
+        <div :if={@thermostat} class="mt-2 flex flex-wrap gap-2">
+          <.badge
+            :if={@thermostat.measured_c}
+            icon="thermometer"
+            class="tabular-nums"
+            data-temperature
+          >
+            {number(@thermostat.measured_c, precision: 1, unit: "°C")}
+          </.badge>
+          <.battery :if={@thermostat.battery_pct} thermostat={@thermostat} />
+        </div>
+      </div>
+    </div>
+    <.heat_stepper
+      key={@heater.key}
+      heat_c={@heater.heat_c}
+      disabled={@heat_pending or @offline}
+      class="mt-4"
+    />
+    """
+  end
+
+  attr :heater, Heater, required: true
+  attr :heating, :boolean, required: true
+  attr :set_to_heat, :boolean, required: true
+  attr :offline, :boolean, required: true
+  attr :pending, :boolean, required: true
+
+  defp heater_knob(assigns) do
+    ~H"""
+    <.knob
+      on={@heating}
+      plush={if @heating, do: "heater", else: "heater-off"}
+      label={@heater.name}
+      tone={:heater}
+      disabled={@offline}
+      busy={@pending}
+      phx-click="switch_heater"
+      phx-value-heater_key={@heater.key}
+      phx-value-state={if @set_to_heat, do: "frost", else: "heat"}
+    />
+    """
+  end
+
+  attr :navigate, :string, required: true
+  slot :inner_block, required: true
+
+  @doc "A tile's name; its link covers the whole tile, so a tap beside the knob opens the page."
+  def tile_title(assigns) do
+    ~H"""
+    <h3 class="sw-tile-title">
+      <.link navigate={@navigate} class="sw-tile-link">{render_slot(@inner_block)}</.link><.icon
+        name="chevron-right"
+        class="ms-0.5 inline-block size-4 align-[-0.125em] text-base-content/70"
+      />
+    </h3>
     """
   end
 
@@ -202,6 +264,7 @@ defmodule ZiwoasWeb.SwitchesComponents do
   attr :key, :string, required: true
   attr :heat_c, :float, required: true
   attr :disabled, :boolean, default: false
+  attr :class, :any, required: true
 
   defp heat_stepper(assigns) do
     assigns =
@@ -211,7 +274,7 @@ defmodule ZiwoasWeb.SwitchesComponents do
       )
 
     ~H"""
-    <div class="mt-1 flex items-center justify-between gap-2">
+    <div class={["flex items-center justify-between gap-2", @class]}>
       <span id={"sw_heat_label_#{@key}"} class="text-sm text-base-content/70">Heiztemperatur</span>
       <div class="flex items-center gap-2" role="group" aria-labelledby={"sw_heat_label_#{@key}"}>
         <.button
@@ -291,11 +354,7 @@ defmodule ZiwoasWeb.SwitchesComponents do
   def entries(assigns) do
     ~H"""
     <div id={"sw_rules_#{owner_id(@owner)}"}>
-      <.list
-        :if={@entries != []}
-        flush
-        class="-mx-[var(--card-p,1.5rem)] border-t border-base-content/10 [&>.list-row]:px-[var(--card-p,1.5rem)]"
-      >
+      <.list :if={@entries != []}>
         <%= for entry <- @entries do %>
           <.entry_editor
             :if={editing?(@editor, entry)}
@@ -317,7 +376,7 @@ defmodule ZiwoasWeb.SwitchesComponents do
           editor={@editor}
         />
       </div>
-      <div class="-mx-[var(--card-p,1.5rem)] flex flex-wrap gap-2 border-t border-base-content/10 px-[var(--card-p,1.5rem)] pt-4">
+      <div class="mt-3 flex flex-wrap gap-2">
         <.button
           id={opener_id(owner_id(@owner), :window)}
           size={:sm}
@@ -639,6 +698,18 @@ defmodule ZiwoasWeb.SwitchesComponents do
       join_meta([first, schedule_part(row, zone)])
     end
   end
+
+  @doc "The short status on a tile: „An · schaltet um 23:30 aus“."
+  @spec tile_status(Row.t(), String.t()) :: String.t()
+  def tile_status(row, zone) do
+    cond do
+      Row.offline?(row) -> offline_line(row)
+      row.next_edge -> join_meta([on_word(row), schedule_part(row, zone)])
+      true -> on_word(row)
+    end
+  end
+
+  defp on_word(row), do: if(Row.on?(row), do: "An", else: "Aus")
 
   defp offline_line(%Row{last_seen_ts: nil}), do: "Noch keine Statusmeldung"
   defp offline_line(row), do: "Keine Statusmeldung seit #{round(Row.age(row) / 60)} min"

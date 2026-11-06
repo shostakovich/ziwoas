@@ -18,6 +18,7 @@ defmodule Ziwoas.Lights.Light do
     field :supports_color_temp, :boolean, default: false
     field :vendor, Ecto.Enum, values: [:govee, :hue], default: :govee
     field :zones, {:array, :string}
+    belongs_to :room, Ziwoas.Rooms.Room
     timestamps()
   end
 
@@ -52,7 +53,7 @@ defmodule Ziwoas.Lights.Light do
   @spec settings_changeset(t, map, [String.t()]) :: Ecto.Changeset.t()
   def settings_changeset(light, params, plug_ids) do
     light
-    |> cast(params, [:name, :shelly_plug_id])
+    |> cast(params, [:name, :shelly_plug_id, :room_id])
     |> validate_required([:name])
     |> validate_inclusion(:shelly_plug_id, plug_ids, message: "ist keine schaltbare Steckdose")
   end

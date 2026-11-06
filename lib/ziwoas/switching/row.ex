@@ -62,7 +62,7 @@ defmodule Ziwoas.Switching.Row do
   defp fresher?(command, state),
     do: DateTime.compare(command.inserted_at, state.updated_at) != :lt
 
-  @spec rule_count(t) :: non_neg_integer
-  def rule_count(%__MODULE__{entries: entries}),
-    do: entries |> Enum.map(&length(Schedule.rules(&1))) |> Enum.sum()
+  @doc "On, as far as anyone can tell: switched on and still reporting."
+  @spec lit?(t) :: boolean
+  def lit?(row), do: on?(row) and not offline?(row)
 end

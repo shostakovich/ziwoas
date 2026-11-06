@@ -4,7 +4,7 @@ defmodule ZiwoasWeb.SwitchesHeatersTest do
   import Phoenix.LiveViewTest
   import Setzkasten.Test.Confirm
 
-  alias Ziwoas.{FakeFritzBox, Heating, TestClock}
+  alias Ziwoas.{FakeFritzBox, Heating, Rooms, TestClock}
   alias Ziwoas.Fritz.Heaters
 
   @moduletag :shared_sandbox
@@ -42,6 +42,11 @@ defmodule ZiwoasWeb.SwitchesHeatersTest do
     view
   end
 
+  defp open_device(conn, key) do
+    {:ok, view, _html} = live(conn, ~p"/switches/heaters/#{key}")
+    view
+  end
+
   defp text(view, selector),
     do:
       view
@@ -53,19 +58,36 @@ defmodule ZiwoasWeb.SwitchesHeatersTest do
       |> String.split()
       |> Enum.join(" ")
 
-  defp knob(key), do: "#sw_heater_head_#{key} button.sw-knob"
+  defp knob(key), do: "#sw_heater_#{key} button.sw-knob"
 
-  test "a heater card shows the temperature, the battery and why it heats", %{conn: conn} do
+  test "a heater tile shows the temperature and why it heats, a good battery only on its page",
+       %{conn: conn} do
     view = open_page(conn)
 
     assert text(view, "#sw_heater_119600123456 h3") == "Wohnzimmer"
+
+    assert has_element?(
+             view,
+             "#sw_heater_119600123456 h3 a[href='/switches/heaters/119600123456']"
+           )
+
     assert text(view, "#sw_heater_119600123456 [data-temperature]") == "20,5 °C"
-    assert text(view, "#sw_heater_119600123456 [data-battery]") == "Batterie 80 %"
-    assert has_element?(view, "#sw_heater_119600123456 [data-battery] svg")
+    refute has_element?(view, "#sw_heater_119600123456 [data-battery]")
     assert text(view, "#sw_heater_119600123456 [data-status]") == "Heizt auf 21 °C · bis 19:00"
     assert text(view, "#sw_heater_119600123456 [data-heat-c]") == "21,0 °C"
     assert has_element?(view, knob("119600123456") <> "[aria-pressed=true]")
     assert has_element?(view, knob("119600123456") <> " img[src*='heater_on']")
+    assert text(view, "#sw_summary_heizungen [data-summary]") == "1 heizt"
+
+    device = open_device(conn, "119600123456")
+
+    assert text(device, "h1") =~ "Wohnzimmer"
+    assert text(device, "#device_state [data-temperature]") == "20,5 °C"
+    assert text(device, "#device_state [data-battery]") == "Batterie 80 %"
+    assert has_element?(device, "#device_state [data-battery] svg")
+    assert text(device, "#device_state [data-status]") == "Heizt auf 21 °C · bis 19:00"
+    assert text(device, "#device_state [data-heat-c]") == "21,0 °C"
+    assert has_element?(device, "#device_state button.sw-knob[aria-pressed=true]")
   end
 
   test "a low battery warns and a heater without windows rests in frost protection", %{
@@ -81,10 +103,16 @@ defmodule ZiwoasWeb.SwitchesHeatersTest do
     assert has_element?(view, knob("119600654321") <> " img[src*='heater_off']")
   end
 
-  test "the heaters come after the lamps and before the plugs", %{conn: conn} do
-    html = conn |> get(~p"/switches") |> html_response(200)
-    [before_plugs, _] = String.split(html, ~s(id="sw_plugs"), parts: 2)
-    assert before_plugs =~ ~s(id="sw_heaters")
+  test "the heaters come before the plugs in their room, by name", %{conn: conn} do
+    ids =
+      conn
+      |> get(~p"/switches")
+      |> html_response(200)
+      |> LazyHTML.from_document()
+      |> LazyHTML.query("#room-none article")
+      |> LazyHTML.attribute("id")
+
+    assert ids == ["sw_heater_119600654321", "sw_heater_119600123456", "sw_card_fridge"]
   end
 
   test "the knob heats by hand until four hours later", %{conn: conn} do
@@ -174,12 +202,20 @@ defmodule ZiwoasWeb.SwitchesHeatersTest do
       :sys.get_state(pid)
     end)
 
-    assert text(view, "#sw_heater_head_119600123456 .badge") == "Offline"
+    assert text(view, "#sw_heater_119600123456 .badge") == "Offline"
     assert has_element?(view, knob("119600123456") <> "[disabled]")
     assert has_element?(view, "#sw_heat_down_119600123456[disabled]")
     assert has_element?(view, "#sw_heat_up_119600123456[disabled]")
     refute has_element?(view, "#sw_heater_119600123456 [data-temperature]")
     refute has_element?(view, "#sw_heater_119600123456 [data-battery]")
+
+    device = open_device(conn, "119600123456")
+    assert text(device, "header .badge") == "Offline"
+    assert text(device, "#device_state [data-status]") == "Nicht erreichbar"
+    assert has_element?(device, "#device_state button.sw-knob[disabled]")
+    assert has_element?(device, "#sw_heat_up_119600123456[disabled]")
+    refute has_element?(device, "#device_state [data-temperature]")
+    refute has_element?(device, "#device_state [data-battery]")
   end
 
   test "a colder Heiztemperatur applies at once while heating", %{conn: conn} do
@@ -204,7 +240,7 @@ defmodule ZiwoasWeb.SwitchesHeatersTest do
     assert Heating.get_heater("119600123456").heat_c == 21.0
   end
 
-  test "crafted events do nothing", %{conn: conn} do
+  test "crafted events do nothing on Schalten", %{conn: conn} do
     assert_received {:sethkrtsoll, @living, "42"}
     Heating.put_heat_c!(Heating.get_heater("119600123456"), 22.0)
     view = open_page(conn)
@@ -232,8 +268,46 @@ defmodule ZiwoasWeb.SwitchesHeatersTest do
     refute has_element?(view, "#sw_119600123456_new_form")
   end
 
+  test "crafted events do nothing on a heater's page", %{conn: conn} do
+    assert_received {:sethkrtsoll, @living, "42"}
+    Heating.put_heat_c!(Heating.get_heater("119600123456"), 22.0)
+    view = open_device(conn, "119600123456")
+
+    for {event, params} <- [
+          {"heat_c", %{"heater_key" => "119600123456", "step" => "up"}},
+          {"heat_c", %{"heater_key" => "119600123456", "step" => "sideways"}},
+          {"switch_heater", %{"heater_key" => "119600123456", "state" => "toggle"}},
+          {"switch_plug", %{"plug_id" => "fridge", "state" => "on"}},
+          {"switch_heater", %{"heater_key" => "119600654321", "state" => "heat"}},
+          {"heat_c", %{"heater_key" => "119600654321", "step" => "down"}},
+          {"new_entry", %{"heater_key" => "119600123456", "kind" => "rule"}},
+          {"new_entry", %{"heater_key" => "119600654321", "kind" => "window"}},
+          {"edit_entry", %{"heater_key" => "119600123456", "kind" => "window", "id" => %{}}},
+          {"set_enabled", %{"heater_key" => "119600123456", "kind" => "window", "id" => ["1"]}},
+          {"delete_entry", %{"heater_key" => "nope", "kind" => "window", "id" => "1"}}
+        ] do
+      html = render_hook(view, event, params)
+      render_async(view)
+      refute html =~ "fehlgeschlagen"
+      refute html =~ "nicht geändert"
+    end
+
+    refute_received {:sethkrtsoll, _, _}
+    refute_received {:shelly_rpc, _, _, _}
+    assert Heating.get_heater("119600123456").heat_c == 22.0
+    assert length(Heating.windows("119600123456")) == 1
+    refute has_element?(view, "form[phx-submit=save_entry]")
+  end
+
+  test "a heater the box stops listing sends its page back to Schalten", %{conn: conn} do
+    view = open_device(conn, "119600123456")
+    send(view.pid, {:heaters, %{}})
+
+    assert %{"error" => "Diese Heizung gibt es nicht mehr."} = assert_redirect(view, "/switches")
+  end
+
   test "a window form with a broken payload is refused, not crashed", %{conn: conn} do
-    view = open_page(conn)
+    view = open_device(conn, "119600654321")
     view |> element("#sw_new_window_119600654321") |> render_click()
 
     render_hook(view, "validate_entry", %{"heater_key" => "119600654321", "window" => "x"})
@@ -271,21 +345,24 @@ defmodule ZiwoasWeb.SwitchesHeatersTest do
   end
 
   describe "Zeitfenster" do
-    test "the disclosure counts the windows and offers only windows", %{conn: conn} do
-      view = open_page(conn)
+    test "a heater's page lists its windows and offers only windows", %{conn: conn} do
+      view = open_device(conn, "119600123456")
 
-      assert text(view, "#sw_heater_schedule_119600123456 > summary") == "Zeitfenster 1"
+      assert text(view, "#device_schedule h2") == "Zeitfenster"
 
-      assert text(view, "#sw_rules_119600123456 li[id^=sw_entry_] p.font-medium") ==
+      assert text(view, "#device_schedule #sw_rules_119600123456 li[id^=sw_entry_] p.font-medium") ==
                "Mo–Fr · 07:00–19:00"
 
       assert has_element?(view, "#sw_new_window_119600123456")
       refute has_element?(view, "#sw_new_rule_119600123456")
-      assert text(view, "#sw_heater_schedule_119600654321 > summary") == "Zeitfenster"
+
+      kitchen = open_device(conn, "119600654321")
+      refute has_element?(kitchen, "#sw_rules_119600654321 li[id^=sw_entry_]")
+      assert has_element?(kitchen, "#sw_new_window_119600654321")
     end
 
     test "a new window is saved with the plugs' editor", %{conn: conn} do
-      view = open_page(conn)
+      view = open_device(conn, "119600654321")
       view |> element("#sw_new_window_119600654321") |> render_click()
 
       view
@@ -299,12 +376,11 @@ defmodule ZiwoasWeb.SwitchesHeatersTest do
       assert text(view, "#sw_rules_119600654321 li[id^=sw_entry_] p.font-medium") ==
                "Fr · 06:30–07:30"
 
-      assert text(view, "#sw_heater_119600654321 [data-status]") ==
-               "Frostschutz · heizt ab Fr 06:30"
+      assert text(view, "#device_state [data-status]") == "Frostschutz · heizt ab Fr 06:30"
     end
 
     test "a refused window keeps the editor open with the plugs' messages", %{conn: conn} do
-      view = open_page(conn)
+      view = open_device(conn, "119600654321")
       view |> element("#sw_new_window_119600654321") |> render_click()
 
       html =
@@ -321,11 +397,11 @@ defmodule ZiwoasWeb.SwitchesHeatersTest do
     test "a window can be paused, edited and deleted", %{conn: conn} do
       [window] = Heating.windows("119600123456")
       row = "#sw_entry_119600123456_#{window.id}"
-      view = open_page(conn)
+      view = open_device(conn, "119600123456")
 
       view |> element("#{row}_toggle") |> render_click()
       refute hd(Heating.windows("119600123456")).enabled
-      assert text(view, "#sw_heater_119600123456 [data-status]") == "Frostschutz"
+      assert text(view, "#device_state [data-status]") == "Frostschutz"
 
       view |> element("#{row}_edit") |> render_click()
 
@@ -337,6 +413,79 @@ defmodule ZiwoasWeb.SwitchesHeatersTest do
 
       confirm_click(view, "#{row}_delete", "Zeitfenster löschen?")
       assert Heating.windows("119600123456") == []
+    end
+  end
+
+  describe "a heater's page" do
+    test "its knob heats by hand and the stepper sets the Heiztemperatur", %{conn: conn} do
+      view = open_device(conn, "119600654321")
+      assert text(view, "#device_state [data-status]") == "Frostschutz"
+
+      view |> element("#device_state button.sw-knob") |> render_click()
+      render_async(view)
+
+      assert_received {:sethkrtsoll, @kitchen, "42"}
+      assert text(view, "#device_state [data-status]") == "Heizt auf 21 °C · manuell bis 16:00"
+      assert has_element?(view, "#device_state button.sw-knob[aria-pressed=true]")
+
+      view |> element("#sw_heat_up_119600654321") |> render_click()
+      render_async(view)
+
+      assert_received {:sethkrtsoll, @kitchen, "43"}
+      assert text(view, "#device_state [data-heat-c]") == "21,5 °C"
+    end
+
+    test "a press the box refuses is a flash", %{conn: conn, box: box} do
+      view = open_device(conn, "119600654321")
+      FakeFritzBox.set(box, :refuse, true)
+
+      view |> element("#device_state button.sw-knob") |> render_click()
+      render_async(view)
+
+      assert has_element?(
+               view,
+               "#flash-error",
+               "Schalten fehlgeschlagen — Heizung nicht erreichbar"
+             )
+    end
+
+    test "the room select places the heater and takes it out again", %{conn: conn} do
+      {:ok, bath} = Rooms.create(%{"name" => "Bad"})
+      view = open_device(conn, "119600654321")
+
+      options =
+        view
+        |> render()
+        |> LazyHTML.from_document()
+        |> LazyHTML.query("#room_form select[name='place[room_id]'] option")
+        |> Enum.map(&String.trim(LazyHTML.text(&1)))
+
+      assert options == ["Ohne Raum", "Bad"]
+
+      view |> form("#room_form", place: %{room_id: bath.id}) |> render_change()
+
+      assert Heating.get_heater("119600654321").room_id == bath.id
+      assert has_element?(view, "#flash-info", "Steht jetzt unter Bad.")
+      assert has_element?(view, "#room_form option[value='#{bath.id}'][selected]")
+
+      {:ok, switches, _html} = live(conn, ~p"/switches")
+      assert has_element?(switches, "#room-#{bath.id} #sw_heater_119600654321")
+
+      view |> form("#room_form", place: %{room_id: ""}) |> render_change()
+
+      assert Heating.get_heater("119600654321").room_id == nil
+      assert has_element?(view, "#flash-info", "Ohne Raum gespeichert.")
+    end
+
+    test "a room deleted meanwhile is refused", %{conn: conn} do
+      {:ok, bath} = Rooms.create(%{"name" => "Bad"})
+      view = open_device(conn, "119600654321")
+      Rooms.delete(bath)
+
+      render_change(view, "place", %{"place" => %{"room_id" => to_string(bath.id)}})
+
+      assert Heating.get_heater("119600654321").room_id == nil
+      assert has_element?(view, "#flash-error", "Diesen Raum gibt es nicht mehr.")
     end
   end
 

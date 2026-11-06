@@ -4,7 +4,7 @@ defmodule ZiwoasWeb.LightLive do
 
   import ZiwoasWeb.LightsComponents
 
-  alias Ziwoas.{Lights, Plugs}
+  alias Ziwoas.{Lights, Plugs, Rooms}
   alias ZiwoasWeb.LightEvents
 
   @impl true
@@ -27,6 +27,7 @@ defmodule ZiwoasWeb.LightLive do
        page_title: light.name,
        light: light,
        plugs: Lights.lamp_plugs(),
+       rooms: Rooms.list(),
        panels: panels,
        panel: if(values.color && light.supports_color, do: "color", else: elem(hd(panels), 1)),
        power_snapshot: snapshot,
@@ -76,7 +77,7 @@ defmodule ZiwoasWeb.LightLive do
 
   def handle_event("open_settings", _params, socket) do
     form = to_form(Lights.change_settings(socket.assigns.light))
-    {:noreply, assign(socket, settings: form, settings_open: true)}
+    {:noreply, assign(socket, settings: form, settings_open: true, rooms: Rooms.list())}
   end
 
   def handle_event("close_settings", _params, socket),
@@ -232,7 +233,7 @@ defmodule ZiwoasWeb.LightLive do
         </div>
 
         <.toast message={@toast.message} undo={@toast.undo} />
-        <.settings_sheet form={@settings} open={@settings_open} plugs={@plugs} />
+        <.settings_sheet form={@settings} open={@settings_open} plugs={@plugs} rooms={@rooms} />
       </div>
     </Layouts.app>
     """
