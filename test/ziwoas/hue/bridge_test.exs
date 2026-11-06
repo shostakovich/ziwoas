@@ -123,11 +123,10 @@ defmodule Ziwoas.Hue.BridgeTest do
 
   test "a light deleted on the bridge reads the full state again" do
     deleted = %{"type" => "delete", "data" => [%{"id" => candle(), "type" => "light"}]}
-    {bridge, _stub} = start_bridge!(events: fn 1 -> [deleted] end)
+    start_bridge!(events: fn 1 -> [deleted] end)
     assert_received {:hue, :get, "/clip/v2/resource"}
 
-    :sys.get_state(bridge)
-    assert_received {:hue, :get, "/clip/v2/resource"}
+    assert_receive {:hue, :get, "/clip/v2/resource"}
   end
 
   test "a stored lamp the bridge no longer has is stored off and unreachable" do
@@ -144,6 +143,8 @@ defmodule Ziwoas.Hue.BridgeTest do
     {bridge, _stub} = start_bridge!(events: fn 1 -> [added] end)
     assert_received {:hue, :get, "/clip/v2/resource"}
 
+    # The first call lets the event through, the second a :reload it would have sent.
+    :sys.get_state(bridge)
     :sys.get_state(bridge)
     refute_received {:hue, :get, "/clip/v2/resource"}
   end
