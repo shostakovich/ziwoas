@@ -197,7 +197,7 @@ defmodule Ziwoas.Govee.Bridge do
   end
 
   defp finished(state, :api_states, {:ok, results}),
-    do: Enum.reduce(results, state, &apply_api(&2, &1, true))
+    do: Enum.reduce(results, state, &apply_api(&2, &1))
 
   defp finished(state, :api_states, {:error, reason}) do
     Logger.warning("Govee bridge: API poll failed: #{inspect(reason)}")
@@ -205,7 +205,7 @@ defmodule Ziwoas.Govee.Bridge do
   end
 
   defp finished(state, {:clarified, device}, result),
-    do: apply_api(state, {device, result}, false)
+    do: apply_api(state, {device, result})
 
   defp finished(state, {:controlled, key, verb}, {:ok, _}), do: record(state, key, verb)
 
@@ -367,23 +367,23 @@ defmodule Ziwoas.Govee.Bridge do
     end
   end
 
-  defp apply_api(state, {device, {:ok, map}}, report?) do
+  defp apply_api(state, {device, {:ok, map}}) do
     case PlatformApi.telemetry(map, device.zones) do
       {:ok, telemetry} ->
         {result, store} =
           States.apply_telemetry(state.store, device.key, telemetry, :api, state.clock.())
 
-        if report? and result.changed, do: report_state(state, device.key, result.published)
+        if result.changed, do: report_state(state, device.key, result.published)
         %{state | store: store}
 
       :error ->
-        Logger.warning("Govee.Reconciler: API state of #{device.key} does not coerce")
+        Logger.warning("Govee bridge: API state of #{device.key} does not coerce")
         state
     end
   end
 
-  defp apply_api(state, {device, {:error, reason}}, _report?) do
-    Logger.warning("Govee.Reconciler: api state #{device.key}: #{inspect(reason)}")
+  defp apply_api(state, {device, {:error, reason}}) do
+    Logger.warning("Govee bridge: API state of #{device.key}: #{inspect(reason)}")
     state
   end
 
