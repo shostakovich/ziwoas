@@ -887,6 +887,26 @@ defmodule Ziwoas.Govee.BridgeTest do
     end
   end
 
+  test "a scene call that fails writes the stored scenes back" do
+    test = self()
+
+    failing = fn conn ->
+      if conn.request_path == "/router/api/v1/device/scenes",
+        do: Plug.Conn.send_resp(conn, 200, ~s({"code":429,"message":"too many"})),
+        else: api(test).(conn)
+    end
+
+    bridge =
+      start_bridge!(
+        listen_port: false,
+        stored_lamps: fn -> [stored_lamp()] end,
+        api_req: [plug: failing]
+      )
+
+    assert_receive {:lamp, %{key: @key, scenes: ["Forest"]}}, 1_000
+    assert Bridge.command(@key, {:scene, "Forest"}, bridge) == {:error, :unknown_scene}
+  end
+
   test "an API poll whose task exits is logged and the next poll still comes" do
     test = self()
 

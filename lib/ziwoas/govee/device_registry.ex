@@ -98,7 +98,10 @@ defmodule Ziwoas.Govee.DeviceRegistry do
       caps = if is_list(raw["capabilities"]), do: raw["capabilities"], else: []
       instances = Enum.map(caps, & &1["instance"])
       power_only = instances == ["powerSwitch"]
-      {scene_names, index} = if power_only, do: {[], %{}}, else: load_scenes(raw, scenes)
+
+      {scene_names, index} =
+        if power_only, do: {[], %{}}, else: load_scenes(registry, key, raw, scenes)
+
       ct_cap = Enum.find(caps, &(&1["instance"] == "colorTemperatureK"))
       range = get_in(ct_cap || %{}, ["parameters", "range"])
 
@@ -123,7 +126,7 @@ defmodule Ziwoas.Govee.DeviceRegistry do
   defp range_value(range, key) when is_map(range), do: range[key]
   defp range_value(_range, _key), do: nil
 
-  defp load_scenes(raw, scenes) do
+  defp load_scenes(registry, key, raw, scenes) do
     case scenes.(raw) do
       {:ok, options} ->
         Enum.reduce(List.wrap(options), {[], %{}}, &add_scene/2)
@@ -133,7 +136,15 @@ defmodule Ziwoas.Govee.DeviceRegistry do
           "Govee.DeviceRegistry: scenes for #{raw["device"]} failed: #{inspect(reason)}"
         )
 
-        {[], %{}}
+        # Without ids the known names cannot be played, but the stored scenes are not wiped.
+        {known_scenes(registry, key), %{}}
+    end
+  end
+
+  defp known_scenes(registry, key) do
+    case find(registry, key) do
+      %Device{scenes: scenes} -> scenes
+      nil -> []
     end
   end
 

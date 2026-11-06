@@ -107,7 +107,7 @@ defmodule Ziwoas.Govee.DeviceRegistryTest do
            }
   end
 
-  test "failing scenes leave the lamp without scenes" do
+  test "failing scenes leave a lamp new to the registry without scenes" do
     log =
       capture_log(fn ->
         [device] =
@@ -229,6 +229,17 @@ defmodule Ziwoas.Govee.DeviceRegistryTest do
                  scene_index: %{"Aurora" => %{id: 1, param_id: nil}}
                }
              ] = DeviceRegistry.all(registry)
+    end
+
+    test "a scene call that fails keeps the stored scenes, an empty answer clears them" do
+      failing = fn _raw -> {:error, "HTTP 429"} end
+
+      capture_log(fn ->
+        assert [%Device{api_id: @mac, scenes: ["Forest"], scene_index: %{}}] =
+                 DeviceRegistry.all(refresh([raw()], seeded([stored()]), failing))
+      end)
+
+      assert [%Device{scenes: []}] = DeviceRegistry.all(refresh([raw()], seeded([stored()])))
     end
 
     test "a stored lamp the cloud does not list stays, a lamp new to the database is added" do
