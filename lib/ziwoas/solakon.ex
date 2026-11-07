@@ -72,6 +72,13 @@ defmodule Ziwoas.Solakon do
     {:ok, Control.State.active?(state)}
   end
 
+  @spec change_min_soc(map) :: Ecto.Changeset.t()
+  def change_min_soc(attrs \\ %{}), do: Control.change_min_soc(Control.state(), attrs)
+
+  @doc "The minimum charge the control keeps; the next applied control tick writes it to the inverter."
+  @spec set_min_soc(map) :: {:ok, Control.State.t()} | {:error, Ecto.Changeset.t()}
+  def set_min_soc(attrs), do: Control.set_min_soc(Control.state!(), attrs)
+
   @spec set_eps_output(boolean | nil, GenServer.server()) :: {:ok, boolean | nil} | {:error, term}
   def set_eps_output(enabled, monitor \\ Monitor) do
     case Monitor.set_eps_output(monitor, enabled) do

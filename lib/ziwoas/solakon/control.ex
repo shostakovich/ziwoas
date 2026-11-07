@@ -30,6 +30,12 @@ defmodule Ziwoas.Solakon.Control do
   @spec resume!(State.t()) :: State.t()
   def resume!(state), do: update!(state, [paused: false] ++ @cleared)
 
+  @spec change_min_soc(State.t(), map) :: Ecto.Changeset.t()
+  def change_min_soc(state, attrs \\ %{}), do: State.min_soc_changeset(state, attrs)
+
+  @spec set_min_soc(State.t(), map) :: {:ok, State.t()} | {:error, Ecto.Changeset.t()}
+  def set_min_soc(state, attrs), do: state |> change_min_soc(attrs) |> Repo.update()
+
   @spec store!(State.t(), Decision.t(), DateTime.t()) :: State.t()
   def store!(state, %Decision{} = decision, at),
     do:

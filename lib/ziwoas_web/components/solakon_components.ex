@@ -2,6 +2,8 @@ defmodule ZiwoasWeb.SolakonComponents do
   @moduledoc false
   use ZiwoasWeb, :html
 
+  import ZiwoasWeb.ErrorSummary, only: [error_summary: 1]
+
   alias Ziwoas.Solakon
   alias Ziwoas.Solakon.{Reading, Snapshot}
 
@@ -323,6 +325,10 @@ defmodule ZiwoasWeb.SolakonComponents do
   attr :control_target, :boolean, default: nil
   attr :control_error, :string, default: nil
 
+  attr :min_soc_form, :any,
+    default: nil,
+    doc: "the minimum-charge form, only while control is enabled"
+
   def controls(assigns) do
     reading = assigns.reading
 
@@ -373,9 +379,45 @@ defmodule ZiwoasWeb.SolakonComponents do
           <.alert :if={@control_error} id="solakon-control-error" tone={:error} class="mt-2">
             {@control_error}
           </.alert>
+          <.min_soc_form :if={@min_soc_form} form={@min_soc_form} />
         </.card>
       </div>
     </section>
+    """
+  end
+
+  attr :form, Phoenix.HTML.Form, required: true
+
+  defp min_soc_form(assigns) do
+    first..last//_ = Reading.min_soc_range()
+    assigns = assign(assigns, first: first, last: last)
+
+    ~H"""
+    <.form
+      for={@form}
+      id="solakon-min-soc-form"
+      phx-hook="Setzkasten.Components.Forms.FocusInvalid"
+      phx-change="validate_min_soc"
+      phx-submit="save_min_soc"
+      class="mt-4"
+    >
+      <.error_summary id="solakon-min-soc-form-errors" form={@form} class="mb-4" />
+      <.input
+        field={@form[:min_soc_pct]}
+        label="Mindestladung"
+        suffix="%"
+        numeric
+        inputmode="numeric"
+        class="max-w-40"
+        help={"Darunter entlädt die Regelung den Akku nicht (#{@first} bis #{@last} %)."}
+        required
+      />
+      <.action_bar>
+        <.button type="submit" variant={:primary} phx-disable-with="Speichert …">
+          Speichern
+        </.button>
+      </.action_bar>
+    </.form>
     """
   end
 

@@ -22,7 +22,7 @@ defmodule Ziwoas.Solakon.Control.PolicyTest do
     do: %Decision{state: state, target_w: target_w, trim: trim}
 
   defp decide(reading_attrs, load, previous \\ nil),
-    do: Policy.decide(reading(reading_attrs), load, previous)
+    do: Policy.decide(reading(reading_attrs), load, previous, Reading.default_min_soc_pct())
 
   defp outcome(decision), do: {decision.state, decision.target_w}
 
@@ -254,6 +254,19 @@ defmodule Ziwoas.Solakon.Control.PolicyTest do
 
       assert decide([battery_soc_pct: 11, pv_power_w: 400.0], load(300.0), trimming) ==
                %Decision{state: :normal, target_w: 300, trim: false}
+    end
+
+    test "a raised minimum protects up to it and ends one point above" do
+      trimming = previous(:protected, 255, true)
+
+      at = fn soc, previous ->
+        Policy.decide(reading(battery_soc_pct: soc, pv_power_w: 400.0), load(300.0), previous, 30)
+      end
+
+      assert at.(30, nil) == %Decision{state: :protected, target_w: 255, trim: true}
+      assert at.(30, trimming).state == :protected
+      assert at.(31, trimming) == %Decision{state: :normal, target_w: 300, trim: false}
+      assert at.(31, nil).state == :normal
     end
 
     test "11 % without a previous protection is no protection" do

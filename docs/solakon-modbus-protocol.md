@@ -81,7 +81,7 @@ The registers used for control. Defined in [`lib/ziwoas/solakon/client.ex`](../l
 | 46001 | `@reg_remote_control` | Bitfield16 | 1 | `0b0001` on / `0` off | Index 270 "Remote Control" | `0b0001` = Enable + Generation + Target AC. PDF notation "00 0 1". |
 | 46002 | `@reg_remote_timeout` | u16 | 1 | `150` (s) | Index 271 "Remote Timeout_Set" (s) | Inverter-side watchdog; > tick interval, so normal operation never trips it. |
 | 46003 | `@reg_remote_active_power` | i32 | 2 | 0…800 (W, clamped) | Index 272 "Remote Control Active Power Command" (W) | Active power setpoint per control tick. |
-| 46609 | `@reg_minimum_soc` | u16 | 1 | `10` | Index 298 "Minimum SoC" (%) | Write **only when it differs** (persistent register → spare the flash). |
+| 46609 | `@reg_minimum_soc` | u16 | 1 | 10…90 (default `10`) | Index 298 "Minimum SoC" (%) | The minimum charge stored on `solakon_control_states.min_soc_pct`, set on the PV page. Write **only when it differs** (persistent register → spare the flash). |
 
 The `46001` bitfield is encoded in the code as `@remote_control_enable 0b0001`
 ([client.ex](../lib/ziwoas/solakon/client.ex)). Meaning of the bits → [§9](#9-control-remote-control-46001).
@@ -595,7 +595,7 @@ power setpoint (46003). Our code sets `46001 = 0b0001` (Enable + Generation + AC
 
 `Ziwoas.Solakon.Client.apply_control/4` ([client.ex](../lib/ziwoas/solakon/client.ex)) writes in this order:
 
-1. **46609** Minimum SoC — *only if it differs* (self-healing, spares the flash).
+1. **46609** Minimum SoC, the stored minimum charge — *only if it differs* (self-healing, spares the flash).
 2. **46001** Remote Control = `0b0001` (Enable, Generation, AC).
 3. **46002** Remote Timeout = `150 s` (watchdog re-arm).
 4. **46003** active power setpoint (i32, W) — last.
