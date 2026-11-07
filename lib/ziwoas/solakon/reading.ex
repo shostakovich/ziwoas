@@ -2,8 +2,8 @@ defmodule Ziwoas.Solakon.Reading do
   @moduledoc false
   use Ziwoas.Schema
 
-  @min_soc_pct 10
-  @resume_soc_pct 11
+  @default_min_soc_pct 10
+  @resume_margin_pct 1
   @low_soc_pct 20
   @hot_temp_c 45.0
   @cold_temp_c 5.0
@@ -15,7 +15,7 @@ defmodule Ziwoas.Solakon.Reading do
 
   @type t :: %__MODULE__{}
 
-  def min_soc_pct, do: @min_soc_pct
+  def default_min_soc_pct, do: @default_min_soc_pct
   def low_soc_pct, do: @low_soc_pct
   def hot_temp_c, do: @hot_temp_c
   def cutoff_temp_c, do: @cutoff_temp_c
@@ -84,8 +84,10 @@ defmodule Ziwoas.Solakon.Reading do
     )
   end
 
-  def soc_below_minimum?(%__MODULE__{battery_soc_pct: soc}), do: soc <= @min_soc_pct
-  def soc_at_resume?(%__MODULE__{battery_soc_pct: soc}), do: soc >= @resume_soc_pct
+  def soc_below_minimum?(%__MODULE__{battery_soc_pct: soc}, min_soc_pct), do: soc <= min_soc_pct
+
+  def soc_at_resume?(%__MODULE__{battery_soc_pct: soc}, min_soc_pct),
+    do: soc >= min_soc_pct + @resume_margin_pct
 
   def battery_hot?(%__MODULE__{battery_temperature_c: temp}),
     do: not is_nil(temp) and temp >= @hot_temp_c

@@ -12,18 +12,19 @@ defmodule Ziwoas.Solakon.Control.Policy do
   @full_soc_pct 100
   @surplus_deadband_w 15
   @probe_step_w 50
-  # Aim for slight charging, so conversion losses never bleed the SoC under 10 %.
+  # Aim for slight charging, so conversion losses never bleed the SoC under the minimum.
   @charge_bias_w 15
   @trim_gain 0.5
   @entry_derate 0.85
 
   def max_output_w, do: @max_output_w
 
-  @spec decide(Reading.t(), Load.t(), Decision.t() | nil) :: Decision.t()
-  def decide(%Reading{} = reading, %Load{} = load, previous \\ nil) do
+  @doc "`min_soc_pct` is the minimum charge: at or below it the battery is protected."
+  @spec decide(Reading.t(), Load.t(), Decision.t() | nil, integer) :: Decision.t()
+  def decide(%Reading{} = reading, %Load{} = load, previous, min_soc_pct) do
     {state, raw} =
-      if protecting?(reading, previous && previous.state),
-        do: {:protected, protected_target(reading, load, previous)},
+      if protecting?(reading, previous && previous.state, min_soc_pct),
+        do: {:protected, protected_target(reading, load, previous, min_soc_pct)},
         else: unprotected_decision(reading, load, previous)
 
     target =
@@ -35,16 +36,21 @@ defmodule Ziwoas.Solakon.Control.Policy do
     %Decision{
       state: state,
       target_w: target,
-      trim: state == :protected and not Reading.soc_at_resume?(reading)
+      trim: state == :protected and not Reading.soc_at_resume?(reading, min_soc_pct)
     }
   end
 
   @doc false
-  def protecting?(reading, previous_state) do
+  def protecting?(reading, previous_state, min_soc_pct) do
     cond do
-      Reading.soc_below_minimum?(reading) or Reading.battery_hot?(reading) -> true
-      previous_state != :protected -> false
-      true -> not (Reading.soc_at_resume?(reading) and Reading.battery_cooled?(reading))
+      Reading.soc_below_minimum?(reading, min_soc_pct) or Reading.battery_hot?(reading) ->
+        true
+
+      previous_state != :protected ->
+        false
+
+      true ->
+        not (Reading.soc_at_resume?(reading, min_soc_pct) and Reading.battery_cooled?(reading))
     end
   end
 
@@ -162,8 +168,8 @@ defmodule Ziwoas.Solakon.Control.Policy do
       soc(reading) >= @full_soc_pct and not Reading.pv_present?(reading) and
         baseline < @max_output_w
 
-  defp protected_target(reading, load, previous) do
-    if Reading.soc_at_resume?(reading),
+  defp protected_target(reading, load, previous, min_soc_pct) do
+    if Reading.soc_at_resume?(reading, min_soc_pct),
       do: Load.effective_w(load),
       else: trimmed_target(reading, load, previous)
   end
