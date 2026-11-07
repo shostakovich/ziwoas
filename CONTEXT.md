@@ -185,6 +185,14 @@ not only when it changes.
 _German UI_: Regeltakt
 _Avoid_: Zyklus, Durchlauf, Heartbeat
 
+**Minimum charge**:
+The state of charge the control will not discharge the battery below. At or under it the loop
+protects the battery and only passes on what PV brings in; one point above it, it follows the
+household again. Set on the PV page (10 to 90 %, 10 % by default), stored in the database, and
+written to the inverter's own minimum-SoC register with the next **control tick**.
+_German UI_: Mindestladung
+_Avoid_: Mindestentladung, Entladetiefe (both name the discharge, not the level kept)
+
 **Guaranteed floor**:
 The lowest total consumption the measured consumers reached over the last 24 hours. Stands
 in for the live sum whenever no fresh **measurement** is available: it is the amount that
