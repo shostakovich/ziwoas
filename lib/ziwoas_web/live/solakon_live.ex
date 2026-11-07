@@ -48,6 +48,7 @@ defmodule ZiwoasWeb.SolakonLive do
        control_active: control_enabled and Solakon.control_active?(),
        control_target: nil,
        control_error: nil,
+       min_soc_form: control_enabled && min_soc_form(Solakon.change_min_soc()),
        history_range: nil,
        history_refresh: 0
      )
@@ -117,6 +118,31 @@ defmodule ZiwoasWeb.SolakonLive do
 
   def handle_event("toggle_control", _params, socket), do: {:noreply, socket}
 
+  def handle_event("validate_min_soc", %{"min_soc" => params}, socket) do
+    form = params |> Solakon.change_min_soc() |> min_soc_form(action: :validate)
+    {:noreply, assign(socket, min_soc_form: form)}
+  end
+
+  def handle_event("save_min_soc", %{"min_soc" => params}, socket) do
+    case Solakon.set_min_soc(params) do
+      {:ok, state} ->
+        {:noreply,
+         socket
+         |> put_flash(:info, min_soc_saved(state))
+         |> assign(min_soc_form: min_soc_form(Solakon.change_min_soc()))}
+
+      {:error, changeset} ->
+        {:noreply, socket |> clear_flash() |> assign(min_soc_form: min_soc_form(changeset))}
+    end
+  end
+
+  defp min_soc_saved(%{paused: true} = state),
+    do: "Mindestladung #{state.min_soc_pct} % gespeichert – gilt, sobald die Auto-Regelung läuft"
+
+  defp min_soc_saved(state), do: "Mindestladung #{state.min_soc_pct} % gespeichert"
+
+  defp min_soc_form(changeset, opts \\ []), do: to_form(changeset, [as: :min_soc] ++ opts)
+
   @impl true
   def handle_async(:eps, {:ok, {:ok, enabled}}, socket),
     do: {:noreply, assign(socket, eps_on: enabled == true, eps_error: nil, eps_target: nil)}
@@ -161,6 +187,7 @@ defmodule ZiwoasWeb.SolakonLive do
           control_active={@control_active}
           control_target={@control_target}
           control_error={@control_error}
+          min_soc_form={@min_soc_form}
         />
         <.panels snapshot={@snapshot} stale={@stale} />
         <.storage reading={@reading} snapshot={@snapshot} stale={@stale} />

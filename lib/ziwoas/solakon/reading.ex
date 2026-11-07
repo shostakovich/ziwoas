@@ -3,6 +3,8 @@ defmodule Ziwoas.Solakon.Reading do
   use Ziwoas.Schema
 
   @default_min_soc_pct 10
+  # 46609 takes 10..100; the cap leaves the battery room to work below surplus control (99 %).
+  @min_soc_range 10..90
   @resume_margin_pct 1
   @low_soc_pct 20
   @hot_temp_c 45.0
@@ -16,6 +18,7 @@ defmodule Ziwoas.Solakon.Reading do
   @type t :: %__MODULE__{}
 
   def default_min_soc_pct, do: @default_min_soc_pct
+  def min_soc_range, do: @min_soc_range
   def low_soc_pct, do: @low_soc_pct
   def hot_temp_c, do: @hot_temp_c
   def cutoff_temp_c, do: @cutoff_temp_c

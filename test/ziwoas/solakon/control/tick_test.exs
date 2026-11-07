@@ -156,6 +156,14 @@ defmodule Ziwoas.Solakon.Control.TickTest do
       assert state.consecutive_failures == 0
     end
 
+    test "writes the stored minimum charge when the inverter holds another" do
+      {server, monitor} = inverter!()
+      {:ok, _state} = Control.set_min_soc(Control.state!(), %{"min_soc_pct" => "25"})
+
+      assert %Outcome{status: :applied} = tick(monitor)
+      assert Enum.at(frames(server), 1) == "0002000000060106b6110019"
+    end
+
     test "a refused write counts as a failure and stores no decision" do
       {_server, monitor} = inverter!(fail: ["16:46003"])
 

@@ -162,6 +162,7 @@ defmodule ZiwoasWeb.SolakonLiveTest do
            ]
 
     assert count(doc, "input#solakon-control-toggle[disabled]:not([checked])") == 1
+    assert count(doc, "#solakon-min-soc-form") == 0
     assert hd(texts(doc, "#solakon-panels")) =~ "Noch keine Panelwerte"
     assert count(doc, "#solakon-panels .stat") == 0
   end

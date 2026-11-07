@@ -68,6 +68,69 @@ defmodule ZiwoasWeb.SolakonLiveConfigTest do
     assert Solakon.control_active?()
   end
 
+  describe "the minimum charge" do
+    test "shows the stored value", %{conn: conn} do
+      Repo.insert!(%Control.State{min_soc_pct: 25})
+      doc = page(conn, "/solakon")
+
+      assert texts(doc, "#solakon-min-soc-form label") == ["Mindestladung", "%"]
+
+      assert doc
+             |> LazyHTML.query("#solakon-min-soc-form input[name='min_soc[min_soc_pct]']")
+             |> LazyHTML.attribute("value") == ["25"]
+    end
+
+    test "saves a value the next tick writes to the inverter", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/solakon")
+
+      html =
+        view |> form("#solakon-min-soc-form", min_soc: %{min_soc_pct: "30"}) |> render_submit()
+
+      assert html =~ "Mindestladung 30 % gespeichert"
+      assert Control.state().min_soc_pct == 30
+    end
+
+    test "names a value outside the range while typing, without the summary", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/solakon")
+
+      view |> form("#solakon-min-soc-form", min_soc: %{min_soc_pct: "95"}) |> render_change()
+
+      assert has_element?(
+               view,
+               "#solakon-min-soc-form",
+               "Mindestladung zwischen 10 und 90 % angeben"
+             )
+
+      refute has_element?(view, "#solakon-min-soc-form-errors")
+    end
+
+    test "while paused says the value applies once control runs", %{conn: conn} do
+      Repo.insert!(%Control.State{paused: true})
+      {:ok, view, _html} = live(conn, ~p"/solakon")
+
+      html =
+        view |> form("#solakon-min-soc-form", min_soc: %{min_soc_pct: "30"}) |> render_submit()
+
+      assert html =~ "Mindestladung 30 % gespeichert – gilt, sobald die Auto-Regelung läuft"
+    end
+
+    test "refuses a value outside 10 to 90 % and keeps the stored one", %{conn: conn} do
+      {:ok, view, _html} = live(conn, ~p"/solakon")
+
+      view |> form("#solakon-min-soc-form", min_soc: %{min_soc_pct: "5"}) |> render_submit()
+
+      assert has_element?(view, "#solakon-min-soc-form-errors")
+
+      assert has_element?(
+               view,
+               "#solakon-min-soc-form",
+               "Mindestladung zwischen 10 und 90 % angeben"
+             )
+
+      assert Control.state().min_soc_pct == 10
+    end
+  end
+
   test "a replayed form without the switch's value writes nothing", %{conn: conn} do
     {:ok, view, html} = live(conn, ~p"/solakon")
     doc = LazyHTML.from_fragment(html)

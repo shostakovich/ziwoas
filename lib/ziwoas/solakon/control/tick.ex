@@ -9,12 +9,11 @@ defmodule Ziwoas.Solakon.Control.Tick do
     control = Control.state!()
 
     if State.active?(control) do
-      min_soc_pct = Reading.default_min_soc_pct()
       load = LoadReader.load_estimate(roster, now, Keyword.take(opts, [:offline_after_s]))
-      decision = Policy.decide(reading, load, previous(control, now), min_soc_pct)
+      decision = Policy.decide(reading, load, previous(control, now), control.min_soc_pct)
       monitor = Keyword.get(opts, :monitor, Monitor)
 
-      case apply_control(monitor, decision.target_w, min_soc_pct) do
+      case apply_control(monitor, decision.target_w, control.min_soc_pct) do
         :ok ->
           control |> Control.store!(decision, now) |> Control.reset_failures!()
           %Outcome{status: :applied, decision: decision, load: load, reading: reading}
