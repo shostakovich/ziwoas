@@ -511,6 +511,125 @@ defmodule ZiwoasWeb.SwitchesLiveTest do
     end
   end
 
+  describe "the default view" do
+    setup do
+      office = room!("Büro")
+      Repo.update_all(Light, set: [room_id: office.id])
+      %{office: office}
+    end
+
+    test "„Als Standard“ makes Schalten open with the view next time", %{
+      conn: conn,
+      office: office
+    } do
+      conn = sign_in(conn, "anna")
+      {:ok, view, _html} = live(conn, ~p"/switches?raum=#{office.id}")
+
+      view |> element("#sw_set_default") |> render_click()
+      assert has_element?(view, "#sw_default", "Deine Standardansicht")
+      refute has_element?(view, "#sw_set_default")
+
+      doc = page(conn)
+      assert hrefs(doc, "#sw_rooms_nav a[aria-current=true]") == ["/switches?raum=#{office.id}"]
+      assert ids(doc, "section.sw-room") == ["room-#{office.id}"]
+
+      assert hrefs(page(conn, ~p"/switches?raum=alle"), "#sw_rooms_nav a[aria-current=true]") ==
+               ["/switches?raum=alle"]
+
+      doc = build_conn() |> sign_in("ben") |> page()
+      assert hrefs(doc, "#sw_rooms_nav a[aria-current=true]") == ["/switches?raum=alle"]
+    end
+
+    test "„Alle“ can be the default again, „Ohne Raum“ and the filter offer none", %{
+      conn: conn,
+      office: office
+    } do
+      Residents.set_default_view("anna", {:room, office.id})
+      conn = sign_in(conn, "anna")
+      {:ok, view, _html} = live(conn, ~p"/switches?raum=alle")
+
+      view |> element("#sw_set_default") |> render_click()
+      assert Residents.default_view("anna") == :all
+      assert has_element?(view, "#sw_default")
+
+      assert count(page(conn, ~p"/switches?raum=ohne"), "#sw_view") == 0
+      assert count(page(conn, ~p"/switches?nur=steckdosen"), "#sw_view") == 0
+
+      render_hook(view, "set_default", %{"view" => "ohne"})
+      render_hook(view, "set_default", %{"view" => "999999"})
+      assert Residents.default_view("anna") == :all
+    end
+
+    test "„Alle zeigen“ leads back to the default view", %{conn: conn, office: office} do
+      Residents.set_default_view("anna", {:room, office.id})
+      doc = conn |> sign_in("anna") |> page(~p"/switches?nur=lampen")
+
+      assert hrefs(doc, "#sw_filter a") == ["/switches"]
+    end
+
+    # Scenario: The default view no longer exists
+    test "a deleted room's default opens with „Alle“", %{conn: conn, office: office} do
+      Residents.set_default_view("anna", {:room, office.id})
+      {:ok, _deleted} = Rooms.delete(office)
+
+      doc = conn |> sign_in("anna") |> page()
+
+      assert hrefs(doc, "#sw_rooms_nav a[aria-current=true]") == ["/switches?raum=alle"]
+    end
+
+    # Scenario: The last favourite is removed
+    test "without its last favourite „Favoriten“ is gone and Schalten opens with „Alle“", %{
+      conn: conn
+    } do
+      Residents.set_default_view("anna", :favourites)
+      Residents.set_favourite("anna", {:lamp, "ABCDEF01"}, true)
+      conn = sign_in(conn, "anna")
+
+      doc = page(conn)
+      assert hrefs(doc, "#sw_rooms_nav a[aria-current=true]") == ["/switches?raum=favoriten"]
+      assert count(doc, "#sw_default") == 1
+
+      {:ok, lamp, _html} = live(conn, ~p"/lights/ABCDEF01")
+      lamp |> element("#favourite") |> render_click()
+
+      doc = page(conn)
+      refute "Favoriten" in texts(doc, "#sw_rooms_nav a")
+      assert hrefs(doc, "#sw_rooms_nav a[aria-current=true]") == ["/switches?raum=alle"]
+      assert count(doc, "#sw_set_default") == 1
+    end
+
+    # Scenario: An identity that does not come from the gate
+    test "a name from anywhere but the trusted proxy gets the shared view", %{
+      conn: conn,
+      office: office
+    } do
+      Residents.set_default_view("anna", {:room, office.id})
+      Residents.set_favourite("anna", {:lamp, "ABCDEF01"}, true)
+      conn = %{sign_in(conn, "anna") | remote_ip: {192, 168, 1, 23}}
+
+      doc = page(conn)
+      assert hrefs(doc, "#sw_rooms_nav a[aria-current=true]") == ["/switches?raum=alle"]
+      refute "Favoriten" in texts(doc, "#sw_rooms_nav a")
+      assert count(doc, "#sw_set_default, #sw_default, [data-resident]") == 0
+
+      {:ok, lamp, _html} = live(conn, ~p"/lights/ABCDEF01")
+      refute has_element?(lamp, "#favourite")
+    end
+
+    test "without the header Schalten opens with „Alle“ and switches", %{conn: conn} do
+      start_supervised!({FakeGoveeBridge, test: self()})
+      {:ok, view, _html} = live(conn, ~p"/switches")
+
+      assert has_element?(view, "#sw_rooms_nav a[aria-current=true][data-view=alle]")
+      refute has_element?(view, "#sw_set_default")
+      refute has_element?(view, "#sw_default")
+
+      view |> element("#light_card_ABCDEF01 button.sw-knob") |> render_click()
+      render_async(view)
+      assert_received {:govee, "ABCDEF01", {:power, false}}
+    end
+  end
+
   describe "the summaries" do
     test "say per kind what is on and link to the kind's filter", %{conn: conn} do
       heater!("h1", "Badheizung")

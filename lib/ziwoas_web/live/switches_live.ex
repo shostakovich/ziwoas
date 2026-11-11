@@ -2,8 +2,9 @@ defmodule ZiwoasWeb.SwitchesLive do
   @moduledoc """
   Schalten: every lamp, heater and switchable plug, grouped by room (ADR-0014). On top a
   summary per kind that filters the page to it, then a bar of chips that picks the view: every
-  room, the resident's favourites, one room or the devices without one (ADR-0017). A tile switches its device; its name
-  opens the device's page with the schedule.
+  room, the resident's favourites, one room or the devices without one (ADR-0017); without a
+  choice in the address it opens with the resident's default view. A tile switches its device;
+  its name opens the device's page with the schedule.
   """
   use ZiwoasWeb, :live_view
 
@@ -29,23 +30,27 @@ defmodule ZiwoasWeb.SwitchesLive do
     {:ok,
      socket
      |> assign(page_title: "Schalten", tick: nil, pending: MapSet.new())
-     |> assign(filter: nil, requested: nil, favourites: MapSet.new())
+     |> assign(filter: nil, requested: :all, favourites: MapSet.new(), default_view: :all)
      |> assign(readings: Heating.readings())
      |> load()}
   end
 
   @impl true
   def handle_params(params, _uri, socket) do
+    resident = socket.assigns.resident
+    default_view = Residents.default_view(resident)
+
     {:noreply,
      socket
-     |> assign(filter: @filters[params["nur"]], requested: requested_view(params["raum"]))
-     |> assign(favourites: Residents.favourites(socket.assigns.resident))
+     |> assign(favourites: Residents.favourites(resident), default_view: default_view)
+     |> assign(filter: @filters[params["nur"]])
+     |> assign(requested: requested_view(params["raum"], default_view))
      |> assign_sections()}
   end
 
-  # Without a selection Schalten opens with every room; an unknown one shows every room too.
-  defp requested_view(param) when param in [nil, ""], do: :all
-  defp requested_view(param), do: SwitchesView.parse(param) || :all
+  # Without a selection Schalten opens with the default view; an unknown one shows every room.
+  defp requested_view(param, default_view) when param in [nil, ""], do: default_view
+  defp requested_view(param, _default_view), do: SwitchesView.parse(param) || :all
 
   @impl true
   def handle_info({:live, _deltas}, socket), do: {:noreply, load(socket)}
@@ -110,7 +115,20 @@ defmodule ZiwoasWeb.SwitchesLive do
     {:noreply, socket}
   end
 
+  def handle_event("set_default", %{"view" => param}, %{assigns: %{resident: resident}} = socket)
+      when is_binary(resident) do
+    view = SwitchesView.parse(param)
+
+    if defaultable?(view) and Enum.any?(socket.assigns.chips, &(&1.view == view)) and
+         Residents.set_default_view(resident, view) == :ok,
+       do: {:noreply, assign(socket, default_view: view)},
+       else: {:noreply, socket}
+  end
+
   def handle_event(_event, _params, socket), do: {:noreply, socket}
+
+  # „Ohne Raum“ is a place to tidy up, not to start; the kind filter is no view at all.
+  defp defaultable?(view), do: view == :all or view == :favourites or match?({:room, _id}, view)
 
   defp light_command(socket, key, params),
     do: SwitchEvents.start(socket, {:light_command, key}, fn -> LightEvents.run(params) end)
@@ -229,8 +247,26 @@ defmodule ZiwoasWeb.SwitchesLive do
           </.link>
         </nav>
 
-        <div :if={@view == :all and @any_lamp_lit} id="sw_view" class="sw-view">
+        <div
+          :if={(@view == :all and @any_lamp_lit) or (@resident && defaultable?(@view))}
+          id="sw_view"
+          class="sw-view"
+        >
+          <%= if @resident && defaultable?(@view) do %>
+            <span :if={@view == @default_view} id="sw_default">Deine Standardansicht</span>
+            <.button
+              :if={@view != @default_view}
+              id="sw_set_default"
+              size={:sm}
+              variant={:ghost}
+              phx-click="set_default"
+              phx-value-view={SwitchesView.to_param(@view)}
+            >
+              Als Standard
+            </.button>
+          <% end %>
           <.button
+            :if={@view == :all and @any_lamp_lit}
             id="sw_all_lamps_off"
             size={:sm}
             icon="power"
