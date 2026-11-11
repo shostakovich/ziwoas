@@ -106,7 +106,7 @@ defmodule ZiwoasWeb.RoomsLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} current_path={@current_path} width={:narrow}>
+    <Layouts.app flash={@flash} current_path={@current_path} resident={@resident} width={:narrow}>
       <.header back={~p"/switches"} back_label="Schalten">
         Räume
         <:subtitle>In dieser Reihenfolge stehen die Räume auf Schalten.</:subtitle>

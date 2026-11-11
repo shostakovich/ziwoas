@@ -76,4 +76,40 @@ defmodule ZiwoasWeb.LayoutsTest do
              ]
     end
   end
+
+  describe "the resident" do
+    setup do
+      previous = Application.get_env(:ziwoas, :sign_out_url)
+      on_exit(fn -> Application.put_env(:ziwoas, :sign_out_url, previous) end)
+    end
+
+    test "the top bar names the signed-in resident and offers „Abmelden“", %{conn: conn} do
+      Application.put_env(:ziwoas, :sign_out_url, "https://gate.example.test/")
+      {:ok, view, _html} = conn |> sign_in("anna") |> live(~p"/sensors")
+
+      assert has_element?(view, "#account summary [data-resident]", "anna")
+
+      assert has_element?(
+               view,
+               "#account a[href='https://gate.example.test/']",
+               "Abmelden"
+             )
+    end
+
+    test "without a sign-out address the top bar shows only the name", %{conn: conn} do
+      Application.delete_env(:ziwoas, :sign_out_url)
+      {:ok, view, _html} = conn |> sign_in("anna") |> live(~p"/sensors")
+
+      assert has_element?(view, "span#account[data-resident]", "anna")
+      refute has_element?(view, "a", "Abmelden")
+    end
+
+    test "an anonymous request shows no name", %{conn: conn} do
+      Application.put_env(:ziwoas, :sign_out_url, "https://gate.example.test/")
+      {:ok, view, _html} = live(conn, ~p"/sensors")
+
+      refute has_element?(view, "[data-resident]")
+      refute has_element?(view, "a", "Abmelden")
+    end
+  end
 end

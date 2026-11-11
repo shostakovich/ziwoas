@@ -261,7 +261,7 @@ defmodule ZiwoasWeb.DeviceLive do
   @impl true
   def render(%{owner: {:plug, _id}} = assigns) do
     ~H"""
-    <Layouts.app flash={@flash} current_path={@current_path} width={:narrow}>
+    <Layouts.app flash={@flash} current_path={@current_path} resident={@resident} width={:narrow}>
       <.header back={~p"/switches"} back_label="Schalten">
         {@plug.name}
         <:badge :if={@offline}>
@@ -310,7 +310,7 @@ defmodule ZiwoasWeb.DeviceLive do
 
   def render(%{owner: {:heater, _key}} = assigns) do
     ~H"""
-    <Layouts.app flash={@flash} current_path={@current_path} width={:narrow}>
+    <Layouts.app flash={@flash} current_path={@current_path} resident={@resident} width={:narrow}>
       <.header back={~p"/switches"} back_label="Schalten">
         {@heater_row.heater.name}
         <:badge :if={@heater_offline}>

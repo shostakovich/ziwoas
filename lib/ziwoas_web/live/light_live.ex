@@ -186,7 +186,7 @@ defmodule ZiwoasWeb.LightLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} current_path={@current_path}>
+    <Layouts.app flash={@flash} current_path={@current_path} resident={@resident}>
       <div id="light_detail" data-key={@light.key}>
         <.header back={~p"/switches"} back_label="Schalten">
           {@light.name}

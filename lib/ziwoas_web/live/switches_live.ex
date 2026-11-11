@@ -150,7 +150,7 @@ defmodule ZiwoasWeb.SwitchesLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} current_path={@current_path} width={:default}>
+    <Layouts.app flash={@flash} current_path={@current_path} resident={@resident} width={:default}>
       <.header>
         Schalten
         <:actions>

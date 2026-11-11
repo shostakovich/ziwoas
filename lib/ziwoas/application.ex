@@ -12,6 +12,7 @@ defmodule Ziwoas.Application do
 
   @impl true
   def start(_type, _args) do
+    ZiwoasWeb.TrustedProxies.entries!()
     loaded = Config.load(Config.path())
     Config.put(loaded)
 

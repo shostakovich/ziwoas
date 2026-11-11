@@ -74,8 +74,11 @@ scripts:
 
 In a release, `ZIWOAS_DB`, `ZIWOAS_CONFIG`, `SECRET_KEY_BASE` and `PHX_HOST` are required;
 optional are `PORT` (default 4000), `SHELLY_PORT` (4001, the Shellys connect there), `POOL_SIZE`
-(5) and `ZIWOAS_ALLOWED_HOSTS` (hosts the browser reaches ZiWoAS under, comma-separated; without it:
-the host that served the page).
+(5), `ZIWOAS_ALLOWED_HOSTS` (hosts the browser reaches ZiWoAS under, comma-separated; without it:
+the host that served the page), `ZIWOAS_TRUSTED_PROXIES` (addresses or CIDR ranges of the sign-in
+gate's proxy, comma-separated; only from there does `X-Remote-User` name the resident, ADR-0016;
+without it every request is anonymous) and `ZIWOAS_SIGN_OUT_URL` (the gate's sign-in page, linked
+as „Abmelden“).
 
 **Container.** The `Dockerfile` builds the release (Debian, uid 1000, ports 3000 and 3001,
 healthcheck on `/up`, `sqlite3` for backups) and runs `bin/migrate`, then `bin/server`;

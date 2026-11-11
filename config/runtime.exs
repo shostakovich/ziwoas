@@ -7,6 +7,16 @@ end
 config :ziwoas, ZiwoasWeb.Endpoint,
   http: [port: String.to_integer(System.get_env("PORT", "4000"))]
 
+if config_env() != :test do
+  config :ziwoas,
+    trusted_proxies: String.split(System.get_env("ZIWOAS_TRUSTED_PROXIES", ""), ",", trim: true),
+    sign_out_url:
+      (case String.trim(System.get_env("ZIWOAS_SIGN_OUT_URL", "")) do
+         "" -> nil
+         url -> url
+       end)
+end
+
 config :ziwoas, shelly_port: String.to_integer(System.get_env("SHELLY_PORT", "4001"))
 
 path_env = fn name, example, default ->

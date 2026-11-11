@@ -9,10 +9,15 @@ defmodule ZiwoasWeb.Layouts do
   attr :current_path, :string, required: true
   attr :width, :atom, default: :narrow, values: [:narrow, :default]
   attr :flash, :map, default: %{}
+  attr :resident, :string, default: nil, doc: "the signed-in resident's name (ADR-0016)"
   slot :inner_block, required: true
 
   def app(assigns) do
-    assigns = assign(assigns, :current, section(assigns.current_path))
+    assigns =
+      assign(assigns,
+        current: section(assigns.current_path),
+        sign_out_url: Application.get_env(:ziwoas, :sign_out_url)
+      )
 
     ~H"""
     <.app_shell layout={:topbar} current={@current} width={@width} bar_width={:default}>
@@ -37,7 +42,28 @@ defmodule ZiwoasWeb.Layouts do
       <:nav key={:reports} label="Berichte" plush="chart-column" navigate={~p"/reports"} />
       <:nav key={:weather} label="Wetter" plush="cloud-sun-rain" navigate={~p"/weather"} />
       <:nav key={:sensors} label="Sensoren" plush="traffic-light" navigate={~p"/sensors"} />
-      <:account><.theme_toggle compact /></:account>
+      <:account>
+        <.dropdown
+          :if={@resident && @sign_out_url}
+          id="account"
+          label={"Angemeldet als #{@resident}"}
+          align={:end}
+          variant={:ghost}
+          trigger_class="max-w-40"
+        >
+          <:trigger><span class="truncate" data-resident>{@resident}</span></:trigger>
+          <:item href={@sign_out_url} icon="log-out">Abmelden</:item>
+        </.dropdown>
+        <span
+          :if={@resident && !@sign_out_url}
+          id="account"
+          class="max-w-40 truncate text-sm font-semibold"
+          data-resident
+        >
+          {@resident}
+        </span>
+        <.theme_toggle compact />
+      </:account>
       {render_slot(@inner_block)}
     </.app_shell>
 
