@@ -11,7 +11,7 @@ Phoenix 1.8 · LiveView · Ecto + SQLite · Bandit. Erlang/OTP and Elixir are pi
 
 | Path | What |
 | --- | --- |
-| `lib/ziwoas/` | Domain, device clients, collector and scheduler; `lights/`, `plugs/`, `switching/`, `sensors/`, `energy_report/`, `economics/`, `solakon/`, `heating/` are the functional seams |
+| `lib/ziwoas/` | Domain, device clients, collector and scheduler; `lights/`, `plugs/`, `switching/`, `sensors/`, `energy_report/`, `economics/`, `solakon/`, `heating/`, `residents/` are the functional seams |
 | `lib/ziwoas_web/` | Router, controllers, LiveViews, components |
 | `config/ziwoas.yml` | **Not in the repo** — device config incl. the plug list. Template: `config/ziwoas.example.yml`, tests use `test/fixtures/ziwoas.test.yml`. Cost items and the electricity price live in the database instead (ADR-0004) |
 | `assets/` | `css/app.css` (Tailwind entry: daisyUI, Setzkasten, `palette.css`, area files), JS (LiveView hooks in `js/hooks/`), vendored Chart.js and Lucide icons; the standalone Tailwind and esbuild build into `priv/static/assets/` |
@@ -44,6 +44,10 @@ Real data only exists on the home server (Docker). Local SQLite is not a copy of
 - **Setzkasten** (Tailwind 4, daisyUI 5) for the UI: its components and its design system
   (`guides/design-system.md` in Setzkasten) first; its conventions win.
   See [ADR-0011](docs/adr/0011-setzkasten-as-the-ui-foundation.md).
+- **The resident comes from the gate**: `X-Remote-User`, trusted only from a peer in
+  `ZIWOAS_TRUSTED_PROXIES`, kept in the session by `ZiwoasWeb.Plugs.Resident`; LiveViews get
+  `@resident` from `ZiwoasWeb.Nav` (`nil` is anonymous) and pass it to `Layouts.app`. No login of
+  its own ([ADR-0016](docs/adr/0016-identity-comes-from-the-gate.md)).
 - Pages pass `width` to `Layouts.app`: `:default`, forms `:narrow`; the top bar stays
   `:default`. Live pages mark stale data on the server with `ZiwoasWeb.LiveFreshness` (badge and
   time in the header, `stale` stats), never by fading.
