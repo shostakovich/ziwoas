@@ -40,6 +40,24 @@ defmodule ZiwoasWeb.SwitchesComponents do
     """
   end
 
+  attr :on, :boolean, required: true, doc: "the resident starred the device"
+
+  @doc "The star on a device's page that puts it under „Favoriten“ on Schalten (ADR-0017)."
+  def favourite_button(assigns) do
+    ~H"""
+    <.button
+      id="favourite"
+      icon="star"
+      icon_only
+      variant={:ghost}
+      label="Favorit"
+      class="sw-favourite"
+      aria-pressed={to_string(@on)}
+      phx-click="toggle_favourite"
+    />
+    """
+  end
+
   attr :row, Row, required: true
   attr :zone, :string, required: true
   attr :pending, :boolean, default: false, doc: "a switch command is running"

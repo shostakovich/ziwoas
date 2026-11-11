@@ -2,7 +2,7 @@ defmodule ZiwoasWeb.SwitchesLive do
   @moduledoc """
   Schalten: every lamp, heater and switchable plug, grouped by room (ADR-0014). On top a
   summary per kind that filters the page to it, then a bar of chips that picks the view: every
-  room, one room or the devices without one (ADR-0017). A tile switches its device; its name
+  room, the resident's favourites, one room or the devices without one (ADR-0017). A tile switches its device; its name
   opens the device's page with the schedule.
   """
   use ZiwoasWeb, :live_view
@@ -10,7 +10,7 @@ defmodule ZiwoasWeb.SwitchesLive do
   import ZiwoasWeb.LightsComponents
   import ZiwoasWeb.SwitchesComponents
 
-  alias Ziwoas.{Clock, Config, Heating, Lights, Plugs, Rooms, Sensors, Switching}
+  alias Ziwoas.{Clock, Config, Heating, Lights, Plugs, Residents, Rooms, Sensors, Switching}
   alias ZiwoasWeb.{LightEvents, RoomAirComponents, SwitchesView, SwitchEvents}
 
   @filters %{"lampen" => :lamp, "heizungen" => :heater, "steckdosen" => :plug}
@@ -29,7 +29,7 @@ defmodule ZiwoasWeb.SwitchesLive do
     {:ok,
      socket
      |> assign(page_title: "Schalten", tick: nil, pending: MapSet.new())
-     |> assign(filter: nil, requested: nil)
+     |> assign(filter: nil, requested: nil, favourites: MapSet.new())
      |> assign(readings: Heating.readings())
      |> load()}
   end
@@ -39,6 +39,7 @@ defmodule ZiwoasWeb.SwitchesLive do
     {:noreply,
      socket
      |> assign(filter: @filters[params["nur"]], requested: requested_view(params["raum"]))
+     |> assign(favourites: Residents.favourites(socket.assigns.resident))
      |> assign_sections()}
   end
 
@@ -456,13 +457,14 @@ defmodule ZiwoasWeb.SwitchesLive do
         Enum.map(rows, &{:plug, plug_rooms[&1.plug.id], &1})
 
     sections = room_sections(devices, rooms, air)
-    view = if filter, do: nil, else: resolve(socket.assigns.requested, sections)
+    views = favourites_section(sections, socket.assigns.favourites) ++ sections
+    view = if filter, do: nil, else: resolve(socket.assigns.requested, views)
 
     assign(socket,
       nothing?: devices == [],
-      chips: chips(sections),
+      chips: chips(sections, views),
       view: view,
-      sections: shown(sections, view, filter),
+      sections: shown(sections, views, view, filter),
       summaries: summaries,
       shown_filter: filter,
       filter_name: filter && @filter_names[filter],
@@ -483,26 +485,50 @@ defmodule ZiwoasWeb.SwitchesLive do
     Enum.reject(sections, &(&1.items == []))
   end
 
-  # A view that names a room without devices, or no devices without a room, shows every room.
-  defp resolve(:all, _sections), do: :all
+  # The starred devices in the order of „Alle“: by room, then by kind. A favourite whose
+  # device is gone does not count.
+  defp favourites_section(sections, favourites) do
+    items =
+      for section <- sections,
+          item <- section.items,
+          MapSet.member?(favourites, device(item)),
+          do: item
 
-  defp resolve(view, sections),
-    do: if(Enum.any?(sections, &(&1.view == view)), do: view, else: :all)
+    if items == [],
+      do: [],
+      else: [
+        section_of(
+          %{id: "favourites", view: :favourites, scope: nil, name: "Favoriten", air: nil},
+          items
+        )
+      ]
+  end
 
-  defp shown(sections, nil, filter) do
+  defp device({:heater, row}), do: {:heater, row.heater.key}
+  defp device({:lamp, snapshot}), do: {:lamp, snapshot.light.key}
+  defp device({:plug, row}), do: {:plug, row.plug.id}
+
+  # A view that names a room without devices, no devices without a room or no favourites
+  # shows every room.
+  defp resolve(:all, _views), do: :all
+
+  defp resolve(view, views),
+    do: if(Enum.any?(views, &(&1.view == view)), do: view, else: :all)
+
+  defp shown(sections, _views, nil, filter) do
     sections
     |> Enum.map(&section_of(&1, Enum.filter(&1.items, fn {kind, _item} -> kind == filter end)))
     |> Enum.reject(&(&1.items == []))
   end
 
-  defp shown(sections, :all, _filter), do: sections
-  defp shown(sections, view, _filter), do: Enum.filter(sections, &(&1.view == view))
+  defp shown(sections, _views, :all, _filter), do: sections
+  defp shown(_sections, views, view, _filter), do: Enum.filter(views, &(&1.view == view))
 
-  defp chips([]), do: []
+  defp chips([], _views), do: []
 
-  defp chips(sections) do
+  defp chips(sections, views) do
     all = %{view: :all, name: "Alle", on_count: Enum.sum_by(sections, & &1.on_count)}
-    [all | Enum.map(sections, &Map.take(&1, [:view, :name, :on_count]))]
+    [all | Enum.map(views, &Map.take(&1, [:view, :name, :on_count]))]
   end
 
   defp section(room, items, air) do

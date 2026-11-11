@@ -391,3 +391,8 @@
   padding-top: 0.5rem;
   border-top: 1px solid color-mix(in oklab, var(--color-base-content) 10%, transparent);
 }
+
+/* A starred device's star is filled. */
+.sw-favourite[aria-pressed="true"] svg {
+  fill: currentColor;
+}

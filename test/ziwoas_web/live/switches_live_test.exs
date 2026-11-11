@@ -3,7 +3,18 @@ defmodule ZiwoasWeb.SwitchesLiveTest do
 
   import Phoenix.LiveViewTest
 
-  alias Ziwoas.{Clock, FakeGoveeBridge, FakeShelly, Repo, Rooms, Sensors, TestClock, TestConfigs}
+  alias Ziwoas.{
+    Clock,
+    FakeGoveeBridge,
+    FakeShelly,
+    Repo,
+    Residents,
+    Rooms,
+    Sensors,
+    TestClock,
+    TestConfigs
+  }
+
   alias Ziwoas.Heating.Heater
   alias Ziwoas.Lights.{Light, State}
   alias Ziwoas.Plugs
@@ -409,6 +420,94 @@ defmodule ZiwoasWeb.SwitchesLiveTest do
         |> follow_redirect(conn, ~p"/switches?raum=#{bath.id}")
 
       assert has_element?(back, "#sw_rooms_nav a[aria-current=true][data-view='#{bath.id}']")
+    end
+  end
+
+  describe "favourites" do
+    setup %{light: light} do
+      living = room!("Wohnzimmer")
+      bath = room!("Bad")
+      Repo.update_all(Light, set: [room_id: living.id])
+      heater!("h1", "Badheizung", bath)
+      {:ok, _placed} = Rooms.place_plug("fridge", living.id)
+      %{living: living, bath: bath, light: light}
+    end
+
+    defp star(view) do
+      view |> element("#favourite") |> render_click()
+      view
+    end
+
+    test "a device starred on its page stands under „Favoriten“ and stays in its room", %{
+      conn: conn,
+      living: living,
+      bath: bath
+    } do
+      conn = sign_in(conn, "anna")
+
+      for path <- [~p"/lights/ABCDEF01", ~p"/switches/heaters/h1", ~p"/switches/plugs/fridge"] do
+        {:ok, view, _html} = live(conn, path)
+        assert has_element?(star(view), "#favourite[aria-pressed=true]")
+      end
+
+      doc = page(conn, ~p"/switches?raum=favoriten")
+
+      assert texts(doc, "#sw_rooms_nav a") == ["Alle", "Favoriten", "Wohnzimmer", "Bad"]
+      assert hrefs(doc, "#sw_rooms_nav a[aria-current=true]") == ["/switches?raum=favoriten"]
+      assert ids(doc, "section.sw-room") == ["favourites"]
+      assert text(doc, "#favourites_heading") =~ "Favoriten"
+
+      assert ids(doc, "#favourites article") ==
+               ["light_card_ABCDEF01", "sw_card_fridge", "sw_heater_h1"]
+
+      assert count(doc, "#favourites_lamps_off") == 0
+      assert hrefs(doc, "#light_card_ABCDEF01 h3 a") == ["/lights/ABCDEF01?von=favoriten"]
+
+      assert ids(page(conn, ~p"/switches?raum=#{living.id}"), "article") ==
+               ["light_card_ABCDEF01", "sw_card_fridge"]
+
+      assert ids(page(conn, ~p"/switches?raum=#{bath.id}"), "article") == ["sw_heater_h1"]
+    end
+
+    test "the star takes a favourite away again", %{conn: conn} do
+      Residents.set_favourite("anna", {:lamp, "ABCDEF01"}, true)
+      conn = sign_in(conn, "anna")
+
+      {:ok, view, _html} = live(conn, ~p"/lights/ABCDEF01")
+      assert has_element?(view, "#favourite[aria-pressed=true]")
+      assert has_element?(star(view), "#favourite[aria-pressed=false]")
+
+      assert texts(page(conn), "#sw_rooms_nav a") == ["Alle", "Wohnzimmer", "Bad"]
+    end
+
+    test "without favourites there is no chip, and „Favoriten“ shows every room", %{conn: conn} do
+      Residents.set_favourite("anna", {:lamp, "GONE"}, true)
+      doc = conn |> sign_in("anna") |> page(~p"/switches?raum=favoriten")
+
+      refute "Favoriten" in texts(doc, "#sw_rooms_nav a")
+      assert hrefs(doc, "#sw_rooms_nav a[aria-current=true]") == ["/switches?raum=alle"]
+    end
+
+    # Scenario: Two residents, one device
+    test "another resident's favourite is not among one's own", %{conn: conn} do
+      {:ok, view, _html} = conn |> sign_in("anna") |> live(~p"/lights/ABCDEF01")
+      star(view)
+
+      doc = build_conn() |> sign_in("ben") |> page(~p"/switches?raum=favoriten")
+
+      refute "Favoriten" in texts(doc, "#sw_rooms_nav a")
+      assert count(doc, "#favourites") == 0
+      assert Residents.favourites("ben") == MapSet.new()
+    end
+
+    test "the star is only for a signed-in resident", %{conn: conn} do
+      for path <- [~p"/lights/ABCDEF01", ~p"/switches/heaters/h1", ~p"/switches/plugs/fridge"] do
+        {:ok, view, _html} = live(conn, path)
+        refute has_element?(view, "#favourite")
+        render_hook(view, "toggle_favourite", %{})
+      end
+
+      assert Repo.aggregate(Residents.Favourite, :count) == 0
     end
   end
 

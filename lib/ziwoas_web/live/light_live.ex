@@ -3,8 +3,9 @@ defmodule ZiwoasWeb.LightLive do
   use ZiwoasWeb, :live_view
 
   import ZiwoasWeb.LightsComponents
+  import ZiwoasWeb.SwitchesComponents, only: [favourite_button: 1]
 
-  alias Ziwoas.{Lights, Plugs, Rooms}
+  alias Ziwoas.{Lights, Plugs, Residents, Rooms}
   alias ZiwoasWeb.{LightEvents, SwitchesView}
 
   @impl true
@@ -26,6 +27,7 @@ defmodule ZiwoasWeb.LightLive do
      |> assign(
        page_title: light.name,
        back: SwitchesView.back_path(params["von"]),
+       favourite: Residents.favourite?(socket.assigns.resident, {:lamp, light.key}),
        light: light,
        plugs: Lights.lamp_plugs(),
        rooms: Rooms.list(),
@@ -69,6 +71,15 @@ defmodule ZiwoasWeb.LightLive do
     do: {:noreply, command(socket, %{"command" => "color_temp", "temp_k" => kelvin})}
 
   def handle_event("hide_toast", _params, socket), do: {:noreply, hide_toast(socket)}
+
+  def handle_event("toggle_favourite", _params, %{assigns: %{resident: resident}} = socket)
+      when is_binary(resident) do
+    device = {:lamp, socket.assigns.light.key}
+    :ok = Residents.set_favourite(resident, device, not socket.assigns.favourite)
+    {:noreply, assign(socket, :favourite, Residents.favourite?(resident, device))}
+  end
+
+  def handle_event("toggle_favourite", _params, socket), do: {:noreply, socket}
 
   def handle_event("show_panel", %{"value" => panel}, socket) do
     if List.keymember?(socket.assigns.panels, panel, 1),
@@ -192,6 +203,7 @@ defmodule ZiwoasWeb.LightLive do
         <.header back={@back} back_label="Schalten">
           {@light.name}
           <:actions>
+            <.favourite_button :if={@resident} on={@favourite} />
             <button
               type="button"
               id="light_settings_open"
