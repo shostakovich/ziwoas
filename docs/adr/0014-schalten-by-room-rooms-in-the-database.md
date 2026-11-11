@@ -25,6 +25,8 @@ to another room is not something either resident should have to do.
 - **The page opens with what is on.** Summaries per kind (lamps on, heaters heating, plugs on
   with their watts) filter the page to that kind across rooms (`?nur=lampen`); a sticky bar of
   room chips jumps to a room without hiding the others.
+  **Superseded** by [ADR-0017](0017-schalten-shows-one-view-per-resident.md): the chips now
+  pick one view at a time.
 
 ## Consequences
 

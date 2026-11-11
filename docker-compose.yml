@@ -18,6 +18,8 @@ services:
       SECRET_KEY_BASE: ${SECRET_KEY_BASE:?generate one with: openssl rand -hex 64}
       PHX_HOST: ${PHX_HOST:-localhost}
       ZIWOAS_ALLOWED_HOSTS: ${ZIWOAS_ALLOWED_HOSTS:-}
+      ZIWOAS_TRUSTED_PROXIES: ${ZIWOAS_TRUSTED_PROXIES:-}
+      ZIWOAS_SIGN_OUT_URL: ${ZIWOAS_SIGN_OUT_URL:-}
     volumes:
       # Owned by uid 1000.
       - ./storage:/app/storage

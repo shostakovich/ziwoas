@@ -3,7 +3,18 @@ defmodule ZiwoasWeb.SwitchesLiveTest do
 
   import Phoenix.LiveViewTest
 
-  alias Ziwoas.{Clock, FakeGoveeBridge, FakeShelly, Repo, Rooms, Sensors, TestClock, TestConfigs}
+  alias Ziwoas.{
+    Clock,
+    FakeGoveeBridge,
+    FakeShelly,
+    Repo,
+    Residents,
+    Rooms,
+    Sensors,
+    TestClock,
+    TestConfigs
+  }
+
   alias Ziwoas.Heating.Heater
   alias Ziwoas.Lights.{Light, State}
   alias Ziwoas.Plugs
@@ -66,7 +77,7 @@ defmodule ZiwoasWeb.SwitchesLiveTest do
   test "lamp tile links to the detail page and exposes a toggle knob", %{conn: conn} do
     doc = page(conn)
 
-    assert text(doc, "#light_card_ABCDEF01 a[href='/lights/ABCDEF01']") ==
+    assert text(doc, "#light_card_ABCDEF01 a[href='/lights/ABCDEF01?von=alle']") ==
              "Wohnzimmer Stehlampe"
 
     assert count(
@@ -99,7 +110,7 @@ defmodule ZiwoasWeb.SwitchesLiveTest do
 
     doc = page(conn)
 
-    assert text(doc, "#sw_card_fridge a[href='/switches/plugs/fridge']") == "Kühlschrank"
+    assert text(doc, "#sw_card_fridge a[href='/switches/plugs/fridge?von=alle']") == "Kühlschrank"
     assert count(doc, "li[id^=sw_entry_fridge_]") == 0
     assert count(doc, "button[phx-click=new_entry]") == 0
   end
@@ -186,17 +197,17 @@ defmodule ZiwoasWeb.SwitchesLiveTest do
 
     assert has_element?(
              view,
-             "#light_card_ABCDEF01 a[data-phx-link=redirect][href='/lights/ABCDEF01']"
+             "#light_card_ABCDEF01 a[data-phx-link=redirect][href='/lights/ABCDEF01?von=alle']"
            )
 
     {:ok, lamp, _html} =
       view
       |> element("#light_card_ABCDEF01 a")
       |> render_click()
-      |> follow_redirect(conn, ~p"/lights/ABCDEF01")
+      |> follow_redirect(conn, ~p"/lights/ABCDEF01?von=alle")
 
     assert has_element?(lamp, "h1", "Wohnzimmer Stehlampe")
-    assert has_element?(lamp, "header a[data-phx-link=redirect][href='/switches']")
+    assert has_element?(lamp, "header a[data-phx-link=redirect][href='/switches?raum=alle']")
   end
 
   test "without switchable plugs there is no plug tile and no Steckdosen summary", %{conn: conn} do
@@ -227,7 +238,7 @@ defmodule ZiwoasWeb.SwitchesLiveTest do
       assert ids(doc, "section.sw-room") == ["room-none"]
       assert text(doc, "#room-none_heading") =~ "Ohne Raum"
       assert text(doc, "#room-none") =~ "Neu erkannte Geräte landen hier"
-      assert texts(doc, "#sw_rooms_nav a") == ["Ohne Raum"]
+      assert texts(doc, "#sw_rooms_nav a") == ["Alle", "Ohne Raum"]
       assert ids(doc, "#room-none article") == ["light_card_ABCDEF01", "sw_card_fridge"]
     end
 
@@ -248,10 +259,16 @@ defmodule ZiwoasWeb.SwitchesLiveTest do
       doc = page(conn)
 
       assert ids(doc, "section.sw-room") == ["room-#{living.id}", "room-#{bath.id}", "room-none"]
-      assert texts(doc, "#sw_rooms_nav a") == ["Wohnzimmer", "Bad", "Ohne Raum"]
+      assert texts(doc, "#sw_rooms_nav a") == ["Alle", "Wohnzimmer", "Bad", "Ohne Raum"]
 
-      assert hrefs(doc, "#sw_rooms_nav a") ==
-               ["#room-#{living.id}", "#room-#{bath.id}", "#room-none"]
+      assert hrefs(doc, "#sw_rooms_nav a") == [
+               "/switches?raum=alle",
+               "/switches?raum=#{living.id}",
+               "/switches?raum=#{bath.id}",
+               "/switches?raum=ohne"
+             ]
+
+      assert hrefs(doc, "#sw_rooms_nav a[aria-current=true]") == ["/switches?raum=alle"]
 
       assert ids(doc, "#room-#{living.id} article") == ["light_card_#{light.key}"]
       assert ids(doc, "#room-#{bath.id} article") == ["sw_heater_h1", "sw_card_fridge"]
@@ -266,7 +283,7 @@ defmodule ZiwoasWeb.SwitchesLiveTest do
 
       doc = page(conn)
       assert ids(doc, "section.sw-room") == ["room-#{room.id}"]
-      assert texts(doc, "#sw_rooms_nav a") == ["Küche"]
+      assert texts(doc, "#sw_rooms_nav a") == ["Alle", "Küche"]
     end
 
     test "within a room heaters come first, then lamps, then plugs", %{conn: conn} do
@@ -290,7 +307,7 @@ defmodule ZiwoasWeb.SwitchesLiveTest do
 
       doc = page(conn)
       assert text(doc, "#room-#{room.id}_heading [data-on-count]") == "3 an"
-      assert count(doc, "#sw_rooms_nav a[data-room='room-#{room.id}'] .sw-room-dot-on") == 1
+      assert count(doc, "#sw_rooms_nav a[data-view='#{room.id}'] .sw-room-dot-on") == 1
 
       Repo.update_all(State, set: [on: false])
       Repo.update_all(Plugs.State, set: [output: false])
@@ -299,6 +316,317 @@ defmodule ZiwoasWeb.SwitchesLiveTest do
       assert text(doc, "#room-#{room.id}_heading [data-on-count]") == "alles aus"
       assert count(doc, "#sw_rooms_nav .sw-room-dot-on") == 0
       assert count(doc, "#room-#{room.id}_lamps_off") == 0
+    end
+  end
+
+  describe "the view" do
+    setup %{light: light} do
+      living = room!("Wohnzimmer")
+      bath = room!("Bad")
+      Repo.update_all(Light, set: [room_id: living.id])
+      heater!("h1", "Badheizung", bath)
+      lamp!("NONE", "Flur", false)
+      %{living: living, bath: bath, light: light}
+    end
+
+    test "a room's chip shows only that room", %{conn: conn, bath: bath} do
+      doc = page(conn, ~p"/switches?raum=#{bath.id}")
+
+      assert ids(doc, "section.sw-room") == ["room-#{bath.id}"]
+      assert ids(doc, "article") == ["sw_heater_h1"]
+      assert hrefs(doc, "#sw_rooms_nav a[aria-current=true]") == ["/switches?raum=#{bath.id}"]
+      assert hrefs(doc, "#sw_heater_h1 h3 a") == ["/switches/heaters/h1?von=#{bath.id}"]
+    end
+
+    test "„Ohne Raum“ shows only the devices without a room", %{conn: conn} do
+      doc = page(conn, ~p"/switches?raum=ohne")
+
+      assert ids(doc, "section.sw-room") == ["room-none"]
+      assert ids(doc, "article") == ["light_card_NONE", "sw_card_fridge"]
+      assert hrefs(doc, "#light_card_NONE h3 a") == ["/lights/NONE?von=ohne"]
+    end
+
+    test "„Alle“ shows every room", %{conn: conn, living: living, bath: bath} do
+      doc = page(conn, ~p"/switches?raum=alle")
+
+      assert ids(doc, "section.sw-room") == ["room-#{living.id}", "room-#{bath.id}", "room-none"]
+      assert hrefs(doc, "#sw_rooms_nav a[aria-current=true]") == ["/switches?raum=alle"]
+    end
+
+    test "an unknown or empty room shows every room", %{conn: conn, living: living} do
+      Repo.update_all(Light, set: [room_id: nil])
+
+      for param <- ["quatsch", "999999", to_string(living.id), "favoriten"] do
+        doc = page(conn, ~p"/switches?raum=#{param}")
+
+        assert hrefs(doc, "#sw_rooms_nav a[aria-current=true]") == ["/switches?raum=alle"],
+               param
+
+        assert count(doc, "section.sw-room") == 2
+      end
+    end
+
+    test "the kind filter shows its kind in all rooms, whatever view was chosen", %{
+      conn: conn,
+      bath: bath
+    } do
+      doc = page(conn, ~p"/switches?nur=lampen&raum=#{bath.id}")
+
+      assert ids(doc, "article") == ["light_card_ABCDEF01", "light_card_NONE"]
+      assert count(doc, "#sw_rooms_nav a[aria-current]") == 0
+      assert count(doc, "#sw_view") == 0
+    end
+
+    test "a chip patches the view in", %{conn: conn, living: living, bath: bath} do
+      {:ok, view, _html} = live(conn, ~p"/switches")
+
+      view |> element("#sw_rooms_nav a[data-view='#{bath.id}']") |> render_click()
+      assert_patched(view, ~p"/switches?raum=#{bath.id}")
+      assert has_element?(view, "#sw_heater_h1")
+      refute has_element?(view, "#room-#{living.id}")
+
+      view |> element("#sw_rooms_nav a[data-view=alle]") |> render_click()
+      assert_patched(view, ~p"/switches?raum=alle")
+      assert has_element?(view, "#room-#{living.id}")
+    end
+
+    test "„Alle Lampen aus“ stands under „Alle“ while a lamp is lit", %{
+      conn: conn,
+      living: living
+    } do
+      doc = page(conn)
+      assert text(doc, "#sw_view #sw_all_lamps_off") == "Alle Lampen aus"
+      assert count(doc, "#room-#{living.id}_lamps_off") == 1
+
+      assert count(page(conn, ~p"/switches?raum=#{living.id}"), "#sw_all_lamps_off") == 0
+
+      Repo.update_all(State, set: [on: false])
+      assert count(page(conn), "#sw_all_lamps_off") == 0
+    end
+
+    test "going back from a device's page lands on the chosen view", %{conn: conn, bath: bath} do
+      {:ok, view, _html} = live(conn, ~p"/switches?raum=#{bath.id}")
+
+      {:ok, device, _html} =
+        view
+        |> element("#sw_heater_h1 h3 a")
+        |> render_click()
+        |> follow_redirect(conn, ~p"/switches/heaters/h1?von=#{bath.id}")
+
+      {:ok, back, _html} =
+        device
+        |> element("header a[href='/switches?raum=#{bath.id}']")
+        |> render_click()
+        |> follow_redirect(conn, ~p"/switches?raum=#{bath.id}")
+
+      assert has_element?(back, "#sw_rooms_nav a[aria-current=true][data-view='#{bath.id}']")
+    end
+  end
+
+  describe "favourites" do
+    setup %{light: light} do
+      living = room!("Wohnzimmer")
+      bath = room!("Bad")
+      Repo.update_all(Light, set: [room_id: living.id])
+      heater!("h1", "Badheizung", bath)
+      {:ok, _placed} = Rooms.place_plug("fridge", living.id)
+      %{living: living, bath: bath, light: light}
+    end
+
+    defp star(view) do
+      view |> element("#favourite") |> render_click()
+      view
+    end
+
+    test "a device starred on its page stands under „Favoriten“ and stays in its room", %{
+      conn: conn,
+      living: living,
+      bath: bath
+    } do
+      conn = sign_in(conn, "anna")
+
+      for path <- [~p"/lights/ABCDEF01", ~p"/switches/heaters/h1", ~p"/switches/plugs/fridge"] do
+        {:ok, view, _html} = live(conn, path)
+        assert has_element?(star(view), "#favourite[aria-pressed=true]")
+      end
+
+      doc = page(conn, ~p"/switches?raum=favoriten")
+
+      assert texts(doc, "#sw_rooms_nav a") == ["Alle", "Favoriten", "Wohnzimmer", "Bad"]
+      assert hrefs(doc, "#sw_rooms_nav a[aria-current=true]") == ["/switches?raum=favoriten"]
+      assert ids(doc, "section.sw-room") == ["favourites"]
+      assert text(doc, "#favourites_heading") =~ "Favoriten"
+
+      assert ids(doc, "#favourites article") ==
+               ["light_card_ABCDEF01", "sw_card_fridge", "sw_heater_h1"]
+
+      assert count(doc, "#favourites_lamps_off") == 0
+      assert hrefs(doc, "#light_card_ABCDEF01 h3 a") == ["/lights/ABCDEF01?von=favoriten"]
+
+      assert ids(page(conn, ~p"/switches?raum=#{living.id}"), "article") ==
+               ["light_card_ABCDEF01", "sw_card_fridge"]
+
+      assert ids(page(conn, ~p"/switches?raum=#{bath.id}"), "article") == ["sw_heater_h1"]
+    end
+
+    test "the star takes a favourite away again", %{conn: conn} do
+      Residents.set_favourite("anna", {:lamp, "ABCDEF01"}, true)
+      conn = sign_in(conn, "anna")
+
+      {:ok, view, _html} = live(conn, ~p"/lights/ABCDEF01")
+      assert has_element?(view, "#favourite[aria-pressed=true]")
+      assert has_element?(star(view), "#favourite[aria-pressed=false]")
+
+      assert texts(page(conn), "#sw_rooms_nav a") == ["Alle", "Wohnzimmer", "Bad"]
+    end
+
+    test "without favourites there is no chip, and „Favoriten“ shows every room", %{conn: conn} do
+      Residents.set_favourite("anna", {:lamp, "GONE"}, true)
+      doc = conn |> sign_in("anna") |> page(~p"/switches?raum=favoriten")
+
+      refute "Favoriten" in texts(doc, "#sw_rooms_nav a")
+      assert hrefs(doc, "#sw_rooms_nav a[aria-current=true]") == ["/switches?raum=alle"]
+    end
+
+    # Scenario: Two residents, one device
+    test "another resident's favourite is not among one's own", %{conn: conn} do
+      {:ok, view, _html} = conn |> sign_in("anna") |> live(~p"/lights/ABCDEF01")
+      star(view)
+
+      doc = build_conn() |> sign_in("ben") |> page(~p"/switches?raum=favoriten")
+
+      refute "Favoriten" in texts(doc, "#sw_rooms_nav a")
+      assert count(doc, "#favourites") == 0
+      assert Residents.favourites("ben") == MapSet.new()
+    end
+
+    test "the star is only for a signed-in resident", %{conn: conn} do
+      for path <- [~p"/lights/ABCDEF01", ~p"/switches/heaters/h1", ~p"/switches/plugs/fridge"] do
+        {:ok, view, _html} = live(conn, path)
+        refute has_element?(view, "#favourite")
+        render_hook(view, "toggle_favourite", %{})
+      end
+
+      assert Repo.aggregate(Residents.Favourite, :count) == 0
+    end
+  end
+
+  describe "the default view" do
+    setup do
+      office = room!("Büro")
+      Repo.update_all(Light, set: [room_id: office.id])
+      %{office: office}
+    end
+
+    test "„Als Standard“ makes Schalten open with the view next time", %{
+      conn: conn,
+      office: office
+    } do
+      conn = sign_in(conn, "anna")
+      {:ok, view, _html} = live(conn, ~p"/switches?raum=#{office.id}")
+
+      view |> element("#sw_set_default") |> render_click()
+      assert has_element?(view, "#sw_default", "Deine Standardansicht")
+      refute has_element?(view, "#sw_set_default")
+
+      doc = page(conn)
+      assert hrefs(doc, "#sw_rooms_nav a[aria-current=true]") == ["/switches?raum=#{office.id}"]
+      assert ids(doc, "section.sw-room") == ["room-#{office.id}"]
+
+      assert hrefs(page(conn, ~p"/switches?raum=alle"), "#sw_rooms_nav a[aria-current=true]") ==
+               ["/switches?raum=alle"]
+
+      doc = build_conn() |> sign_in("ben") |> page()
+      assert hrefs(doc, "#sw_rooms_nav a[aria-current=true]") == ["/switches?raum=alle"]
+    end
+
+    test "„Alle“ can be the default again, „Ohne Raum“ and the filter offer none", %{
+      conn: conn,
+      office: office
+    } do
+      Residents.set_default_view("anna", {:room, office.id})
+      conn = sign_in(conn, "anna")
+      {:ok, view, _html} = live(conn, ~p"/switches?raum=alle")
+
+      view |> element("#sw_set_default") |> render_click()
+      assert Residents.default_view("anna") == :all
+      assert has_element?(view, "#sw_default")
+
+      assert count(page(conn, ~p"/switches?raum=ohne"), "#sw_view") == 0
+      assert count(page(conn, ~p"/switches?nur=steckdosen"), "#sw_view") == 0
+
+      render_hook(view, "set_default", %{"view" => "ohne"})
+      render_hook(view, "set_default", %{"view" => "999999"})
+      assert Residents.default_view("anna") == :all
+    end
+
+    test "„Alle zeigen“ leads back to the default view", %{conn: conn, office: office} do
+      Residents.set_default_view("anna", {:room, office.id})
+      doc = conn |> sign_in("anna") |> page(~p"/switches?nur=lampen")
+
+      assert hrefs(doc, "#sw_filter a") == ["/switches"]
+    end
+
+    # Scenario: The default view no longer exists
+    test "a deleted room's default opens with „Alle“", %{conn: conn, office: office} do
+      Residents.set_default_view("anna", {:room, office.id})
+      {:ok, _deleted} = Rooms.delete(office)
+
+      doc = conn |> sign_in("anna") |> page()
+
+      assert hrefs(doc, "#sw_rooms_nav a[aria-current=true]") == ["/switches?raum=alle"]
+    end
+
+    # Scenario: The last favourite is removed
+    test "without its last favourite „Favoriten“ is gone and Schalten opens with „Alle“", %{
+      conn: conn
+    } do
+      Residents.set_default_view("anna", :favourites)
+      Residents.set_favourite("anna", {:lamp, "ABCDEF01"}, true)
+      conn = sign_in(conn, "anna")
+
+      doc = page(conn)
+      assert hrefs(doc, "#sw_rooms_nav a[aria-current=true]") == ["/switches?raum=favoriten"]
+      assert count(doc, "#sw_default") == 1
+
+      {:ok, lamp, _html} = live(conn, ~p"/lights/ABCDEF01")
+      lamp |> element("#favourite") |> render_click()
+
+      doc = page(conn)
+      refute "Favoriten" in texts(doc, "#sw_rooms_nav a")
+      assert hrefs(doc, "#sw_rooms_nav a[aria-current=true]") == ["/switches?raum=alle"]
+      assert count(doc, "#sw_set_default") == 1
+    end
+
+    # Scenario: An identity that does not come from the gate
+    test "a name from anywhere but the trusted proxy gets the shared view", %{
+      conn: conn,
+      office: office
+    } do
+      Residents.set_default_view("anna", {:room, office.id})
+      Residents.set_favourite("anna", {:lamp, "ABCDEF01"}, true)
+      conn = %{sign_in(conn, "anna") | remote_ip: {192, 168, 1, 23}}
+
+      doc = page(conn)
+      assert hrefs(doc, "#sw_rooms_nav a[aria-current=true]") == ["/switches?raum=alle"]
+      refute "Favoriten" in texts(doc, "#sw_rooms_nav a")
+      assert count(doc, "#sw_set_default, #sw_default, [data-resident]") == 0
+
+      {:ok, lamp, _html} = live(conn, ~p"/lights/ABCDEF01")
+      refute has_element?(lamp, "#favourite")
+    end
+
+    test "without the header Schalten opens with „Alle“ and switches", %{conn: conn} do
+      start_supervised!({FakeGoveeBridge, test: self()})
+      {:ok, view, _html} = live(conn, ~p"/switches")
+
+      assert has_element?(view, "#sw_rooms_nav a[aria-current=true][data-view=alle]")
+      refute has_element?(view, "#sw_set_default")
+      refute has_element?(view, "#sw_default")
+
+      view |> element("#light_card_ABCDEF01 button.sw-knob") |> render_click()
+      render_async(view)
+      assert_received {:govee, "ABCDEF01", {:power, false}}
     end
   end
 

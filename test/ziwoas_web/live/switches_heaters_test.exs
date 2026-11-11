@@ -68,7 +68,7 @@ defmodule ZiwoasWeb.SwitchesHeatersTest do
 
     assert has_element?(
              view,
-             "#sw_heater_119600123456 h3 a[href='/switches/heaters/119600123456']"
+             "#sw_heater_119600123456 h3 a[href='/switches/heaters/119600123456?von=alle']"
            )
 
     assert text(view, "#sw_heater_119600123456 [data-temperature]") == "20,5 °C"

@@ -66,6 +66,29 @@ switched off on the lamp's behalf (ADR-0010).
 _German UI_: Stromlos
 _Avoid_: Offline (that is a plug's state), Aus (the lamp may be set on), Unreachable
 
+### Residents
+
+**Resident**:
+A person who lives in the apartment and is signed in through the gate. ZiWoAS knows them only
+by the login name in `X-Remote-User` from the trusted proxy (ADR-0016); reached directly on the
+home network, no one is signed in and Schalten shows the shared view.
+_German UI_: Bewohner
+_Avoid_: Nutzer, User, Benutzer, Konto
+
+**Favourite**:
+A lamp, heater or switchable plug a **resident** starred on the device's page. Favourites form
+their own view on Schalten, in the order of „Alle“; a favourite stays in its room as well.
+Each resident has their own.
+_German UI_: Favorit, „Favoriten“ (the view)
+_Avoid_: Lesezeichen, Bookmark, Merkliste
+
+**Default view**:
+The view Schalten opens with for a **resident** when the address names none: „Alle“,
+„Favoriten“ or a room. A default that can no longer be shown — its room deleted, no favourites
+left — reads as „Alle“.
+_German UI_: Standardansicht; the action is „Als Standard“
+_Avoid_: Startseite, Startansicht, Voreinstellung
+
 ### Measuring
 
 **Measurement**:

@@ -22,7 +22,7 @@ defmodule ZiwoasWeb.SolakonHistoryLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} current_path={@current_path} width={:default}>
+    <Layouts.app flash={@flash} current_path={@current_path} resident={@resident} width={:default}>
       <.header back={~p"/solakon"} back_label="PV">PV-Verlauf</.header>
       <.live_component
         module={SolakonHistoryComponent}

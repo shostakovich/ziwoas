@@ -7,8 +7,8 @@ defmodule ZiwoasWeb.DeviceLive do
 
   import ZiwoasWeb.SwitchesComponents
 
-  alias Ziwoas.{Clock, Config, Heating, Lights, Plugs, Rooms, Switching}
-  alias ZiwoasWeb.SwitchEvents
+  alias Ziwoas.{Clock, Config, Heating, Lights, Plugs, Residents, Rooms, Switching}
+  alias ZiwoasWeb.{SwitchesView, SwitchEvents}
 
   defmodule NotFound do
     defexception message: "Gerät nicht gefunden", plug_status: 404
@@ -25,7 +25,9 @@ defmodule ZiwoasWeb.DeviceLive do
     {:ok,
      socket
      |> assign(editor: nil, pending: MapSet.new(), readings: Heating.readings())
+     |> assign(back: SwitchesView.back_path(params["von"]))
      |> assign_device(socket.assigns.live_action, params)
+     |> assign_favourite()
      |> load()}
   end
 
@@ -71,6 +73,12 @@ defmodule ZiwoasWeb.DeviceLive do
     if own(socket, params) == :ok,
       do: {:noreply, SwitchEvents.step_heat_c(socket, key, step)},
       else: {:noreply, socket}
+  end
+
+  def handle_event("toggle_favourite", _params, %{assigns: %{resident: resident}} = socket)
+      when is_binary(resident) do
+    :ok = Residents.set_favourite(resident, socket.assigns.owner, not socket.assigns.favourite)
+    {:noreply, assign_favourite(socket)}
   end
 
   def handle_event("place", %{"place" => %{"room_id" => room_id}}, socket) do
@@ -159,6 +167,14 @@ defmodule ZiwoasWeb.DeviceLive do
       {socket, {:error, message}} -> {:noreply, socket |> put_flash(:error, message) |> load()}
     end
   end
+
+  defp assign_favourite(socket),
+    do:
+      assign(
+        socket,
+        :favourite,
+        Residents.favourite?(socket.assigns.resident, socket.assigns.owner)
+      )
 
   defp place(%{owner: {:plug, id}}, room_id), do: Rooms.place_plug(id, room_id)
 
@@ -261,12 +277,15 @@ defmodule ZiwoasWeb.DeviceLive do
   @impl true
   def render(%{owner: {:plug, _id}} = assigns) do
     ~H"""
-    <Layouts.app flash={@flash} current_path={@current_path} width={:narrow}>
-      <.header back={~p"/switches"} back_label="Schalten">
+    <Layouts.app flash={@flash} current_path={@current_path} resident={@resident} width={:narrow}>
+      <.header back={@back} back_label="Schalten">
         {@plug.name}
         <:badge :if={@offline}>
           <.badge tone={:warning}>Offline</.badge>
         </:badge>
+        <:actions :if={@resident}>
+          <.favourite_button on={@favourite} />
+        </:actions>
       </.header>
 
       <div class="flex flex-col gap-8" id="device" phx-hook="FocusReturn">
@@ -310,12 +329,15 @@ defmodule ZiwoasWeb.DeviceLive do
 
   def render(%{owner: {:heater, _key}} = assigns) do
     ~H"""
-    <Layouts.app flash={@flash} current_path={@current_path} width={:narrow}>
-      <.header back={~p"/switches"} back_label="Schalten">
+    <Layouts.app flash={@flash} current_path={@current_path} resident={@resident} width={:narrow}>
+      <.header back={@back} back_label="Schalten">
         {@heater_row.heater.name}
         <:badge :if={@heater_offline}>
           <.badge tone={:warning}>Offline</.badge>
         </:badge>
+        <:actions :if={@resident}>
+          <.favourite_button on={@favourite} />
+        </:actions>
       </.header>
 
       <div class="flex flex-col gap-8" id="device" phx-hook="FocusReturn">
@@ -391,7 +413,7 @@ defmodule ZiwoasWeb.DeviceLive do
       nil ->
         socket
         |> put_flash(:error, "Diese Heizung gibt es nicht mehr.")
-        |> push_navigate(to: ~p"/switches")
+        |> push_navigate(to: socket.assigns.back)
 
       row ->
         socket

@@ -25,3 +25,6 @@ config :ziwoas, http_stubs: true, brightsky_retry_base_ms: 0
 config :ziwoas, clock: Ziwoas.TestClock
 
 config :ziwoas, govee_command_timeout_ms: 200
+
+# Phoenix.ConnTest requests come from 127.0.0.1.
+config :ziwoas, trusted_proxies: ["127.0.0.1"]

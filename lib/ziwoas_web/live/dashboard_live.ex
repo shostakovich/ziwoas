@@ -102,7 +102,7 @@ defmodule ZiwoasWeb.DashboardLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} current_path={@current_path} width={:default}>
+    <Layouts.app flash={@flash} current_path={@current_path} resident={@resident} width={:default}>
       <.live_header stale={@stale} live_at={@live_at} zone={@zone}>Home</.live_header>
 
       <div class="flex flex-col gap-8">

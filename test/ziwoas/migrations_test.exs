@@ -5,7 +5,7 @@ defmodule Ziwoas.MigrationsTest do
 
   @moduletag :tmp_dir
 
-  @tables 22
+  @tables 24
   @versions [
     20_260_916_090_000,
     20_261_006_120_000,
@@ -15,7 +15,8 @@ defmodule Ziwoas.MigrationsTest do
     20_261_101_120_000,
     20_261_105_120_000,
     20_261_106_120_000,
-    20_261_107_120_000
+    20_261_107_120_000,
+    20_261_111_120_000
   ]
 
   defp open!(path) do

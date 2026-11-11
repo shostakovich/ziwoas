@@ -13,8 +13,12 @@ defmodule ZiwoasWeb.ConnCase do
       import Plug.Conn
       import Phoenix.ConnTest
       import Ziwoas.DataCase
+      import ZiwoasWeb.ConnCase, only: [sign_in: 2]
     end
   end
+
+  @doc "Signs the request in as the gate does: `X-Remote-User` from a trusted proxy."
+  def sign_in(conn, name), do: Plug.Conn.put_req_header(conn, "x-remote-user", name)
 
   setup tags do
     Ziwoas.DataCase.setup_sandbox(tags)

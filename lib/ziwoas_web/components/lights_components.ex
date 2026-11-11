@@ -3,7 +3,7 @@ defmodule ZiwoasWeb.LightsComponents do
   use ZiwoasWeb, :html
 
   import ZiwoasWeb.ErrorSummary, only: [error_summary: 1]
-  import ZiwoasWeb.SwitchesComponents, only: [knob: 1, tile_title: 1]
+  import ZiwoasWeb.SwitchesComponents, only: [from: 1, knob: 1, tile_title: 1]
 
   alias Ziwoas.Lights
   alias Ziwoas.Lights.Snapshot
@@ -90,6 +90,7 @@ defmodule ZiwoasWeb.LightsComponents do
   attr :snapshot, Snapshot, required: true
   attr :now, DateTime, required: true, doc: "what a starting lamp counts its seconds against"
   attr :pending, :boolean, default: false, doc: "a command for the lamp is running"
+  attr :from, :string, default: nil, doc: "the Schalten view its page leads back to"
 
   @doc "A lamp on Schalten: the knob switches it, the name opens its page."
   def lamp_tile(assigns) do
@@ -131,7 +132,7 @@ defmodule ZiwoasWeb.LightsComponents do
           ></span>{number(@brightness, unit: "%")}
         </.badge>
       </div>
-      <.tile_title navigate={~p"/lights/#{@light.key}"}>{@light.name}</.tile_title>
+      <.tile_title navigate={~p"/lights/#{@light.key}?#{from(@from)}"}>{@light.name}</.tile_title>
       <p
         :for={{line, index} <- Enum.with_index(@summary)}
         class="sw-tile-status flex items-center gap-1.5"

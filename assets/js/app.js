@@ -9,7 +9,6 @@ import FocusReturn from "./hooks/focus_return.js"
 import HistoryChart from "./hooks/history_chart.js"
 import LightDetail from "./hooks/light_detail.js"
 import RoomAirChart from "./hooks/room_air_chart.js"
-import RoomNav from "./hooks/room_nav.js"
 import SensorsChart from "./hooks/sensors_chart.js"
 import SolakonHistory from "./hooks/solakon_history.js"
 import TodayChart from "./hooks/today_chart.js"
@@ -23,7 +22,6 @@ const appHooks = {
   HistoryChart,
   LightDetail,
   RoomAirChart,
-  RoomNav,
   SensorsChart,
   SolakonHistory,
   TodayChart,

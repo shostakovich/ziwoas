@@ -111,7 +111,7 @@ defmodule ZiwoasWeb.EconomicsLive do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash} current_path={@current_path}>
+    <Layouts.app flash={@flash} current_path={@current_path} resident={@resident}>
       <.header back={~p"/solakon"} back_label="PV">
         Wirtschaftlichkeit
         <:subtitle :if={since(@overview)}>{since(@overview)}</:subtitle>

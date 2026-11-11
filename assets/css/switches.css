@@ -254,9 +254,20 @@
   background-color: var(--color-selected-content);
 }
 
+/* What the chosen view offers: „Alle Lampen aus“ under „Alle“. */
+.sw-view {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding-top: 0.75rem;
+  font-size: 0.875rem;
+  color: color-mix(in oklab, var(--color-base-content) 70%, transparent);
+}
+
 .sw-room {
   padding-top: 1.25rem;
-  scroll-margin-top: 4rem;
 }
 .sw-room-head {
   display: flex;
@@ -379,4 +390,9 @@
   z-index: 1;
   padding-top: 0.5rem;
   border-top: 1px solid color-mix(in oklab, var(--color-base-content) 10%, transparent);
+}
+
+/* A starred device's star is filled. */
+.sw-favourite[aria-pressed="true"] svg {
+  fill: currentColor;
 }
