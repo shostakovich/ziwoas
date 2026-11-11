@@ -209,6 +209,30 @@ defmodule ZiwoasWeb.DeviceLiveTest do
     end
   end
 
+  describe "the way back" do
+    test "leads to the Schalten view the page was opened from", %{conn: conn} do
+      doc =
+        conn
+        |> get(~p"/switches/plugs/fridge?von=ohne")
+        |> html_response(200)
+        |> LazyHTML.from_document()
+
+      assert count(doc, "main header a[href='/switches?raum=ohne']") == 1
+    end
+
+    test "without a view, or with an unknown one, leads to Schalten", %{conn: conn} do
+      assert count(page(conn), "main header a[href='/switches']") == 1
+
+      doc =
+        conn
+        |> get(~p"/switches/plugs/fridge?von=quatsch")
+        |> html_response(200)
+        |> LazyHTML.from_document()
+
+      assert count(doc, "main header a[href='/switches']") == 1
+    end
+  end
+
   describe "an unknown device" do
     test "is a 404 for a plug that is unknown or does not switch, and a heater unknown", %{
       conn: conn

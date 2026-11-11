@@ -43,6 +43,7 @@ defmodule ZiwoasWeb.SwitchesComponents do
   attr :row, Row, required: true
   attr :zone, :string, required: true
   attr :pending, :boolean, default: false, doc: "a switch command is running"
+  attr :from, :string, default: nil, doc: "the Schalten view its page leads back to"
 
   @doc "A plug on Schalten: the knob switches it, the name opens its page."
   def plug_tile(assigns) do
@@ -82,7 +83,9 @@ defmodule ZiwoasWeb.SwitchesComponents do
           {number(@row.watt || 0, unit: "W")}
         </.badge>
       </div>
-      <.tile_title navigate={~p"/switches/plugs/#{@plug.id}"}>{@plug.name}</.tile_title>
+      <.tile_title navigate={~p"/switches/plugs/#{@plug.id}?#{from(@from)}"}>
+        {@plug.name}
+      </.tile_title>
       <p class="sw-tile-status" data-status>{@status}</p>
     </article>
     """
@@ -92,6 +95,7 @@ defmodule ZiwoasWeb.SwitchesComponents do
   attr :zone, :string, required: true
   attr :pending, :boolean, default: false, doc: "a press is running"
   attr :heat_pending, :boolean, default: false, doc: "a new Heiztemperatur is being set"
+  attr :from, :string, default: nil, doc: "the Schalten view its page leads back to"
 
   @doc "A heater on Schalten, two tiles wide: knob, name, status and the Heiztemperatur."
   def heater_tile(assigns) do
@@ -126,7 +130,9 @@ defmodule ZiwoasWeb.SwitchesComponents do
           pending={@pending}
         />
         <div class="min-w-0 flex-1">
-          <.tile_title navigate={~p"/switches/heaters/#{@key}"}>{@heater.name}</.tile_title>
+          <.tile_title navigate={~p"/switches/heaters/#{@key}?#{from(@from)}"}>
+            {@heater.name}
+          </.tile_title>
           <p class="sw-tile-status" data-status>{@status}</p>
         </div>
         <div class="flex shrink-0 flex-col items-end gap-1">
@@ -227,6 +233,11 @@ defmodule ZiwoasWeb.SwitchesComponents do
     />
     """
   end
+
+  @doc "The query that carries the Schalten view to a device's page."
+  @spec from(String.t() | nil) :: keyword
+  def from(nil), do: []
+  def from(view), do: [von: view]
 
   attr :navigate, :string, required: true
   slot :inner_block, required: true

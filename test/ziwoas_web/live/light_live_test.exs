@@ -31,6 +31,9 @@ defmodule ZiwoasWeb.LightLiveTest do
 
     assert count(doc, "#light_detail header a[href='/switches']") == 1
 
+    back = conn |> get(~p"/lights/ABCDEF01?von=7") |> html_response(200)
+    assert back =~ ~s(href="/switches?raum=7")
+
     assert doc |> LazyHTML.query("#app-shell-nav a[aria-current=page]") |> LazyHTML.text() =~
              "Schalten"
 

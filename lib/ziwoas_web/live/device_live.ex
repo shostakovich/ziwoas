@@ -8,7 +8,7 @@ defmodule ZiwoasWeb.DeviceLive do
   import ZiwoasWeb.SwitchesComponents
 
   alias Ziwoas.{Clock, Config, Heating, Lights, Plugs, Rooms, Switching}
-  alias ZiwoasWeb.SwitchEvents
+  alias ZiwoasWeb.{SwitchesView, SwitchEvents}
 
   defmodule NotFound do
     defexception message: "Gerät nicht gefunden", plug_status: 404
@@ -25,6 +25,7 @@ defmodule ZiwoasWeb.DeviceLive do
     {:ok,
      socket
      |> assign(editor: nil, pending: MapSet.new(), readings: Heating.readings())
+     |> assign(back: SwitchesView.back_path(params["von"]))
      |> assign_device(socket.assigns.live_action, params)
      |> load()}
   end
@@ -262,7 +263,7 @@ defmodule ZiwoasWeb.DeviceLive do
   def render(%{owner: {:plug, _id}} = assigns) do
     ~H"""
     <Layouts.app flash={@flash} current_path={@current_path} resident={@resident} width={:narrow}>
-      <.header back={~p"/switches"} back_label="Schalten">
+      <.header back={@back} back_label="Schalten">
         {@plug.name}
         <:badge :if={@offline}>
           <.badge tone={:warning}>Offline</.badge>
@@ -311,7 +312,7 @@ defmodule ZiwoasWeb.DeviceLive do
   def render(%{owner: {:heater, _key}} = assigns) do
     ~H"""
     <Layouts.app flash={@flash} current_path={@current_path} resident={@resident} width={:narrow}>
-      <.header back={~p"/switches"} back_label="Schalten">
+      <.header back={@back} back_label="Schalten">
         {@heater_row.heater.name}
         <:badge :if={@heater_offline}>
           <.badge tone={:warning}>Offline</.badge>
@@ -391,7 +392,7 @@ defmodule ZiwoasWeb.DeviceLive do
       nil ->
         socket
         |> put_flash(:error, "Diese Heizung gibt es nicht mehr.")
-        |> push_navigate(to: ~p"/switches")
+        |> push_navigate(to: socket.assigns.back)
 
       row ->
         socket

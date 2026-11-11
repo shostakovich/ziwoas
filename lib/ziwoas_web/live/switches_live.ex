@@ -1,8 +1,9 @@
 defmodule ZiwoasWeb.SwitchesLive do
   @moduledoc """
   Schalten: every lamp, heater and switchable plug, grouped by room (ADR-0014). On top a
-  summary per kind that filters the page to it, then a bar of room chips that jumps to a room.
-  A tile switches its device; its name opens the device's page with the schedule.
+  summary per kind that filters the page to it, then a bar of chips that picks the view: every
+  room, one room or the devices without one (ADR-0017). A tile switches its device; its name
+  opens the device's page with the schedule.
   """
   use ZiwoasWeb, :live_view
 
@@ -10,7 +11,7 @@ defmodule ZiwoasWeb.SwitchesLive do
   import ZiwoasWeb.SwitchesComponents
 
   alias Ziwoas.{Clock, Config, Heating, Lights, Plugs, Rooms, Sensors, Switching}
-  alias ZiwoasWeb.{LightEvents, RoomAirComponents, SwitchEvents}
+  alias ZiwoasWeb.{LightEvents, RoomAirComponents, SwitchesView, SwitchEvents}
 
   @filters %{"lampen" => :lamp, "heizungen" => :heater, "steckdosen" => :plug}
   @filter_params Map.new(@filters, fn {param, kind} -> {kind, param} end)
@@ -27,14 +28,23 @@ defmodule ZiwoasWeb.SwitchesLive do
 
     {:ok,
      socket
-     |> assign(page_title: "Schalten", tick: nil, pending: MapSet.new(), filter: nil)
+     |> assign(page_title: "Schalten", tick: nil, pending: MapSet.new())
+     |> assign(filter: nil, requested: nil)
      |> assign(readings: Heating.readings())
      |> load()}
   end
 
   @impl true
-  def handle_params(params, _uri, socket),
-    do: {:noreply, socket |> assign(filter: @filters[params["nur"]]) |> assign_sections()}
+  def handle_params(params, _uri, socket) do
+    {:noreply,
+     socket
+     |> assign(filter: @filters[params["nur"]], requested: requested_view(params["raum"]))
+     |> assign_sections()}
+  end
+
+  # Without a selection Schalten opens with every room; an unknown one shows every room too.
+  defp requested_view(param) when param in [nil, ""], do: :all
+  defp requested_view(param), do: SwitchesView.parse(param) || :all
 
   @impl true
   def handle_info({:live, _deltas}, socket), do: {:noreply, load(socket)}
@@ -203,78 +213,41 @@ defmodule ZiwoasWeb.SwitchesLive do
           </div>
         </div>
 
-        <nav
-          :if={@sections != []}
-          id="sw_rooms_nav"
-          aria-label="Räume"
-          class="sw-room-nav"
-          phx-hook="RoomNav"
-        >
-          <a
-            :for={section <- @sections}
-            href={"##{section.id}"}
+        <nav :if={@chips != []} id="sw_rooms_nav" aria-label="Ansicht" class="sw-room-nav">
+          <.link
+            :for={chip <- @chips}
+            patch={SwitchesView.path(chip.view)}
             class="sw-room-chip"
-            data-room={section.id}
+            data-view={SwitchesView.to_param(chip.view)}
+            aria-current={chip.view == @view && "true"}
           >
             <span
-              class={["sw-room-dot", section.on_count > 0 && "sw-room-dot-on"]}
+              class={["sw-room-dot", chip.on_count > 0 && "sw-room-dot-on"]}
               aria-hidden="true"
-            ></span>{section.name}
-          </a>
+            ></span>{chip.name}
+          </.link>
         </nav>
 
-        <section
+        <div :if={@view == :all and @any_lamp_lit} id="sw_view" class="sw-view">
+          <.button
+            id="sw_all_lamps_off"
+            size={:sm}
+            icon="power"
+            phx-click="lamps_off"
+            phx-value-room="all"
+          >
+            Alle Lampen aus
+          </.button>
+        </div>
+
+        <.room_section
           :for={section <- @sections}
-          id={section.id}
-          class="sw-room"
-          aria-labelledby={"#{section.id}_heading"}
-        >
-          <div class="sw-room-head">
-            <div class="min-w-0">
-              <h2 id={"#{section.id}_heading"} class="sw-room-title">
-                {section.name}
-                <span class="font-normal text-base-content/70 tabular-nums" data-on-count>
-                  {if section.on_count > 0, do: "#{section.on_count} an", else: "alles aus"}
-                </span>
-              </h2>
-              <.room_air :if={section.air} air={section.air} />
-              <p :if={is_nil(section.room)} class="text-sm text-base-content/70">
-                Neu erkannte Geräte landen hier. Den Raum wählst du auf der Seite des Geräts.
-              </p>
-            </div>
-            <.button
-              :if={section.lamp_lit}
-              id={"#{section.id}_lamps_off"}
-              size={:sm}
-              icon="power"
-              phx-click="lamps_off"
-              phx-value-room={(section.room && section.room.id) || "none"}
-            >
-              Lampen aus
-            </.button>
-          </div>
-          <div class="sw-tiles">
-            <.heater_tile
-              :for={row <- section.heaters}
-              row={row}
-              zone={@zone}
-              pending={MapSet.member?(@pending, {:switch_heater, row.heater.key})}
-              heat_pending={MapSet.member?(@pending, {:heat_c, row.heater.key})}
-            />
-            <.lamp_tile
-              :for={snapshot <- section.lamps}
-              snapshot={snapshot}
-              now={@now}
-              pending={MapSet.member?(@pending, {:light_command, snapshot.light.key})}
-            />
-            <.plug_tile
-              :for={row <- section.plugs}
-              row={row}
-              zone={@zone}
-              pending={MapSet.member?(@pending, {:switch, row.plug.id})}
-            />
-          </div>
-        </section>
+          section={section}
+          from={@view && SwitchesView.to_param(@view)}
+          zone={@zone}
+          now={@now}
+          pending={@pending}
+        />
       </div>
     </Layouts.app>
     """
@@ -302,6 +275,95 @@ defmodule ZiwoasWeb.SwitchesLive do
         <span class="sw-summary-text" data-summary>{@text}</span>
       </span>
     </.link>
+    """
+  end
+
+  attr :section, :map, required: true
+  attr :from, :string, required: true, doc: "the view's parameter, for the way back"
+  attr :zone, :string, required: true
+  attr :now, DateTime, required: true
+  attr :pending, MapSet, required: true
+
+  defp room_section(assigns) do
+    ~H"""
+    <section id={@section.id} class="sw-room" aria-labelledby={"#{@section.id}_heading"}>
+      <div class="sw-room-head">
+        <div class="min-w-0">
+          <h2 id={"#{@section.id}_heading"} class="sw-room-title">
+            {@section.name}
+            <span class="font-normal text-base-content/70 tabular-nums" data-on-count>
+              {if @section.on_count > 0, do: "#{@section.on_count} an", else: "alles aus"}
+            </span>
+          </h2>
+          <.room_air :if={@section.air} air={@section.air} />
+          <p :if={@section.scope == "none"} class="text-sm text-base-content/70">
+            Neu erkannte Geräte landen hier. Den Raum wählst du auf der Seite des Geräts.
+          </p>
+        </div>
+        <.button
+          :if={@section.scope && @section.lamp_lit}
+          id={"#{@section.id}_lamps_off"}
+          size={:sm}
+          icon="power"
+          phx-click="lamps_off"
+          phx-value-room={@section.scope}
+        >
+          Lampen aus
+        </.button>
+      </div>
+      <div class="sw-tiles">
+        <.device_tile
+          :for={{kind, item} <- @section.items}
+          kind={kind}
+          item={item}
+          from={@from}
+          zone={@zone}
+          now={@now}
+          pending={@pending}
+        />
+      </div>
+    </section>
+    """
+  end
+
+  attr :kind, :atom, required: true, values: [:heater, :lamp, :plug]
+  attr :item, :any, required: true
+  attr :from, :string, required: true
+  attr :zone, :string, required: true
+  attr :now, DateTime, required: true
+  attr :pending, MapSet, required: true
+
+  defp device_tile(%{kind: :heater} = assigns) do
+    ~H"""
+    <.heater_tile
+      row={@item}
+      zone={@zone}
+      from={@from}
+      pending={MapSet.member?(@pending, {:switch_heater, @item.heater.key})}
+      heat_pending={MapSet.member?(@pending, {:heat_c, @item.heater.key})}
+    />
+    """
+  end
+
+  defp device_tile(%{kind: :lamp} = assigns) do
+    ~H"""
+    <.lamp_tile
+      snapshot={@item}
+      now={@now}
+      from={@from}
+      pending={MapSet.member?(@pending, {:light_command, @item.light.key})}
+    />
+    """
+  end
+
+  defp device_tile(%{kind: :plug} = assigns) do
+    ~H"""
+    <.plug_tile
+      row={@item}
+      zone={@zone}
+      from={@from}
+      pending={MapSet.member?(@pending, {:switch, @item.plug.id})}
+    />
     """
   end
 
@@ -393,20 +455,14 @@ defmodule ZiwoasWeb.SwitchesLive do
         Enum.map(snapshots, &{:lamp, &1.light.room_id, &1}) ++
         Enum.map(rows, &{:plug, plug_rooms[&1.plug.id], &1})
 
-    by_room =
-      devices
-      |> Enum.filter(fn {kind, _room_id, _item} -> is_nil(filter) or kind == filter end)
-      |> Enum.group_by(&elem(&1, 1))
-
-    {placed, homeless} = Map.split(by_room, Enum.map(rooms, & &1.id))
-
-    sections =
-      Enum.map(rooms, &section(&1, Map.get(placed, &1.id, []), air)) ++
-        [section(nil, homeless |> Map.values() |> List.flatten(), air)]
+    sections = room_sections(devices, rooms, air)
+    view = if filter, do: nil, else: resolve(socket.assigns.requested, sections)
 
     assign(socket,
       nothing?: devices == [],
-      sections: Enum.reject(sections, &(&1.count == 0)),
+      chips: chips(sections),
+      view: view,
+      sections: shown(sections, view, filter),
       summaries: summaries,
       shown_filter: filter,
       filter_name: filter && @filter_names[filter],
@@ -414,26 +470,64 @@ defmodule ZiwoasWeb.SwitchesLive do
     )
   end
 
-  defp section(room, items, air) do
-    heaters = for {:heater, _room_id, row} <- items, do: row
-    lamps = for {:lamp, _room_id, snapshot} <- items, do: snapshot
-    plugs = for {:plug, _room_id, row} <- items, do: row
+  defp room_sections(devices, rooms, air) do
+    {placed, homeless} =
+      devices
+      |> Enum.group_by(&elem(&1, 1), fn {kind, _room_id, item} -> {kind, item} end)
+      |> Map.split(Enum.map(rooms, & &1.id))
 
+    sections =
+      Enum.map(rooms, &section(&1, Map.get(placed, &1.id, []), air)) ++
+        [section(nil, homeless |> Map.values() |> List.flatten(), air)]
+
+    Enum.reject(sections, &(&1.items == []))
+  end
+
+  # A view that names a room without devices, or no devices without a room, shows every room.
+  defp resolve(:all, _sections), do: :all
+
+  defp resolve(view, sections),
+    do: if(Enum.any?(sections, &(&1.view == view)), do: view, else: :all)
+
+  defp shown(sections, nil, filter) do
+    sections
+    |> Enum.map(&section_of(&1, Enum.filter(&1.items, fn {kind, _item} -> kind == filter end)))
+    |> Enum.reject(&(&1.items == []))
+  end
+
+  defp shown(sections, :all, _filter), do: sections
+  defp shown(sections, view, _filter), do: Enum.filter(sections, &(&1.view == view))
+
+  defp chips([]), do: []
+
+  defp chips(sections) do
+    all = %{view: :all, name: "Alle", on_count: Enum.sum_by(sections, & &1.on_count)}
+    [all | Enum.map(sections, &Map.take(&1, [:view, :name, :on_count]))]
+  end
+
+  defp section(room, items, air) do
     %{
       id: if(room, do: "room-#{room.id}", else: "room-none"),
-      room: room,
+      view: if(room, do: {:room, room.id}, else: :none),
+      scope: if(room, do: to_string(room.id), else: "none"),
       name: if(room, do: room.name, else: "Ohne Raum"),
-      air: room && air[room.id],
-      heaters: heaters,
-      lamps: lamps,
-      plugs: plugs,
-      count: length(items),
-      lamp_lit: Enum.any?(lamps, &Lights.lit?/1),
-      on_count:
-        Enum.count(heaters, &Heating.Row.heating?/1) + Enum.count(lamps, &Lights.lit?/1) +
-          Enum.count(plugs, &Switching.Row.lit?/1)
+      air: room && air[room.id]
     }
+    |> section_of(items)
   end
+
+  # `items` keep the order of `devices`: heaters first, then lamps, then plugs.
+  defp section_of(section, items) do
+    Map.merge(section, %{
+      items: items,
+      lamp_lit: Enum.any?(items, &(elem(&1, 0) == :lamp and on?(&1))),
+      on_count: Enum.count(items, &on?/1)
+    })
+  end
+
+  defp on?({:heater, row}), do: Heating.Row.heating?(row)
+  defp on?({:lamp, snapshot}), do: Lights.lit?(snapshot)
+  defp on?({:plug, row}), do: Switching.Row.lit?(row)
 
   defp summaries(heater_rows, snapshots, rows) do
     Enum.reject(

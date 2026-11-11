@@ -5,10 +5,10 @@ defmodule ZiwoasWeb.LightLive do
   import ZiwoasWeb.LightsComponents
 
   alias Ziwoas.{Lights, Plugs, Rooms}
-  alias ZiwoasWeb.LightEvents
+  alias ZiwoasWeb.{LightEvents, SwitchesView}
 
   @impl true
-  def mount(%{"key" => key}, _session, socket) do
+  def mount(%{"key" => key} = params, _session, socket) do
     light = Lights.get_by_key!(key)
     snapshot = Lights.snapshot(light)
 
@@ -25,6 +25,7 @@ defmodule ZiwoasWeb.LightLive do
      |> assign(values)
      |> assign(
        page_title: light.name,
+       back: SwitchesView.back_path(params["von"]),
        light: light,
        plugs: Lights.lamp_plugs(),
        rooms: Rooms.list(),
@@ -188,7 +189,7 @@ defmodule ZiwoasWeb.LightLive do
     ~H"""
     <Layouts.app flash={@flash} current_path={@current_path} resident={@resident}>
       <div id="light_detail" data-key={@light.key}>
-        <.header back={~p"/switches"} back_label="Schalten">
+        <.header back={@back} back_label="Schalten">
           {@light.name}
           <:actions>
             <button
